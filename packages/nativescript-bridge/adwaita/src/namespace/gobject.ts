@@ -50,6 +50,8 @@ import { gdk } from './gdk.js';
 import { nativePlatformHost } from '../platform-host.js';
 import { registerTemplateClass, type TemplateClass } from '../builder/template-classes.js';
 import { applyConstructProps } from '../widgets/construct-props.js';
+import { emittedSignalsOf } from '../widgets/signals.js';
+import { watchMapping, WIDGET_SIGNALS } from '../widgets/widget-mapping.js';
 
 type Constructor = new (...args: never[]) => object;
 type Payload = { eventName: string; object: object; [key: string]: unknown };
@@ -69,7 +71,7 @@ function nearestRegistered(constructed: unknown): unknown {
 
 /** `emittedSignals` is what the builder checks before it connects a handler or a `bind`. */
 function declareEmitted(klass: ClassLike, info: RegisteredClass): void {
-    const inherited = (klass as unknown as { emittedSignals?: readonly string[] }).emittedSignals ?? [];
+    const inherited = emittedSignalsOf(klass);
     const own = [...info.properties.map((spec) => `notify::${spec.name}`), ...Object.keys(info.signals)];
     Object.defineProperty(klass, 'emittedSignals', {
         value: [...new Set([...inherited, ...own])],
@@ -137,8 +139,13 @@ const door: GObjectDoor = {
         const listener = (data: Payload): void => {
             handler(target, data);
         };
+        // A registered class's `connect` reaches `map` / `unmap` here, not through `withSignals`.
+        const unwatch = WIDGET_SIGNALS.includes(event) ? watchMapping(target) : undefined;
         (target as EventTarget_).addEventListener(event, listener);
-        return () => (target as EventTarget_).removeEventListener(event, listener);
+        return () => {
+            (target as EventTarget_).removeEventListener(event, listener);
+            unwatch?.();
+        };
     },
 
     createFromTree(tree, scope, host) {

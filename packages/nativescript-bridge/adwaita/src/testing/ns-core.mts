@@ -155,18 +155,53 @@ export interface TouchGestureEventData extends EventData {
 /** Parent links, written by {@link LayoutBase} and read back through {@link View.parent}. */
 const PARENTS = new WeakMap<object, View>();
 
+/** The views that are loaded — upstream's `_isLoaded`, kept off the instance for the reason {@link View.isLoaded} gives. */
+const LOADED = new WeakSet<object>();
+
+/** `ViewBase.loadView` / `unloadView`: a child follows its parent into and out of the tree. */
+function loadView(view: View): void {
+    if (view && !LOADED.has(view)) view.callLoaded();
+}
+
+function unloadView(view: View): void {
+    if (view && LOADED.has(view)) view.callUnloaded();
+}
+
+/**
+ * `ui/styling/style/index.ts`'s `Style` is an `Observable`, and a CSS property's setter notifies
+ * `<name>Change` on it (`CssProperty`, `ui/core/properties/index.ts`) — never on the view.
+ */
+export class Style extends Observable {
+    direction?: 'ltr' | 'rtl' | null = null;
+    readonly viewRef: WeakRef<View>;
+    #visibility = 'visible';
+
+    constructor(view: View) {
+        super();
+        this.viewRef = new WeakRef(view);
+    }
+
+    get visibility(): string {
+        return this.#visibility;
+    }
+
+    set visibility(value: string) {
+        const oldValue = this.#visibility;
+        if (value === oldValue) return;
+        this.#visibility = value;
+        this.notify({ eventName: 'visibilityChange', object: this, propertyName: 'visibility', value, oldValue });
+    }
+}
+
 export class View extends Observable {
     /**
      * `View` keeps its `Style` in `_style` and answers it from `style`: a subclass field of that
      * name replaces it, and every inherited-CSS pass then reads `viewRef` off the wrong object
      * (`Cannot read properties of undefined (reading 'get')`, measured on a device).
      */
-    _style: { direction?: 'ltr' | 'rtl' | null; viewRef: WeakRef<View> } = {
-        direction: null,
-        viewRef: new WeakRef(this),
-    };
+    _style: Style = new Style(this);
 
-    get style(): { direction?: 'ltr' | 'rtl' | null; viewRef: WeakRef<View> } {
+    get style(): Style {
         return this._style;
     }
 
@@ -221,8 +256,17 @@ export class View extends Observable {
     marginBottom = 0;
     marginLeft = 0;
     marginRight = 0;
-    /** `'visible' | 'hidden' | 'collapse'` — NativeScript's own default is `'visible'`. */
-    visibility = 'visible';
+    /**
+     * `'visible' | 'hidden' | 'collapse'` — NativeScript's own default is `'visible'`. A CSS
+     * property, so `View` reads and writes it on its {@link Style}, which notifies the change.
+     */
+    get visibility(): string {
+        return this._style.visibility;
+    }
+
+    set visibility(value: string) {
+        this._style.visibility = value;
+    }
     /** `isEnabledProperty` registers `defaultValue: true`. */
     isEnabled = true;
     /**
@@ -292,11 +336,48 @@ export class View extends Observable {
     isUserInteractionEnabled = true;
     translateX = 0;
     translateY = 0;
-    /** Never loaded here: nothing mounts a view into a page without a platform. */
-    readonly isLoaded: boolean = false;
-    /** Nothing loads a view here; a spec calls these to stand in for the platform's. */
-    onLoaded(): void {}
-    onUnloaded(): void {}
+    /**
+     * Loaded once something calls {@link onLoaded}: nothing mounts a view into a page without a
+     * platform, so a spec calls it to stand in for the platform's. Read from {@link LOADED} and
+     * not from this getter by the lifecycle, as upstream reads `_isLoaded`: a spec may pin the
+     * getter with `Object.defineProperty`.
+     */
+    get isLoaded(): boolean {
+        return LOADED.has(this);
+    }
+
+    /**
+     * `ViewBase.onLoaded` (`ui/core/view-base/index.ts`): loads the children BEFORE it emits
+     * `loaded` on itself, and a second call does nothing.
+     */
+    onLoaded(): void {
+        if (LOADED.has(this)) return;
+        LOADED.add(this);
+        this.eachChildView((child) => {
+            loadView(child);
+            return true;
+        });
+        this._emit('loaded');
+    }
+
+    /** `ViewBase.onUnloaded`: unloads the children before it emits `unloaded` on itself. */
+    onUnloaded(): void {
+        if (!LOADED.has(this)) return;
+        this.eachChildView((child) => {
+            unloadView(child);
+            return true;
+        });
+        LOADED.delete(this);
+        this._emit('unloaded');
+    }
+
+    callLoaded(): void {
+        this.onLoaded();
+    }
+
+    callUnloaded(): void {
+        this.onUnloaded();
+    }
     androidOverflowEdge = 'none';
     accessibilityRole: string | undefined;
     accessibilityState: string | undefined;
@@ -416,14 +497,17 @@ export class LayoutBase extends View {
         PARENTS.set(view, this);
     }
 
+    /** `_addViewCore` loads a child added to a loaded parent; `_removeView` unloads it first. */
     addChild(view: View): void {
         this.#adopt(view);
         this.#children.push(view);
+        if (LOADED.has(this)) loadView(view);
     }
 
     insertChild(view: View, atIndex: number): void {
         this.#adopt(view);
         this.#children.splice(atIndex, 0, view);
+        if (LOADED.has(this)) loadView(view);
     }
 
     /** `_removeView` refuses a view that is not this parent's; a silent no-op would hide it. */
@@ -431,12 +515,16 @@ export class LayoutBase extends View {
         if (PARENTS.get(view) !== this) {
             throw new Error(`View not added to this instance. View: ${view?.constructor.name}`);
         }
+        unloadView(view);
         this.#children.splice(this.#children.indexOf(view), 1);
         PARENTS.delete(view);
     }
 
     removeChildren(): void {
-        for (const view of this.#children) PARENTS.delete(view);
+        for (const view of this.#children) {
+            unloadView(view);
+            PARENTS.delete(view);
+        }
         this.#children.length = 0;
     }
 
@@ -673,7 +761,10 @@ export class ContentView extends LayoutBase {
     }
 
     set content(value: View | null) {
-        if (this.#content !== null) PARENTS.delete(this.#content);
+        if (this.#content !== null) {
+            unloadView(this.#content);
+            PARENTS.delete(this.#content);
+        }
         this.#content = null;
         if (value) {
             const parent = PARENTS.get(value);
@@ -684,6 +775,7 @@ export class ContentView extends LayoutBase {
             }
             PARENTS.set(value, this);
             this.#content = value;
+            if (LOADED.has(this)) loadView(value);
         }
     }
 

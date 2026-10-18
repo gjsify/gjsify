@@ -136,7 +136,7 @@ export const AdwConstructVectorsNsTest = async () => {
                 children: [{ tag: 'GtkButton', signals: [signal] }],
             });
             const scope = { onX: () => {} };
-            expect(() => build(on({ name: 'map', handler: 'onX' }), { scope })).toThrow("no signal 'map'");
+            expect(() => build(on({ name: 'toggled', handler: 'onX' }), { scope })).toThrow("no signal 'toggled'");
             expect(() => build(on({ name: 'clicked', handler: 'onX', flags: ['swapped'] }), { scope })).toThrow(
                 'plain handlers only',
             );

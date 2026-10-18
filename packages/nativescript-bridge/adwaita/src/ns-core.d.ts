@@ -248,8 +248,10 @@ declare module '@nativescript/core' {
         /** The view's resolved style. `direction` is an INHERITED CSS property
          *  (`ui/styling/style-properties`: `new InheritedCssProperty({ name:
          *  'direction', cssName: 'direction' })`, default null), which is the
-         *  text direction `start`/`end` are resolved against. */
-        readonly style: { direction?: 'ltr' | 'rtl' | null };
+         *  text direction `start`/`end` are resolved against. `Style` is an `Observable`
+         *  (`ui/styling/style/index.ts`): a CSS property such as `visibility` notifies
+         *  `<name>Change` on it, not on the view. */
+        readonly style: Observable & { direction?: 'ltr' | 'rtl' | null; visibility?: string };
         /** Accessibility state — NS's counterpart to `gtk_accessible_update_state`. */
         accessibilityState: string | undefined;
         /** The text a screen reader announces for this view — NS's counterpart
