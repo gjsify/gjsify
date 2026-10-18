@@ -69,6 +69,7 @@ import applicationTestSuite from './application.spec.js';
 import applicationOracleTestSuite from './application.gjs.spec.js';
 import windowMembersTestSuite from './window-members.spec.js';
 import windowOracleTestSuite from './window.gjs.spec.js';
+import widgetMapOracleTestSuite from './widget-map.gjs.spec.js';
 import acceleratorsTestSuite from './accelerators.spec.js';
 import glibTimersTestSuite from './glib-timers.spec.js';
 import glibTimersOracleTestSuite from './glib-timers.gjs.spec.js';
@@ -159,6 +160,7 @@ run({
     applicationOracleTestSuite,
     windowMembersTestSuite,
     windowOracleTestSuite,
+    widgetMapOracleTestSuite,
     acceleratorsTestSuite,
     glibTimersTestSuite,
     glibTimersOracleTestSuite,

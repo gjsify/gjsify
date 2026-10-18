@@ -790,6 +790,10 @@ export type {
 export { WINDOW_ROWS, WINDOW_VECTORS, driveWindowVectors } from './window-members.js';
 export type { WindowCapabilities, WindowRow, WindowSubject, WindowVector } from './window-members.js';
 
+// --- Gtk.Widget map / unmap and get_mapped, held on real GJS and on each port ---
+export { WIDGET_MAP_ROWS, WIDGET_MAP_VECTORS, driveWidgetMapVectors } from './widget-map.js';
+export type { WidgetMapRow, WidgetMapSubject, WidgetMapVector } from './widget-map.js';
+
 // --- Gio.Resource / Gio.resources_* over bytes glib-compile-resources wrote (ADR 0116 § 3) ---
 export {
     GIO_RESOURCE_ROWS,

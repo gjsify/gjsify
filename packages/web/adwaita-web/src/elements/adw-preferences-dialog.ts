@@ -147,8 +147,9 @@ export class AdwPreferencesDialog extends WidgetElement {
         this.setAttribute('content-width', String(value));
     }
 
-    /** Reveal the dialog (mirrors Adw.Dialog.present). */
-    present(): void {
+    /** Reveal the dialog (mirrors Adw.Dialog.present). Auto-attaches if disconnected. */
+    present(parent?: Element): void {
+        if (!this.isConnected) (parent ?? document.body).appendChild(this);
         this.open = true;
     }
 
