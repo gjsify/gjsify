@@ -292,9 +292,9 @@ export class GtkLabel extends WidgetElement {
 
     private _remeasure(): void {
         if (!this._wrapSpan || !this.isConnected) return;
-        this._wrapSpan.style.width = '';
+        this._wrapSpan.style.maxWidth = '';
         const width = measuredWrapWidth(this._wrapSpan);
-        this._wrapSpan.style.width = width !== null ? `${width}px` : '';
+        this._wrapSpan.style.maxWidth = width !== null ? `min(100%, ${width}px)` : '';
     }
 
     attributeChangedCallback(name: string, old: string | null, value: string | null) {
@@ -394,9 +394,15 @@ export class GtkLabel extends WidgetElement {
      * here, not the narrower width GTK's Pango layout actually wrapped to. So this measures
      * instead, in two passes: first let {@link _wrapSpan} wrap at the FULL container width
      * (`width: ''`, the same collapse above, which is exactly the width GTK's own
-     * allocation wraps against), then pin the span to its widest resulting line via
+     * allocation wraps against), then cap the span at its widest resulting line via
      * `Range.getClientRects()`, which gives the pseudo spacers real free space to split.
-     * Approximate on purpose, and cheap: one synchronous reflow per render. The pinned
+     * A CAP, `max-width`, and never `width`: a pinned `width` is also the span's
+     * min-content, so the label could no longer shrink below the width it first wrapped
+     * at, and a card holding it in a narrower pane grew past the pane and was clipped.
+     * GtkLabel's wrapping minimum is its widest word (`gtk_label_measure`), which a capped
+     * flex item keeps as its min-content; the cap itself only resolves against a definite
+     * container, so the label's max-content stays its text on one line, GTK's natural.
+     * Approximate on purpose, and cheap: one synchronous reflow per render. The measured
      * width goes stale whenever the available width or the font changes, and a page does
      * both (a rotated phone, an opened sidebar, a web font arriving late), so
      * {@link connectedCallback} re-measures on each resize and once the fonts have loaded.

@@ -104,8 +104,8 @@ gtk-label {
   // both cases need the same span and the same measurement pass.
   .adw-label-text {
     display: block;
-    // A pinned width, or a shrink-to-fit one, may never push the label wider than its
-    // container.
+    // A shrink-to-fit width may never push the label wider than its container.
+    // `gtk-label.ts`'s measured cap replaces this inline as `min(100%, <width>px)`.
     max-width: 100%;
   }
 
