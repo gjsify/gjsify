@@ -1,6 +1,6 @@
 # 118. A `GLib.Variant` subset runs on the browser and NativeScript, and `Gio.Settings` stores arrays with it
 
-- Status: **Proposed**
+- Status: **Accepted** (2026-10-18)
 - Date: 2026-10-18
 - Deciders: Pascal Garber
 - Depends on: [ADR 0096 (a GObject subset)](0096-a-gobject-subset-runs-on-the-browser-and-nativescript.md)
@@ -147,7 +147,7 @@ array emits `changed` is what the GJS oracle records.
 
 ## Implementation
 
-Tracked in `status/open-todos/adwaita-core.md` once accepted. One PR, a commit per step:
+Tracked in `status/open-todos/adwaita-core.md`. One PR, a commit per step:
 
 1. `VARIANT_VECTORS` against GJS first (the oracle), covering every row of § 2, including the
    coercion and refusal edges listed in the Context.
