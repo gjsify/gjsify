@@ -14,6 +14,7 @@ import { requireGi } from '../opt-in.js';
 /** Where `main-page.ts` finds the view to put into the page's layout (the screenshot). */
 export const inversionMount: { view: View | null } = { view: null };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
 const gcFn = (): void => {
     (globalThis as Any).gc?.();
@@ -216,7 +217,7 @@ export default async function inversionSpec(): Promise<void> {
 
         await it('lifetime: a dropped plain JS object is collected (probe control)', async () => {
             const gone = await collectedAfter((watch) => {
-                const plain = { payload: new Array(1000).fill(1) };
+                const plain = { payload: Array.from({ length: 1000 }, () => 1) };
                 watch(plain);
                 return {};
             });
@@ -329,7 +330,7 @@ export default async function inversionSpec(): Promise<void> {
         await it('lifetime: WeakRef semantics on this runtime (probe note)', async () => {
             let weak!: WeakRef<object>;
             (() => {
-                weak = new WeakRef({ payload: new Array(1000).fill(1) });
+                weak = new WeakRef({ payload: Array.from({ length: 1000 }, () => 1) });
             })();
             for (let round = 0; round < 4; round++) {
                 gcFn();
