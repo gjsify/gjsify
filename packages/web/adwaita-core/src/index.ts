@@ -52,6 +52,7 @@ export {
     licenseText,
     licenseTypeForSpdxId,
     parseCreditPerson,
+    refuseNewFromAppdata,
     setLicense,
     setLicenseType,
     translatorCreditsPeople,
@@ -70,6 +71,15 @@ export type {
     AdwLicenseTransition,
     AdwLicenseType,
 } from './about-dialog.js';
+export { RELEASE_NOTES_LABELS, releaseNotesBuffer } from './release-notes.js';
+export type {
+    ReleaseNotesBuffer,
+    ReleaseNotesError,
+    ReleaseNotesInput,
+    ReleaseNotesLabels,
+    ReleaseNotesSegment,
+    ReleaseNotesTag,
+} from './release-notes.js';
 
 // --- Avatar derivation (Adw.Avatar initials + colour) ---
 export {

@@ -34,16 +34,22 @@
 //   license            the license text/name (Legal page); with a `license-url`
 //                        the name becomes a link
 //   license-url        a URL the license name links to
+//   release-notes      AppStream release-notes markup — a What's New row + page,
+//                        the buffer from the core's `releaseNotesBuffer`
+//   release-notes-version  the version the What's New heading names, else `version`
+//   debug-info         an opaque blob — a Troubleshooting row + page with Copy Text
 //   open               (boolean) whether the dialog is presented
 //
 // List-valued credits are set via properties (string arrays), mirroring the
 // AdwAboutDialog `developers` / `designers` / `artists` / `documenters` properties
 // — entries may be `Name`, `Name <email>` or `Name https://url`, parsed by the
-// core's `parseCreditPerson` (`parse_person`).
+// core's `parseCreditPerson` (`parse_person`). `add_link (title, url)` appends a
+// Details-page link row, as on GTK.
 //
-// NOT implemented here, so the core derivations see them empty: `release-notes` +
-// the What's New page, `debug-info` + the Troubleshooting page, `add_link`,
-// `add_credit_section`, `translator-credits` and the Acknowledgements page.
+// NOT implemented here, so the core derivations see them empty: `add_credit_section`,
+// `translator-credits`, the Acknowledgements page, and the debug page's "Save As…"
+// button (`debug-info-filename`), which needs a file dialog. `new_from_appdata` is
+// refused by name: it needs an AppStream parser.
 //
 // Events (CustomEvent, bubbles): `notify::open` (detail `{ open }`), `closed`, and
 // `activate-link` (detail `{ uri }`, CANCELABLE — the signal's `true_handled`
@@ -63,12 +69,19 @@ import {
     ADW_ABOUT_DIALOG_LABELS,
     type AdwCreditPerson,
     GTK_LICENSE,
+    type ReleaseNotesSegment,
+    Toast,
     aboutDialogVisibility,
     creditsSections,
     legalSectionVisible,
+    refuseNewFromAppdata,
+    releaseNotesBuffer,
     stripMnemonic,
 } from '@gjsify/adwaita-core';
 
+import { webClipboardHost } from '../clipboard-host.js';
+import type { AdwToastOverlay } from './adw-toast-overlay.js';
+import './adw-toast-overlay.js';
 import { createGtkImage } from './gtk-image.js';
 import { AdwModalSurface } from './modal-surface.js';
 import { WidgetElement } from '../widget-element.js';
@@ -95,6 +108,15 @@ export class AdwAboutDialog extends WidgetElement {
     private _artists: string[] = [];
     private _documenters: string[] = [];
 
+    /** `add_link` rows, in order; `has_custom_links` latches with the first. */
+    private _links: { title: string; url: string }[] = [];
+    /**
+     * The What's New buffer. Only the two release-notes setters rebuild it, never
+     * `version` (`update_release_notes` is called from those two alone).
+     */
+    private _releaseNotesSegments: ReleaseNotesSegment[] = [];
+    private _toastOverlay!: AdwToastOverlay;
+
     static get observedAttributes() {
         return [
             'application-name',
@@ -108,8 +130,16 @@ export class AdwAboutDialog extends WidgetElement {
             'copyright',
             'license',
             'license-url',
+            'release-notes',
+            'release-notes-version',
+            'debug-info',
             'open',
         ];
+    }
+
+    /** `adw_about_dialog_new_from_appdata`, refused by name. */
+    static new_from_appdata(_resourcePath: string, _releaseNotesVersion?: string | null): never {
+        refuseNewFromAppdata();
     }
 
     get applicationName(): string {
@@ -200,6 +230,36 @@ export class AdwAboutDialog extends WidgetElement {
         this.setAttribute('license-url', value);
     }
 
+    get releaseNotes(): string {
+        return this.getAttribute('release-notes') ?? '';
+    }
+
+    set releaseNotes(value: string) {
+        this.setAttribute('release-notes', value);
+    }
+
+    get releaseNotesVersion(): string {
+        return this.getAttribute('release-notes-version') ?? '';
+    }
+
+    set releaseNotesVersion(value: string) {
+        this.setAttribute('release-notes-version', value);
+    }
+
+    get debugInfo(): string {
+        return this.getAttribute('debug-info') ?? '';
+    }
+
+    set debugInfo(value: string) {
+        this.setAttribute('debug-info', value);
+    }
+
+    /** `adw_about_dialog_add_link`: a Details-page link row; `_` marks a mnemonic. */
+    add_link(title: string, url: string): void {
+        this._links.push({ title, url });
+        if (this._initialized) this._render();
+    }
+
     get open(): boolean {
         return this.hasAttribute('open');
     }
@@ -270,6 +330,11 @@ export class AdwAboutDialog extends WidgetElement {
         // revealer shows it separately in GTK.
         this._sheetEl.setAttribute('aria-label', ADW_ABOUT_DIALOG_LABELS.dialogTitle);
 
+        // The template's `toast_overlay`, around the navigation view: "Copied to
+        // clipboard" is shown inside the sheet.
+        this._toastOverlay = document.createElement('adw-toast-overlay') as AdwToastOverlay;
+        this._sheetEl.appendChild(this._toastOverlay);
+
         this.replaceChildren(this._scrimEl, this._sheetEl);
 
         // The role, `aria-modal`, Escape, the Tab trap and the return-focus. No
@@ -287,8 +352,19 @@ export class AdwAboutDialog extends WidgetElement {
     }
 
     attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null) {
-        if (!this._initialized) return;
         if (oldValue === newValue) return;
+        // Before the guard: the heading reads `version` as it is when the NOTES change.
+        if (name === 'release-notes' || name === 'release-notes-version') {
+            this._releaseNotesSegments = releaseNotesBuffer(
+                {
+                    releaseNotes: this.releaseNotes,
+                    releaseNotesVersion: this.releaseNotesVersion,
+                    version: this.version,
+                },
+                ADW_ABOUT_DIALOG_LABELS,
+            ).segments;
+        }
+        if (!this._initialized) return;
         if (name === 'open') {
             this._syncOpen();
             this.dispatchEvent(new CustomEvent('notify::open', { bubbles: true, detail: { open: this.open } }));
@@ -345,20 +421,31 @@ export class AdwAboutDialog extends WidgetElement {
             website: this.website,
             supportUrl: this.supportUrl,
             issueUrl: this.issueUrl,
+            debugInfo: this.debugInfo,
+            releaseNotes: this.releaseNotes,
+            hasCustomLinks: this._links.length > 0,
             hasCredits: sections.length > 0,
             hasLegal: this._hasLegal(),
         });
 
+        this._navView?.remove();
         this._navView = document.createElement('adw-navigation-view');
         this._navView.append(this._buildMainPage(visibility));
 
-        // The Details page exists exactly when its row does — `details_row` is
+        // A subpage exists exactly when its row does — `details_row` is
         // `has_comments || show_links`, i.e. "the page has content".
+        if (visibility.whatsNewRow) this._navView.append(this._buildWhatsNewPage());
         if (visibility.detailsRow) this._navView.append(this._buildDetailsPage(visibility));
+        if (visibility.troubleshootingRow) {
+            this._navView.append(this._buildTroubleshootingPage(), this._buildDebugInfoPage());
+        }
         if (visibility.creditsRow) this._navView.append(this._buildCreditsPage(sections));
         if (visibility.legalRow) this._navView.append(this._buildLegalPage());
 
-        this._sheetEl.replaceChildren(this._navView);
+        // Straight into the overlay's content box: appended to the overlay itself, the view
+        // is re-homed a microtask later, and that move drops the focus `present` put in it.
+        const content = this._toastOverlay.querySelector(':scope > .adw-toast-overlay-content');
+        (content ?? this._toastOverlay).appendChild(this._navView);
 
         this.classList.toggle('open', this.open);
     }
@@ -472,6 +559,9 @@ export class AdwAboutDialog extends WidgetElement {
         // support_group, credits_legal_group) — groups, not one list, and the
         // stylesheet already spaces consecutive `.adw-about-dialog-rows` apart.
         const detailsGroupRows: HTMLElement[] = [];
+        if (visibility.whatsNewRow) {
+            detailsGroupRows.push(this._buildNavRow(rowLabel('whatsNewRow'), 'whatsnew'));
+        }
         if (visibility.detailsRow) {
             detailsGroupRows.push(this._buildNavRow(rowLabel('detailsRow'), 'details'));
         }
@@ -485,6 +575,9 @@ export class AdwAboutDialog extends WidgetElement {
         }
         if (visibility.issueRow) {
             supportGroupRows.push(this._buildLinkRow(rowLabel('issueRow'), this.issueUrl));
+        }
+        if (visibility.troubleshootingRow) {
+            supportGroupRows.push(this._buildNavRow(rowLabel('troubleshootingRow'), 'troubleshooting'));
         }
 
         const creditsLegalRows: HTMLElement[] = [];
@@ -560,10 +653,59 @@ export class AdwAboutDialog extends WidgetElement {
             if (visibility.detailsWebsiteRow) {
                 rows.push(this._buildLinkRow(rowLabel('websiteRow'), this.website));
             }
+            for (const link of this._links) rows.push(this._buildLinkRow(stripMnemonic(link.title), link.url));
             body.appendChild(this._buildGroup('links', rows));
         }
 
         return page;
+    }
+
+    /** The release-notes buffer as tagged runs, white space kept (a GtkTextView). */
+    private _buildWhatsNewPage(): HTMLElement {
+        const { page, body } = this._buildPage('whatsnew', ADW_ABOUT_DIALOG_LABELS.whatsNewPage, false);
+        const notes = document.createElement('div');
+        notes.className = 'adw-about-dialog-release-notes';
+        for (const segment of this._releaseNotesSegments) {
+            const span = document.createElement('span');
+            if (segment.tag !== null) span.dataset['tag'] = segment.tag;
+            span.textContent = segment.text;
+            notes.appendChild(span);
+        }
+        body.appendChild(notes);
+        return page;
+    }
+
+    private _buildTroubleshootingPage(): HTMLElement {
+        const { page, body } = this._buildPage('troubleshooting', ADW_ABOUT_DIALOG_LABELS.troubleshootingPage, false);
+        const intro = document.createElement('p');
+        intro.className = 'adw-about-dialog-comments';
+        intro.textContent = ADW_ABOUT_DIALOG_LABELS.troubleshootingIntro;
+        body.append(intro, this._buildGroup(null, [this._buildNavRow(rowLabel('debugInfoRow'), 'debuginfo')]));
+        return page;
+    }
+
+    /** The debug text and Copy Text — the `about.copy-property` action on `debug-info`. */
+    private _buildDebugInfoPage(): HTMLElement {
+        const { page, body } = this._buildPage('debuginfo', ADW_ABOUT_DIALOG_LABELS.debugInfoPage, false);
+        const text = document.createElement('pre');
+        text.className = 'adw-about-dialog-debug-info';
+        text.textContent = this.debugInfo;
+
+        const copy = document.createElement('button');
+        copy.type = 'button';
+        copy.className = 'adw-button pill adw-about-dialog-copy';
+        copy.textContent = rowLabel('copyText');
+        copy.addEventListener('click', () => this._copyProperty(this.debugInfo));
+
+        body.append(text, copy);
+        return page;
+    }
+
+    /** `copy_property_cb`: an empty value copies nothing and shows no toast. */
+    private _copyProperty(value: string): void {
+        if (value.length === 0) return;
+        void Promise.resolve(webClipboardHost.writeText(value)).catch(() => undefined);
+        this._toastOverlay.add_toast(new Toast({ title: ADW_ABOUT_DIALOG_LABELS.copiedToast }));
     }
 
     private _buildLinkRow(title: string, uri: string): HTMLElement {

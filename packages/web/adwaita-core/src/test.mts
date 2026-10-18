@@ -83,6 +83,8 @@ import glibUriOracleTestSuite from './glib-uri.gjs.spec.js';
 import gioAppInfoTestSuite from './gio-app-info.spec.js';
 import gioAppInfoOracleTestSuite from './gio-app-info.gjs.spec.js';
 import carouselDoorsOracleTestSuite from './carousel-doors.gjs.spec.js';
+import releaseNotesTestSuite from './release-notes.spec.js';
+import aboutDialogDoorsOracleTestSuite from './about-dialog-doors.gjs.spec.js';
 import styleManagerTestSuite from './style-manager.spec.js';
 import styleManagerOracleTestSuite from './style-manager.gjs.spec.js';
 import rowAccessorsOracleTestSuite from './row-accessors.gjs.spec.js';
@@ -179,6 +181,8 @@ run({
     gioAppInfoTestSuite,
     gioAppInfoOracleTestSuite,
     carouselDoorsOracleTestSuite,
+    releaseNotesTestSuite,
+    aboutDialogDoorsOracleTestSuite,
     styleManagerTestSuite,
     styleManagerOracleTestSuite,
     rowAccessorsOracleTestSuite,

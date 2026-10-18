@@ -19,6 +19,7 @@ import { GioResourceNsTest } from './gio-resource.spec.js';
 import { AdwBlueprintTreesNsTest } from './blueprint-trees.spec.js';
 import { AdwBlueprintMarkupNsTest } from './blueprint-markup.spec.js';
 import { AdwClampClasslessChildNsTest } from './clamp-child.spec.js';
+import { AdwAboutDialogDoorsNsTest } from './about-dialog-doors.spec.js';
 import { AdwCarouselDoorsNsTest } from './carousel-doors.spec.js';
 import { AdwConstructVectorsNsTest } from './construct-vectors.spec.js';
 import { AdwContainersNsTest } from './containers.spec.js';
@@ -57,6 +58,7 @@ run({
     AdwSharedTreesNsTest,
     AdwRegisterBarrelNsTest,
     AdwClampClasslessChildNsTest,
+    AdwAboutDialogDoorsNsTest,
     AdwCarouselDoorsNsTest,
     AdwConstructVectorsNsTest,
     AdwGObjectDoorNsTest,

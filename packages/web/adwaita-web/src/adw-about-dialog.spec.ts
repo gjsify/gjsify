@@ -7,21 +7,27 @@
 // and `website` is the one input the Details-visibility predicate leaves OUT.
 import { describe, expect, it } from '@gjsify/unit';
 
-import { ADW_ABOUT_DIALOG_LABELS, stripMnemonic } from '@gjsify/adwaita-core';
+import { ADW_ABOUT_DIALOG_LABELS, type ReleaseNotesSegment, type Toast, stripMnemonic } from '@gjsify/adwaita-core';
 import {
     ABOUT_DIALOG_CREDITS_LEGAL_VECTORS,
     ABOUT_DIALOG_DETAILS_VECTORS,
+    ABOUT_DIALOG_DOOR_VECTORS,
     ABOUT_DIALOG_HEADER_VECTORS,
     ABOUT_DIALOG_SUPPORT_VECTORS,
+    type AboutDialogDoorLike,
     CREDITS_SECTIONS_VECTORS,
     CREDIT_PERSON_VECTORS,
+    RELEASE_NOTES_VECTORS,
+    driveAboutDialogDoorVectors,
+    driveReleaseNotesVectors,
 } from '@gjsify/adwaita-core/conformance';
 
 /** The label a renderer without an accelerator layer paints for a row. */
 const label = (key: keyof typeof ADW_ABOUT_DIALOG_LABELS) => stripMnemonic(ADW_ABOUT_DIALOG_LABELS[key]);
 
 interface Mounted {
-    dialog: HTMLElement & { developers: string[]; designers: string[]; artists: string[]; documenters: string[] };
+    dialog: HTMLElement &
+        AboutDialogDoorLike & { developers: string[]; designers: string[]; artists: string[]; documenters: string[] };
     host: HTMLElement;
     /** Every `window.open` the dialog performed, most recent last. */
     opened: string[];
@@ -157,22 +163,23 @@ export const AdwAboutDialogTest = async () => {
     });
 
     await describe('adw-about-dialog main page (update_details vectors)', async () => {
-        // `add_link` has no counterpart on this element, so `has_custom_links`
-        // is always FALSE here; those rows are asserted by the core suite.
-        for (const vector of ABOUT_DIALOG_DETAILS_VECTORS.filter((row) => !row.customLinks && !row.releaseNotes)) {
-            const { website, comments, visible, rule } = vector;
-            await it(`website=${website} comments=${comments} — ${rule}`, () => {
+        for (const vector of ABOUT_DIALOG_DETAILS_VECTORS) {
+            const { website, comments, customLinks, releaseNotes, visible, rule } = vector;
+            await it(`website=${website} comments=${comments} links=${customLinks} notes=${releaseNotes} — ${rule}`, () => {
                 const mounted = mount({
                     'application-name': 'Builder',
                     ...(website ? { website: 'https://example.org' } : {}),
                     ...(comments ? { comments: 'A description.' } : {}),
+                    ...(releaseNotes ? { 'release-notes': '<p>Hi</p>' } : {}),
                 });
+                if (customLinks) mounted.dialog.add_link('_Docs', 'https://example.org/docs');
 
                 const main = page(mounted.dialog, 'main');
                 const details = page(mounted.dialog, 'details');
 
                 expect({
                     detailsGroup: group(mounted.dialog, 'details') !== null,
+                    whatsNewRow: hasRow(main, label('whatsNewRow')),
                     detailsRow: hasRow(main, label('detailsRow')),
                     websiteRow: hasRow(main, label('websiteRow')),
                     commentsLabel: details?.querySelector('.adw-about-dialog-comments') != null,
@@ -180,6 +187,7 @@ export const AdwAboutDialogTest = async () => {
                     detailsWebsiteRow: hasRow(details, label('websiteRow')),
                 }).toStrictEqual({
                     detailsGroup: visible.detailsGroup,
+                    whatsNewRow: visible.whatsNewRow,
                     detailsRow: visible.detailsRow,
                     websiteRow: visible.websiteRow,
                     commentsLabel: visible.commentsLabel,
@@ -203,15 +211,14 @@ export const AdwAboutDialogTest = async () => {
     });
 
     await describe('adw-about-dialog main page (update_support vectors)', async () => {
-        // debug-info has no counterpart here (no Troubleshooting page), so the core
-        // suite asserts those rows.
-        for (const vector of ABOUT_DIALOG_SUPPORT_VECTORS.filter((row) => !row.debugInfo)) {
-            const { supportUrl, issueUrl, visible, rule } = vector;
-            await it(`support=${supportUrl} issue=${issueUrl} — ${rule}`, () => {
+        for (const vector of ABOUT_DIALOG_SUPPORT_VECTORS) {
+            const { supportUrl, issueUrl, debugInfo, visible, rule } = vector;
+            await it(`support=${supportUrl} issue=${issueUrl} debug=${debugInfo} — ${rule}`, () => {
                 const mounted = mount({
                     'application-name': 'Builder',
                     ...(supportUrl ? { 'support-url': 'https://example.org/help' } : {}),
                     ...(issueUrl ? { 'issue-url': 'https://example.org/issues' } : {}),
+                    ...(debugInfo ? { 'debug-info': 'GTK 4.20' } : {}),
                 });
 
                 const main = page(mounted.dialog, 'main');
@@ -219,10 +226,12 @@ export const AdwAboutDialogTest = async () => {
                     supportGroup: group(mounted.dialog, 'support') !== null,
                     supportRow: hasRow(main, label('supportRow')),
                     issueRow: hasRow(main, label('issueRow')),
+                    troubleshootingRow: hasRow(main, label('troubleshootingRow')),
                 }).toStrictEqual({
                     supportGroup: visible.supportGroup,
                     supportRow: visible.supportRow,
                     issueRow: visible.issueRow,
+                    troubleshootingRow: visible.troubleshootingRow,
                 });
 
                 mounted.dispose();
@@ -336,6 +345,66 @@ export const AdwAboutDialogTest = async () => {
             const row = page(mounted.dialog, 'credits')!.querySelector('adw-action-row')!;
             row.dispatchEvent(new CustomEvent('activated', { bubbles: true }));
             expect(mounted.opened).toStrictEqual([]);
+            mounted.dispose();
+        });
+    });
+
+    // The notes, debug and link doors, on the vectors real `gi://Adw` passes.
+    const doorMounts: Mounted[] = [];
+    const doorSubject = {
+        name: 'adw-about-dialog',
+        isOracle: false,
+        labels: { ...ADW_ABOUT_DIALOG_LABELS, websiteRow: label('websiteRow') },
+        isGLibUntranslated: true,
+        makeDialog(): AboutDialogDoorLike {
+            const mounted = mount({ 'application-name': 'Builder' });
+            doorMounts.push(mounted);
+            return mounted.dialog;
+        },
+        whatsNew(dialog: AboutDialogDoorLike): ReleaseNotesSegment[] {
+            const notes =
+                page(dialog as Mounted['dialog'], 'whatsnew')?.querySelectorAll(
+                    '.adw-about-dialog-release-notes > span',
+                ) ?? [];
+            return [...notes].map((span) => ({
+                text: span.textContent ?? '',
+                tag: (span.dataset['tag'] ?? null) as ReleaseNotesSegment['tag'],
+            }));
+        },
+        isRowVisible(dialog: AboutDialogDoorLike, row: 'whatsNewRow' | 'detailsRow' | 'troubleshootingRow'): boolean {
+            return hasRow(page(dialog as Mounted['dialog'], 'main'), label(row));
+        },
+        debugInfoText(dialog: AboutDialogDoorLike): string {
+            return (dialog as Mounted['dialog']).querySelector('pre.adw-about-dialog-debug-info')?.textContent ?? '';
+        },
+        linkTitles(dialog: AboutDialogDoorLike): string[] {
+            return rowTitles(group(dialog as Mounted['dialog'], 'links'));
+        },
+        dispose() {
+            for (const mounted of doorMounts.splice(0)) mounted.dispose();
+        },
+    };
+    await driveReleaseNotesVectors(doorSubject, { describe, it, expect }, RELEASE_NOTES_VECTORS);
+    await driveAboutDialogDoorVectors(doorSubject, { describe, it, expect }, ABOUT_DIALOG_DOOR_VECTORS);
+
+    await describe('adw-about-dialog new_from_appdata and Copy Text', async () => {
+        await it('refuses new_from_appdata by name', () => {
+            const ctor = customElements.get('adw-about-dialog') as unknown as {
+                new_from_appdata(path: string): unknown;
+            };
+            expect(() => ctor.new_from_appdata('/org/example/App/metainfo.xml')).toThrow(
+                'Adw.AboutDialog.new_from_appdata',
+            );
+        });
+
+        await it('shows the Copied toast when Copy Text copies the debug info', () => {
+            const mounted = mount({ 'application-name': 'Builder', 'debug-info': 'GTK 4.20' });
+            const copy = page(mounted.dialog, 'debuginfo')!.querySelector('.adw-about-dialog-copy') as HTMLElement;
+            copy.click();
+            const overlay = mounted.dialog.querySelector('adw-toast-overlay') as unknown as {
+                currentToast: Toast | null;
+            };
+            expect(overlay.currentToast?.title).toBe(ADW_ABOUT_DIALOG_LABELS.copiedToast);
             mounted.dispose();
         });
     });

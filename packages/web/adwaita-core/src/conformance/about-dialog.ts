@@ -889,8 +889,8 @@ export interface AboutDialogLabelVector {
  * CORE-ONLY: GAP — the renderers read these strings THROUGH `ADW_ABOUT_DIALOG_LABELS`, so a
  * spec reading them back would be circular with respect to the `.ui` fidelity this table exists
  * to pin. ABOUT_DIALOG_HEADER/DETAILS_VECTORS are about icon and name visibility and row
- * presence, never the label text, and `whatsNewRow` — the U+2019 row above — is filtered out of
- * the browser spec. Tracked in #1072
+ * presence, never the label text: the browser spec FINDS rows by these strings, so it cannot
+ * also check them. Tracked in #1072
  */
 export const ABOUT_DIALOG_LABEL_VECTORS: ReadonlyArray<AboutDialogLabelVector> = [
     {
