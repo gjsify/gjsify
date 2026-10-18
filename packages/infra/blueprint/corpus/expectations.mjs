@@ -402,10 +402,10 @@ export const RULE_EXPECTATIONS = [
             {
                 kind: 'accessibility',
                 line: 6,
-                detail: 'the whole `accessibility { }` block — properties, relations, three states, a translatable property and a list-valued relation; note `label` collides by NAME with the `label` property of the widget itself, which is why the block cannot simply be folded into `props`, and that three XML element kinds would have to fold into one field even if it could',
+                detail: 'the whole `accessibility { }` block, because of its last line: `labelled-by: [labelA, labelB]` is a relation to a LIST of objects and `SharedNode.accessibility` holds scalars only. A block of scalars is carried (`57-extern-body-blocks`); this one keeps nothing rather than half, since a renderer handed the label without the relation that names the widget would announce it wrongly',
             },
         ],
-        note: 'The block is dropped whole, so the projection is the one exit this file cannot measure the ARIA table through — every value type in it, and the three `<state>` lines that turn `true`, `true` and `mixed` into `1`, `true` and `2`, are held by the golden alone.',
+        note: 'The block is dropped whole, so the projection is the one exit this file cannot measure the ARIA table through — every value type in it, and the three `<state>` lines that turn `true`, `true` and `mixed` into `1`, `true` and `2`, are held by the golden alone. `label` collides by NAME with the `label` property of the widget itself, which is why a carried block is its own field and never folded into `props`.',
     },
     {
         file: '21-value-array.blp',
@@ -1063,6 +1063,10 @@ export const RULE_EXPECTATIONS = [
                     props: { orientation: 'vertical' },
                     styleClasses: ['palette', 'dim-label'],
                     layout: { column: 1, row: 2 },
+                    accessibility: {
+                        label: { value: 'an extern widget with an ARIA block' },
+                        checked: { value: true },
+                    },
                     signals: [
                         { name: 'clicked', handler: 'onExternClicked' },
                         { name: 'notify', detail: 'active', handler: 'onExternNotify', flags: ['swapped'] },
@@ -1071,8 +1075,8 @@ export const RULE_EXPECTATIONS = [
                 { tag: 'GtkBox', id: 'genuine', props: { orientation: 'vertical' } },
             ],
         },
-        lost: [{ kind: 'accessibility', line: 7, detail: 'the whole ARIA block, as on any class' }],
-        note: 'What this exit shows and the golden does not: `styleClasses` and `props` survive on an extern object exactly as on a real one, and the two `orientation` lines are the SAME string here where the XML writes `vertical` against `1`. The losses are the ones their own rule files take (`11-signal`, `20-accessibility`; `19-layout` is carried since ADR 0092) with no extern-specific arm anywhere — which is the assertion, because a projection that special-cased an extern body would have had to invent one. The `extern` loss sits at the OBJECT and the other four at their blocks, so a reader can tell which is the tag and which is the content.',
+        lost: [],
+        note: 'What this exit shows and the golden does not: `styleClasses`, `props` and the scalar ARIA block survive on an extern object exactly as on a real one, and the two `orientation` lines are the SAME string here where the XML writes `vertical` against `1` — as `checked` stays `true` where the XML writes the state as `1`. Every block is carried by the rule its own file states (`19-layout`; `20-accessibility` stays lost only for its list-valued relation) with no extern-specific arm anywhere — which is the assertion, because a projection that special-cased an extern body would have had to invent one.',
     },
     {
         file: '58-extern-composition.blp',

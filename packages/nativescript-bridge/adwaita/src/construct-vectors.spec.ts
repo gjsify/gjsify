@@ -32,6 +32,11 @@ function observe(vector: ConstructVector): unknown {
                 return { row, column, columnSpan };
             });
         }
+        case 'accessibility': {
+            const root = build(vector.tree) as unknown as { getViewById(id: string): GtkButton };
+            const { accessibilityLabel, accessibilityHint } = root.getViewById('described');
+            return [{ label: accessibilityLabel, description: accessibilityHint }];
+        }
         case 'strings':
             return (build(vector.tree) as unknown as Pick<AdwComboRow, 'model'>).model.map((option) => option.label);
         case 'responses':
@@ -340,6 +345,55 @@ export const AdwConstructVectorsNsTest = async () => {
         await it('refuses a breakpoint setter that names a sibling the tree does not carry', () => {
             const tree = CONSTRUCT_VECTORS.find((each) => each.kind === 'sibling-object')!.tree;
             expect(() => buildWithSiblings({ ...tree, siblings: [] })).toThrow("id 'beside'");
+        });
+        await it('lets an authored description beat the tooltip, which keeps its own text', () => {
+            const root = build({
+                tag: 'GtkBox',
+                children: [
+                    {
+                        tag: 'GtkButton',
+                        id: 'copy',
+                        props: { 'tooltip-text': 'Copy' },
+                        accessibility: { description: { value: 'Copies the link' } },
+                    },
+                    {
+                        tag: 'GtkLabel',
+                        id: 'caption',
+                        props: { 'tooltip-text': 'Hint' },
+                        accessibility: { description: { value: 'The caption' } },
+                    },
+                ],
+            }) as unknown as { getViewById(id: string): { tooltipText: string; accessibilityHint?: string } };
+            const copy = root.getViewById('copy');
+            expect(copy.accessibilityHint).toBe('Copies the link');
+            copy.tooltipText = 'Copy now';
+            expect(copy.tooltipText).toBe('Copy now');
+            expect(copy.accessibilityHint).toBe('Copies the link');
+            const caption = root.getViewById('caption');
+            caption.tooltipText = 'Other';
+            expect(caption.accessibilityHint).toBe('The caption');
+        });
+        await it('translates a marked accessibility label, and refuses a name it has no door for', () => {
+            const root = build(
+                {
+                    tag: 'GtkBox',
+                    children: [
+                        {
+                            tag: 'GtkCheckButton',
+                            id: 'dark',
+                            accessibility: { label: { value: 'Dark', translatable: { context: 'theme' } } },
+                        },
+                    ],
+                },
+                { translate: (text, context) => `${context}:${text}!` },
+            ) as unknown as { getViewById(id: string): { accessibilityLabel?: string } };
+            expect(root.getViewById('dark').accessibilityLabel).toBe('theme:Dark!');
+            expect(() =>
+                build({
+                    tag: 'GtkBox',
+                    children: [{ tag: 'GtkCheckButton', accessibility: { checked: { value: true } } }],
+                }),
+            ).toThrow("'checked'");
         });
         await it('builds the registered class with its own props and children, as for any widget', () => {
             const root = build({

@@ -9,6 +9,7 @@ import type { ConstructCapabilities } from '@gjsify/adwaita-core/conformance';
 
 export const capabilities: ConstructCapabilities = {
     layout: 'implemented',
+    accessibility: 'implemented',
     strings: 'implemented',
     responses: 'implemented',
     page: {

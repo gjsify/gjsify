@@ -93,6 +93,7 @@ export class GtkButton extends withSignals(GridLayout) {
     private _styleClasses: string[] = [];
     private _label = '';
     private _iconName = '';
+    private _tooltipText = '';
     private _useUnderline = false;
     private _slot: ButtonSlot = 'empty';
     /** The view currently in the single cell, whichever slot filled it. */
@@ -169,15 +170,18 @@ export class GtkButton extends withSignals(GridLayout) {
      * `GtkWidget:tooltip-text`. GTK shows it on hover and hands it to assistive technology
      * as the description: that half is `accessibilityHint`, and on Android the native view
      * also gets `setTooltipText`, which shows it on long press (`./native-tooltip.ts`).
-     * An icon-only button is where a `.blp` writes one.
+     * An icon-only button is where a `.blp` writes one. It is the description only until an
+     * `accessibility { description }` writes its own, as GTK falls back to the tooltip.
      */
     get tooltipText(): string {
-        return this.accessibilityHint ?? '';
+        return this._tooltipText;
     }
 
     set tooltipText(value: string) {
-        this.accessibilityHint = value ?? '';
-        applyNativeTooltip(this, this.tooltipText);
+        const next = value ?? '';
+        if ((this.accessibilityHint ?? '') === this._tooltipText) this.accessibilityHint = next;
+        this._tooltipText = next;
+        applyNativeTooltip(this, next);
     }
 
     /**

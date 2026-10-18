@@ -94,10 +94,12 @@ const MARK = '- translatable?: Record<string, { context?: string }>';
 const STYLES = '- styleClasses?: string[]';
 const PAGE = '- page?: { label?: string; name?: string }';
 const LAYOUT = '- layout?: Record<string, string | number | boolean>';
+const ACCESSIBILITY =
+    '- accessibility?: Record<string, { value: string | number | boolean; translatable?: { context?: string } }>';
 const EXTERN = '- extern?: true';
 const BINDINGS =
-    "- bindings?: Record< string, { source: string; property: string; flags?: ('bidirectional' | " +
-    "'inverted' | 'no-sync-create')[]; } >";
+    "- bindings?: Record<string, { source: string; property: string; flags?: ('bidirectional' | " +
+    "'inverted' | 'no-sync-create')[]; }>";
 const BREAKPOINTS =
     '- breakpoints?: { condition: string; setters: { object: string; property: string; value: string | number | ' +
     'boolean; translatable?: { context?: string }; }[]; }[]';
@@ -174,6 +176,7 @@ const FAMILY = [
             `${PAGE}`,
             `${EXTENSIONS}`,
             `${LAYOUT}`,
+            `${ACCESSIBILITY}`,
             `${EXTERN}`,
             `${SIGNALS}`,
             `${BINDINGS}`,
@@ -208,6 +211,7 @@ const FAMILY = [
             `${PAGE}`,
             `${EXTENSIONS}`,
             `${LAYOUT}`,
+            `${ACCESSIBILITY}`,
             `${EXTERN}`,
             `${SIGNALS}`,
             `${BINDINGS}`,
@@ -240,6 +244,7 @@ const FAMILY = [
             `${PAGE}`,
             `${EXTENSIONS}`,
             `${LAYOUT}`,
+            `${ACCESSIBILITY}`,
             `${EXTERN}`,
             `${SIGNALS}`,
             `${BINDINGS}`,
@@ -328,11 +333,15 @@ function unwrapReadonly(type) {
  * its tree, and that is a difference in who writes the object rather than in what it holds.
  * The declaration's own name folds to `Self`, so `children?: SharedTreeNode[]` and
  * `children?: SharedNode[]` are one member and a change to the ELEMENT type is still caught.
+ * Space inside angle brackets goes too: a formatter that breaks `Record<` over lines leaves
+ * `Record< string, … >`, which is the same type as the one-line spelling.
  */
 function normaliseType(type, ownName) {
     const collapsed = unwrapReadonly(type.replace(/\s+/g, ' ').trim())
         .replace(/\breadonly\s+/g, '')
         .replace(/\s+/g, ' ')
+        .replace(/<\s+/g, '<')
+        .replace(/\s+>/g, '>')
         .trim();
     return collapsed.replace(new RegExp(`\\b${ownName}\\b`, 'g'), 'Self');
 }
@@ -486,6 +495,7 @@ export interface SharedTreeNode {
         }[];
     };
     layout?: Readonly<Record<string, string | number | boolean>>;
+    accessibility?: Record<string, { value: string | number | boolean; translatable?: { context?: string } }>;
     signals?: readonly {
         readonly name: string;
         readonly detail?: string;
@@ -543,6 +553,7 @@ const VECTORS = [
         }[];
     };
     layout?: Record<string, string | number | boolean>;
+    accessibility?: Record<string, { value: string | number | boolean; translatable?: { context?: string } }>;
     signals?: {
         name: string;
         detail?: string;
@@ -594,6 +605,7 @@ const VECTORS = [
         }[];
     };
     layout?: Record<string, string | number | boolean>;
+    accessibility?: Record<string, { value: string | number | boolean; translatable?: { context?: string } }>;
     signals?: {
         name: string;
         detail?: string;
@@ -641,6 +653,7 @@ const VECTORS = [
             `${PAGE}`,
             `${EXTENSIONS}`,
             `${LAYOUT}`,
+            `${ACCESSIBILITY}`,
             `${EXTERN}`,
             `${SIGNALS}`,
             `${BINDINGS}`,
@@ -673,6 +686,7 @@ const VECTORS = [
         }[];
     };
     layout?: Record<string, string | number | boolean>;
+    accessibility?: Record<string, { value: string | number | boolean; translatable?: { context?: string } }>;
     signals?: {
         name: string;
         detail?: string;
@@ -725,6 +739,7 @@ const VECTORS = [
         }[];
     };
     layout?: Record<string, string | number | boolean>;
+    accessibility?: Record<string, { value: string | number | boolean; translatable?: { context?: string } }>;
     signals?: {
         name: string;
         detail?: string;
@@ -776,6 +791,7 @@ const VECTORS = [
         }[];
     };
     layout?: Record<string, string | number | boolean>;
+    accessibility?: Record<string, { value: string | number | boolean; translatable?: { context?: string } }>;
     signals?: {
         name: string;
         detail?: string;

@@ -77,7 +77,8 @@
 // A11Y: the inner input carries the role (native `checkbox` / `radio`) and an
 // explicit `aria-checked` derived from {@link resolveCheckState}, so the
 // indeterminate state announces as `mixed` for BOTH — HTML has a native mixed
-// checkbox (`input.indeterminate`) but no mixed radio.
+// checkbox (`input.indeterminate`) but no mixed radio. The host's `aria-label` /
+// `aria-description` (a `.blp`'s `accessibility { }`) are copied onto it too.
 //
 // Reference: refs/gtk/gtk/gtkcheckbutton.c:99-112,395-426,617-628,647-714,773-774,849-886,925-974
 // Reference: refs/libadwaita/src/stylesheet/widgets/_checks.scss
@@ -96,6 +97,7 @@ import {
     setCheckGroup,
 } from '@gjsify/adwaita-core';
 
+import { FORWARDED_ARIA, forwardAccessibleName } from '../accessible.js';
 import type { DispatchedSignals } from '../signals.js';
 import { WidgetElement } from '../widget-element.js';
 
@@ -250,6 +252,7 @@ abstract class AdwCheckBase extends WidgetElement {
         this._input.setAttribute('aria-checked', state === 'indeterminate' ? 'mixed' : String(state === 'checked'));
         this._input.disabled = this.disabled;
         this._label.hidden = this._label.childNodes.length === 0;
+        forwardAccessibleName(this, this._input);
     }
 }
 
@@ -262,7 +265,7 @@ export class GtkCheckButton extends AdwCheckBase {
     };
 
     static get observedAttributes() {
-        return ['checked', 'active', 'indeterminate', 'disabled', 'label', 'group'];
+        return ['checked', 'active', 'indeterminate', 'disabled', 'label', 'group', ...FORWARDED_ARIA];
     }
 
     protected get inputType(): 'checkbox' {
@@ -350,7 +353,7 @@ export class AdwRadio extends AdwCheckBase {
     private _unsubscribe: (() => void) | null = null;
 
     static get observedAttributes() {
-        return ['checked', 'indeterminate', 'disabled', 'label', 'name', 'value'];
+        return ['checked', 'indeterminate', 'disabled', 'label', 'name', 'value', ...FORWARDED_ARIA];
     }
 
     protected get inputType(): 'radio' {
