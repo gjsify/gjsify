@@ -19,7 +19,7 @@ interface GLibModule {
 export default async () => {
     await on('Gjs', async () => {
         const Gtk = (await import('gi://Gtk?version=4.0' as string)).default as GtkModule;
-        const GLib = (await import('gi://GLib' as string)).default as GLibModule;
+        const GLib = (await import('gi://GLib?version=2.0' as string)).default as GLibModule;
         if (!Gtk.init_check()) return;
 
         const c = (o: object, m: string, ...a: unknown[]) => (o as Obj)[m]!(...a);
