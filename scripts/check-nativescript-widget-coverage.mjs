@@ -168,7 +168,6 @@ const KNOWN_GAPS = {
         gaps: [
             'appdataResourcePath',
             'artists',
-            'debugInfo',
             'debugInfoFilename',
             'designers',
             'developers',
@@ -177,12 +176,10 @@ const KNOWN_GAPS = {
             'license',
             'licenseType',
             'otherAppsTitle',
-            'releaseNotes',
-            'releaseNotesVersion',
             'supportUrl',
             'translatorCredits',
         ],
-        why: 'The port builds the identity CARD and none of the pages behind it: "the app icon glyph, name, version, developer, comments, and a close button" (adw-about-dialog.ts:3-4), which is exactly the seven properties it sets. Credits (artists, designers, developers, documenters, translator-credits), the legal text (license, license-type), the release notes, the debug-info tab, the other-apps list and the two extra link rows are sections it does not render, so there is nothing for the value to reach. `<adw-about-dialog>` declares twelve of the same names on the web surface, which is the same absence measured by the sibling ratchet.',
+        why: 'The port builds the identity CARD and none of the pages behind it: "the app icon glyph, name, version, developer, comments, and a close button" (adw-about-dialog.ts:3-4), which is exactly the seven properties it sets, plus release notes and debug info as labels on that card. Credits (artists, designers, developers, documenters, translator-credits), the legal text (license, license-type), the debug-info file name, the other-apps list and the two extra link rows are sections it does not render, so there is nothing for the value to reach. `<adw-about-dialog>` declares twelve of the same names on the web surface, which is the same absence measured by the sibling ratchet.',
     },
     'adw-action-row': {
         gaps: ['subtitleLines', 'subtitleSelectable', 'titleLines'],
