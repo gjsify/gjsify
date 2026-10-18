@@ -205,6 +205,12 @@ Each stage ends with a measurement, recorded in a report under `docs/reports/`.
    Java class in the app — NativeScript's `dlopen` of the addon runs none. An arm64 device run
    followed ([report](../reports/2026-10-10-gtk-on-a-nativescript-worker-arm64.md)): GPU rendering
    passes, the accessibility tree is empty, and the keyboard works only after programmatic focus.
-   Not done: lifecycle handling, touch focus on an entry, and explicit per-thread pump ownership.
+   Touch focus and IME text were then measured on the x86_64 emulator
+   ([report](../reports/2026-10-17-gtk-touch-focus-and-ime-on-android.md)): a tap focuses the
+   entry's `GtkText` and raises the keyboard, text committed through `InputConnection.commitText`
+   arrives as the entry's text, and no code change was needed. The arm64 "tap does not focus"
+   finding did not reproduce there; a probe asking `GtkEntry` itself, not the focus widget, would
+   have read it that way. Not done: lifecycle handling, explicit per-thread pump ownership, and
+   IME composition and arm64 hardware for the input path.
 
 Follow-up work goes into `status/open-todos/nativescript.md` once this ADR is accepted.

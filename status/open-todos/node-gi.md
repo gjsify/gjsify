@@ -486,3 +486,19 @@ also needs his explicit OK before upload. CI can rebuild the sysroot under qemu-
 ([android-sysroot build.yml](https://github.com/gjsify/android-sysroot/blob/main/.github/workflows/build.yml)), so the OK is a choice, not a constraint (ADR 0117
 § Amendment). Leftovers (pango/freetype2 wraps still float, GIR race worked around) are tracked
 in gjsify/android-sysroot.
+
+### Track C′ (real GTK on a NativeScript worker): lifecycle, pump ownership, composition
+
+[ADR 0104](../../docs/adr/0104-real-gtk-and-gi-on-android-are-opt-in-tracks-beside-the-nativescript-port.md)
+stage 5. Touch focus and IME `commitText` are measured working on the x86_64 emulator and are not
+open ([report](../../docs/reports/2026-10-17-gtk-touch-focus-and-ime-on-android.md)). Still open,
+none of it needed for input:
+
+- **Pump ownership.** `startMainLoop()` is per thread and silently pumps nothing when another
+  thread holds the default context. A host should request the pump on the thread that owns the
+  loop, and a second request elsewhere should fail loudly.
+- **Lifecycle.** Nothing handles `ToplevelActivity` being destroyed and recreated, the app going to
+  the background, or the worker terminating.
+- **Input on hardware.** IME composition (`setComposingText`, predictions) and the arm64 touch path
+  are unmeasured. The arm64 report's "tap does not focus" has not reproduced; re-check it with
+  `window.get_focus()`, not `entry.has_focus()`.
