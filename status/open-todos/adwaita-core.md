@@ -264,7 +264,9 @@ listed under step 4. The record, in order:
    device (the Android bundle really resolved the Android target; the refusal survives the
    bundler with its message intact).
    Still open after the flip:
-   - ADR 0105 § 2's twin route: a real subclass instead of the hidden twin.
+   - ADR 0105 § 2's twin route: a real subclass instead of the hidden twin. **Owner decision,
+     options and recommendation recorded** in the ADR's Implementation (keep the twin until a
+     consumer needs a widget to BE a `GObject.Object`, then spike the inversion first).
    - The remaining ~25x on `set`/`notify` is where to look next. `findProtoDescriptor` is no longer
      part of it: settled 2026-10-16 with NO cache (gjs resolves prototype mutation live, so a memo
      has no invalidation story), by bypassing the prototype Proxies' descriptor traps instead —
