@@ -70,7 +70,6 @@ const KNOWN_GAPS = {
     'adw-about-dialog': [
         'appdata-resource-path',
         'artists',
-        'debug-info',
         'debug-info-filename',
         'designers',
         'developers',
@@ -82,8 +81,6 @@ const KNOWN_GAPS = {
         // Same family as the credits sections above it, and it arrived with @girs
         // 4.5.0 rather than being overlooked.
         'other-apps-title',
-        'release-notes',
-        'release-notes-version',
         'translator-credits',
     ],
     'adw-action-row': ['icon-name', 'subtitle-selectable'],

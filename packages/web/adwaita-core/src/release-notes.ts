@@ -316,6 +316,9 @@ function markupPosition(text: string, at: number): { line: number; character: nu
     return { line, character: utf8Length(text.slice(lineStart, at)) + 1 };
 }
 
+// Literals rather than `BigInt()`: the type-surface gates compile this file with a pre-ES2020 lib.
+const BIG_DIGITS = [0n, 1n, 2n, 3n, 4n, 5n, 6n, 7n, 8n, 9n, 10n, 11n, 12n, 13n, 14n, 15n] as const;
+
 /** `strtoul`: C-locale space, a sign, and for base 16 an optional `0x`. */
 function strtoul(text: string, from: number, base: 10 | 16): { value: bigint; end: number; isOverflow: boolean } {
     let p = from;
@@ -329,7 +332,7 @@ function strtoul(text: string, from: number, base: 10 | 16): { value: bigint; en
     const digitsStart = p;
     let value = 0n;
     while (p < text.length && /^[0-9A-Fa-f]$/.test(text[p]!) && digit(text[p]) >= 0) {
-        value = value * BigInt(base) + BigInt(digit(text[p]));
+        value = value * (base === 16 ? 16n : 10n) + BIG_DIGITS[digit(text[p])]!;
         p++;
     }
     if (p === digitsStart) return { value: 0n, end: from, isOverflow: false };
