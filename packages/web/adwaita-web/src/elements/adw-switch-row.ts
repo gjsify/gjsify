@@ -77,6 +77,14 @@ export class AdwSwitchRow extends TooltipElement {
         this.toggleAttribute('active', !!value);
     }
 
+    get_active(): boolean {
+        return this.active;
+    }
+
+    set_active(active: boolean): void {
+        this.active = active;
+    }
+
     constructor() {
         super();
         installElementApi(this);

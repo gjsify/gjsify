@@ -79,6 +79,7 @@ import glibPathsTestSuite from './glib-paths.spec.js';
 import glibPathsOracleTestSuite from './glib-paths.gjs.spec.js';
 import styleManagerTestSuite from './style-manager.spec.js';
 import styleManagerOracleTestSuite from './style-manager.gjs.spec.js';
+import rowAccessorsOracleTestSuite from './row-accessors.gjs.spec.js';
 import simpleActionGroupTestSuite from './simple-action-group.spec.js';
 import simpleActionGroupOracleTestSuite from './simple-action-group.gjs.spec.js';
 import fileChooserTestSuite from './file-chooser.spec.js';
@@ -168,6 +169,7 @@ run({
     glibPathsOracleTestSuite,
     styleManagerTestSuite,
     styleManagerOracleTestSuite,
+    rowAccessorsOracleTestSuite,
     simpleActionGroupTestSuite,
     simpleActionGroupOracleTestSuite,
     fileChooserTestSuite,

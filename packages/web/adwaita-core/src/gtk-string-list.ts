@@ -70,6 +70,11 @@ export class GtkStringList extends Array<string> {
         for (const string of props?.strings ?? []) this.push(string);
     }
 
+    /** `gtk_string_list_new`: a list holding `strings`, or an empty one for `null`. */
+    static new(strings: readonly string[] | null): GtkStringList {
+        return new GtkStringList({ strings: strings ?? [] });
+    }
+
     /**
      * `Gtk.StringList:strings`, as the door an attribute reaches. GTK's property is
      * construct-only, and a NativeScript XML template has no constructor call to pass it

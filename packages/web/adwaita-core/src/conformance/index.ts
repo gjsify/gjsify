@@ -143,6 +143,14 @@ export type { ButtonStyleClassVector } from './button.js';
 
 // --- Radio-group exclusivity (Adwaita check/radio) vectors ---
 export { RADIO_GROUP_VECTORS } from './checks.js';
+export { ROW_ACCESSOR_VECTORS, driveRowAccessorVectors } from './row-accessors.js';
+export type {
+    ComboRowLike,
+    RowAccessorSubject,
+    RowAccessorVector,
+    StringListLike,
+    SwitchRowLike,
+} from './row-accessors.js';
 export type { RadioGroupStep, RadioGroupVector } from './checks.js';
 export { CHECK_GROUP_VECTORS, driveCheckGroupVectors } from './check-group.js';
 export type { CheckButtonLike, CheckGroupSubject, CheckGroupVector } from './check-group.js';
