@@ -14,12 +14,25 @@
 // (no icon-theme lookup), and `links` (website/issue) are rendered as plain text
 // rows, not tappable hyperlinks.
 //
+// The card has no subpages, so the What's New, Troubleshooting and Details doors land
+// on it as labels: `release-notes` shows the core's `releaseNotesBuffer` text (the
+// buffer rebuilt by the two release-notes setters only, as `update_release_notes` is),
+// `debug-info` its verbatim text with no Copy button, and `add_link (title, url)` one
+// "title: url" line each. `new_from_appdata` is refused by name: it needs AppStream.
+//
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-about-dialog`.
 // Reference: refs/libadwaita/src/stylesheet/widgets/_misc.scss (AdwAboutWindow)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_dialogs.scss (AdwDialog sheet + dimming)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { aboutDialogVisibility } from '@gjsify/adwaita-core';
+import {
+    ADW_ABOUT_DIALOG_LABELS,
+    type ReleaseNotesSegment,
+    aboutDialogVisibility,
+    refuseNewFromAppdata,
+    releaseNotesBuffer,
+    stripMnemonic,
+} from '@gjsify/adwaita-core';
 import { Button, GridLayout, ItemSpec, Label, ScrollView, StackLayout, type EventData } from '@nativescript/core';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
@@ -41,6 +54,9 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
     protected readonly _commentsLabel: Label;
     protected readonly _websiteLabel: Label;
     protected readonly _copyrightLabel: Label;
+    protected readonly _releaseNotesLabel: Label;
+    protected readonly _linksLabel: Label;
+    protected readonly _debugInfoLabel: Label;
 
     private _applicationName = '';
     private _applicationIcon = '';
@@ -49,6 +65,12 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
     private _comments = '';
     private _website = '';
     private _copyright = '';
+    private _releaseNotes = '';
+    private _releaseNotesVersion = '';
+    private _debugInfo = '';
+    private _links: { title: string; url: string }[] = [];
+    /** The What's New buffer; `version` alone never rebuilds it. */
+    private _releaseNotesSegments: ReleaseNotesSegment[] = [];
     /** The window `present (parent)` mounted this in, so closing can take it back out. */
     private _host: DialogHost | null = null;
 
@@ -79,8 +101,11 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         this._versionLabel = this._addCardLabel(card, 'adw-about-dialog-version');
         this._developerLabel = this._addCardLabel(card, 'adw-about-dialog-developer');
         this._commentsLabel = this._addCardLabel(card, 'adw-about-dialog-comments');
+        this._releaseNotesLabel = this._addCardLabel(card, 'adw-about-dialog-release-notes');
         this._websiteLabel = this._addCardLabel(card, 'adw-about-dialog-website');
+        this._linksLabel = this._addCardLabel(card, 'adw-about-dialog-links');
         this._copyrightLabel = this._addCardLabel(card, 'adw-about-dialog-copyright');
+        this._debugInfoLabel = this._addCardLabel(card, 'adw-about-dialog-debug-info');
 
         const closeButton = new Button();
         closeButton.text = 'Close';
@@ -89,7 +114,7 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         closeButton.addEventListener('tap', () => this.close());
         card.addChild(closeButton);
 
-        // A dialog nobody has written to yet is SEVEN empty labels, all visible —
+        // A dialog nobody has written to yet is TEN empty labels, all visible —
         // the same blank lines the visibility rules exist to remove. Every setter
         // re-renders the whole card, so one call here is what covers the state
         // before the first one.
@@ -177,8 +202,61 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         this._render();
     }
 
+    /** AppStream release-notes markup, shown as the What's New text. */
+    get releaseNotes(): string {
+        return this._releaseNotes;
+    }
+
+    set releaseNotes(value: string) {
+        this._releaseNotes = value ?? '';
+        this._updateReleaseNotes();
+    }
+
+    /** The version the release-notes heading names, else `version`. */
+    get releaseNotesVersion(): string {
+        return this._releaseNotesVersion;
+    }
+
+    set releaseNotesVersion(value: string) {
+        this._releaseNotesVersion = value ?? '';
+        this._updateReleaseNotes();
+    }
+
+    /** Debugging information, shown verbatim. */
+    get debugInfo(): string {
+        return this._debugInfo;
+    }
+
+    set debugInfo(value: string) {
+        this._debugInfo = value ?? '';
+        this._render();
+    }
+
+    /** `adw_about_dialog_add_link`: an extra link; `_` marks a mnemonic. */
+    add_link(title: string, url: string): void {
+        this._links.push({ title, url });
+        this._render();
+    }
+
+    /** `adw_about_dialog_new_from_appdata`, refused by name. */
+    static new_from_appdata(_resourcePath: string, _releaseNotesVersion?: string | null): never {
+        refuseNewFromAppdata();
+    }
+
+    private _updateReleaseNotes(): void {
+        this._releaseNotesSegments = releaseNotesBuffer(
+            {
+                releaseNotes: this._releaseNotes,
+                releaseNotesVersion: this._releaseNotesVersion,
+                version: this._version,
+            },
+            ADW_ABOUT_DIALOG_LABELS,
+        ).segments;
+        this._render();
+    }
+
     /**
-     * Push the seven strings onto their labels, and COLLAPSE the ones with nothing
+     * Push the ten strings onto their labels, and COLLAPSE the ones with nothing
      * to say.
      *
      * Every label used to be unconditionally visible, so an about dialog without a
@@ -202,6 +280,9 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
             version: this._version,
             comments: this._comments,
             website: this._website,
+            debugInfo: this._debugInfo,
+            releaseNotes: this._releaseNotes,
+            hasCustomLinks: this._links.length > 0,
         });
         const show = (label: Label, text: string, shown: boolean): void => {
             label.text = text;
@@ -214,6 +295,17 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         show(this._commentsLabel, this._comments, visibility.commentsLabel);
         show(this._websiteLabel, this._website, visibility.websiteRow);
         show(this._copyrightLabel, this._copyright, this._copyright.length > 0);
+        show(
+            this._releaseNotesLabel,
+            this._releaseNotesSegments.map((segment) => segment.text).join(''),
+            visibility.whatsNewRow,
+        );
+        show(
+            this._linksLabel,
+            this._links.map((link) => `${stripMnemonic(link.title)}: ${link.url}`).join('\n'),
+            this._links.length > 0,
+        );
+        show(this._debugInfoLabel, this._debugInfo, visibility.troubleshootingRow);
     }
 
     /**

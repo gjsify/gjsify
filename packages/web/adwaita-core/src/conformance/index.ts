@@ -744,6 +744,26 @@ export { MENU_TREE_VECTORS } from './menu-tree.js';
 export type { MenuTreeVector } from './menu-tree.js';
 export { GLIB_PATH_ROWS, GLIB_PATH_VECTORS, driveGLibPathVectors } from './glib-paths.js';
 export type { GLibPathRow, GLibPathsLike, GLibPathsSubject, GLibPathVector } from './glib-paths.js';
+export { GLIB_URI_ROWS, GLIB_URI_VECTORS, driveGLibUriVectors } from './glib-uri.js';
+export type { GLibUriLike, GLibUriRow, GLibUriSubject, GLibUriVector } from './glib-uri.js';
+export { GIO_APP_INFO_ROWS, GIO_APP_INFO_VECTORS, driveGioAppInfoVectors } from './gio-app-info.js';
+export type { GioAppInfoNamespaces, GioAppInfoRow, GioAppInfoSubject, GioAppInfoVector } from './gio-app-info.js';
+export { CAROUSEL_DOOR_VECTORS, driveCarouselDoorVectors } from './carousel-doors.js';
+export type { CarouselDoorLike, CarouselDoorSubject, CarouselDoorVector } from './carousel-doors.js';
+export {
+    ABOUT_DIALOG_DOOR_VECTORS,
+    RELEASE_NOTES_VECTORS,
+    driveAboutDialogDoorVectors,
+    driveReleaseNotesVectors,
+} from './about-dialog-doors.js';
+export type {
+    AboutDialogDoorLabels,
+    AboutDialogDoorLike,
+    AboutDialogDoorRow,
+    AboutDialogDoorSubject,
+    AboutDialogDoorVector,
+    ReleaseNotesVector,
+} from './about-dialog-doors.js';
 export { STYLE_MANAGER_ROWS, STYLE_MANAGER_VECTORS, driveStyleManagerVectors } from './style-manager.js';
 export type {
     AdwStyleLike,

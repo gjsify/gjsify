@@ -11,11 +11,13 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import type { CarouselPageMeasurement } from '@gjsify/adwaita-core';
 import {
+    CAROUSEL_DOOR_VECTORS,
     CAROUSEL_PAGE_ALLOCATION_VECTORS,
     CAROUSEL_PAGE_AT_POSITION_VECTORS,
     CAROUSEL_PAGE_LIST_VECTORS,
+    driveCarouselDoorVectors,
 } from '@gjsify/adwaita-core/conformance';
-import type { CarouselPageOp } from '@gjsify/adwaita-core/conformance';
+import type { CarouselDoorLike, CarouselPageOp } from '@gjsify/adwaita-core/conformance';
 
 /** The carousel surface this suite drives — the element's own public API. */
 interface CarouselElement extends HTMLElement {
@@ -511,6 +513,52 @@ export const AdwCarouselTest = async () => {
             await dragTo(carousel, 1);
             expect(carousel.currentPage).toBe(1);
             host.remove();
+        });
+    });
+
+    // The GIR doors, on the vectors real `gi://Adw` passes. `mount` makes the animated
+    // scroll instant too, so `settle` waits for the rAF-throttled read-back only.
+    const hosts: HTMLElement[] = [];
+    await driveCarouselDoorVectors(
+        {
+            name: 'adw-carousel',
+            isOracle: false,
+            makeCarousel(count) {
+                const { carousel, host } = mount(Array.from({ length: count }, (_unused, i) => `p${i}`));
+                hosts.push(host);
+                const pages = Array.from(carousel.querySelectorAll('.adw-carousel-page')).map(
+                    (slot) => slot.firstElementChild as HTMLElement,
+                );
+                return { carousel: carousel as unknown as CarouselDoorLike, pages };
+            },
+            makeStranger: () => card('stranger'),
+            async settle() {
+                await flush();
+                await flush();
+            },
+            dispose() {
+                for (const host of hosts.splice(0)) host.remove();
+            },
+        },
+        { describe, it, expect },
+        CAROUSEL_DOOR_VECTORS,
+    );
+
+    await describe('adw-carousel scroll_to before the pages are adopted', async () => {
+        await it('lands where a declared position would, as upstream defers it to an idle', async () => {
+            const carousel = document.createElement('adw-carousel') as CarouselElement & CarouselDoorLike;
+            carousel.style.cssText = 'display:block;width:200px;height:80px;';
+            const pages = ['a', 'b', 'c'].map((label) => card(label));
+            for (const page of pages) carousel.appendChild(page);
+            expect(carousel.get_n_pages()).toBe(3);
+            expect(carousel.get_nth_page(2)).toBe(pages[2]);
+            carousel.scroll_to(pages[2], false);
+
+            document.body.appendChild(carousel);
+            await flush();
+            await flush();
+            expect(carousel.get_position()).toBe(2);
+            carousel.remove();
         });
     });
 };

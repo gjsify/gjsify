@@ -31,9 +31,8 @@
 // - `debug-info` is an app-supplied opaque string, never assembled by the widget;
 // - there is NO URL validation anywhere in the C (`set_website` / `set_support_url`
 // only guard against NULL), so none is invented here;
-// - the AppStream release-notes parser IS portable, but no renderer has the What's New
-// page yet. `whatsNewRow` in the visibility table is derived from whether release
-// notes are SET, which is all a renderer needs until the page exists.
+// - the AppStream release-notes parser is its own module (`release-notes.ts`): it is
+// GMarkup, not a string derivation. `whatsNewRow` here only reads whether notes are SET.
 //
 // PLATFORM-NEUTRAL: renders nothing, imports nothing, touches no global.
 //
@@ -42,6 +41,7 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { gStrStrip } from './glib.js';
+import { UnsupportedGObjectError } from './gobject.js';
 
 /** One `LicenseInfo` row — the struct. */
 export interface AdwLicenseInfo {
@@ -553,6 +553,17 @@ export const ADW_ABOUT_DIALOG_LABELS = {
     creditsPage: 'Credits', //.ui
     legalPage: 'Legal', //.ui
     acknowledgementsPage: 'Acknowledgements', //.ui
+    troubleshootingIntro:
+        'To assist in troubleshooting, you can view your debugging information. Providing this ' +
+        'information to the application developers can help diagnose any problems you encounter ' +
+        'when you report an issue.', //.ui
+    debugInfoRow: '_Debugging Information', //.ui
+    debugInfoPage: 'Debugging Information', //.ui
+    copyText: '_Copy Text', //.ui
+    copiedToast: 'Copied to clipboard', //:1500
+    releaseNotesHeading: 'Version %s', //:1020
+    releaseNotesError: 'Unable to parse release notes:', //:1054
+    releaseNotesErrorPosition: 'Line: %d, character: %d', //:1063
 } as const;
 
 /** Everything the visibility derivation reads. */
@@ -709,4 +720,18 @@ export function aboutDialogVisibility(props: Partial<AdwAboutDialogProps> = {}):
 export function legalSectionVisible(copyright: string, licenseType: AdwLicenseType, license: string): boolean {
     const text = licenseText(licenseType, license);
     return copyright.length > 0 || (text !== null && text.length > 0);
+}
+
+/**
+ * `adw_about_dialog_new_from_appdata`, refused by name. It fills the dialog from an AppStream
+ * metainfo file in a GResource through libappstream, and no port parses AppStream; an app
+ * that sets the properties itself gets the same dialog.
+ */
+export function refuseNewFromAppdata(): never {
+    const feature = 'Adw.AboutDialog.new_from_appdata';
+    throw new UnsupportedGObjectError(
+        feature,
+        `${feature} is outside the subset: it reads AppStream metadata, which no port parses. ` +
+            'Construct the dialog and set its properties instead.',
+    );
 }

@@ -63,7 +63,9 @@ adw-about-dialog {
     }
   }
 
-  // The navigation view fills the sheet; each page is a column.
+  // The toast overlay (template `toast_overlay`) and the navigation view inside it
+  // fill the sheet; each page is a column.
+  adw-toast-overlay,
   adw-navigation-view,
   .adw-navigation-view-pages,
   .adw-navigation-page {
@@ -211,6 +213,49 @@ adw-about-dialog {
     line-height: 1.5;
     text-align: start;
     white-space: pre-wrap;
+  }
+
+  // --- What's New: the release-notes buffer (a GtkTextView with its text tags) ---
+  // Reference: adw-about-dialog.ui (release_notes_buffer tags: heading, em, code, bullet)
+  .adw-about-dialog-release-notes {
+    margin: var(--spacing-s) 0 0;
+    font-size: var(--font-size-base);
+    line-height: 1.5;
+    white-space: pre-wrap;
+
+    [data-tag='heading'] {
+      font-weight: 800;
+      font-size: 1.2em;
+    }
+
+    [data-tag='em'] {
+      font-style: italic;
+    }
+
+    [data-tag='code'] {
+      font-family: var(--monospace-font-family);
+    }
+
+    [data-tag='bullet'] {
+      opacity: var(--dim-opacity);
+    }
+  }
+
+  // --- Troubleshooting → Debugging Information ---
+  .adw-about-dialog-debug-info {
+    margin: var(--spacing-s) 0 0;
+    padding: var(--spacing-s);
+    font-family: var(--monospace-font-family);
+    font-size: var(--font-size-small);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    border-radius: var(--card-radius);
+    background-color: var(--card-bg-color);
+  }
+
+  .adw-about-dialog-copy {
+    align-self: center;
+    margin-top: var(--spacing-m);
   }
 
   .adw-about-dialog-copyright {

@@ -78,6 +78,13 @@ import gdkOracleTestSuite from './gdk.gjs.spec.js';
 import gtkPlatformTestSuite from './gtk-platform.spec.js';
 import glibPathsTestSuite from './glib-paths.spec.js';
 import glibPathsOracleTestSuite from './glib-paths.gjs.spec.js';
+import glibUriTestSuite from './glib-uri.spec.js';
+import glibUriOracleTestSuite from './glib-uri.gjs.spec.js';
+import gioAppInfoTestSuite from './gio-app-info.spec.js';
+import gioAppInfoOracleTestSuite from './gio-app-info.gjs.spec.js';
+import carouselDoorsOracleTestSuite from './carousel-doors.gjs.spec.js';
+import releaseNotesTestSuite from './release-notes.spec.js';
+import aboutDialogDoorsOracleTestSuite from './about-dialog-doors.gjs.spec.js';
 import styleManagerTestSuite from './style-manager.spec.js';
 import styleManagerOracleTestSuite from './style-manager.gjs.spec.js';
 import rowAccessorsOracleTestSuite from './row-accessors.gjs.spec.js';
@@ -169,6 +176,13 @@ run({
     gtkPlatformTestSuite,
     glibPathsTestSuite,
     glibPathsOracleTestSuite,
+    glibUriTestSuite,
+    glibUriOracleTestSuite,
+    gioAppInfoTestSuite,
+    gioAppInfoOracleTestSuite,
+    carouselDoorsOracleTestSuite,
+    releaseNotesTestSuite,
+    aboutDialogDoorsOracleTestSuite,
     styleManagerTestSuite,
     styleManagerOracleTestSuite,
     rowAccessorsOracleTestSuite,

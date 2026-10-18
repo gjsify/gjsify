@@ -24,6 +24,10 @@
 
 import '../file-chooser-host.js';
 
+import { createAppInfo } from '@gjsify/adwaita-core';
+
+import { webPlatformHost } from '../platform-host.js';
+
 export { GioMenu as Menu, GioMenuItem as MenuItem } from '@gjsify/adwaita-core';
 export {
     GioFile as File,
@@ -47,3 +51,7 @@ export {
 } from '@gjsify/adwaita-core';
 export { GioApplication as Application } from '../application.js';
 export { Settings } from '@gjsify/app-settings/browser';
+
+// `Gio.AppInfo.launch_default_for_uri` over the host `Gtk.show_uri` uses (ADR 0101): the core's
+// `gio-app-info.ts`.
+export const AppInfo = createAppInfo(webPlatformHost);

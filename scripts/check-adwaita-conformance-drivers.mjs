@@ -297,6 +297,10 @@ const MODULE_REASONS = {
     // state that the tree has an element child, which is a spec of the parse rather than of
     // a widget, so the gap is the corpus form of what that suite already asserts directly.
     'pango-markup': { table: 'STRIP_MARKUP_VECTORS', gap: NO_DRIVER_LEDGER },
+    // The parser behind `Adw.AboutDialog:release-notes`, reached only through that property:
+    // `RELEASE_NOTES_VECTORS` in `conformance/about-dialog-doors.ts` tables its buffer against
+    // real Adwaita, driven by the web renderer.
+    'release-notes': { table: 'RELEASE_NOTES_VECTORS' },
     scrolling: { gap: NO_TABLE_LEDGER },
     // Half of this module IS driven already: `formatAcceleratorLabel` is a thin wrapper
     // over `shortcut-label.ts`'s `shortcutKeycaps`, so its GTK-accelerator half rides

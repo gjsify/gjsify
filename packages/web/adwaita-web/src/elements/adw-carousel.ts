@@ -104,6 +104,8 @@ export class AdwCarousel extends WidgetElement implements CarouselHost {
     private _scrollTargetId: string | null = null;
     /** The pointer-drag gesture, asked whether it owns the strip. See `_onWheel`. */
     private _drag: AdwSwipeDrag | undefined;
+    /** A `scroll_to` issued before the pages were adopted, run once they are. */
+    private _pendingScrollPage: HTMLElement | null = null;
 
     static get observedAttributes() {
         return ['allow-scroll-wheel', 'allow-mouse-drag', 'allow-long-swipes', 'interactive', 'spacing', 'position'];
@@ -273,6 +275,14 @@ export class AdwCarousel extends WidgetElement implements CarouselHost {
         // delivers attributes BEFORE `connectedCallback`, so reading it here is the
         // only way `<adw-carousel position="2">` works at all.
         this._applyAttribute('position', this.getAttribute('position'));
+
+        // Upstream defers a `scroll_to` that arrives before the first allocation to an
+        // idle (adw-carousel.c:1580-1595); the pages existing is the earliest this port
+        // can resolve one, and it lands where a declared `position` would.
+        const pending = this._pendingScrollPage;
+        this._pendingScrollPage = null;
+        const id = pending ? this._idOf(pending) : null;
+        if (id !== null) this._positionWhenMeasurable(this._state.indexOf(id));
     }
 
     attributeChangedCallback(name: string, _oldValue: string | null, newValue: string | null) {
@@ -451,6 +461,45 @@ export class AdwCarousel extends WidgetElement implements CarouselHost {
         return this._state.navigate(direction);
     }
 
+    /**
+     * `adw_carousel_scroll_to` — scroll to `widget`, one of the pages. A widget that is
+     * not one is refused, which is C's precondition; `animate = false` lands at once.
+     */
+    scroll_to(widget: HTMLElement, animate: boolean): void {
+        if (!this._initialized) {
+            if (widget.parentElement === this) this._pendingScrollPage = widget;
+            return;
+        }
+        const id = this._idOf(widget);
+        if (id === null) return;
+        this._state.scrollTo(this._state.indexOf(id), { animate });
+    }
+
+    /**
+     * `adw_carousel_get_nth_page` — the page at `n`. Past the last page C's precondition
+     * fails and returns NULL, so this returns `null`.
+     */
+    get_nth_page(n: number): HTMLElement | null {
+        if (!this._initialized) {
+            const declared = this.children[n];
+            return Number.isInteger(n) && declared instanceof HTMLElement ? declared : null;
+        }
+        if (!Number.isInteger(n) || n < 0 || n >= this._state.nPages) return null;
+        const id = this._state.ids[n];
+        const page = id === undefined ? null : this._slots.get(id)?.firstElementChild;
+        return page instanceof HTMLElement ? page : null;
+    }
+
+    /** `adw_carousel_get_n_pages`. */
+    get_n_pages(): number {
+        return this._initialized ? this._state.nPages : this.children.length;
+    }
+
+    /** `adw_carousel_get_position` — the {@link position} property. */
+    get_position(): number {
+        return this._state.position;
+    }
+
     private _insert(page: HTMLElement, position: number): boolean {
         const id = `page-${this._nextPageId++}`;
         if (!this._state.insertPage(id, position)) return false;
@@ -602,6 +651,15 @@ export class AdwCarousel extends WidgetElement implements CarouselHost {
         if (!this._trackEl) return;
         const distance = this._distance();
         if (!(distance > 0)) return;
+        // The model is already there (`adw_animation_skip`), so the offset follows at once
+        // and nothing waits for an arrival; a smooth scroll would feed the frames in
+        // between back into `position`.
+        if (!request.animate) {
+            this._pendingInteractive = null;
+            this._scrollTargetId = null;
+            this._trackEl.scrollTo({ left: request.index * distance, behavior: 'instant' });
+            return;
+        }
         this._pendingInteractive = request.interactive;
         this._scrollTargetId = this._state.ids[request.index] ?? null;
         // `offset = distance * position`, NOT `slot.offsetLeft` — that is measured from

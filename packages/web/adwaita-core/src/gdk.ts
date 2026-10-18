@@ -3,6 +3,8 @@
 // Amendment 2. A TRUE SUBSET of `gi://Gdk?version=4.0`: the names and semantics are GDK's and a
 // later stage only adds members. What GDK has and this does not (`Clipboard.read_text_async`,
 // `get_content`, the primary selection, non-string values) is not defined here.
+// `Display.get_app_launch_context()` is the one non-clipboard member: the context
+// `Gio.AppInfo.launch_default_for_uri` takes (`gio-app-info.ts`).
 //
 // WHAT THE HOST DOES: GDK keeps the provider locally and publishes it to the platform clipboard.
 // The local half is here; the publish is the {@link ClipboardHost} a port hands in (a browser's
@@ -13,6 +15,7 @@
 // Reference: gtk gdk/gdkclipboard.c, gdk/gdkcontentprovider.c, gdk/gdkcontentformats.c
 // Copyright (c) GNOME contributors (GTK). LGPLv2.1+.
 
+import { AppLaunchContext as GioAppLaunchContext } from './gio-app-info.js';
 import { readValue, TYPE_STRING, Value, type GType } from './gobject.js';
 
 /** How a port publishes text to the platform clipboard. */
@@ -120,7 +123,15 @@ export class Display {
     get_clipboard(): Clipboard {
         return this.#clipboard;
     }
+
+    /** A new context per call, as `gdk_display_get_app_launch_context` returns. */
+    get_app_launch_context(): AppLaunchContext {
+        return new AppLaunchContext();
+    }
 }
+
+/** `Gdk.AppLaunchContext`, the `Gio.AppLaunchContext` a display hands `Gio.AppInfo`. */
+export class AppLaunchContext extends GioAppLaunchContext {}
 
 /** `Gdk` as far as this subset goes. */
 export interface GdkClipboard {
@@ -128,6 +139,7 @@ export interface GdkClipboard {
     readonly Clipboard: typeof Clipboard;
     readonly ContentProvider: Pick<typeof ContentProvider, 'new_for_value'>;
     readonly ContentFormats: typeof ContentFormats;
+    readonly AppLaunchContext: typeof AppLaunchContext;
 }
 
 /** A port is always on a display, so `get_default()` is never null (real GDK: null before `Gtk.init`). */
@@ -138,6 +150,7 @@ export function createGdk(host: ClipboardHost): GdkClipboard {
         Clipboard,
         ContentProvider,
         ContentFormats,
+        AppLaunchContext,
     };
 }
 

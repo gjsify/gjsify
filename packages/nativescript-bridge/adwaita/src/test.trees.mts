@@ -19,11 +19,14 @@ import { GioResourceNsTest } from './gio-resource.spec.js';
 import { AdwBlueprintTreesNsTest } from './blueprint-trees.spec.js';
 import { AdwBlueprintMarkupNsTest } from './blueprint-markup.spec.js';
 import { AdwClampClasslessChildNsTest } from './clamp-child.spec.js';
+import { AdwAboutDialogDoorsNsTest } from './about-dialog-doors.spec.js';
+import { AdwCarouselDoorsNsTest } from './carousel-doors.spec.js';
 import { AdwConstructVectorsNsTest } from './construct-vectors.spec.js';
 import { AdwContainersNsTest } from './containers.spec.js';
 import { AdwGalleryBlueprintsNsTest } from './gallery-blueprints.spec.js';
 import { GtkButtonActionsNsTest } from './gtk-button-actions.spec.js';
 import gtkPlatformNsTest from './gtk-platform.spec.js';
+import gioNsTest from './gio.spec.js';
 import { GtkMenuTreeNsTest } from './gtk-menu-tree.spec.js';
 import { PopupMenuWidgetsNsTest } from './popup-menu-widgets.spec.js';
 import { GtkBoxNsTest } from './gtk-box.spec.js';
@@ -55,6 +58,8 @@ run({
     AdwSharedTreesNsTest,
     AdwRegisterBarrelNsTest,
     AdwClampClasslessChildNsTest,
+    AdwAboutDialogDoorsNsTest,
+    AdwCarouselDoorsNsTest,
     AdwConstructVectorsNsTest,
     AdwGObjectDoorNsTest,
     AdwGTypeNameNsTest,
@@ -75,6 +80,7 @@ run({
     GtkButtonActionsNsTest,
     GtkMenuTreeNsTest,
     gtkPlatformNsTest,
+    gioNsTest,
     PopupMenuWidgetsNsTest,
     AdwGtkValueDoorsNsTest,
     AdwViewSwitcherStackNsTest,

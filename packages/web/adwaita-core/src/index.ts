@@ -52,6 +52,7 @@ export {
     licenseText,
     licenseTypeForSpdxId,
     parseCreditPerson,
+    refuseNewFromAppdata,
     setLicense,
     setLicenseType,
     translatorCreditsPeople,
@@ -70,6 +71,15 @@ export type {
     AdwLicenseTransition,
     AdwLicenseType,
 } from './about-dialog.js';
+export { RELEASE_NOTES_LABELS, releaseNotesBuffer } from './release-notes.js';
+export type {
+    ReleaseNotesBuffer,
+    ReleaseNotesError,
+    ReleaseNotesInput,
+    ReleaseNotesLabels,
+    ReleaseNotesSegment,
+    ReleaseNotesTag,
+} from './release-notes.js';
 
 // --- Avatar derivation (Adw.Avatar initials + colour) ---
 export {
@@ -428,7 +438,15 @@ export type {
 
 // --- GLib primitives Adwaita arithmetic is written in ---
 export { glibClamp, gStrStrip, stringIsNotEmpty } from './glib.js';
-export { ContentFormats, ContentProvider, Clipboard, Display, createGdk, widgetDisplayMembers } from './gdk.js';
+export {
+    AppLaunchContext as GdkAppLaunchContext,
+    ContentFormats,
+    ContentProvider,
+    Clipboard,
+    Display,
+    createGdk,
+    widgetDisplayMembers,
+} from './gdk.js';
 export {
     CURRENT_TIME,
     CssProvider,
@@ -1147,5 +1165,8 @@ export type {
 export { engineForTarget, registerGObjectEngine, registeredEngine, resetRegisteredEngine } from './engine.js';
 export type { EngineTarget, GObjectEngine } from './engine.js';
 export { MAXUINT32, buildFilenamev, getCurrentDir, getSystemDataDirs } from './glib-paths.js';
+export { uriEscapeString } from './glib-uri.js';
+export { AppLaunchContext as GioAppLaunchContext, createAppInfo, uriPeekScheme } from './gio-app-info.js';
+export type { GioAppInfo } from './gio-app-info.js';
 export { ColorScheme, StyleManagerBase } from './style-manager.js';
 export type { StyleSource } from './style-manager.js';
