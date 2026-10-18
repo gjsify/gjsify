@@ -248,3 +248,26 @@ Each stage ends with a measurement, recorded in a report under `docs/reports/`.
    too now:** [report](../reports/2026-10-15-adr-0110-gates.md) — 15.77 MB (arm64-v8a) and
    16.93 MB (x86_64) compressed per split, +80 ms cold start on the x86_64 emulator. Not measured:
    arm64 cold start from a release APK.
+
+### Open: the twin route (§ 2), options and a recommendation
+
+Status 2026-10-18: this is an OWNER DECISION, not a missing implementation. § 2 names two routes
+and decides neither; nothing in stages 0-4 or ADR 0110 chose one, and the code has only the twin
+(`packages/nativescript-bridge/gobject`, lazy twin built on first use).
+
+- **Keep the twin (status quo).** No consumer reaches the twin object, only the engine interface,
+  so nothing is blocked. Cost is measured (ADR 0110 gates report): construction is free, USE is
+  ~5x read, ~45-99x `set`/`notify`, ~20-45x emit; the perf work continues in the todo.
+- **Invert ownership: the widget is a GObject subclass that owns its `View`.** The only route
+  that keeps NativeScript's layout and widgets. Open question that gates it: whether NativeScript
+  layout accepts a non-`View` wrapper. That is a spike (one widget, one layout pass on the
+  emulator), not a design discussion; the result decides the route.
+- **C′: widgets are real GTK subclasses by construction.** Already exists as ADR 0104's separate
+  opt-in track (GTK on a Worker). It is a different product (GTK rendering, not NativeScript
+  widgets), so it does not replace the twin for NativeScript apps.
+
+Recommendation: keep the twin and do not start either route until a consumer needs a widget to
+BE a `GObject.Object` (`instanceof`, passing it to a native API). If that need appears, run the
+inversion spike first; C′ stays the answer for apps that want real GTK. No measurement was run
+for this entry.
+
