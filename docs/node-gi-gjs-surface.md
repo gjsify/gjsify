@@ -890,8 +890,11 @@ Ported this slice: `cairo.Context` (drawing + transform ops incl.
 `identityMatrix` and the `userToDevice[Distance]` / `deviceToUser[Distance]`
 point transforms, state getters, `setDash`/`getDashCount` (+ a net-new
 `getDash`), `inFill`/`inStroke`, `newSubPath`, `copyPath`/`copyPathFlat`/
-`appendPath` (owned `cairo.Path` handles), `getSource` with concrete-subclass
-fan-out, `$dispose`), `cairo.Surface` + `cairo.ImageSurface` (`getData`/
+`appendPath` (owned `cairo.Path` handles), `getSource`/`getTarget`/
+`getGroupTarget` with concrete-subclass fan-out, the group stack
+(`pushGroup`/`pushGroupWithContent`/`popGroup`/`popGroupToSource`),
+`mask`/`maskSurface`, `resetClip`, `relCurveTo`, `copyPage`/`showPage`,
+`$dispose`), `cairo.Surface` + `cairo.ImageSurface` (`getData`/
 `getWidth`/`getHeight`/`getStride`/`getFormat`/`flush`/`writeToPNG`/
 `createFromPNG`), the patterns — `cairo.SolidPattern`,
 `cairo.LinearGradient`/`cairo.RadialGradient` (`addColorStopRGB[A]` via the
@@ -902,9 +905,19 @@ the full surface `@gjsify/canvas2d-core` draws through (headless Canvas 2D).
 The native binding paints **byte-for-byte identically to GJS** (verified
 pixel-for-pixel against `gjs -m`, incl. gradients / repeating surface patterns /
 dashed strokes / path round-trips — `test/cairo-canvas2d.test.mjs`). Deferred:
-region objects, the PDF/SVG/PS surfaces and font matrices/options. The toy text API
+region objects and the PDF/SVG/PS surfaces. The toy text API
 (`selectFontFace`/`setFontSize`/`showText`/`textPath`/`textExtents`/`fontExtents`) is bound as GJS
 shapes it; canvas2d text still rides PangoCairo.
+
+`cairo.Context` now covers **every method GJS binds** (the `proto_funcs` table of
+`refs/gjs/modules/cairo-context.cpp`), plus the net-new `getDash` and `status`.
+`getFontMatrix`/`setFontMatrix` take the same plain `{xx, yx, xy, yy, x0, y0}`
+object GJS uses — cairo's matrix type has no wrapper there, which is also why
+`getMatrix`/`setMatrix`/`transform` stay unbound on BOTH runtimes. The rest of
+GJS's commented-out entries (`getFontFace`/`setFontFace`, `getFontOptions`/
+`setFontOptions`, `getScaledFont`/`setScaledFont`, `glyphPath`/`glyphExtents`,
+`showGlyphs`/`showTextGlyphs`) are unbound here for the same reason: binding them
+would be a node-gi-only surface a GJS port can never rely on.
 
 Building on that seam, the **LIVE `@gjsify/canvas2d` `Canvas2DBridge`** — a
 `Gtk.DrawingArea` that wraps an `HTMLCanvasElement` 2D context and blits its Cairo
