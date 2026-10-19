@@ -608,6 +608,11 @@ export class GridLayout extends LayoutBase {
         if (at !== -1) this._rows.splice(at, 1);
     }
 
+    /** `GridLayoutBase.getColumns` — a copy, as on a device. */
+    getColumns(): ItemSpec[] {
+        return [...this._cols];
+    }
+
     removeColumns(): void {
         this._cols.length = 0;
     }

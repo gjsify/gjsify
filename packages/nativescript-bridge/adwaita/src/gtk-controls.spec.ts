@@ -7,6 +7,7 @@ import { driveCheckGroupVectors, type CheckButtonLike } from '@gjsify/adwaita-co
 
 import { DRAWING_AREA_REFUSAL } from './widgets/gtk-drawing-area.js';
 import * as Gtk from './namespace/gtk.js';
+import { type GridLayout, Label } from './testing/ns-core.mjs';
 
 const tap = (view: object): void => (view as Gtk.CheckButton).notify({ eventName: 'tap', object: view as never });
 
@@ -18,6 +19,20 @@ export const GtkControlsNsTest = async () => {
             expect(check.inconsistent).toBe(false);
             expect(check.label).toBe(null);
             expect(check.className).toBe('adw-check-button');
+        });
+
+        await it('stretches its content column only while it has a label or child', () => {
+            // An empty `star` column filled an `Adw.WrapBox` line, one swatch per line.
+            const units = (check: Gtk.CheckButton) =>
+                (check as unknown as GridLayout).getColumns().map((spec) => spec.gridUnitType);
+            const check = new Gtk.CheckButton();
+            expect(units(check)).toStrictEqual(['auto', 'auto']);
+            check.label = 'Blue';
+            expect(units(check)).toStrictEqual(['auto', 'star']);
+            check.label = null;
+            expect(units(check)).toStrictEqual(['auto', 'auto']);
+            check.set_child(new Label() as never);
+            expect(units(check)).toStrictEqual(['auto', 'star']);
         });
 
         await it('wears `checked` and `inconsistent` as state classes the style list never reports', () => {
