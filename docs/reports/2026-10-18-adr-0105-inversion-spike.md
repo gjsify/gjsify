@@ -42,6 +42,10 @@ Same on emulator and S9 unless a column says otherwise.
   the emitter argument. Whether the twin has the same leak for handler-connected instances is
   untested. `WeakRef` is no witness on this runtime: a target behind one is kept until the
   embedder clears kept objects.
+  **FIXED 2026-10-19** — node-gi's signal closures hold their callback weakly now and keep it
+  reachable from the canonical handle instead, which is what GJS's closure tracing does; the
+  `this`-capturing case re-measures as `finalized=true` on both devices and `inversion.ts`
+  asserts it. The rest of this bullet stands as measured.
 
 Why it fails, exactly:
 

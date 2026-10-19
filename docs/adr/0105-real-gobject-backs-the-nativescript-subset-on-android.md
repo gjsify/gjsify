@@ -293,7 +293,8 @@ change. Inversion also buys only ~1.4x on `set`/`notify` and ~1.6x on emit.
 - **The twin stays permanently**; perf work on the twin continues (see the todo).
 - **C′ (ADR 0104)** stays the answer for apps that want real GTK widgets.
 - Lifetime rule found: a signal handler that captures `this` is never collected on node-gi
-  (a C-JS closure cycle). Twin exposure is untested.
+  (a C-JS closure cycle). Twin exposure is untested. **Fixed 2026-10-19** — signal closures
+  hold their callback weakly, as in GJS; the case is asserted on both devices.
 
 [Report](../reports/2026-10-18-adr-0105-inversion-spike.md). Probe:
 `tests/integration/nativescript-gi/app/specs/inversion.ts`.
@@ -325,8 +326,9 @@ round-trips the same JS object; a removed widget finalizes and a live one does n
   `packages/node-gi/AGENTS.md` and `packages/node-gi/node-gi/README.md`.
 - **`vfunc_*` is not available** on a foreign-parent class (it would need the instance prototype
   re-linked). Properties, signals and bindings are.
-- The `this`-capturing handler leak from 2026-10-18 is **unchanged** and now reaches widgets —
-  the per-widget migration must use the emitter argument, never an enclosing `this`.
+- The `this`-capturing handler leak from 2026-10-18 reached widgets too, and is now **fixed** in
+  node-gi (weak signal-closure refs, the handle keeps the callback reachable). The per-widget
+  migration may capture an enclosing `this`; the emitter argument stays the idiomatic spelling.
 - **C′ (ADR 0104)** is unaffected: it stays the answer for apps that want real GTK widgets.
 - Cost, twin versus route D (median ns/op): S9 set+notify 60614 → 58171 wired / 40445 bare,
   emit 23212 → 12879. The win is modest on `set`; it is the API that justifies this, not the

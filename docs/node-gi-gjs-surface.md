@@ -452,7 +452,8 @@ shared per-instance JS object yet), so use GObject **properties** for any state
 that must be visible both inside a vfunc and on the instance (those live in C and
 are consistent; the unified instance identity arrives with the toggle-ref work);
 a JS↔GObject reference cycle on a custom instance leaks (the same cycle-leak
-caveat the signal/vfunc layer carries).
+caveat the vfunc layer carries — the SIGNAL half of it is closed: a handler that
+captures its own emitter is collected, as in GJS, see `test/gc-identity.test.mjs`).
 
 ### `registerClass` over a FOREIGN parent class — NativeScript only
 
