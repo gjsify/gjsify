@@ -20,7 +20,11 @@ export default async () => {
                 name: 'GJS (real Gio.Settings)',
                 isOracle: true,
                 Settings: Gio.Settings as SettingsClassLike,
-                reset: () => {},
+                Variant: GLib.Variant,
+                reset: () => {
+                    const settings = new Gio.Settings({ schema_id: 'eu.jumplink.Learn6502' });
+                    for (const key of settings.list_keys()) settings.reset(key);
+                },
             },
             { describe, it, expect },
         );

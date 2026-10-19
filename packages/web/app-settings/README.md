@@ -19,8 +19,8 @@ settings.get_int('window-width');
 settings.connect('changed::window-width', (_s, key) => {});
 ```
 
-Supported: `get/set_{boolean,int,uint,double,string}`, `connect('changed[::key]')`, `disconnect`, `schema_id`, `path`.
-Key types: `b i u d s`. Everything else (`list_keys`, `get_value`, `reset`, `apply`, `delay`, `Gio.Settings.new`) is refused by name, and `bind()` throws.
+Supported: `get/set_{boolean,int,uint,double,string}`, `get_value`/`set_value` with `GLib.Variant`, `connect('changed[::key]')`, `disconnect`, `schema_id`, `path`.
+Key types: `b i u d s` and the arrays `ab ai au ad as` (ADR 0118). An array key is read and written through `get_value`/`set_value` and stored as its GVariant text (`print(false)`). Everything else (`list_keys`, `get_strv`, `reset`, `apply`, `delay`, `Gio.Settings.new`) is refused by name, and `bind()` throws.
 
 ## Schema
 

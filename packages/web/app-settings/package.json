@@ -49,6 +49,9 @@
         "nativescript",
         "browser"
     ],
+    "dependencies": {
+        "@gjsify/adwaita-core": "workspace:^"
+    },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",

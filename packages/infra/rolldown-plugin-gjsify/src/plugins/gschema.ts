@@ -7,8 +7,8 @@
 // the no-op `Settings.register`.
 //
 // What the subset cannot honour is refused HERE, naming the key and the line, rather than
-// compiled into a schema that behaves differently from GNOME's: a key type outside `b i u d s`,
-// `<range>`, `<choices>`, `<enum>`, `<flags>`, `<child>`, `<override>`, and a schema without
+// compiled into a schema that behaves differently from GNOME's: a key type outside `b i u d s`
+// and the arrays of them (`ab ai au ad as`, ADR 0118 § 3), `<range>`, `<choices>`, `<enum>`, `<flags>`, `<child>`, `<override>`, and a schema without
 // `path` (the storage key is `<path><key>`).
 
 import { readFile } from 'node:fs/promises';
@@ -17,12 +17,15 @@ import type { Plugin } from 'rolldown';
 
 export const GSCHEMA_PLUGIN = 'gjsify-gschema';
 
-const KEY_TYPES = new Set(['b', 'i', 'u', 'd', 's']);
+const KEY_TYPES = new Set(['b', 'i', 'u', 'd', 's', 'ab', 'ai', 'au', 'ad', 'as']);
 const REFUSED_TAGS = ['range', 'choices', 'enum', 'flags', 'child', 'override'];
 
+type BasicType = 'b' | 'i' | 'u' | 'd' | 's';
+type BasicValue = boolean | number | string;
+
 export interface GschemaKey {
-    type: 'b' | 'i' | 'u' | 'd' | 's';
-    default: boolean | number | string;
+    type: BasicType | `a${BasicType}`;
+    default: BasicValue | BasicValue[];
 }
 export interface GschemaOut {
     id: string;
@@ -50,9 +53,48 @@ function unescapeXml(s: string): string {
         .replace(/&amp;/g, '&');
 }
 
-/** GVariant text format for the five supported types. */
+/**
+ * The elements of an array default: `[]`, `@ai []` or `[a, b, …]`. Restricted to what a schema
+ * default of `ab ai au ad as` holds; the runtime reads stored values with adwaita-core's
+ * `GLibVariant.parseText`, which this build step cannot depend on.
+ */
+function splitArray(text: string, type: string): string[] | undefined {
+    const body = text.replace(new RegExp(`^@${type}\\s+`), '');
+    if (!body.startsWith('[') || !body.endsWith(']')) return undefined;
+    const inner = body.slice(1, -1).trim();
+    if (inner === '') return [];
+    const items: string[] = [];
+    let start = 0;
+    let quote = '';
+    for (let i = 0; i < inner.length; i++) {
+        const c = inner[i];
+        if (quote) {
+            if (c === '\\') i++;
+            else if (c === quote) quote = '';
+        } else if (c === "'" || c === '"') quote = c;
+        else if (c === ',') {
+            items.push(inner.slice(start, i).trim());
+            start = i + 1;
+        }
+    }
+    if (quote) return undefined;
+    items.push(inner.slice(start).trim());
+    return items.includes('') ? undefined : items;
+}
+
+/** GVariant text format for the supported types. */
 function parseDefault(raw: string, type: GschemaKey['type'], where: string): GschemaKey['default'] {
     const text = unescapeXml(raw.trim());
+    if (type.length === 2) {
+        const items = splitArray(text, type);
+        const element = type[1] as BasicType;
+        if (items) return items.map((item) => parseBasic(item, element, where));
+        throw new Error(`${where}: default '${text}' is not a valid '${type}' value`);
+    }
+    return parseBasic(text, type as BasicType, where);
+}
+
+function parseBasic(text: string, type: BasicType, where: string): BasicValue {
     if (type === 'b') {
         if (text === 'true' || text === 'false') return text === 'true';
     } else if (type === 's') {
@@ -98,7 +140,9 @@ export function parseGschema(xml: string, file: string): GschemaOut {
         const type = attr(m[1], 'type');
         if (!name) throw new Error(`${where}: <key> has no name`);
         if (!type || !KEY_TYPES.has(type)) {
-            throw new Error(`${where}: key '${name}' has type '${type}'; the subset supports b, i, u, d, s`);
+            throw new Error(
+                `${where}: key '${name}' has type '${type}'; the subset supports b, i, u, d, s and arrays of them`,
+            );
         }
         const def = /<default\b[^>]*>([\s\S]*?)<\/default>/.exec(m[2]);
         if (!def) throw new Error(`${where}: key '${name}' has no <default>`);

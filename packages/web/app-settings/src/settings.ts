@@ -7,10 +7,19 @@
 // so the first write of the default fires. A write equal to the stored value is silent. The
 // keyfile backend fires on every write; the subset does not copy that.
 //
+// Array keys (`ab ai au ad as`, ADR 0118 § 3) are read and written through `get_value` /
+// `set_value` with the core's `GLib.Variant`. A platform storage keeps them as `print(false)` text
+// and reads them back with `GLibVariant.parseText`, so a value copied from `gsettings get` reads too.
+//
 // Reference: glib gio/gsettings.c
 
-export type KeyType = 'b' | 'i' | 'u' | 'd' | 's';
-export type SettingValue = boolean | number | string;
+import { GLibVariant } from '@gjsify/adwaita-core';
+
+export type BasicKeyType = 'b' | 'i' | 'u' | 'd' | 's';
+export type ArrayKeyType = 'ab' | 'ai' | 'au' | 'ad' | 'as';
+export type KeyType = BasicKeyType | ArrayKeyType;
+export type BasicSettingValue = boolean | number | string;
+export type SettingValue = BasicSettingValue | readonly BasicSettingValue[];
 
 export interface SchemaKey {
     readonly type: KeyType;
@@ -39,8 +48,8 @@ type ChangedHandler = (settings: object, key: string) => void;
 
 const REFUSED_METHODS = [
     'list_keys',
-    'get_value',
-    'set_value',
+    'get_strv',
+    'set_strv',
     'get_user_value',
     'get_default_value',
     'reset',
@@ -67,9 +76,33 @@ const TYPE_NAMES: Record<KeyType, string> = {
     u: 'uint',
     d: 'double',
     s: 'string',
+    ab: 'boolean array',
+    ai: 'int array',
+    au: 'uint array',
+    ad: 'double array',
+    as: 'string array',
 };
 
-const BUILD_TYPES = new Set<string>(['b', 'i', 'u', 'd', 's']);
+const BUILD_TYPES = new Set<string>(['b', 'i', 'u', 'd', 's', 'ab', 'ai', 'au', 'ad', 'as']);
+
+export function isArrayKeyType(type: KeyType): type is ArrayKeyType {
+    return type.length === 2;
+}
+
+/** The text an array key is stored as: GLib's `print(false)`. */
+export function printArrayValue(type: ArrayKeyType, value: SettingValue): string {
+    return new GLibVariant(type, value).print(false);
+}
+
+/** The inverse of {@link printArrayValue}; throws on text that is not a `type` value. */
+export function parseArrayValue(type: ArrayKeyType, text: string): BasicSettingValue[] {
+    return GLibVariant.parseText(type, text).deepUnpack<BasicSettingValue[]>();
+}
+
+function sameValue(a: SettingValue | undefined, b: SettingValue): boolean {
+    if (!Array.isArray(a) || !Array.isArray(b)) return a === b;
+    return a.length === b.length && a.every((item, i) => Object.is(item, b[i]));
+}
 
 function refuse(feature: string, detail: string): Error {
     return new Error(`Gio.Settings: ${feature} ${detail}, which is outside the Gio.Settings subset (ADR 0099 § 2).`);
@@ -103,6 +136,8 @@ export interface Settings {
     get_uint(key: string): number;
     get_double(key: string): number;
     get_string(key: string): string;
+    get_value(key: string): GLibVariant;
+    set_value(key: string, value: GLibVariant): boolean;
     set_boolean(key: string, value: boolean): boolean;
     set_int(key: string, value: number): boolean;
     set_uint(key: string, value: number): boolean;
@@ -139,7 +174,7 @@ export function defineSettings(storage: SettingsStorage): SettingsClass {
                 if (!BUILD_TYPES.has(def.type)) {
                     throw refuse(
                         `key '${key}' of type '${def.type}' in schema '${schema.id}'`,
-                        'is not a b i u d s key',
+                        'is not a b i u d s key or an array of one',
                     );
                 }
             }
@@ -165,9 +200,14 @@ export function defineSettings(storage: SettingsStorage): SettingsClass {
             siblings.add(this);
         }
 
-        #keyOf(key: string, expected: KeyType): SchemaKey {
+        #def(key: string): SchemaKey {
             const def = this.#schema.keys[key];
             if (!def) throw new Error(`GSettings key ${key} not found in schema ${this.schema_id}`);
+            return def;
+        }
+
+        #keyOf(key: string, expected: KeyType): SchemaKey {
+            const def = this.#def(key);
             if (def.type !== expected) {
                 throw new TypeError(
                     `Gio.Settings: key '${key}' is of type '${def.type}', not '${expected}' (${TYPE_NAMES[expected]})`,
@@ -184,11 +224,11 @@ export function defineSettings(storage: SettingsStorage): SettingsClass {
 
         #set(key: string, expected: KeyType, value: SettingValue): boolean {
             this.#keyOf(key, expected);
-            checkValue(expected, value, key);
+            if (!isArrayKeyType(expected)) checkValue(expected, value as BasicSettingValue, key);
             const storageKey = this.path + key;
             const before = storage.read(storageKey, expected);
             storage.write(storageKey, expected, value);
-            if (before !== value) this.notifyAll(key);
+            if (!sameValue(before, value)) this.notifyAll(key);
             return true;
         }
 
@@ -231,6 +271,23 @@ export function defineSettings(storage: SettingsStorage): SettingsClass {
         }
         get_string(key: string): string {
             return this.#get(key, 's') as string;
+        }
+        get_value(key: string): GLibVariant {
+            const { type } = this.#def(key);
+            return new GLibVariant(type, this.#get(key, type));
+        }
+        set_value(key: string, value: GLibVariant): boolean {
+            if (!(value instanceof GLibVariant)) {
+                throw new TypeError(
+                    `Expected an object of type GVariant for argument 'value' but got type ${value === null ? 'null' : typeof value}`,
+                );
+            }
+            const { type } = this.#def(key);
+            const actual = value.get_type_string();
+            if (actual !== type) {
+                throw new TypeError(`Gio.Settings: key '${key}' is of type '${type}', not '${actual}'`);
+            }
+            return this.#set(key, type, value.deepUnpack<SettingValue>());
         }
         set_boolean(key: string, value: boolean): boolean {
             return this.#set(key, 'b', value);

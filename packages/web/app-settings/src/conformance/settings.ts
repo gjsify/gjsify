@@ -14,15 +14,24 @@ export interface SettingsClassLike {
     new (props: { schema_id: string; path?: string }): SettingsLike;
 }
 
+/** `GLib.Variant` as far as the vectors build one for `set_value` (ADR 0118 § 3). */
+export interface VariantClassLike {
+    new (type: string, value: unknown): { get_type_string(): string; deepUnpack(): unknown };
+}
+
 export interface SettingsSubject {
     readonly name: string;
     readonly isOracle: boolean;
     readonly Settings: SettingsClassLike;
+    readonly Variant: VariantClassLike;
     /** Forgets everything written, so a vector starts from the defaults. */
     reset(): void;
 }
 
-/** Learn6502's nine keys (`eu.jumplink.Learn6502.gschema.xml`), plus `u` and `d` for coverage. */
+/**
+ * Learn6502's ten keys (`eu.jumplink.Learn6502.gschema.xml`, `support-prompt-years` is its `ai`),
+ * plus `u`, `d` and `as` for coverage.
+ */
 export const FIXTURE_SCHEMA: Schema = {
     id: 'eu.jumplink.Learn6502',
     path: '/eu/jumplink/Learn6502/',
@@ -39,6 +48,8 @@ export const FIXTURE_SCHEMA: Schema = {
         'auto-indent': { type: 'b', default: true },
         count: { type: 'u', default: 7 },
         ratio: { type: 'd', default: 1.5 },
+        'support-prompt-years': { type: 'ai', default: [] },
+        tags: { type: 'as', default: ['a', "b'c"] },
     },
 };
 
@@ -58,6 +69,8 @@ export const FIXTURE_SCHEMA_XML = `<?xml version="1.0" encoding="UTF-8"?>
     <key name="auto-indent" type="b"><default>true</default></key>
     <key name="count" type="u"><default>7</default></key>
     <key name="ratio" type="d"><default>1.5</default></key>
+    <key name="support-prompt-years" type="ai"><default>[]</default></key>
+    <key name="tags" type="as"><default>['a', "b'c"]</default></key>
   </schema>
 </schemalist>
 `;
@@ -199,6 +212,87 @@ export const SETTINGS_VECTORS: readonly SettingsVector[] = [
         shows: [true, true, true, true],
     },
     {
+        row: 'value-defaults',
+        rule: 'get_value of a never-written key is a Variant of the key type holding the default, for an array and a basic key',
+        run: (s) => {
+            const x = make(s);
+            const years = x.get_value('support-prompt-years');
+            const tags = x.get_value('tags');
+            const width = x.get_value('window-width');
+            return [
+                years.get_type_string(),
+                years.deepUnpack(),
+                tags.get_type_string(),
+                tags.deepUnpack(),
+                width.get_type_string(),
+                width.deepUnpack(),
+            ];
+        },
+        shows: ['ai', [], 'as', ['a', "b'c"], 'i', 1000],
+    },
+    {
+        row: 'value-roundtrip',
+        rule: 'set_value returns true and get_value reads the value back; a basic key set through set_value reads through its typed getter',
+        run: (s) => {
+            const x = make(s);
+            return [
+                x.set_value('support-prompt-years', new s.Variant('ai', [2024, 2025])),
+                x.set_value('tags', new s.Variant('as', [])),
+                x.set_value('window-width', new s.Variant('i', 640)),
+                x.get_value('support-prompt-years').deepUnpack(),
+                x.get_value('tags').deepUnpack(),
+                x.get_int('window-width'),
+            ];
+        },
+        shows: [true, true, true, [2024, 2025], [], 640],
+    },
+    {
+        row: 'value-changed',
+        rule: 'an array key fires changed::key when the stored value differs: the first write of the default fires, an EQUAL array is silent (memory backend)',
+        run: (s) => {
+            const x = make(s);
+            let runs = 0;
+            x.connect('changed::support-prompt-years', () => (runs += 1));
+            x.set_value('support-prompt-years', new s.Variant('ai', []));
+            x.set_value('support-prompt-years', new s.Variant('ai', []));
+            x.set_value('support-prompt-years', new s.Variant('ai', [1, 2]));
+            x.set_value('support-prompt-years', new s.Variant('ai', [1, 2]));
+            x.set_value('support-prompt-years', new s.Variant('ai', [2, 1]));
+            return runs;
+        },
+        shows: 3,
+    },
+    {
+        row: 'value-errors',
+        rule: 'get_value and set_value of an unknown key throw; set_value of something that is not a Variant throws TypeError',
+        run: (s) => {
+            const x = make(s);
+            let notVariant = '';
+            try {
+                x.set_value('support-prompt-years', [1]);
+            } catch (error) {
+                notVariant = (error as Error).constructor.name;
+            }
+            return [
+                threw(() => x.get_value('nope')) !== null,
+                threw(() => x.set_value('nope', new s.Variant('ai', []))) !== null,
+                notVariant,
+            ];
+        },
+        shows: [true, true, 'TypeError'],
+    },
+    {
+        row: 'refusal-value-type',
+        rule: 'set_value with a Variant of another type throws, naming key, expected and actual type string (GJS returns false and logs a GLib-CRITICAL)',
+        subsetOnly: true,
+        run: (s) => {
+            const x = make(s);
+            const message = threw(() => x.set_value('support-prompt-years', new s.Variant('as', []))) ?? '';
+            return [message.includes('support-prompt-years'), message.includes("'ai'"), message.includes("'as'")];
+        },
+        shows: [true, true, true],
+    },
+    {
         row: 'refusal-type',
         rule: 'a wrong-type getter or setter throws, naming the key (GJS only logs a GLib-CRITICAL and goes on)',
         subsetOnly: true,
@@ -219,8 +313,10 @@ export const SETTINGS_VECTORS: readonly SettingsVector[] = [
             const x = make(s);
             const names = [
                 'list_keys',
-                'get_value',
-                'set_value',
+                'get_strv',
+                'set_strv',
+                'get_user_value',
+                'get_default_value',
                 'reset',
                 'apply',
                 'delay',
@@ -232,7 +328,7 @@ export const SETTINGS_VECTORS: readonly SettingsVector[] = [
             ];
             return names.map((n) => (threw(() => x[n]('k')) ?? '').includes(n));
         },
-        shows: [true, true, true, true, true, true, true, true, true, true, true],
+        shows: [true, true, true, true, true, true, true, true, true, true, true, true, true],
     },
     {
         row: 'refusal-construct',

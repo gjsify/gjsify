@@ -21,12 +21,15 @@ export interface RealGioSettingsSubject {
         readonly path: string;
         [method: string]: any;
     };
+    /** The real `GLib.Variant`, for the `set_value` rows (ADR 0118 § 3). */
+    readonly Variant: new (type: string, value: unknown) => { get_type_string(): string; deepUnpack(): unknown };
     /** Forgets everything written, so a vector starts from the defaults. */
     reset(): void;
 }
 
 interface RealGLib {
     setenv(name: string, value: string, overwrite: boolean): boolean;
+    Variant: RealGioSettingsSubject['Variant'];
 }
 
 /** As much of a real `Gio.Settings` class as the subject uses. */
@@ -81,6 +84,7 @@ export function createRealGioSettingsSubject(
         name: 'node-gi (real Gio.Settings, memory backend)',
         isOracle: true,
         Settings: Settings as unknown as RealGioSettingsSubject['Settings'],
+        Variant: GLib.Variant,
         reset: () => {
             const settings = new Settings({ schema_id: schemaId });
             for (const key of settings.list_keys()) settings.reset(key);

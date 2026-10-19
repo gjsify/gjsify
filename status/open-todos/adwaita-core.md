@@ -215,13 +215,6 @@ Done on both ports: `Gio.Settings`, `Adw.ColorScheme`, `Gtk.CssProvider`/`StyleC
 - Conformance vectors for the platform slice do not yet run against real `gi://` under GJS.
 - `keyvalOfKey` ignores Shift, so an uppercase key reports the lower-case keysym.
 
-### The `GLib.Variant` subset of ADR 0118 is not implemented
-
-ADR 0118 (Accepted 2026-10-18): `glib-variant.ts` in `adwaita-core` for `b i u d s` and arrays of
-them, exported as `GLib.Variant` from both ports; `Gio.Settings` `get_value`/`set_value` and array
-key types in `@gjsify/app-settings`, stored as GVariant text. `VARIANT_VECTORS` against GJS come
-first. First consumer: Learn6502 `support-prompt-years` (`type="ai"`), unpersisted on web/Android.
-
 ### GTK CSS from a `CssProvider` does not apply on the web (ADR 0119)
 
 ADR 0119 (Accepted 2026-10-19): `load_from_string` hands GTK CSS to the web `<style>` and to

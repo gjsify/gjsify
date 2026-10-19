@@ -1,3 +1,4 @@
+import { GLibVariant } from '@gjsify/adwaita-core';
 import { describe, expect, it } from '@gjsify/unit';
 
 import { FIXTURE_SCHEMA, driveSettingsVectors } from './conformance/settings.js';
@@ -17,7 +18,13 @@ export default async () => {
     const Settings = defineSettings(storage);
     Settings.register(FIXTURE_SCHEMA);
     await driveSettingsVectors(
-        { name: 'subset over an in-memory storage', isOracle: false, Settings, reset: () => storage.clear() },
+        {
+            name: 'subset over an in-memory storage',
+            isOracle: false,
+            Settings,
+            Variant: GLibVariant,
+            reset: () => storage.clear(),
+        },
         { describe, it, expect },
     );
 
@@ -25,6 +32,11 @@ export default async () => {
         await it('refuses a key type outside b i u d s', () => {
             expect(() =>
                 Settings.register({ id: 'x', path: '/x/', keys: { k: { type: 'a' as never, default: 0 } } }),
+            ).toThrow();
+        });
+        await it('refuses a nested array key', () => {
+            expect(() =>
+                Settings.register({ id: 'x', path: '/x/', keys: { k: { type: 'aai' as never, default: [] } } }),
             ).toThrow();
         });
         await it('refuses a schema without a path', () => {

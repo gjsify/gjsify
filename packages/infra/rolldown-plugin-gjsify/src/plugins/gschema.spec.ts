@@ -37,9 +37,45 @@ export default async () => {
             expect(s.keys.k4).toStrictEqual({ type: 'd', default: 1.5 });
         });
         await it('refuses an unsupported key type, naming key and line', async () => {
-            const msg = throws(() => parseGschema(wrap(key('as', '[]')), 'x.gschema.xml'));
+            const msg = throws(() => parseGschema(wrap(key('aai', '[]')), 'x.gschema.xml'));
             expect(msg.includes("key 'k'")).toBe(true);
             expect(msg.includes('x.gschema.xml:3')).toBe(true);
+        });
+        await it('carries array keys and their defaults (ADR 0118 § 3)', async () => {
+            const s = parseGschema(
+                wrap(
+                    [
+                        key('ai', '[]'),
+                        key('ai', '@ai []'),
+                        key('ai', '[2024, -1]'),
+                        key('as', `['a', "b'c", 'd,e']`),
+                        key('ab', '[true,false]'),
+                        key('ad', '[1.5]'),
+                        key('au', '[7]'),
+                    ]
+                        .map((k, i) => k.replace('name="k"', `name="k${i}"`))
+                        .join('\n'),
+                ),
+                'x.gschema.xml',
+            );
+            expect(s.keys.k0).toStrictEqual({ type: 'ai', default: [] });
+            expect(s.keys.k1).toStrictEqual({ type: 'ai', default: [] });
+            expect(s.keys.k2).toStrictEqual({ type: 'ai', default: [2024, -1] });
+            expect(s.keys.k3).toStrictEqual({ type: 'as', default: ['a', "b'c", 'd,e'] });
+            expect(s.keys.k4).toStrictEqual({ type: 'ab', default: [true, false] });
+            expect(s.keys.k5).toStrictEqual({ type: 'ad', default: [1.5] });
+            expect(s.keys.k6).toStrictEqual({ type: 'au', default: [7] });
+        });
+        await it('refuses an array default that is not the key type', async () => {
+            for (const [type, def] of [
+                ['ai', '[1.5]'],
+                ['ai', '[1,]'],
+                ['ai', '7'],
+                ['au', '[-1]'],
+                ['as', "['a"],
+            ]) {
+                expect(throws(() => parseGschema(wrap(key(type, def)), 'x.gschema.xml')) !== '').toBe(true);
+            }
         });
         await it('refuses range, choices, enum, flags, child and override', async () => {
             for (const tag of ['range', 'choices', 'enum', 'flags', 'child', 'override']) {
