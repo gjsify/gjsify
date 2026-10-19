@@ -128,10 +128,35 @@ not keep the process alive. A GObject emitting from another thread is not covere
 
 ### 6. iOS
 
-The pure-JS subset remains the iOS path. The NativeScript Android docs state that the Node-API
-surface is shared byte-for-byte with the iOS runtime, so node-gi's source is plausibly loadable
-there. Nothing else is known: no GLib or girepository cross-build for iOS was attempted, and
-loading unsigned dylibs on iOS is not reasoned here. Open.
+The pure-JS subset remains the iOS path, and route D (§ 2) does not change that: the
+foreign-parent exception only matters where node-gi loads, which today is Android alone. Every
+widget migrated to route D keeps a pure-JS test (`status/open-todos/nativescript.md`).
+
+Real GI on iOS was assessed on 2026-10-19 (read-only, no build). Feasible, not proven:
+
+- Node-API: NativeScript iOS 9.1 vendors Node's `js_native_api` unmodified, the same surface as
+  Android. An iOS addon is linked into the app binary and registers from a static constructor
+  (NativeScript/ios `docs/node-api.md`), not shipped as a `.so`.
+- libffi closures, which node-gi needs for signals, vfuncs, callbacks and `bind_property`: on
+  `aarch64-apple-*` libffi uses a trampoline table (`FFI_EXEC_TRAMPOLINE_TABLE`,
+  `refs/nativescript-napi/libffi/configure.ac`), no runtime-writable executable memory.
+  NativeScript's own iOS bridge already allocates a closure per ObjC method on devices.
+- GLib, GObject, Gio, girepository: GStreamer's cerbero cross-builds them for iOS device and
+  simulator. Its patches show what is missing there: `fork`/`exec`, the GIO module dir, D-Bus.
+- App Store: signed embedded code plus bundled typelibs is allowed; guideline 2.5.2 forbids only
+  downloaded code.
+
+What node-gi lacks: an iOS `#host` arm (`host.nativescript.js` is written against
+`android.system.Os` and `com.tns.NativeScriptApplication`), a CFRunLoop pump beside the ALooper
+one (`src/common.h`, `src/loop.cc` compile it only under `__ANDROID__`), and typelibs, which
+need g-ir-scanner's dumper run in a simulator on macOS, so CI would need macOS runners. The
+largest unknown: whether girepository's `g_module_open` resolves symbols that are statically
+linked into the app binary.
+
+Smallest settling proof: an iOS-simulator app with statically linked GLib, GObject, Gio,
+girepository and libffi that loads the GLib/GObject typelibs and makes one introspected call and
+one ffi-closure signal emission, with nothing loaded at runtime. Not scheduled; it needs paid
+macOS CI minutes and an owner decision.
 
 ### 7. Declarations: no new slots
 
