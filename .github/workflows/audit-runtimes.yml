@@ -1036,6 +1036,13 @@ jobs:
       - name: Check the NativeScript model states what is undefined before a write
         run: node scripts/check-nativescript-ns-defaults.mjs
 
+      # NativeScript's V8 has no ICU, and a regex literal compiles with its MODULE: one
+      # `/^\p{L}$/u` in adwaita-core's release-notes parser, in a helper nothing had called
+      # yet, killed Learn6502's Android bundle at startup ("Invalid property name") while
+      # Node, GJS and the browser — all with ICU — passed it.
+      - name: Check NativeScript-shipped sources use no ICU-only regex
+        run: node scripts/check-nativescript-no-icu-regex.mjs
+
       # The NS theme inlines the accent as a literal in every rule that uses it (the
       # CSS subset has no custom properties), so a runtime accent is a generated
       # override of those exact selectors. A table with nothing checking it drifts:
@@ -1773,6 +1780,13 @@ jobs:
       # classless child killed Learn6502's Android port at startup on a real emulator.
       - name: Check the NativeScript model states what is undefined before a write
         run: node scripts/check-nativescript-ns-defaults.mjs
+
+      # NativeScript's V8 has no ICU, and a regex literal compiles with its MODULE: one
+      # `/^\p{L}$/u` in adwaita-core's release-notes parser, in a helper nothing had called
+      # yet, killed Learn6502's Android bundle at startup ("Invalid property name") while
+      # Node, GJS and the browser — all with ICU — passed it.
+      - name: Check NativeScript-shipped sources use no ICU-only regex
+        run: node scripts/check-nativescript-no-icu-regex.mjs
 
       # The NS theme inlines the accent as a literal in every rule that uses it (the
       # CSS subset has no custom properties), so a runtime accent is a generated
