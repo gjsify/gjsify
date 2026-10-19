@@ -151,6 +151,12 @@ export const RELEASE_NOTES_VECTORS: readonly ReleaseNotesVector[] = [
         error: { message: "Unexpected element 'div'", line: 1, character: 15 },
     },
     {
+        row: 'unexpected-element-uncased',
+        rule: 'an element named by an uncased letter is a valid GMarkup name, so the same error',
+        releaseNotes: '<p>Hi</p><א>x</א>',
+        error: { message: "Unexpected element 'א'", line: 1, character: 14 },
+    },
+    {
         row: 'nested-paragraph',
         rule: 'a paragraph inside a paragraph is unexpected',
         releaseNotes: '<p><p>',
