@@ -96,6 +96,11 @@ export const WIN32_LICENSE_FAMILIES = [
     { components: ['glib'], pattern: /^(glib|gobject|gio|gmodule|gthread)-2\.0-\d+\.dll$/i },
     {
         components: ['glib'],
+        pattern: /^gspawn-win64-helper(-console)?\.exe$/i,
+        why: 'the g_spawn helpers are built from glib/gspawn-win32-helper.c and installed beside its DLLs',
+    },
+    {
+        components: ['glib'],
         pattern: /^girepository-2\.0-\d+\.dll$/i,
         why: 'girepository-2.0 moved INTO glib at 2.80',
     },

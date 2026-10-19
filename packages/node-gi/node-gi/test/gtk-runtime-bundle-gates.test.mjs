@@ -63,7 +63,9 @@ import {
     formatDuplicatedModuleProblems,
     formatSymlinkProblems,
     formatWindowingDataProblems,
+    missingWin32SpawnHelpers,
     verifyWindowingData,
+    WIN32_SPAWN_HELPERS,
 } from '../../scripts/bundle-data.mjs';
 import {
     WIN32_LICENSE_FAMILIES,
@@ -1972,4 +1974,21 @@ test('the bundled families are NAMES, because a file count cannot answer for a f
     // Cantarell is deliberately absent: adwaita-fonts ships none, and claiming a family the
     // bundle does not carry is the substitution this whole set exists against.
     assert.ok(!BUNDLED_FONT_FAMILIES.includes('Cantarell'));
+});
+
+test('the win32 bundle must carry both GLib spawn helpers beside its DLLs', () => {
+    // No DLL imports them, so the closure walk drops them and every Gio.Subprocess fails with
+    // "Failed to execute helper program" (JumpLink/steuererklaerung#130).
+    assert.deepEqual([...WIN32_SPAWN_HELPERS], ['gspawn-win64-helper.exe', 'gspawn-win64-helper-console.exe']);
+    const dir = mkdtempSync(join(tmpdir(), 'spawn-helpers-'));
+    writeFileSync(join(dir, 'glib-2.0-0.dll'), '');
+    assert.equal(missingWin32SpawnHelpers(dir).length, 2);
+    writeFileSync(join(dir, 'gspawn-win64-helper.exe'), '');
+    assert.equal(missingWin32SpawnHelpers(dir).length, 1);
+    writeFileSync(join(dir, 'gspawn-win64-helper-console.exe'), '');
+    assert.deepEqual(missingWin32SpawnHelpers(dir), []);
+    // And the license gate must know whose they are, or the build fails at coverage.
+    for (const helper of WIN32_SPAWN_HELPERS) {
+        assert.deepEqual(licenseFamilyFor(helper, WIN32_LICENSE_FAMILIES)?.components, ['glib'], helper);
+    }
 });

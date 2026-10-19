@@ -50,7 +50,9 @@ import {
     formatDuplicatedModuleProblems,
     formatSymlinkProblems,
     formatWindowingDataProblems,
+    missingWin32SpawnHelpers,
     verifyWindowingData,
+    WIN32_SPAWN_HELPERS,
 } from '../../scripts/bundle-data.mjs';
 import {
     WIN32_LICENSE_FAMILIES,
@@ -400,6 +402,17 @@ for (const src of binDlls.values()) {
 }
 console.log(`build-gtk-runtime: copied ${binDlls.size} DLLs -> ${binOut}`);
 
+// The GLib spawn helpers. g_spawn on Windows launches `gspawn-win64-helper[-console].exe`,
+// looked up beside libglib-2.0-0.dll, and no DLL imports them — so the closure walk never
+// reaches them and every Gio.Subprocess fails with "Failed to execute helper program"
+// (JumpLink/steuererklaerung#130). Copied by name, and a prefix without them fails the build.
+const spawnHelperProblems = missingWin32SpawnHelpers(gtkBin);
+if (spawnHelperProblems.length > 0) {
+    console.error(`build-gtk-runtime: ${spawnHelperProblems.join('\n  ')}`);
+    process.exit(1);
+}
+for (const helper of WIN32_SPAWN_HELPERS) copyFileSync(join(gtkBin, helper), join(binOut, helper));
+
 // --- 2b. does this bundle carry a GL IMPLEMENTATION? ----------------------
 // Asked of the FINISHED bin/, not of the seed list, so the answer describes the
 // artifact a user installs rather than the intent of the recipe. The negative is
@@ -497,7 +510,7 @@ const placedModuleLeaves = [];
 // on the first pass: it is in neither `binDlls` nor a module list, so the win32 coverage
 // gate never saw the one non-library binary in the bundle. darwin attributes it through
 // its keg like any other image; this keeps the two platforms answering the same question.
-const placedExecutables = [];
+const placedExecutables = [...WIN32_SPAWN_HELPERS];
 if (WINDOWING) {
     // 4a. gdk-pixbuf loaders + a TOPLEVEL-relative loaders.cache. The cache maps each
     // decoder DLL to its mime/extensions, and the query tool emits absolute build paths
