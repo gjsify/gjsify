@@ -64,6 +64,11 @@ devices, node-gi's unfixed C↔JS closure cycle) — every migrated widget must 
 argument the mixin already passes first. And a name the host chain owns is skipped, not shadowed:
 read `$foreignSkipped` in the device spec when a property silently does not take.
 
+KEEP iOS GREEN: every migrated widget gets a test that builds it under the pure-JS engine
+(`engine-target.ios.ts`'s default) and asserts the same properties, notifies and signals as the
+Android leg. iOS has no node-gi, so a widget that only works through `registerClass` breaks there
+silently — the owner's condition for route D (2026-10-19) is that iOS stays on the twin unharmed.
+
 
 ### The theme-class gate counts a name only if it starts with `adw-`
 
