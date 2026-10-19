@@ -123,24 +123,40 @@ function codeOf(line, state) {
     return out;
 }
 
-const PROPERTY_LITERAL =
-    /(?:^|[(=,:[!&|?{};]|return)\s*\/((?:[^/\\\n[]|\\.|\[(?:[^\]\\\n]|\\.)*\])*\\[pP]\{(?:[^/\\\n[]|\\.|\[(?:[^\]\\\n]|\\.)*\])*)\/[dgimsy]*[uv]/;
+// A whole regex literal: its body (character classes read as units, so a `/` inside one does not
+// end it) and its flags. The escape is looked for in the BODY afterwards — a reader that skipped
+// `[…]` whole once let `/[\p{Cc}\p{Cf}\p{Cn}\p{Cs}]/u` through, and it killed the bundle again.
+const REGEX_LITERAL =
+    /(?:^|[(=,:[!&|?{};]|return)\s*\/((?:[^/\\\n[*]|\\.|\[(?:[^\]\\\n]|\\.)*\])(?:[^/\\\n[]|\\.|\[(?:[^\]\\\n]|\\.)*\])*)\/([dgimsuvy]*)/g;
+const PROPERTY_ESCAPE = /\\[pP]\{/;
 const PROPERTY_CONSTRUCTOR = /\bRegExp\(\s*(['"`])(?:[^\\]|\\.)*?\\\\[pP]\{/;
 const V_FLAG_LITERAL =
     /(?:^|[(=,:[!&|?{};]|return)\s*\/(?:[^/\\\n[*]|\\.|\[(?:[^\]\\\n]|\\.)*\])(?:[^/\\\n[]|\\.|\[(?:[^\]\\\n]|\\.)*\])*\/[dgimsuy]*v[dgimsuy]*\b/;
 
 function findings(code) {
     const found = [];
-    if (PROPERTY_LITERAL.test(code)) found.push('a Unicode property escape in a regex literal');
+    for (const [, body, flags] of code.matchAll(REGEX_LITERAL)) {
+        if (/[uv]/.test(flags) && PROPERTY_ESCAPE.test(body)) {
+            found.push('a Unicode property escape in a regex literal');
+            break;
+        }
+    }
     if (PROPERTY_CONSTRUCTOR.test(code)) found.push('a Unicode property escape handed to RegExp()');
     if (V_FLAG_LITERAL.test(code)) found.push('a regex literal with the `v` flag');
     return found;
 }
 
-const INCIDENT = 'const isUnicodeAlpha = (c: string): boolean => c.codePointAt(0)! >= 0x80 && /^\\p{L}$/u.test(c);';
-if (findings(codeOf(INCIDENT, { inBlock: false })).length === 0) {
-    console.error('check-nativescript-no-icu-regex: the detector no longer matches the incident line itself.');
-    process.exit(1);
+const INCIDENTS = [
+    'const isUnicodeAlpha = (c: string): boolean => c.codePointAt(0)! >= 0x80 && /^\\p{L}$/u.test(c);',
+    'const NON_PRINTING = /[\\p{Cc}\\p{Cf}\\p{Cn}\\p{Cs}]/u;',
+];
+for (const incident of INCIDENTS) {
+    if (findings(codeOf(incident, { inBlock: false })).length === 0) {
+        console.error(
+            `check-nativescript-no-icu-regex: the detector no longer matches an incident line:\n  ${incident}`,
+        );
+        process.exit(1);
+    }
 }
 
 const closure = nsClosure(workspacePackages());
