@@ -606,6 +606,12 @@ const NS_PROPERTY_ALIGNMENT = {
     'adw-button-row.styleClasses': {
         own: 'The same slot on the same surface, for the same reason as `gtk-button.styleClasses` above: `Adw.ButtonRow:css-classes` is the key, and `cssClasses` is a name `ViewBase` already owns as a live `Set<string>` that the CSS engine rebuilds on every `className` write. A Blueprint `styles ["suggested-action"]` on a button row reaches this door.',
     },
+    'adw-preferences-page.styleClasses': {
+        own: 'The same slot on the same surface, for the same reason as `gtk-button.styleClasses` above: `Adw.PreferencesPage:css-classes` is the key, and `cssClasses` is a name `ViewBase` already owns as a live `Set<string>` that the CSS engine rebuilds on every `className` write. A Blueprint `css-classes: ["appearance-page"]` on a page reaches this door.',
+    },
+    'adw-preferences-group.styleClasses': {
+        own: 'The same slot on the same surface, for the same reason as `gtk-button.styleClasses` above: `Adw.PreferencesGroup:css-classes` is the key, and `cssClasses` is a name `ViewBase` already owns as a live `Set<string>` that the CSS engine rebuilds on every `className` write. A Blueprint `css-classes: ["custom-color-group"]` on a group reaches this door.',
+    },
     'adw-status-page.styleClasses': {
         own: 'The same slot on the same surface, for the same reason as `gtk-button.styleClasses` above: `Adw.StatusPage:css-classes` is the key, and `cssClasses` is a name `ViewBase` already owns as a live `Set<string>` that the CSS engine rebuilds on every `className` write. A Blueprint `styles ["compact"]` on a status page reaches this door.',
     },
