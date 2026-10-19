@@ -9,6 +9,7 @@ import {
     assertMenuRenderable,
     flattenMenu,
     menuItemAt,
+    menuLabelText,
     menuNodeAt,
     menuRefusals,
     normalizeMenuModel,
@@ -20,6 +21,7 @@ import {
     MENU_DETAILED_ACTION_VECTORS,
     MENU_FLATTEN_VECTORS,
     MENU_ITEM_STATE_VECTORS,
+    MENU_LABEL_TEXT_VECTORS,
     MENU_NORMALIZE_VECTORS,
     MENU_PARSE_VECTORS,
     MENU_REFUSAL_VECTORS,
@@ -165,6 +167,14 @@ export default async () => {
             expect(resolveMenuItemState(heading).sensitive).toBe(true);
             expect(resolveMenuItemState(heading, {}).sensitive).toBe(true);
         });
+    });
+
+    await describe('menuLabelText — a GtkLabel with use-underline', async () => {
+        for (const { label, text, rule } of MENU_LABEL_TEXT_VECTORS) {
+            await it(rule, () => {
+                expect(menuLabelText(label)).toBe(text);
+            });
+        }
     });
 
     await describe('menuRefusals / assertMenuRenderable (ADR 0042 conformance vectors)', async () => {

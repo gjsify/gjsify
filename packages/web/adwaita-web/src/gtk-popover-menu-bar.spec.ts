@@ -4,6 +4,7 @@
 // menus on HOVER — the one thing that distinguishes it from a row of menu buttons.
 
 import { describe, expect, it } from '@gjsify/unit';
+import { MENU_LABEL_TEXT_VECTORS } from '@gjsify/adwaita-core/conformance';
 import type { AdwMenuInput } from '@gjsify/adwaita-core';
 
 interface MenuBarElement extends HTMLElement {
@@ -292,5 +293,16 @@ export const GtkPopoverMenuBarTest = async () => {
             expect(buttons(el).length).toBe(0);
             unmountAll();
         });
+    });
+
+    await describe('<gtk-popover-menu-bar> the item text (a GtkLabel with use-underline)', async () => {
+        for (const { label, text, rule } of MENU_LABEL_TEXT_VECTORS) {
+            await it(rule, () => {
+                const el = mount();
+                el.menuModel = [{ label, submenu: [{ label: 'Inner' }] }];
+                expect(buttons(el).map((b) => b.textContent)).toStrictEqual([text]);
+                unmountAll();
+            });
+        }
     });
 };

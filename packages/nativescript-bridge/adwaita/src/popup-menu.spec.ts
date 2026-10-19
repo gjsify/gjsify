@@ -12,7 +12,7 @@ import {
     menuItemAt,
     normalizeMenuModel,
 } from '@gjsify/adwaita-core';
-import { POPUP_MENU_PLAN_VECTORS } from '@gjsify/adwaita-core/conformance';
+import { MENU_LABEL_TEXT_VECTORS, POPUP_MENU_PLAN_VECTORS } from '@gjsify/adwaita-core/conformance';
 import {
     openPopupMenu,
     type PopupMenuItemLike,
@@ -186,5 +186,21 @@ export default async () => {
             expect(tap(1)).toBe(true);
             expect(fired.join(',')).toBe('save');
         });
+    });
+
+    await describe('PopupMenu titles (a GtkLabel with use-underline)', async () => {
+        for (const { label, text, rule } of MENU_LABEL_TEXT_VECTORS) {
+            await it(rule, () => {
+                const log: string[] = [];
+                const { surface } = surfaceOf(log);
+                const model = normalizeMenuModel([{ label }, { label, submenu: [{ label }] }]);
+                openPopupMenu({ surface, model, activate: () => {} });
+                expect(log.slice(0, 3)).toStrictEqual([
+                    `root.add(1,1,0,${text})`,
+                    `root.addSubMenu(1,2,1,${text})`,
+                    `${text}.add(1,3,0,${text})`,
+                ]);
+            });
+        }
     });
 };

@@ -573,3 +573,32 @@ export const MENU_REFUSAL_VECTORS: ReadonlyArray<MenuRefusalVector> = [
         rule: 'EVERY refusal is reported, not the first: a GTK menu typically has all of its custom items at once',
     },
 ];
+
+/** One {@link menuLabelText} expectation. */
+export interface MenuLabelTextVector {
+    label: string;
+    text: string;
+    rule: string;
+}
+
+/**
+ * What a menu row shows for an item, submenu or menubar label.
+ *
+ * Measured on GTK 4.22: a `Gio.Menu` in a `GtkPopoverMenu` (and a
+ * `GtkPopoverMenuBar`), every row's `GtkLabel` read back with `get_text()`. The rows a
+ * reader guesses wrong are the TRAILING `_` ones: a `GtkLabel` keeps a lone trailing
+ * marker, which `adw_strip_mnemonic` (the core `stripMnemonic`) drops.
+ */
+export const MENU_LABEL_TEXT_VECTORS: ReadonlyArray<MenuLabelTextVector> = [
+    { label: 'Plain', text: 'Plain', rule: 'a label without `_` is shown verbatim' },
+    { label: '_Preferences', text: 'Preferences', rule: 'a `_` marks the next character and is removed' },
+    { label: 'Save__As', text: 'Save_As', rule: '`__` is one literal underscore' },
+    { label: 'A_b_c', text: 'Abc', rule: 'every marker is removed, not only the first' },
+    { label: 'tail_', text: 'tail_', rule: 'a trailing lone `_` marks nothing and is KEPT' },
+    { label: '_', text: '_', rule: 'a label that is only a marker keeps it' },
+    { label: '___', text: '__', rule: '`__` then a trailing lone `_`' },
+    { label: 'a__', text: 'a_', rule: 'an escaped underscore at the end is one underscore' },
+    { label: '_a_', text: 'a_', rule: 'a marker, then a kept trailing `_`' },
+    { label: 'A__B_c', text: 'A_Bc', rule: 'an escape and a marker in one label' },
+    { label: 'x_\u{1D49C}', text: 'x\u{1D49C}', rule: 'the marker takes a whole code point, not a UTF-16 half' },
+];

@@ -8,7 +8,7 @@
 // would be a third place to forget.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { MENU_REFUSAL_VECTORS } from '@gjsify/adwaita-core/conformance';
+import { MENU_LABEL_TEXT_VECTORS, MENU_REFUSAL_VECTORS } from '@gjsify/adwaita-core/conformance';
 import { flattenMenu } from '@gjsify/adwaita-core';
 import type { AdwMenuInput, AdwMenuModel } from '@gjsify/adwaita-core';
 
@@ -257,5 +257,18 @@ export const GtkPopoverMenuTest = async () => {
                 el.remove();
             }
         });
+    });
+
+    await describe('<gtk-popover-menu> the row text (a GtkLabel with use-underline)', async () => {
+        for (const { label, text, rule } of MENU_LABEL_TEXT_VECTORS) {
+            await it(`item, submenu and back row: ${rule}`, () => {
+                const el = mount();
+                el.menuModel = [{ label }, { label, submenu: [{ label }] }];
+                expect(labels(el)).toStrictEqual([text, text]);
+                el.openSubmenu(label);
+                expect(labels(el)).toStrictEqual([text, text]);
+                unmountAll();
+            });
+        }
     });
 };
