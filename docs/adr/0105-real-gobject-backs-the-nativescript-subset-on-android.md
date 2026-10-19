@@ -1,6 +1,7 @@
 # 105. Real GObject can back the NativeScript subset on Android, and is its oracle there
 
-- Status: **Accepted** (2026-10-13) — amended 2026-10-13 by [ADR 0110](0110-real-gobject-becomes-the-android-default-and-the-subset-stays-tested-there.md)
+- Status: **Accepted** (2026-10-13) — amended 2026-10-13 by [ADR 0110](0110-real-gobject-becomes-the-android-default-and-the-subset-stays-tested-there.md);
+  § 2's twin amended 2026-10-19 (route D, below)
 - Date: 2026-10-10
 - Deciders: Pascal Garber
 - Related: [ADR 0003](0003-package-tiering.md) (new packages start at tier 3),
@@ -96,6 +97,11 @@ reach properties and signals only through the engine interface, never through th
 Two routes lead there, neither decided here: invert the ownership (the widget is a GObject
 subclass that owns its `View`, if NativeScript's layout accepts a non-`View` wrapper), or C′,
 where the widgets are real GTK subclasses by construction.
+
+> A THIRD route decided it, on 2026-10-19: the widget stays the `View` and the GObject attaches
+> to it. "Today it cannot also extend `GObject.Object`" above is no longer true on NativeScript —
+> see [Decided 2026-10-19](#decided-2026-10-19-owner-route-d-works--a-real-subclass-replaces-the-twin).
+> The twin stays the browser and iOS implementation.
 
 ### 3. Real GObject is the oracle on the device
 
@@ -266,3 +272,41 @@ change. Inversion also buys only ~1.4x on `set`/`notify` and ~1.6x on emit.
 
 [Report](../reports/2026-10-18-adr-0105-inversion-spike.md). Probe:
 `tests/integration/nativescript-gi/app/specs/inversion.ts`.
+
+### Decided 2026-10-19 (owner): route D works — a real subclass replaces the twin
+
+The 2026-10-18 verdict rested on one sentence: "`registerClass` refuses a `View` base". That is
+GJS's rule, and the owner's decision on 2026-10-19 was that it does not have to be node-gi's rule
+**on NativeScript**, because GJS never runs there. Route D keeps the prototype chain the host
+built — the object IS a `@nativescript/core` `Label` — and attaches a real GObject to it, with the
+registered GType rooted at `GObject.Object`. The two hierarchies stop being one tree, which is
+what made the merge impossible.
+
+Measured, 123 of 123 cases green on an API 36 x86_64 emulator and a Galaxy S9 (arm64-v8a):
+`instanceof Label | View | ViewBase | GObject.Object` all true; `addChild`/`getChildAt` take the
+widget itself and it renders, with **zero `.view` unwraps anywhere**; a declared property's
+`notify::` drives `Label.text`; `bind_property` works both ways; a registered signal connects and
+emits; `on('tap')` drives a real `MotionEvent` through the gesture path while `notify(prop)` and
+`notify({eventName})` share one method name, resolved by argument type; `Gio.ListStore`
+round-trips the same JS object; a removed widget finalizes and a live one does not.
+
+- **Route D replaces the twin on NativeScript Android**, superseding "the twin stays permanently"
+  above for that port. The twin's surface was chosen so this changes no consumer (§ 2), and it
+  does not: the migration is per widget, behind the engine interface.
+- **This is a deliberate, gated divergence from GJS** — the one in this codebase. It is on only
+  under the `nativescript` export condition (`FOREIGN_PARENT_CLASSES` in node-gi's `#host`); every
+  other host still throws GJS's invalid-base error, so desktop stays GJS-identical and a desktop
+  program cannot pick this up by accident. Recorded in `docs/node-gi-gjs-surface.md`,
+  `packages/node-gi/AGENTS.md` and `packages/node-gi/node-gi/README.md`.
+- **`vfunc_*` is not available** on a foreign-parent class (it would need the instance prototype
+  re-linked). Properties, signals and bindings are.
+- The `this`-capturing handler leak from 2026-10-18 is **unchanged** and now reaches widgets —
+  the per-widget migration must use the emitter argument, never an enclosing `this`.
+- **C′ (ADR 0104)** is unaffected: it stays the answer for apps that want real GTK widgets.
+- Cost, twin versus route D (median ns/op): S9 set+notify 60614 → 58171 wired / 40445 bare,
+  emit 23212 → 12879. The win is modest on `set`; it is the API that justifies this, not the
+  numbers.
+
+[Report](../reports/2026-10-19-adr-0105-route-d.md). Probes:
+`tests/integration/nativescript-gi/app/specs/foreign-parent.ts` (device),
+`packages/node-gi/node-gi/test/foreign-parent.test.mjs` (host, both sides of the gate).

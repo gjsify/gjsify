@@ -454,6 +454,66 @@ are consistent; the unified instance identity arrives with the toggle-ref work);
 a JS↔GObject reference cycle on a custom instance leaks (the same cycle-leak
 caveat the signal/vfunc layer carries).
 
+### `registerClass` over a FOREIGN parent class — NativeScript only
+
+**The one divergence in this document that GJS cannot be made to agree with, and
+the only one gated on the host rather than measured against GJS.** Under the
+`nativescript` export condition — and there alone — `registerClass` accepts a
+parent that is not a node-gi GObject class:
+
+```js
+// @nativescript/core's Label. Not a GObject, not introspected, not ours.
+const MyLabel = GObject.registerClass(
+  { GTypeName: 'MyLabel', Properties: { caption: GObject.ParamSpec.string(…) } },
+  class MyLabel extends Label {},
+);
+const w = new MyLabel();
+w instanceof Label && w instanceof GObject.Object;  // BOTH true
+stack.addChild(w);                                   // the widget itself, no unwrap
+```
+
+GJS throws here, by design and on purpose:
+`GObject.registerClass() used with invalid base class (is …)`, unless
+`klass.prototype instanceof GObject.Object | GObject.Interface`
+(`refs/gjs/modules/core/overrides/GObject.js`). **node-gi still throws its
+stand-in for that error on every other host**, so a program written for the
+desktop cannot pick this up by accident and cannot behave differently under real
+GJS. The gate is the `FOREIGN_PARENT_CLASSES` flag in `host.nativescript.js` /
+`host.node.js`, the same `#host` mechanism as `LAZY_NATIVE`.
+
+Why the exception exists: on Android under NativeScript, node-gi is the ONLY
+engine that ever runs — GJS is not a target there — and `@nativescript/core`
+checks `instanceof ViewBase` hard before it will lay a child out. Either the
+object IS the widget, or every call site unwraps a `.view`. ADR 0105 § 2 records
+the decision and `docs/reports/2026-10-19-adr-0105-route-d.md` the measurement.
+
+How it differs from the ordinary path, all of it consequences of the parent
+owning the JS prototype chain:
+
+- The registered GType is rooted at **`GObject.Object`**, not at the parent —
+  the parent contributes no GType at all. The GObject hierarchy and the JS
+  prototype chain are simply two different trees here.
+- The GObject is **ATTACHED**, lazily, on the first touch of any GObject member:
+  no wrapper Proxy, no `Object.setPrototypeOf`. The object's `[[Prototype]]`
+  stays exactly what the host class built, which is what the host's
+  `instanceof` gate needs. Identity therefore survives a round trip through C
+  (`Gio.ListStore.append` → `get_item` returns the SAME JS object), and the
+  user class's constructor body DOES run — it is the host's own constructor.
+- **`vfunc_*` overrides are not supported** on a foreign-parent class. They
+  would need the instance prototype re-linked, which is the one thing this route
+  must not do. A foreign-parent class is for properties, signals and bindings.
+- Where the host chain already owns a name, the host keeps it; the GObject
+  spelling is skipped rather than shadowed, and the skipped names are readable
+  as **`MyClass.$foreignSkipped`** (a frozen array, defined on every registration
+  under this host and on none under any other). A declared property named after
+  a widget property composes through the JS-setter path above instead.
+- **`notify` is the exception to that rule and is resolved by argument type**:
+  `w.notify('caption')` emits GObject's `notify::caption`, `w.notify({ eventName })`
+  reaches `@nativescript/core`'s `Observable.notify`. It is the only collision in
+  the `Label` chain. Note that a GESTURE name does not go through `Observable`
+  at all — `on('tap')` lands in a `GesturesObserver`, under this route exactly as
+  on a plain `Label`.
+
 ### `$gtype` on an enum or flags object
 
 `Ns.SomeEnum.$gtype` answers the registered `G_TYPE_ENUM`/`G_TYPE_FLAGS`, as in GJS.

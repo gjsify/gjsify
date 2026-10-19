@@ -271,10 +271,18 @@ listed under step 4. The record, in order:
    device (the Android bundle really resolved the Android target; the refusal survives the
    bundler with its message intact).
    Still open after the flip:
-   - ~~ADR 0105 § 2's twin route.~~ **Decided 2026-10-18 (owner, by spike): the twin stays.** A
-     widget cannot be both a GObject and a `View`; layout accepts only `widget.view`, a consumer
-     change, for ~1.4x. See [the spike report](../../docs/reports/2026-10-18-adr-0105-inversion-spike.md).
-     Perf work on the twin continues; C′ (ADR 0104) is the answer for real GTK.
+   - ~~ADR 0105 § 2's twin route.~~ **Decided 2026-10-19 (owner, by a second spike): the twin
+     GOES on NativeScript Android.** The 2026-10-18 verdict ("a widget cannot be both a GObject
+     and a `View`", only `widget.view` lays out, for ~1.4x — [report](../../docs/reports/2026-10-18-adr-0105-inversion-spike.md))
+     rested on GJS's rule that `registerClass` refuses a non-GObject base. That rule is now off
+     under the `nativescript` export condition alone: the object stays the real
+     `@nativescript/core` widget and a GObject rooted at `GObject.Object` attaches to it. 123
+     device cases green on an emulator and a Galaxy S9, zero `.view` unwraps
+     ([report](../../docs/reports/2026-10-19-adr-0105-route-d.md), ADR 0105 § 2's 2026-10-19
+     block). Perf work on the twin still pays — the twin remains the browser and iOS
+     implementation — and C′ (ADR 0104) is still the answer for real GTK. The per-widget
+     migration is `status/open-todos/nativescript.md`, "No widget is a real GObject subclass
+     yet".
    - The remaining ~25x on `set`/`notify` is where to look next. `findProtoDescriptor` is no longer
      part of it: settled 2026-10-16 with NO cache (gjs resolves prototype mutation live, so a memo
      has no invalidation story), by bypassing the prototype Proxies' descriptor traps instead —

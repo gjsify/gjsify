@@ -148,6 +148,15 @@ export halves, the legacy `imports.*` modules, cairo, and the measured
 divergences from GJS — is
 [docs/node-gi-gjs-surface.md](../../../docs/node-gi-gjs-surface.md).
 
+One divergence is deliberate rather than measured, and it only exists under the
+`nativescript` export condition: there `registerClass` accepts a parent class
+that is not a GObject class, so an `@nativescript/core` widget can BE a real
+GObject subclass (properties, signals, `bind_property`, `Gio.ListStore`
+identity) while staying the widget its layout demands. Every other host throws
+GJS's invalid-base-class error, unchanged — see
+[§ `registerClass` over a FOREIGN parent class](../../../docs/node-gi-gjs-surface.md)
+and [ADR 0105](../../../docs/adr/0105-real-gobject-backs-the-nativescript-subset-on-android.md).
+
 ## Runtimes (Node / Bun / Deno)
 
 The engine is a **Node-API** addon, so the same binary loads and runs on **Node,
