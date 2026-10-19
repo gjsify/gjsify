@@ -75,11 +75,13 @@ export class GtkCheckButton extends AdwStyledLayoutBase {
     private _child: View | null = null;
     /** A `group` written as an id before the button was in a loaded tree. */
     private _groupId: string | null = null;
+    /** The content column's unit, which {@link _syncContent} keeps. */
+    private _contentUnit: 'auto' | 'star' = 'auto';
 
     constructor(props?: ConstructProps<GtkCheckButton>) {
         super();
         this.addColumn(new ItemSpec(1, 'auto'));
-        this.addColumn(new ItemSpec(1, 'star'));
+        this.addColumn(new ItemSpec(1, 'auto'));
         this.addRow(new ItemSpec(1, 'auto'));
 
         const indicator = new GridLayout();
@@ -247,9 +249,23 @@ export class GtkCheckButton extends AdwStyledLayoutBase {
         this.child = view;
     }
 
-    /** The text shows only while there is a label and no child widget replacing it. */
+    /**
+     * The text shows only while there is a label and no child widget replacing it.
+     *
+     * The content column is `star` only while it holds content. An empty `star` column still
+     * takes the whole width a parent offers at most, so a bare check button in an
+     * `Adw.WrapBox` (a flexbox, which measures `AT_MOST`) filled its line and the swatches of
+     * Learn6502's colour selectors stacked one per line.
+     */
     private _syncContent(): void {
+        const hasContent = !!this._child || !!this._label;
         this._text.visibility = !this._child && this._label ? 'visible' : 'collapse';
+        const unit = hasContent ? 'star' : 'auto';
+        if (unit === this._contentUnit) return;
+        this._contentUnit = unit;
+        this.removeColumns();
+        this.addColumn(new ItemSpec(1, 'auto'));
+        this.addColumn(new ItemSpec(1, unit));
     }
 
     protected get _ownClass(): string {

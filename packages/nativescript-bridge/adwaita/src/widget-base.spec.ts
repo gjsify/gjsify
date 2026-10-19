@@ -191,6 +191,25 @@ export const AdwWidgetBaseNsTest = async () => {
         });
     });
 
+    await describe('GtkWidget base properties: focus-on-click', async () => {
+        // Learn6502's colour selectors are `focus-on-click: false` on every check button.
+        await it('is true until written, takes the XML strings, and is read by its getter', () => {
+            const check = new Gtk.CheckButton();
+            expect(check.focusOnClick).toBe(true);
+            check.focusOnClick = 'false';
+            expect(check.get_focus_on_click()).toBe(false);
+            check.set_focus_on_click(true);
+            expect(check.focusOnClick).toBe(true);
+        });
+
+        await it('builds from a template', () => {
+            const check = build({ tag: 'GtkCheckButton', props: { 'focus-on-click': false } }) as unknown as {
+                focusOnClick: boolean;
+            };
+            expect(check.focusOnClick).toBe(false);
+        });
+    });
+
     await describe('GtkWidget base properties: tooltip-text', async () => {
         await it('is `tooltip_text`, `tooltipText` and get/set_tooltip_text over one value, as on GTK', () => {
             const button = new Gtk.Button();
