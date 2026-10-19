@@ -441,7 +441,7 @@ function wrapSignalCallback(cb) {
 // means `this` is the full userProto-carrying wrapper — the SAME cached proxy the user
 // constructed. Emitter at param 0, as in wrapSignalCallback.
 function resolveTemplateCallback(handle, handlerName) {
-    return (...args) => {
+    const dispatcher = (...args) => {
         const proxy = wrapInstance(handle);
         const userProto = proxy[USER_PROTO];
         const desc = userProto !== undefined ? findProtoDescriptor(userProto, handlerName) : undefined;
@@ -452,6 +452,14 @@ function resolveTemplateCallback(handle, handlerName) {
         }
         return desc.value.apply(proxy, args.map(wrapReturn));
     };
+    // The native closure holds this dispatcher WEAKLY (src/signals.cc), and the
+    // dispatcher captures `handle` — so without a handle-keyed retain it would be
+    // garbage the moment create_closure returns, and the widget would be immortal.
+    // GJS's Gtk override reaches the same lifetime with
+    // `Gi.associateClosure(lifetimeObject, _createClosure(…))`. A fresh key per
+    // closure: one handler name can back several `<signal>` elements.
+    native.retainClosure(handle, Symbol(handlerName), dispatcher);
+    return dispatcher;
 }
 onNativeLoaded(() => native.setTemplateCallbackResolver(resolveTemplateCallback));
 

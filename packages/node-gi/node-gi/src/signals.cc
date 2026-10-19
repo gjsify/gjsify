@@ -7,22 +7,36 @@ namespace nodegi {
 
 // ---- signals (milestone 1) ----
 //
-// A GClosure that wraps a JS callback. The callback is held by a strong
-// napi_ref; the closure's finalize notifier drops it. The generic marshal
-// converts the signal's GValue params to JS — the EMITTER instance (param 0)
-// first, then the signal's own params (1..n), matching GJS — and the JS return
-// into the signal return GValue.
+// A GClosure that wraps a JS callback. The closure's finalize notifier drops the
+// napi_ref. The generic marshal converts the signal's GValue params to JS — the
+// EMITTER instance (param 0) first, then the signal's own params (1..n), matching
+// GJS — and the JS return into the signal return GValue.
 //
-// Narrowed-leak semantics (with the toggle-ref bridge): a handler that does NOT
-// close over its own object is now collectable once C is the sole owner
-// (toggle-down → weak → GC). A handler that DOES close over its object forms a
-// GObject -> GClosure -> napi_ref -> callback -> wrapper -> handle cycle the GC
-// cannot break across C, so it keeps the object alive until disconnect — which is
-// the GJS-faithful contract (a connected self-referential handler is a reason to
-// stay alive). disconnect drops the closure's napi_ref (JsClosureFinalize),
-// breaking the cycle so the next GC collects the object. The callback ref stays
-// STRONG while connected (a connected handler must fire). Verified by the
-// signal-cycle case in test/gc-identity.test.mjs.
+// REF STRENGTH IS THE WHOLE CONTRACT, and it differs per closure KIND, exactly as
+// in GJS (refs/gjs/gi/closure.h: `create_marshaled` roots, `create_for_signal`
+// does not):
+//
+//   * GENERIC closure (a JS function marshalled as a GClosure IN-arg, invoked by
+//     arbitrary C) — STRONG. Nothing on the JS side owns it; the ref IS the owner.
+//   * SIGNAL closure (`.connect()`) and TEMPLATE-CALLBACK closure — WEAK. A
+//     handler that captures its own emitter otherwise forms a
+//     GObject → GClosure → napi_ref → callback → wrapper → toggle ref → GObject
+//     cycle that spans C, and no GC can break it: `obj.connect('x', () => obj.y)`
+//     made `obj` immortal. GJS has the identical cycle on paper and collects it,
+//     because its signal closures keep the callable UNROOTED and trace it from
+//     the owning wrapper (ObjectInstance::m_closures / trace_impl), which puts
+//     the whole cycle inside one heap the GC can reason about.
+//
+// node-gi has no tracing hook, so the equivalent edge is built in JS: index.js
+// retains the callback in a WeakMap keyed by the canonical handle — the only
+// ephemeron V8 offers over a non-extensible External, and the same shape
+// `associate_closure` has. The handle is reachable exactly when GJS would trace
+// the closure (JS holds the wrapper, or C owns the object and toggle.cc roots
+// it), so a connected handler still fires for as long as anything can emit to it,
+// and the self-referential cycle collects. A collected callback leaves the weak
+// ref empty and the marshal returns early (it already tolerates a null value).
+// Measured against gjs 1.88.1 with a FinalizationRegistry witness; verified by the
+// signal-cycle cases in test/gc-identity.test.mjs.
 
 struct JsClosureData {
   napi_env env;
@@ -191,8 +205,11 @@ static void JsGenericClosureMarshal(GClosure* closure, GValue* return_value, gui
 
 // JS function → a floating marshaled GClosure (the engine's twin of GJS's
 // Gjs::Closure::create_marshaled for "boxed" closure args — refs/gjs/gi/
-// arg-cache.cpp GClosureInTransferNone::in). The closure holds a strong ref to
-// the function; JsClosureFinalize drops it when the closure is invalidated /
+// arg-cache.cpp GClosureInTransferNone::in). The closure holds a STRONG ref to
+// the function — deliberately, and unlike the signal/template closures above:
+// `create_marshaled` defaults `root = true` (refs/gjs/gi/closure.h), because no
+// JS-side owner exists for a closure handed to arbitrary C. JsClosureFinalize
+// drops it when the closure is invalidated /
 // finalized (the callee released its last ref, or the invoke-site released the
 // only ref because the callee never kept one). Ref/sink + release policy lives at
 // the marshalling site (marshal.cc / calls.cc CreatedClosures).
@@ -231,9 +248,11 @@ Napi::Value ConnectSignal(const Napi::CallbackInfo& info) {
     return env.Null();
   }
 
+  // WEAK (refcount 0) — the keep-alive is the JS-side handle→callback edge
+  // index.js installs; see the ref-strength contract at the top of this file.
   JsClosureData* jc = g_new0(JsClosureData, 1);
   jc->env = env;
-  napi_create_reference(env, info[2], 1, &jc->callback);
+  napi_create_reference(env, info[2], 0, &jc->callback);
 
   GClosure* closure = g_closure_new_simple(sizeof(GClosure), jc);
   g_closure_set_marshal(closure, JsClosureMarshal);
@@ -468,13 +487,17 @@ static GClosure* NodeGiScopeCreateClosure(void* selfScope, void* builder,
   }
 
   // Wrap the resolved (instance-bound, arg-wrapping) JS function in a JsClosure —
-  // the same closure type a `.connect()` produces. The closure owns a strong ref to
-  // the function; g_object_watch_closure ties its lifetime to the widget (the
-  // handler `this`) and invalidates it when the widget is finalized, exactly like
+  // the same closure type a `.connect()` produces, and WEAK for the same reason:
+  // the resolver's dispatcher captures the widget handle, so a strong ref made
+  // every templated widget immortal. gi.js's resolveTemplateCallback retains the
+  // dispatcher on the widget handle before returning it, which is what GJS's Gtk
+  // override does with `Gi.associateClosure(lifetimeObject, …)`
+  // (refs/gjs/modules/core/overrides/Gtk.js). g_object_watch_closure additionally
+  // ties the closure to the widget and invalidates it on finalize, exactly like
   // GtkBuilderCScope's own create_closure.
   JsClosureData* jc = g_new0(JsClosureData, 1);
   jc->env = rawEnv;
-  napi_create_reference(rawEnv, resolved, 1, &jc->callback);
+  napi_create_reference(rawEnv, resolved, 0, &jc->callback);
   GClosure* closure = g_closure_new_simple(sizeof(GClosure), jc);
   g_closure_set_marshal(closure, JsClosureMarshal);
   g_closure_add_finalize_notifier(closure, jc, JsClosureFinalize);
