@@ -621,6 +621,11 @@ void InitCairo(Napi::Env env, Napi::Object exports) {
   c.Set("paint", Napi::Function::New(env, CTX_0(cairo_paint)));
   c.Set("clip", Napi::Function::New(env, CTX_0(cairo_clip)));
   c.Set("clipPreserve", Napi::Function::New(env, CTX_0(cairo_clip_preserve)));
+  c.Set("resetClip", Napi::Function::New(env, CTX_0(cairo_reset_clip)));
+  c.Set("pushGroup", Napi::Function::New(env, CTX_0(cairo_push_group)));
+  c.Set("popGroupToSource", Napi::Function::New(env, CTX_0(cairo_pop_group_to_source)));
+  c.Set("copyPage", Napi::Function::New(env, CTX_0(cairo_copy_page)));
+  c.Set("showPage", Napi::Function::New(env, CTX_0(cairo_show_page)));
 
   c.Set("setLineWidth", Napi::Function::New(env, CTX_1D(cairo_set_line_width)));
   c.Set("paintWithAlpha", Napi::Function::New(env, CTX_1D(cairo_paint_with_alpha)));
@@ -641,7 +646,10 @@ void InitCairo(Napi::Env env, Napi::Object exports) {
   c.Set("arc", Napi::Function::New(env, CTX_5D(cairo_arc)));
   c.Set("arcNegative", Napi::Function::New(env, CTX_5D(cairo_arc_negative)));
   c.Set("curveTo", Napi::Function::New(env, CTX_6D(cairo_curve_to)));
+  c.Set("relCurveTo", Napi::Function::New(env, CTX_6D(cairo_rel_curve_to)));
 
+  c.Set("pushGroupWithContent",
+        Napi::Function::New(env, CTX_ENUM(cairo_push_group_with_content, cairo_content_t)));
   c.Set("setOperator", Napi::Function::New(env, CTX_ENUM(cairo_set_operator, cairo_operator_t)));
   c.Set("setLineCap", Napi::Function::New(env, CTX_ENUM(cairo_set_line_cap, cairo_line_cap_t)));
   c.Set("setLineJoin", Napi::Function::New(env, CTX_ENUM(cairo_set_line_join, cairo_line_join_t)));
@@ -798,6 +806,45 @@ void InitCairo(Napi::Env env, Napi::Object exports) {
           o.Set("maxYAdvance", Napi::Number::New(env, e.max_y_advance));
           return o;
         }));
+  // The font matrix is a plain `{xx, yx, xy, yy, x0, y0}` object in GJS — cairo's
+  // matrix type has no wrapper there (getMatrix/setMatrix stay unbound for that
+  // reason), so the font matrix travels as the six doubles.
+  c.Set("getFontMatrix", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_t* cr = CtxArg(env, info);
+          if (cr == nullptr) return env.Undefined();
+          cairo_matrix_t m;
+          cairo_get_font_matrix(cr, &m);
+          if (!CheckStatus(env, cairo_status(cr), "context")) return env.Undefined();
+          Napi::Object o = Napi::Object::New(env);
+          o.Set("xx", Napi::Number::New(env, m.xx));
+          o.Set("yx", Napi::Number::New(env, m.yx));
+          o.Set("xy", Napi::Number::New(env, m.xy));
+          o.Set("yy", Napi::Number::New(env, m.yy));
+          o.Set("x0", Napi::Number::New(env, m.x0));
+          o.Set("y0", Napi::Number::New(env, m.y0));
+          return o;
+        }));
+  c.Set("setFontMatrix", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_t* cr = CtxArg(env, info);
+          if (cr == nullptr) return env.Undefined();
+          if (!info[1].IsObject()) {
+            Napi::TypeError::New(env, "matrix must be an object").ThrowAsJavaScriptException();
+            return env.Undefined();
+          }
+          Napi::Object o = info[1].As<Napi::Object>();
+          cairo_matrix_t m;
+          m.xx = o.Get("xx").ToNumber().DoubleValue();
+          m.yx = o.Get("yx").ToNumber().DoubleValue();
+          m.xy = o.Get("xy").ToNumber().DoubleValue();
+          m.yy = o.Get("yy").ToNumber().DoubleValue();
+          m.x0 = o.Get("x0").ToNumber().DoubleValue();
+          m.y0 = o.Get("y0").ToNumber().DoubleValue();
+          cairo_set_font_matrix(cr, &m);
+          CheckStatus(env, cairo_status(cr), "context");
+          return env.Undefined();
+        }));
   c.Set("status", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
           Napi::Env env = info.Env();
           cairo_t* cr = CtxArg(env, info);
@@ -821,6 +868,26 @@ void InitCairo(Napi::Env env, Napi::Object exports) {
           cairo_surface_t* p = SurfaceFromExt(env, info[1]);
           if (p == nullptr) return env.Undefined();
           cairo_set_source_surface(cr, p, Num(info, 2), Num(info, 3));
+          CheckStatus(env, cairo_status(cr), "context");
+          return env.Undefined();
+        }));
+  c.Set("mask", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_t* cr = CtxArg(env, info);
+          if (cr == nullptr) return env.Undefined();
+          cairo_pattern_t* p = PatternFromExt(env, info[1]);
+          if (p == nullptr) return env.Undefined();
+          cairo_mask(cr, p);
+          CheckStatus(env, cairo_status(cr), "context");
+          return env.Undefined();
+        }));
+  c.Set("maskSurface", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_t* cr = CtxArg(env, info);
+          if (cr == nullptr) return env.Undefined();
+          cairo_surface_t* s = SurfaceFromExt(env, info[1]);
+          if (s == nullptr) return env.Undefined();
+          cairo_mask_surface(cr, s, Num(info, 2), Num(info, 3));
           CheckStatus(env, cairo_status(cr), "context");
           return env.Undefined();
         }));
@@ -969,6 +1036,35 @@ void InitCairo(Napi::Env env, Napi::Object exports) {
           cairo_pattern_reference(p);
           return MakeCairoHandle(env, p, CairoKind::Pattern);
         }));
+
+  // popGroup: cairo_pop_group returns a NEW pattern (transfer-full) — the handle
+  // adopts that ref directly, no extra reference (gjs wraps and then drops its own).
+  c.Set("popGroup", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+          cairo_t* cr = CtxArg(env, info);
+          if (cr == nullptr) return env.Undefined();
+          cairo_pattern_t* p = cairo_pop_group(cr);
+          if (!CheckStatus(env, cairo_status(cr), "context")) {
+            cairo_pattern_destroy(p);
+            return env.Undefined();
+          }
+          return MakeCairoHandle(env, p, CairoKind::Pattern);
+        }));
+
+  // getTarget/getGroupTarget: the surface belongs to the context — ref it so the
+  // JS wrapper owns one (mirrors CairoSurface::from_c_ptr's kept reference).
+#define CTX_SURFACE_GETTER(NAME, CFN)                                                       \
+  c.Set(NAME, Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value { \
+          Napi::Env env = info.Env();                                                       \
+          cairo_t* cr = CtxArg(env, info);                                                  \
+          if (cr == nullptr) return env.Undefined();                                        \
+          cairo_surface_t* s = CFN(cr);                                                     \
+          if (!CheckStatus(env, cairo_status(cr), "context")) return env.Undefined();       \
+          cairo_surface_reference(s);                                                       \
+          return MakeCairoHandle(env, s, CairoKind::Surface);                                \
+        }));
+  CTX_SURFACE_GETTER("getTarget", cairo_get_target)
+  CTX_SURFACE_GETTER("getGroupTarget", cairo_get_group_target)
 
   // ---- $dispose (Context / Surface / Pattern / Path) ----
   // Eagerly destroy the underlying cairo object + mark the handle so the finalizer

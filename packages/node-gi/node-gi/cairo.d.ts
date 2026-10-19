@@ -36,6 +36,16 @@ export interface FontExtents {
     maxYAdvance: number;
 }
 
+/** `cairo_matrix_t` as the plain object GJS passes around (no matrix wrapper). */
+export interface Matrix {
+    xx: number;
+    yx: number;
+    xy: number;
+    yy: number;
+    x0: number;
+    y0: number;
+}
+
 /** cairo drawing context (`cairo_t`). */
 export class Context {
     constructor(surface: Surface);
@@ -53,10 +63,17 @@ export class Context {
     textPath(utf8: string): void;
     textExtents(utf8: string): TextExtents;
     fontExtents(): FontExtents;
+    /**
+     * The current font matrix. GJS has no cairo matrix wrapper
+     * (`getMatrix`/`setMatrix` stay unbound), so it travels as a plain object.
+     */
+    getFontMatrix(): Matrix;
+    setFontMatrix(matrix: Matrix): void;
     rectangle(x: number, y: number, width: number, height: number): void;
     arc(xc: number, yc: number, radius: number, angle1: number, angle2: number): void;
     arcNegative(xc: number, yc: number, radius: number, angle1: number, angle2: number): void;
     curveTo(x1: number, y1: number, x2: number, y2: number, x3: number, y3: number): void;
+    relCurveTo(dx1: number, dy1: number, dx2: number, dy2: number, dx3: number, dy3: number): void;
     fill(): void;
     fillPreserve(): void;
     stroke(): void;
@@ -65,6 +82,19 @@ export class Context {
     paintWithAlpha(alpha: number): void;
     clip(): void;
     clipPreserve(): void;
+    resetClip(): void;
+    /** Redirect drawing to an intermediate group surface. */
+    pushGroup(): void;
+    /** Like {@link pushGroup} but with an explicit {@link Content} for the group surface. */
+    pushGroupWithContent(content: number): void;
+    /** End the current group and return it as a pattern (concrete subclass). */
+    popGroup(): Pattern;
+    /** End the current group and install it as this context's source. */
+    popGroupToSource(): void;
+    /** Paint the current source through `pattern`'s alpha. */
+    mask(pattern: Pattern): void;
+    /** Paint the current source through `surface`'s alpha, offset to `(x, y)`. */
+    maskSurface(surface: Surface, x: number, y: number): void;
     translate(tx: number, ty: number): void;
     scale(sx: number, sy: number): void;
     rotate(angle: number): void;
@@ -74,6 +104,10 @@ export class Context {
     setSourceSurface(surface: Surface, x: number, y: number): void;
     /** The context's current source pattern (own reference; concrete subclass). */
     getSource(): Pattern;
+    /** The surface this context draws to (own reference; concrete subclass). */
+    getTarget(): Surface;
+    /** The target of the current group, or {@link getTarget} outside a group. */
+    getGroupTarget(): Surface;
     identityMatrix(): void;
     newSubPath(): void;
     /** User → device coordinates as `[x, y]` (GJS return shape). */
@@ -111,6 +145,10 @@ export class Context {
     setOperator(op: number): void;
     setMiterLimit(limit: number): void;
     setTolerance(tolerance: number): void;
+    /** Emit the current page and clear it (paginated surfaces; a no-op elsewhere). */
+    copyPage(): void;
+    /** Like {@link copyPage} but also clears the current page's contents. */
+    showPage(): void;
     status(): number;
     $dispose(): void;
 }

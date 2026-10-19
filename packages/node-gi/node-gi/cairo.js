@@ -190,6 +190,9 @@ export class Context {
     curveTo(x1, y1, x2, y2, x3, y3) {
         c.curveTo(this[H], x1, y1, x2, y2, x3, y3);
     }
+    relCurveTo(dx1, dy1, dx2, dy2, dx3, dy3) {
+        c.relCurveTo(this[H], dx1, dy1, dx2, dy2, dx3, dy3);
+    }
 
     fill() {
         c.fill(this[H]);
@@ -214,6 +217,33 @@ export class Context {
     }
     clipPreserve() {
         c.clipPreserve(this[H]);
+    }
+    resetClip() {
+        c.resetClip(this[H]);
+    }
+    /** Redirect drawing to an intermediate group surface. */
+    pushGroup() {
+        c.pushGroup(this[H]);
+    }
+    /** Like {@link pushGroup} but with an explicit {@link Content} for the group surface. */
+    pushGroupWithContent(content) {
+        c.pushGroupWithContent(this[H], content);
+    }
+    /** End the current group and return it as a pattern (concrete subclass). */
+    popGroup() {
+        return wrapPatternHandle(c.popGroup(this[H]));
+    }
+    /** End the current group and install it as this context's source. */
+    popGroupToSource() {
+        c.popGroupToSource(this[H]);
+    }
+    /** Paint the current source through `pattern`'s alpha. */
+    mask(pattern) {
+        c.mask(this[H], handleOf(pattern, 'cairo.Pattern'));
+    }
+    /** Paint the current source through `surface`'s alpha, offset to `(x, y)`. */
+    maskSurface(surface, x, y) {
+        c.maskSurface(this[H], handleOf(surface, 'cairo.Surface'), x, y);
     }
 
     translate(tx, ty) {
@@ -298,6 +328,14 @@ export class Context {
     getSource() {
         return wrapPatternHandle(c.getSource(this[H]));
     }
+    /** The surface this context draws to (a ref of its own — safe to keep). */
+    getTarget() {
+        return wrapSurfaceHandle(c.getTarget(this[H]));
+    }
+    /** The target of the current group, or {@link getTarget} outside a group. */
+    getGroupTarget() {
+        return wrapSurfaceHandle(c.getGroupTarget(this[H]));
+    }
 
     setLineWidth(width) {
         c.setLineWidth(this[H], width);
@@ -364,6 +402,18 @@ export class Context {
     fontExtents() {
         return c.fontExtents(this[H]);
     }
+    /**
+     * The current font matrix as `{ xx, yx, xy, yy, x0, y0}`. GJS has no cairo
+     * matrix wrapper (`getMatrix`/`setMatrix` stay unbound), so it travels as
+     * a plain object of the six doubles.
+     */
+    getFontMatrix() {
+        return c.getFontMatrix(this[H]);
+    }
+    /** Set the font matrix from `{ xx, yx, xy, yy, x0, y0}`. */
+    setFontMatrix(matrix) {
+        c.setFontMatrix(this[H], matrix);
+    }
     /** Stroke bounding box as `[x1, y1, x2, y2]`. */
     strokeExtents() {
         return c.strokeExtents(this[H]);
@@ -392,6 +442,15 @@ export class Context {
     }
     setTolerance(tolerance) {
         c.setTolerance(this[H], tolerance);
+    }
+
+    /** Emit the current page and clear it (paginated surfaces; a no-op elsewhere). */
+    copyPage() {
+        c.copyPage(this[H]);
+    }
+    /** Like {@link copyPage} but also clears the current page's contents. */
+    showPage() {
+        c.showPage(this[H]);
     }
 
     status() {
@@ -541,6 +600,12 @@ export class SurfacePattern extends Pattern {
  */
 export class Path {}
 
+// Fan a surface handle out to the concrete subclass by cairo runtime type —
+// mirrors CairoSurface::from_c_ptr (only the image surface has a subclass here).
+function wrapSurfaceHandle(handle) {
+    return wrapRaw(c.surfaceGetType(handle) === SurfaceType.IMAGE ? ImageSurface : Surface, handle);
+}
+
 // Fan a pattern handle out to the concrete subclass by cairo runtime type —
 // mirrors gjs_cairo_pattern_from_pattern (MESH/RASTER_SOURCE fall back to the
 // base Pattern; gjs throws for those, but they are unreachable from this module).
@@ -568,7 +633,7 @@ onNativeLoaded(() => {
     c = native.__cairo;
     c.setup({
         context: (handle) => wrapRaw(Context, handle),
-        surface: (handle) => wrapRaw(c.surfaceGetType(handle) === SurfaceType.IMAGE ? ImageSurface : Surface, handle),
+        surface: (handle) => wrapSurfaceHandle(handle),
         pattern: (handle) => wrapPatternHandle(handle),
         path: (handle) => wrapRaw(Path, handle),
     });

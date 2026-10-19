@@ -250,3 +250,132 @@ test('text ops: selectFontFace/setFontSize/showText/textExtents/fontExtents', ()
     cr.$dispose();
     s.$dispose();
 });
+
+// The font matrix travels as the plain `{xx, yx, xy, yy, x0, y0}` object gjs builds
+// (cairo's matrix type has no wrapper on either runtime). Scaling it scales the text.
+test('getFontMatrix/setFontMatrix round-trip the six doubles', () => {
+    const s = new cairo.ImageSurface(cairo.Format.ARGB32, 64, 32);
+    const cr = new cairo.Context(s);
+    cr.setFontSize(10);
+
+    const m = cr.getFontMatrix();
+    assert.deepEqual(Object.keys(m).sort(), ['x0', 'xx', 'xy', 'y0', 'yx', 'yy']);
+    assert.equal(m.xx, 10);
+    assert.equal(m.yy, 10);
+
+    const narrow = cr.textExtents('W').xAdvance;
+    cr.setFontMatrix({ ...m, xx: 20 });
+    assert.equal(cr.getFontMatrix().xx, 20);
+    assert.ok(cr.textExtents('W').xAdvance > narrow, 'a wider font matrix advances further');
+
+    cr.$dispose();
+    s.$dispose();
+});
+
+// The group stack: pushGroup redirects drawing to an intermediate surface, popGroup
+// hands it back as a pattern (concrete subclass), popGroupToSource installs it.
+test('pushGroup/popGroup[ToSource]/pushGroupWithContent + getGroupTarget', () => {
+    const s = new cairo.ImageSurface(cairo.Format.ARGB32, 16, 16);
+    const cr = new cairo.Context(s);
+
+    assert.ok(cr.getTarget() instanceof cairo.ImageSurface, 'getTarget is the image surface');
+    assert.equal(cr.getTarget().getWidth(), 16);
+
+    cr.pushGroup();
+    const groupTarget = cr.getGroupTarget();
+    assert.ok(groupTarget instanceof cairo.Surface, 'inside a group the group target is its own surface');
+    cr.setSourceRGBA(1, 0, 0, 1);
+    cr.rectangle(0, 0, 8, 8);
+    cr.fill();
+    const group = cr.popGroup();
+    assert.ok(group instanceof cairo.SurfacePattern, 'popGroup returns a SurfacePattern');
+    assert.equal(group.getType(), cairo.PatternType.SURFACE);
+
+    s.flush();
+    assert.ok(
+        s.getData().every((b) => b === 0),
+        'the group painted into the group surface, not the target',
+    );
+
+    cr.setSource(group);
+    cr.paint();
+    s.flush();
+    assert.ok(
+        s.getData().some((b) => b !== 0),
+        'replaying the group pattern painted the target',
+    );
+
+    // popGroupToSource is the same pop, installed as the source in one step.
+    cr.pushGroupWithContent(cairo.Content.COLOR_ALPHA);
+    cr.setSourceRGBA(0, 0, 1, 1);
+    cr.rectangle(8, 8, 8, 8);
+    cr.fill();
+    cr.popGroupToSource();
+    assert.equal(cr.getSource().getType(), cairo.PatternType.SURFACE);
+    cr.paint();
+
+    group.$dispose();
+    cr.$dispose();
+    s.$dispose();
+});
+
+// mask/maskSurface paint the current source through another object's ALPHA.
+test('mask/maskSurface paint the source through an alpha mask', () => {
+    const s = new cairo.ImageSurface(cairo.Format.ARGB32, 8, 8);
+    const cr = new cairo.Context(s);
+    cr.setSourceRGB(1, 0, 0);
+    // A half-transparent solid mask → premultiplied red at ~50 % alpha everywhere.
+    cr.mask(cairo.SolidPattern.createRGBA(0, 0, 0, 0.5));
+    s.flush();
+    const masked = s.getData();
+    assert.ok(masked[3] > 0 && masked[3] < 255, `mask applied partial alpha (got ${masked[3]})`);
+
+    // maskSurface: an opaque 4x4 stencil offset to (2, 2) → only that square gets paint.
+    const stencil = new cairo.ImageSurface(cairo.Format.ARGB32, 4, 4);
+    const sc = new cairo.Context(stencil);
+    sc.setSourceRGBA(0, 0, 0, 1);
+    sc.paint();
+    sc.$dispose();
+    stencil.flush();
+
+    const s2 = new cairo.ImageSurface(cairo.Format.ARGB32, 8, 8);
+    const cr2 = new cairo.Context(s2);
+    cr2.setSourceRGB(0, 1, 0);
+    cr2.maskSurface(stencil, 2, 2);
+    s2.flush();
+    const d = s2.getData();
+    const px = (x, y) => d[y * s2.getStride() + x * 4 + 3];
+    assert.equal(px(0, 0), 0, 'outside the stencil stays untouched');
+    assert.equal(px(3, 3), 255, 'inside the stencil is fully painted');
+
+    cr.$dispose();
+    s.$dispose();
+    cr2.$dispose();
+    s2.$dispose();
+    stencil.$dispose();
+});
+
+// resetClip drops the clip; relCurveTo extends the path from the current point;
+// copyPage/showPage are no-ops on an image surface but must not throw or error.
+test('resetClip, relCurveTo, copyPage/showPage', () => {
+    const s = new cairo.ImageSurface(cairo.Format.ARGB32, 16, 16);
+    const cr = new cairo.Context(s);
+
+    cr.rectangle(0, 0, 4, 4);
+    cr.clip();
+    assert.deepEqual(cr.clipExtents(), [0, 0, 4, 4]);
+    cr.resetClip();
+    assert.deepEqual(cr.clipExtents(), [0, 0, 16, 16], 'resetClip restores the full surface');
+
+    cr.newPath();
+    cr.moveTo(2, 2);
+    cr.relCurveTo(1, 0, 2, 1, 3, 3);
+    assert.deepEqual(cr.getCurrentPoint(), [5, 5], 'relCurveTo lands at the relative endpoint');
+
+    cr.copyPage();
+    cr.showPage();
+    assert.equal(cr.status(), 0, 'copyPage/showPage leave the context in SUCCESS');
+
+    cr.$dispose();
+    s.$dispose();
+});
