@@ -61,6 +61,16 @@ export const RUNTIME =
  */
 export const LAZY_NATIVE = false;
 
+/**
+ * Whether `GObject.registerClass` may register a class whose JS parent is NOT a node-gi
+ * GObject class. FALSE here, and that is the point: on Node/Bun/Deno/GJS a program can be
+ * run under real GJS, so registerClass must keep throwing GJS's invalid-base error
+ * (refs/gjs/modules/core/overrides/GObject.js) rather than quietly accept a class GJS
+ * would reject. Only host.nativescript.js enables it — see the note there.
+ * @type {boolean}
+ */
+export const FOREIGN_PARENT_CLASSES = false;
+
 // GJS host mode: `GjsifyNapi.init()` installs the loader as
 // `globalThis.__gjsifyNapiLoadAddon` and re-installs it if another consumer (the
 // @gjsify/napi L1) already captured + deleted it. Needs the GjsifyNapi typelib

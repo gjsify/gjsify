@@ -1002,6 +1002,35 @@ constrain nothing about the arm.
 
 
 
+### Nothing stops a `\p{…}` regex LITERAL from reaching a NativeScript bundle again
+
+A `\p{…}` property escape is validated at **PARSE** time, and NativeScript's V8 on Android is
+built without i18n support — so the literal is a SyntaxError for the whole module, thrown before
+the module's first line runs. Measured on API 36 (fixed at `e1584ddd97`): one literal in
+`packages/web/adwaita-core/src/release-notes.ts`, a module the NativeScript bundle pulls in
+through adwaita-core's barrel, took the ENTIRE bundle down at load. Nothing in the repository
+saw it coming: the file's own tests pass on Node, `gjsify tsc` has no opinion on a regex's
+runtime support, and the bundler happily emits it.
+
+The fix was local — build the same regex with `new RegExp` inside a `try`, fall back to XML 1.0's
+`NameStartChar` ranges when the property table is missing — and the shape is now the thing to
+hold, because the next author has nothing but this incident to learn from. **Measured today:
+zero parse-time `\p{…}` literals remain in NS-bound sources.** The five files that match the
+four characters at all are the fixed module, its spec, a build artifact (`test.node.mjs`), and
+`packages/web/gtksource-core/src/regex.ts` + its spec, where every occurrence is inside a STRING
+or a comment (that module *refuses* GtkSourceView regexes using the syntax — it never compiles
+one). So a guard would start green, which is the right moment to add it.
+
+What it has to read: a regex LITERAL containing `\p{` or `\P{` — not a string, not a comment, so
+not `grep`. A `new RegExp('\\p{L}', 'u')` is explicitly ALLOWED, because that is the fix. The
+population is every source a NativeScript bundle can reach, which is wider than
+`packages/nativescript-bridge`: `@gjsify/adwaita-core` is a browser package and was the one that
+broke. Candidates, in order of how little they add: an `oxlint` rule if one exists for unsupported
+regex features; else an AST scan in the shape of `utils/scan-named-imports.ts`, wired as an arm of
+an existing `check-*.mjs` rather than a new workflow. The same V8 build has more missing pieces
+than this one — the entry is about `\p{…}` only because that is the one that cost a bundle.
+
+
 ### Three more commands answer an empty selection with exit 0
 
 #1587 was one command resolving an empty set, doing nothing and reporting success. The

@@ -50,6 +50,19 @@ export const RUNTIME = 'nativescript';
  */
 export const LAZY_NATIVE = true;
 
+/**
+ * Whether `GObject.registerClass` may register a class whose JS parent is NOT a node-gi
+ * GObject class — `class MyLabel extends Label {}`, where `Label` is a
+ * `@nativescript/core` widget. GJS rejects that outright and so does node-gi on every
+ * other host; this is the ONE deliberate divergence, and it is deliberate because on
+ * NativeScript there is no GJS to be compatible with: node-gi is the only GI runtime that
+ * ever executes here, so a program written against this cannot be a program that behaves
+ * differently under GJS. See the FOREIGN-PARENT section in gi.js, ADR 0105 § 2 and
+ * docs/node-gi-gjs-surface.md.
+ * @type {boolean}
+ */
+export const FOREIGN_PARENT_CLASSES = true;
+
 // Timers from the global scope: NativeScript has no node:timers, and there is no
 // GLib-backed replacement to avoid here. setImmediate is not a V8 builtin.
 export const setImmediate =

@@ -34,6 +34,42 @@ fails the day one appears. Not built here, because that suite is a device-adjace
 nobody runs in the required job, and a guard that runs nowhere is prose.
 
 
+### No widget is a real GObject subclass yet — route D is proven and unused
+
+ADR 0105 § 2's twin route was reversed on 2026-10-19: on NativeScript Android `registerClass`
+now takes a `@nativescript/core` parent, so a widget can BE its own GObject instead of carrying
+a twin beside it (the gated divergence, [report](../../docs/reports/2026-10-19-adr-0105-route-d.md)).
+123 device cases hold the mechanism on an emulator and a Galaxy S9. **No widget in
+`packages/nativescript-bridge/adwaita` uses it.** That gap is deliberate — the spike shipped the
+capability, not a port — and it is the whole of what is left.
+
+MIGRATE FIRST: `widgets/adw-window-title.ts`. Two string properties, one `notify::` each
+(`NOTIFY_TITLE`, `NOTIFY_SUBTITLE`), no children a consumer passes in, and its change detection
+is already headless in `WindowTitleState` — so the only thing the migration moves is WHO owns
+the property and emits the notify. Everything bigger brings a second question with it (children,
+`bind_property` chains, a `GListModel`), and this one brings none.
+
+THE SEAM IS `widgets/signals.ts`. `withSignals(Base)` is the single place every widget class
+meets the platform, and route D belongs exactly there: under the real engine on Android it can
+return a `registerClass`ed class over `Base` with the declared `Properties`/`Signals`, and
+elsewhere the hand-rolled mixin it returns today. That keeps the per-widget change to a
+`Properties` block, keeps `connect`/`disconnect` spelled the same, and keeps the pure-JS leg —
+browser and iOS — untouched. Expect the engine check to be the hard part: the mixin runs at
+class-evaluation time, the engine is chosen at runtime, and `engineForTarget` is not consultable
+from a module's top level in the pure-JS leg.
+
+CARRY THESE: `vfunc_*` does not work on a foreign-parent class, so a widget that needs one stays
+on the twin. A handler that captures an enclosing `this` is not finalized (measured false on both
+devices, node-gi's unfixed C↔JS closure cycle) — every migrated widget must use the emitter
+argument the mixin already passes first. And a name the host chain owns is skipped, not shadowed:
+read `$foreignSkipped` in the device spec when a property silently does not take.
+
+KEEP iOS GREEN: every migrated widget gets a test that builds it under the pure-JS engine
+(`engine-target.ios.ts`'s default) and asserts the same properties, notifies and signals as the
+Android leg. iOS has no node-gi, so a widget that only works through `registerClass` breaks there
+silently — the owner's condition for route D (2026-10-19) is that iOS stays on the twin unharmed.
+
+
 ### The theme-class gate counts a name only if it starts with `adw-`
 
 `check-nativescript-theme-classes.mjs` holds every style class a NativeScript widget emits

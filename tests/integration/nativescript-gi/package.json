@@ -40,5 +40,11 @@
         "nativescript": "9.1.2",
         "typescript": "~5.4.0",
         "vite": "^8.0.16"
+    },
+    "allowScripts": {
+        "nativescript@9.1.2": true,
+        "@nativescript/core@9.1.3": true,
+        "esbuild@0.27.7": true,
+        "@parcel/watcher@2.6.0": true
     }
 }
