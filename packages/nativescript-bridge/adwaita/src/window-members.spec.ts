@@ -256,6 +256,35 @@ export const GtkWindowMembersNsTest = async () => {
             }
         });
 
+        await it('present (parent) hosts an AdwPreferencesDialog in the parent window', () => {
+            const host = fakeHost(true);
+            useWindowHost(host);
+            try {
+                const window = new Adw.Window();
+                Object.defineProperty(window, 'isLoaded', { value: true });
+                window.onLoaded();
+                const box = new Gtk.Box();
+                window.content = box as never;
+                const prefs = new Adw.PreferencesDialog();
+                let closed = 0;
+                prefs.connect('closed', () => closed++);
+                prefs.present(box as never);
+                expect(prefs.open).toBe(true);
+                expect(prefs.parent === (window as unknown)).toBe(true);
+                expect(window.dialogs.length).toBe(1);
+                host.pressBack();
+                expect(prefs.open).toBe(false);
+                expect(closed).toBe(1);
+                expect(window.dialogs.length).toBe(0);
+                expect(prefs.parent == null).toBe(true);
+                expect(throwsWith(() => new Adw.PreferencesDialog().present(), 'has no window to appear in')).toBe(
+                    true,
+                );
+            } finally {
+                useWindowHost(null);
+            }
+        });
+
         await it('a window inside another window does not watch back', () => {
             const host = fakeHost(true);
             useWindowHost(host);

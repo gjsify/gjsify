@@ -34,6 +34,7 @@ import { searchNsPreferences, type NsPreferencesSearchResult, type NsSearchableP
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
+import { findDialogHost, type DialogHost } from './window-state.js';
 
 /** Event name emitted when the dialog is closed. */
 export const CLOSED = 'closed';
@@ -45,6 +46,8 @@ export class AdwPreferencesDialog extends withSignals(GridLayout) {
     protected readonly _headerBox: GridLayout;
     protected readonly _titleLabel: Label;
     protected readonly _body: StackLayout;
+    /** The window `present (parent)` mounted this in, so closing can take it back out. */
+    private _host: DialogHost | null = null;
 
     constructor(props?: ConstructProps<AdwPreferencesDialog>) {
         super();
@@ -160,14 +163,35 @@ export class AdwPreferencesDialog extends withSignals(GridLayout) {
         return searchNsPreferences(this.searchPages, query, options);
     }
 
-    /** Reveal the preferences overlay. */
-    present(): void {
+    /**
+     * Reveal the preferences overlay — `adw_dialog_present`.
+     *
+     * With a `parent` it is hosted in that widget's window like every other AdwDialog, so the
+     * window's back handling closes it first. Without one it must already sit in a layout.
+     */
+    present(parent?: View | null): void {
+        if (this.open) return;
+        if (this.parent === null || this.parent === undefined) {
+            const host = findDialogHost(parent ?? null);
+            if (host === null) {
+                throw new Error(
+                    `${this.constructor.name} has no window to appear in: pass a widget that sits inside an ` +
+                        'Adw.Window / Adw.ApplicationWindow to present(), or add the dialog to a layout first.',
+                );
+            }
+            host._hostDialog(this);
+            this._host = host;
+        }
         this.visibility = 'visible';
     }
 
-    /** Hide the preferences overlay and emit `closed`. */
+    /** Hide the preferences overlay, take it out of its window and emit `closed`. */
     close(): void {
         this.visibility = 'collapse';
+        if (this._host !== null) {
+            this._host._unhostDialog(this);
+            this._host = null;
+        }
         const data: EventData = { eventName: CLOSED, object: this };
         this.notify(data);
     }
