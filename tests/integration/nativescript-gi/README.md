@@ -78,6 +78,8 @@ That makes the control leg the opt-OUT this suite exists to keep honest.
 | `app/specs/file-chooser.ts` | `FILE_CHOOSER_VECTORS` through real `Gio.File` with a Gtk stand-in (the payload has no Gtk typelib) |
 | `app/specs/views.ts` | **both legs** — a `GObject.registerClass`ed `Adw.Bin` subclass: construct bag beside the port's own construct door, `notify::` on a real change only, NativeScript's own object-`notify` still reaching `addEventListener`, a declared signal's argument, the child slot in the NS tree, `bindProperties` between two live widgets |
 | `app/specs/storybook.ts` | **both legs** — a story authored like a `*.ns.ts` file: real NS chrome, `StoryRegistry` decorators + `initialize`, `setArg` → `updateArgs` → a declared property → `notify::`, and `createControlRow` round-tripping text / boolean / select rows read back off the built widget |
+| `app/specs/inversion.ts` | opt-in leg only — the ADR 0105 § 2 spike where a real `GObject.Object` subclass OWNS a `Label`: what NativeScript refuses when handed the widget itself, lifetime under the V8/Java runtime, the cost against the twin. Verdict: `docs/reports/2026-10-18-adr-0105-inversion-spike.md` |
+| `app/specs/foreign-parent.ts` | opt-in leg only — ADR 0105 § 2 **route D**, `registerClass(meta, class extends Label {})`: that a layout takes the registered widget itself with ZERO unwraps and renders it, a declared property's `notify::` driving `Label.text`, `bind_property` both ways, NativeScript's `on('tap')` / `notify({eventName})` beside GObject's `notify(prop)` and `emit` on ONE object, `Gio.ListStore` identity, lifetime, and the cost against the twin |
 
 ### The two specs that run on both engines
 
