@@ -56,7 +56,7 @@ function unescapeXml(s: string): string {
 /**
  * The elements of an array default: `[]`, `@ai []` or `[a, b, …]`. Restricted to what a schema
  * default of `ab ai au ad as` holds; the runtime reads stored values with adwaita-core's
- * `parseVariant`, which this build step cannot depend on.
+ * `GLibVariant.parseText`, which this build step cannot depend on.
  */
 function splitArray(text: string, type: string): string[] | undefined {
     const body = text.replace(new RegExp(`^@${type}\\s+`), '');

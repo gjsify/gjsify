@@ -9,11 +9,11 @@
 //
 // Array keys (`ab ai au ad as`, ADR 0118 § 3) are read and written through `get_value` /
 // `set_value` with the core's `GLib.Variant`. A platform storage keeps them as `print(false)` text
-// and reads them back with `parseVariant`, so a value copied from `gsettings get` reads too.
+// and reads them back with `GLibVariant.parseText`, so a value copied from `gsettings get` reads too.
 //
 // Reference: glib gio/gsettings.c
 
-import { GLibVariant, parseVariant } from '@gjsify/adwaita-core';
+import { GLibVariant } from '@gjsify/adwaita-core';
 
 export type BasicKeyType = 'b' | 'i' | 'u' | 'd' | 's';
 export type ArrayKeyType = 'ab' | 'ai' | 'au' | 'ad' | 'as';
@@ -96,7 +96,7 @@ export function printArrayValue(type: ArrayKeyType, value: SettingValue): string
 
 /** The inverse of {@link printArrayValue}; throws on text that is not a `type` value. */
 export function parseArrayValue(type: ArrayKeyType, text: string): BasicSettingValue[] {
-    return parseVariant(type, text).deepUnpack<BasicSettingValue[]>();
+    return GLibVariant.parseText(type, text).deepUnpack<BasicSettingValue[]>();
 }
 
 function sameValue(a: SettingValue | undefined, b: SettingValue): boolean {

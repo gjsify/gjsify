@@ -4,7 +4,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import { GLIB_VARIANT_VECTORS, driveGLibVariantVectors, type VariantClassLike } from './conformance/glib-variant.js';
-import { Variant, parseVariant } from './glib-variant.js';
+import { Variant } from './glib-variant.js';
 
 export default async () => {
     await driveGLibVariantVectors(
@@ -16,7 +16,7 @@ export default async () => {
     await describe('adwaita-core: GLib.Variant text parser', async () => {
         const read = (type: string, text: string): unknown => {
             try {
-                return parseVariant(type, text).print(true);
+                return Variant.parseText(type, text).print(true);
             } catch {
                 return 'error';
             }
@@ -94,7 +94,7 @@ export default async () => {
             for (const [type, value] of values) {
                 const variant = new Variant(type, value);
                 for (const annotate of [true, false]) {
-                    expect(parseVariant(type, variant.print(annotate)).equal(variant)).toBe(true);
+                    expect(Variant.parseText(type, variant.print(annotate)).equal(variant)).toBe(true);
                 }
             }
         });
@@ -103,7 +103,7 @@ export default async () => {
             expect(read('aai', '[[1]]')).toBe('error');
             let message = '';
             try {
-                parseVariant('a{sv}', '{}');
+                Variant.parseText('a{sv}', '{}');
             } catch (error) {
                 message = (error as Error).message;
             }

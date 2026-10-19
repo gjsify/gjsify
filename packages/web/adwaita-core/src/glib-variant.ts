@@ -4,8 +4,10 @@
 // number is empty. A valid type string outside the subset, and every method not listed in § 2,
 // throws naming itself.
 //
-// `print()` writes GLib's text format byte for byte for these types, and `parseVariant` reads it
-// back; `@gjsify/app-settings` stores array keys as that text.
+// `print()` writes GLib's text format byte for byte for these types, and the internal
+// `Variant.parseText` reads it back; `@gjsify/app-settings` stores array keys as that text. GJS
+// spells the parser `GLib.Variant.parse`, which stays refused: it takes a `VariantType` and reads
+// the whole text grammar, not just the subset's.
 //
 // Reference: glib glib/gvariant.c (g_variant_print_string), glib/gvariant-parser.c,
 // gjs modules/core/overrides/GLib.js (_readSingleType, _packVariant, _unpackVariant)
@@ -212,6 +214,11 @@ export class Variant {
     /** Deprecated on GJS, still there. */
     static new(sig: string, value: unknown): Variant {
         return new Variant(sig, value);
+    }
+
+    /** @internal GLib's text format for `sig`, for `@gjsify/app-settings`'s stored array keys. */
+    static parseText(sig: string, text: string): Variant {
+        return parseVariant(sig, text);
     }
 
     get_type_string(): string {
@@ -493,7 +500,7 @@ function readBasic(reader: TextReader, type: BasicType): VariantBasicValue {
 }
 
 /** GLib's text format (`g_variant_parse`) for the subset's types: the inverse of `print`. */
-export function parseVariant(sig: string, text: string): Variant {
+function parseVariant(sig: string, text: string): Variant {
     const type = typeOf(sig);
     const reader = new TextReader(text, type);
     let value: VariantValue;

@@ -483,8 +483,7 @@ export {
     resources_get_info,
 } from './gio-resource.js';
 export { Bytes as GLibBytes } from './glib-bytes.js';
-export { Variant as GLibVariant, parseVariant } from './glib-variant.js';
-export type { VariantBasicValue, VariantTypeString, VariantValue } from './glib-variant.js';
+export { Variant as GLibVariant } from './glib-variant.js';
 export {
     FileDialog as GtkFileDialog,
     FileFilter as GtkFileFilter,
