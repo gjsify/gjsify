@@ -99,7 +99,6 @@ const notStrv = (type: string) => ({
 });
 const badSignature = (message: string) => ({ throws: 'TypeError', message: `Invalid GVariant signature ${message}` });
 
-// CORE-ONLY: GAP — no port exports `GLib.Variant` yet; ADR 0118 step 3 adds it. Tracked in #2289.
 export const GLIB_VARIANT_VECTORS: readonly GLibVariantVector[] = [
     {
         row: 'construct-basic',

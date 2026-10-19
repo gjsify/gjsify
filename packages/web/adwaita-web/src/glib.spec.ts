@@ -6,12 +6,15 @@ import {
     GLIB_PATH_VECTORS,
     GLIB_TIMER_VECTORS,
     GLIB_URI_VECTORS,
+    GLIB_VARIANT_VECTORS,
     driveGLibPathVectors,
     driveGLibTimerVectors,
     driveGLibUriVectors,
+    driveGLibVariantVectors,
     type GLibPathsLike,
     type GLibTimersLike,
     type GLibUriLike,
+    type GLibVariantLike,
 } from '@gjsify/adwaita-core/conformance';
 import { describe, expect, it } from '@gjsify/unit';
 
@@ -45,6 +48,11 @@ export const GLibTest = async () => {
         { name: 'adwaita-web', isOracle: false, GLib: GLib as unknown as GLibUriLike },
         { describe, it, expect },
         GLIB_URI_VECTORS,
+    );
+    await driveGLibVariantVectors(
+        { name: 'adwaita-web', isOracle: false, GLib: GLib as unknown as GLibVariantLike },
+        { describe, it, expect },
+        GLIB_VARIANT_VECTORS,
     );
     await describe('adwaita-web: GLib door', async () => {
         await it('answers the host-bound path questions with the root and no data dirs', () => {

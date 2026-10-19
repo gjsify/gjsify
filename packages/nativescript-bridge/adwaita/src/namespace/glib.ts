@@ -12,10 +12,13 @@
 // `Bytes` and `Error` are the ADR 0100 subset a `Gio.File` reads and fails with (`get_data`,
 // `matches`, `code`, `message`), re-exported from the core's `glib-bytes.ts` / `glib-error.ts`.
 //
+// `Variant` is the ADR 0118 subset (`b i u d s` and arrays of them) `Gio.Settings` stores array
+// keys with, re-exported from the core's `glib-variant.ts`.
+//
 // A TRUE SUBSET: everything else in GLib (`MainLoop`, `Source`, `timeout_add_seconds`,
 // `get_home_dir`, …) is absent, and the `gi://GLib` arm refuses it by name.
 
-export { GLibBytes as Bytes, GLibError as Error } from '@gjsify/adwaita-core';
+export { GLibBytes as Bytes, GLibError as Error, GLibVariant as Variant } from '@gjsify/adwaita-core';
 
 import {
     buildFilenamev,
