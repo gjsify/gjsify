@@ -11,7 +11,14 @@ import { ensureNative, onNativeLoaded } from './index.js';
 // Timers, `process` and the windowing env record come from the host seam (host.node.js
 // explains why they are the runtime's own, not the globals; host.nativescript.js is the
 // NativeScript Android variant).
-import { setImmediate, setInterval, clearInterval, runtimeProcess, windowingEnvWrites } from '#host';
+import {
+    setImmediate,
+    setInterval,
+    clearInterval,
+    runtimeProcess,
+    windowingEnvWrites,
+    FOREIGN_PARENT_CLASSES,
+} from '#host';
 import { createGioDBus } from './overrides/gio-dbus.js';
 import { createGioSettings } from './overrides/gio-settings.js';
 
@@ -464,7 +471,12 @@ function runCtorForCObject(handle, gtypeName) {
     try {
         // No props: GtkBuilder already applied the construct properties to the C object;
         // the ctor's `params` arg is conventionally optional for a template child.
-        Reflect.construct(cls, []);
+        const instance = Reflect.construct(cls, []);
+        // A FOREIGN-PARENT class has no makeClass base ctor to consume the latch, and its
+        // attach is lazy — so if the ctor body touched nothing, `adoptHandle` would still
+        // be set here and a later attach would build a SECOND GObject, orphaning the one
+        // C already created. Force the attach while the latch is still live.
+        if (adoptHandle !== undefined && isForeignInstance(instance)) foreignHandle(instance);
     } finally {
         adoptHandle = prev;
     }
@@ -1128,6 +1140,13 @@ function assignTemplateChildren(instance, handle, reg) {
 // outside what either runtime honours.
 const propertySettersByProto = new WeakMap();
 
+// The property setters THIS file generated for a foreign-parent class (route D, see the
+// FOREIGN-PARENT section). They must be invisible to resolvePropertySetter: a generated
+// setter's whole body is `native.setProperty`, and the engine answers every custom-property
+// store by calling runJsPropertySetter — which would resolve the generated setter and store
+// again, forever. Only a setter the CLASS declared is a JS setter worth replaying.
+const generatedForeignSetters = new WeakSet();
+
 function findPropertySetter(userProto, propertyName) {
     let perProto = propertySettersByProto.get(userProto);
     if (perProto === undefined) propertySettersByProto.set(userProto, (perProto = new Map()));
@@ -1144,7 +1163,9 @@ function resolvePropertySetter(userProto, propertyName) {
     const camel = propertyName.replace(/-([a-z])/g, (m) => m[1].toUpperCase());
     for (const spelling of [propertyName, underscored, camel]) {
         const desc = findProtoDescriptor(userProto, spelling);
-        if (desc !== undefined && typeof desc.set === 'function') return desc.set;
+        if (desc !== undefined && typeof desc.set === 'function' && !generatedForeignSetters.has(desc.set)) {
+            return desc.set;
+        }
     }
     return undefined;
 }
@@ -1587,7 +1608,11 @@ function wrapInstance(handle, userProto) {
         // the leaf's OWN methods resolve). Never DOWNGRADE: a more-derived cached proto is
         // kept. The userProto lives on the target (read via the proxy here), so the
         // upgrade is in place — identity (===) and any expando fields are preserved.
-        if (userProto !== undefined && userProto !== cached[USER_PROTO]) {
+        // NEVER re-link a foreign-parent instance (route D): linkInstanceProto does
+        // `Object.setPrototypeOf`, and that object's [[Prototype]] IS its NativeScript
+        // widget chain — replacing it would turn a real Label into something `_addView`
+        // rejects. Its user prototype is already the registered one, fixed at attach.
+        if (userProto !== undefined && userProto !== cached[USER_PROTO] && !isForeignInstance(cached)) {
             const current = cached[USER_PROTO];
             if (current === undefined || isProtoSameOrDescendantOf(userProto, current)) {
                 linkInstanceProto(cached, userProto);
@@ -2612,7 +2637,11 @@ function findParentGType(klass) {
     for (let c = Object.getPrototypeOf(klass); typeof c === 'function'; c = Object.getPrototypeOf(c)) {
         const reg = registeredClasses.get(c);
         if (reg !== undefined) {
-            return { parentGTypeHandle: reg.typeHandle };
+            // `parentForeign` carries the FOREIGN-PARENT marker down the chain: a subclass
+            // of `registerClass(…, class extends Label {})` has a perfectly ordinary
+            // registered parent by this test, yet ITS instances are still NativeScript
+            // objects that need the attach path rather than the wrapper Proxy.
+            return { parentGTypeHandle: reg.typeHandle, parentForeign: reg.foreign === true };
         }
         const gt = c.$gtypeName;
         if (typeof gt === 'string') {
@@ -2787,6 +2816,323 @@ function collectVfuncs(klass) {
  * @param {Function} [maybeClass]
  * @returns {Function} the same `klass` (now registered)
  */
+// ---- FOREIGN-PARENT classes: a registered GObject attached to a host widget ----
+//
+// THE ONE DELIBERATE DIVERGENCE FROM GJS, and it only exists where GJS cannot run.
+// Gated on `FOREIGN_PARENT_CLASSES` (#host): true on NativeScript, false everywhere
+// else, where registerClass keeps throwing GJS's invalid-base error verbatim. See
+// host.nativescript.js for why that gate is sound, ADR 0105 § 2 for the decision and
+// docs/node-gi-gjs-surface.md for the surface this adds.
+//
+// What it buys: `registerClass({GTypeName, Properties, Signals}, class MyLabel extends
+// Label {})` where `Label` is a `@nativescript/core` widget. The JS object stays a REAL
+// Label — its [[Prototype]] is the untouched NativeScript chain — so `stack.addChild(w)`,
+// `ContentView.content = w` and `_addChildFromBuilder` pass their hard `instanceof
+// ViewBase` gates with no `.view` unwrap anywhere in consumer code. Beside it sits a real
+// GObject of a registered GType whose GType PARENT is GObject.Object (the GType parent is
+// independent of the JS prototype chain), so the object also answers `instanceof
+// GObject.Object`, carries custom properties with `notify::`, and emits registered signals.
+//
+// ATTACH, never wrap. Everywhere else node-gi hands back a Proxy whose get/set traps
+// resolve the GObject surface dynamically; here there is no Proxy to put traps on, so:
+//   • `[HANDLE]`/`[USER_PROTO]` become non-enumerable OWN props of the widget object
+//     (`Symbol.hasInstance` resolves `instanceof` through `instance[HANDLE]`, which is
+//     what makes the widget a GObject.Object);
+//   • everything the traps would have answered — connect/emit/notify, the property
+//     accessors, the GObject.Object methods — is installed as OWN members of
+//     `klass.prototype`, once, at registerClass time;
+//   • `Object.setPrototypeOf` is never called on such an object (see linkInstanceProto).
+//
+// LAZY. The GObject is constructed on the first access that needs it (`foreignHandle`),
+// because nothing in a NativeScript widget's construction runs node-gi code: there is no
+// base ctor to route `new` through the way makeClass does. Every entry point goes through
+// `foreignHandle`, including `unwrapArg` reading `[HANDLE]` through the prototype getter,
+// so by the time anything can OBSERVE the GObject it exists — `new MyLabel() instanceof
+// GObject.Object` attaches and answers true. Construct properties are the one thing this
+// cannot carry (the widget ctor owns its own arguments); set them after construction.
+//
+// NOT supported, deliberately: `vfunc_*` overrides. collectVfuncs finds none on a widget
+// chain, and a vfunc trampoline would need to re-link the instance prototype — the one
+// thing this path must never do.
+const FOREIGN_MATERIALISED = Symbol('nodeGiForeignMaterialised');
+
+// A registered foreign-parent class's PROTOTYPE → its registration. The instance carries
+// no class pointer we can trust (its `constructor` is the widget's), so the attach walks
+// the real prototype chain and takes the nearest entry — which is the LEAF's, since a
+// subclass's own prototype comes first.
+const foreignRegByProto = new WeakMap();
+
+// Gated first, so on a host where foreign parents cannot exist this is one boolean read
+// rather than a prototype-chain walk — it sits on wrapInstance's upgrade path.
+function isForeignInstance(obj) {
+    return FOREIGN_PARENT_CLASSES && foreignRegFor(obj) !== undefined;
+}
+
+function foreignRegFor(obj) {
+    for (let p = Object.getPrototypeOf(obj); p !== null; p = Object.getPrototypeOf(p)) {
+        const reg = foreignRegByProto.get(p);
+        if (reg !== undefined) return reg;
+    }
+    return undefined;
+}
+
+// Construct this object's GObject and bind the two together. Not a wrap: the object is
+// handed back unchanged apart from three non-enumerable own symbols.
+function attachForeignGObject(obj, reg) {
+    let handle;
+    if (adoptHandle !== undefined) {
+        // A C-created instance (runCtorForCObject) — the engine already built the GObject.
+        // Consume the latch atomically, exactly as the makeClass base ctor does.
+        handle = adoptHandle;
+        adoptHandle = undefined;
+    } else {
+        handle = native.constructType(reg.typeHandle, {});
+    }
+    // HANDLE first: it shadows the prototype getter, so anything the flush below runs can
+    // re-enter `foreignHandle` without constructing a second GObject.
+    Object.defineProperty(obj, HANDLE, { value: handle, configurable: true });
+    Object.defineProperty(obj, USER_PROTO, { value: reg.foreignProto, configurable: true });
+    instanceCache.set(handle, obj);
+    flushPropertiesToJsSetters(obj, handle, reg);
+    return handle;
+}
+
+// This object's GObject handle, attaching on first demand. Every member installed below
+// goes through here, as does `unwrapArg` (via the prototype [HANDLE] getter).
+function foreignHandle(obj) {
+    if (Object.hasOwn(obj, HANDLE)) return obj[HANDLE];
+    const reg = foreignRegFor(obj);
+    if (reg === undefined) {
+        throw new TypeError('node-gi: this object is not an instance of a GObject.registerClass()-registered class');
+    }
+    return attachForeignGObject(obj, reg);
+}
+
+// Which custom properties of this instance hold a materialised value — the state GJS's
+// generated accessors keep in their private field, and what the equal-value guard
+// compares against. Same rule as the wrapper's `materialise` (see wrapInstance): seeded
+// from what the engine has stored, then extended by every read and write.
+function foreignMaterialise(obj, name) {
+    let seen = obj[FOREIGN_MATERIALISED];
+    if (seen === undefined) {
+        seen = new Set(typeof native.storedPropertyNames === 'function' ? native.storedPropertyNames(obj[HANDLE]) : []);
+        Object.defineProperty(obj, FOREIGN_MATERIALISED, { value: seen, configurable: true });
+    }
+    const had = seen.has(name);
+    seen.add(name);
+    return had;
+}
+
+// The GObject.Object instance methods installed as callMethod thunks. A MODEST list on
+// purpose — only introspectable, GJS-reachable members with no gpointer/GValue-array
+// argument (`g_object_get_data`, `getv` and friends are deliberately absent rather than
+// present and throwing). The wrapper Proxy answers these from introspection dynamically;
+// this path has to name them.
+const FOREIGN_OBJECT_METHODS = [
+    'get_property',
+    'set_property',
+    'bind_property',
+    'notify_by_pspec',
+    'freeze_notify',
+    'thaw_notify',
+    'run_dispose',
+    'ref',
+    'unref',
+    'ref_sink',
+    'force_floating',
+    'is_floating',
+];
+
+function snakeToCamel(name) {
+    return name.replace(/_([a-z])/g, (m) => m[1].toUpperCase());
+}
+
+// Install a member under `name` unless the host chain already answers under it — a
+// widget's own method ALWAYS wins, because consumer code and NativeScript's own
+// internals call it. Returns false (and the caller records the skip) when it loses.
+function defineForeignMember(proto, name, descriptor, skipped) {
+    if (findProtoDescriptor(proto, name) !== undefined) {
+        skipped.push(name);
+        return false;
+    }
+    Object.defineProperty(proto, name, { configurable: true, enumerable: false, ...descriptor });
+    return true;
+}
+
+// Everything the instance wrapper's traps would have resolved, as own members of a
+// foreign-parent class's prototype. Returns the names the host chain already owned, so a
+// program (and the route-D spec) can see exactly what it did NOT get.
+function installForeignGObjectSurface(proto, properties) {
+    const skipped = [];
+
+    // `[HANDLE]` as a lazily-attaching GETTER is the whole load-bearing trick: it makes
+    // `instanceof GObject.Object`, `unwrapArg` and every member below attach on demand,
+    // with no construction hook on the widget side. An attach replaces it with an own
+    // data property, so this getter runs at most once per instance.
+    Object.defineProperty(proto, HANDLE, {
+        configurable: true,
+        get() {
+            return foreignHandle(this);
+        },
+    });
+
+    defineForeignMember(
+        proto,
+        '$typeName',
+        {
+            get() {
+                return native.getTypeName(foreignHandle(this));
+            },
+        },
+        skipped,
+    );
+
+    // Signal API. The same four thunks the wrapper builds, including the (fn → ids)
+    // bookkeeping signal_handlers_*_by_func resolves through.
+    defineForeignMember(
+        proto,
+        'connect',
+        {
+            value: function connect(signal, cb) {
+                const handle = foreignHandle(this);
+                const id = native.connectSignal(handle, signal, wrapSignalCallback(cb), false);
+                recordSignalHandler(handle, cb, id);
+                return id;
+            },
+        },
+        skipped,
+    );
+    const connectAfter = function connect_after(signal, cb) {
+        const handle = foreignHandle(this);
+        const id = native.connectSignal(handle, signal, wrapSignalCallback(cb), true);
+        recordSignalHandler(handle, cb, id);
+        return id;
+    };
+    defineForeignMember(proto, 'connect_after', { value: connectAfter }, skipped);
+    defineForeignMember(proto, 'connectAfter', { value: connectAfter }, skipped);
+    defineForeignMember(
+        proto,
+        'disconnect',
+        {
+            value: function disconnect(id) {
+                const handle = foreignHandle(this);
+                forgetSignalHandlerId(handle, id);
+                return native.disconnectSignal(handle, id);
+            },
+        },
+        skipped,
+    );
+    defineForeignMember(
+        proto,
+        'emit',
+        {
+            value: function emit(signal, ...args) {
+                return wrapReturn(native.emitSignal(foreignHandle(this), signal, unwrapArgs(args)));
+            },
+        },
+        skipped,
+    );
+
+    // `notify` is the ONE name that cannot be skipped and cannot be taken: NativeScript's
+    // Observable.prototype.notify({eventName, object}) is called by the widget machinery
+    // itself (and by consumer code), while GObject's notify(propertyName) is what a
+    // custom property's setter needs. They are told apart by ARGUMENT TYPE — a string is
+    // a GObject property name, anything else is a NativeScript event payload — and the
+    // inherited implementation is captured HERE, before this definition shadows it, so
+    // both keep working on one object. This is the only collision in the
+    // @nativescript/core 9.1 Label chain (measured: Observable.prototype.notify is the
+    // sole hit for the whole installed surface).
+    const inheritedNotify = findProtoDescriptor(proto, 'notify');
+    const hostNotify = inheritedNotify !== undefined ? inheritedNotify.value : undefined;
+    Object.defineProperty(proto, 'notify', {
+        configurable: true,
+        enumerable: false,
+        value: function notify(arg, ...rest) {
+            if (typeof arg === 'string') {
+                return wrapReturn(native.callMethod(foreignHandle(this), 'notify', [arg]));
+            }
+            if (typeof hostNotify === 'function') return hostNotify.call(this, arg, ...rest);
+            throw new TypeError('notify(): expected a GObject property name');
+        },
+    });
+
+    for (const name of FOREIGN_OBJECT_METHODS) {
+        const thunk = function giMethod(...args) {
+            return wrapReturn(native.callMethod(foreignHandle(this), name, unwrapArgs(args)));
+        };
+        defineForeignMember(proto, name, { value: thunk }, skipped);
+        defineForeignMember(proto, snakeToCamel(name), { value: thunk }, skipped);
+    }
+
+    // gjs's GObject.Object.prototype shims over namespace-level g_signal_* /
+    // bind_property_full — not introspected instance methods, so named explicitly here
+    // just as the wrapper's get trap routes them explicitly.
+    for (const name of [
+        'block_signal_handler',
+        'unblock_signal_handler',
+        'stop_emission_by_name',
+        'bind_property_full',
+    ]) {
+        for (const spelling of [name, snakeToCamel(name)]) {
+            const shim = objectPrototypeShim(spelling);
+            defineForeignMember(
+                proto,
+                spelling,
+                {
+                    value: function shimmed(...args) {
+                        return shim(foreignHandle(this), args);
+                    },
+                },
+                skipped,
+            );
+        }
+    }
+
+    installForeignPropertyAccessors(proto, properties, skipped);
+    return skipped;
+}
+
+// GJS-style generated accessors for the DECLARED custom properties, under all three
+// spellings GJS makes equivalent (dash, underscore, camel — `_checkAccessors` mirrors the
+// declared one onto the other two). Elsewhere node-gi installs none and resolves the
+// spellings at the point of use instead (findPropertySetter), because the wrapper Proxy
+// can; this path has no Proxy, so the accessors have to exist. A ROUTE-D-ONLY divergence
+// from the rest of node-gi, and the reason the equal-value guard is replicated here.
+//
+// A spelling the host chain already answers is left ALONE: NativeScript defines `text`,
+// `width`, … on its own prototypes with real setters driving the native view, and
+// shadowing one would break the widget. The engine's store still routes to it —
+// runJsPropertySetter resolves the class-or-chain setter — so declaring a GObject
+// property named after a widget property composes instead of colliding.
+function installForeignPropertyAccessors(proto, properties, skipped) {
+    for (const spec of properties) {
+        const name = spec.name;
+        if (typeof name !== 'string' || name.length === 0) continue;
+        const spellings = new Set([
+            name,
+            name.replace(/-/g, '_'),
+            name.replace(/-([a-z])/g, (m) => m[1].toUpperCase()),
+        ]);
+        const get = function () {
+            const handle = foreignHandle(this);
+            foreignMaterialise(this, name);
+            return wrapReturn(native.getProperty(handle, name));
+        };
+        const set = function (value) {
+            const handle = foreignHandle(this);
+            // Equal-value guard, GJS's _generateAccessors setter verbatim — see the same
+            // guard in wrapInstance's set trap for why it is only armed once the value
+            // has been materialised.
+            if (foreignMaterialise(this, name) && wrapReturn(native.getProperty(handle, name)) === value) return;
+            native.setProperty(handle, name, unwrapArg(value));
+        };
+        generatedForeignSetters.add(set);
+        for (const spelling of spellings) {
+            defineForeignMember(proto, spelling, { get, set }, skipped);
+        }
+    }
+}
+
 // GJS's meta FIELD form: a class may declare its meta as static symbol fields
 // (`Klass[GObject.GTypeName] = 'X'`) instead of passing a meta object, and GJS treats
 // the symbols as the real source — `registerClass(meta, klass)` only copies meta onto
@@ -2826,13 +3172,19 @@ function registerClass(metaOrClass, maybeClass) {
     meta = { ...fieldMeta, ...meta };
 
     const parent = findParentGType(klass);
-    if (parent === undefined) {
+    // A parent that is not a node-gi GObject class at all. GJS throws here
+    // ("registerClass() used with invalid base class", refs/gjs GObject.js) and so does
+    // every host but NativeScript — where the FOREIGN-PARENT path instead registers the
+    // GType under GObject.Object and ATTACHES it to the host widget object. See the
+    // FOREIGN-PARENT section above.
+    if (parent === undefined && !FOREIGN_PARENT_CLASSES) {
         throw new TypeError(
             'GObject.registerClass: ' +
                 (klass.name || 'the class') +
                 ' must extend a node-gi GObject class (e.g. GObject.Object)',
         );
     }
+    const foreign = parent === undefined || parent.parentForeign === true;
 
     const properties = [];
     if (meta.Properties !== null && typeof meta.Properties === 'object') {
@@ -2874,10 +3226,16 @@ function registerClass(metaOrClass, maybeClass) {
     // from its runtime GType handle (it has no introspection entry); an INTROSPECTED
     // parent is resolved by namespace+type. Construction (the leaf's registered GType
     // via the makeClass new.target routing) is already multi-level-correct either way.
+    // A FOREIGN parent contributes no GType at all (it is a host widget class), so the
+    // registered type is rooted at GObject.Object — the GType parent is independent of
+    // the JS prototype chain, which is exactly what makes route D possible. A foreign
+    // SUBCLASS still has a registered parent and takes the ordinary by-GType branch.
     const typeHandle =
-        parent.parentGTypeHandle !== undefined
-            ? native.registerClassFromGType(gtypeName, parent.parentGTypeHandle, options)
-            : native.registerClass(gtypeName, parent.parentNamespace, parent.parentType, options);
+        parent === undefined
+            ? native.registerClass(gtypeName, 'GObject', 'Object', options)
+            : parent.parentGTypeHandle !== undefined
+              ? native.registerClassFromGType(gtypeName, parent.parentGTypeHandle, options)
+              : native.registerClass(gtypeName, parent.parentNamespace, parent.parentType, options);
 
     // G3: register the GType for the GIVEN class IN PLACE (no throwaway Subclass) and
     // return that same class. `$gtypeName`/`$gtype` are defined as OWN properties:
@@ -2917,6 +3275,8 @@ function registerClass(metaOrClass, maybeClass) {
         children: children.length > 0 ? children : undefined,
         internalChildren: internalChildren.length > 0 ? internalChildren : undefined,
         constructPropertyNames: constructPropertyNames.length > 0 ? constructPropertyNames : undefined,
+        foreign: foreign ? true : undefined,
+        foreignProto: foreign ? klass.prototype : undefined,
     });
     // Which properties the equal-value guard owns: the ones DECLARED here, union the
     // registered parent's (a G2 subclass inherits its parent's custom properties and
@@ -2933,6 +3293,16 @@ function registerClass(metaOrClass, maybeClass) {
     // Reverse index for runCtorForCObject: the engine identifies a C-created instance
     // by its GType name (= gtypeName, what native.registerClass registered).
     classesByGType.set(gtypeName, klass);
+    // FOREIGN parent: install the GObject surface as own members of this prototype and
+    // index the prototype, so an instance can find ITS leaf registration by walking the
+    // real (host-widget) prototype chain. Both before type_class_ref, like every record
+    // above it. `foreignSkipped` names the members the host chain already owned — the
+    // honest answer to "what did this class NOT get", which the route-D spec reports.
+    if (foreign) {
+        const reg = registeredClasses.get(klass);
+        reg.foreignSkipped = installForeignGObjectSurface(klass.prototype, properties);
+        foreignRegByProto.set(klass.prototype, reg);
+    }
     // GJS parity: registration must be COMPLETE when registerClass returns. The
     // engine installs the custom properties, signals and vfunc trampolines in
     // class_init (src/class.cc), which GObject runs lazily on the first
