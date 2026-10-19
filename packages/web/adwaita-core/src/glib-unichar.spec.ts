@@ -3,7 +3,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import { GLIB_UNICHAR_VECTORS, driveGLibUnicharVectors } from './conformance/glib-unichar.js';
-import { unicharIsalpha } from './glib-unichar.js';
+import { unicharIsalpha, unicharIsprint } from './glib-unichar.js';
 
 export default async () => {
     await driveGLibUnicharVectors(
@@ -23,6 +23,19 @@ export default async () => {
             expect(unicharIsalpha('@')).toBe(false);
             expect(unicharIsalpha('[')).toBe(false);
             expect(unicharIsalpha('\u{10FFFF}')).toBe(false);
+        });
+        await it('answers g_unichar_isprint from the second table', () => {
+            expect(unicharIsprint('a')).toBe(true);
+            expect(unicharIsprint(' ')).toBe(true);
+            expect(unicharIsprint('\u00a0')).toBe(true);
+            expect(unicharIsprint('\ue000')).toBe(true);
+            expect(unicharIsprint('\u0000')).toBe(false);
+            expect(unicharIsprint('\u00ad')).toBe(false);
+            expect(unicharIsprint('\u0378')).toBe(false);
+            expect(unicharIsprint('\ufdd0')).toBe(false);
+            expect(unicharIsprint('\ud800')).toBe(false);
+            expect(unicharIsprint('\u{10ffff}')).toBe(false);
+            expect(unicharIsprint('')).toBe(false);
         });
     });
 };

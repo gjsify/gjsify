@@ -411,7 +411,7 @@ export const GLIB_VARIANT_VECTORS: readonly GLibVariantVector[] = [
     },
     {
         row: 'print',
-        rule: "a string is single-quoted unless it holds ' ; the quote and \\ are escaped, a non-printing character as \\a…\\v, \\uXXXX or \\UXXXXXXXX",
+        rule: "a string is single-quoted unless it holds ' ; the quote and \\ are escaped, a non-printing character (Cc, Cf, unassigned) as \\a…\\v, \\uXXXX or \\UXXXXXXXX",
         holds: 'oracle',
         observe: (s) =>
             [
@@ -426,6 +426,10 @@ export const GLIB_VARIANT_VECTORS: readonly GLibVariantVector[] = [
                 '\u00a0\u2028',
                 '\u00ad\u200b\u0085',
                 '\u{10ffff}',
+                '\u0378\ufdd0\u{2fffe}',
+                '\u{e0001}\u2066\u061c',
+                '\ue000\u{f0000}',
+                '\u{3134a}\u{3134b}\u{323af}',
             ].map((text) => new s.GLib.Variant('s', text).print(false)),
         shows: [
             '"a\'b"',
@@ -439,6 +443,10 @@ export const GLIB_VARIANT_VECTORS: readonly GLibVariantVector[] = [
             "'\u00a0\u2028'",
             "'\\u00ad\\u200b\\u0085'",
             "'\\U0010ffff'",
+            "'\\u0378\\ufdd0\\U0002fffe'",
+            "'\\U000e0001\\u2066\\u061c'",
+            "'\ue000\u{f0000}'",
+            "'\u{3134a}\\U0003134b\u{323af}'",
         ],
     },
     {
