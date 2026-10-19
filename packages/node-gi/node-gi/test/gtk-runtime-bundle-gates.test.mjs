@@ -1987,4 +1987,8 @@ test('the win32 bundle must carry both GLib spawn helpers beside its DLLs', () =
     assert.equal(missingWin32SpawnHelpers(dir).length, 1);
     writeFileSync(join(dir, 'gspawn-win64-helper-console.exe'), '');
     assert.deepEqual(missingWin32SpawnHelpers(dir), []);
+    // And the license gate must know whose they are, or the build fails at coverage.
+    for (const helper of WIN32_SPAWN_HELPERS) {
+        assert.deepEqual(licenseFamilyFor(helper, WIN32_LICENSE_FAMILIES)?.components, ['glib'], helper);
+    }
 });
