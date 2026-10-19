@@ -12,6 +12,7 @@ import { build } from './builder/index.js';
 import * as Adw from './namespace/adw.js';
 import * as Gtk from './namespace/gtk.js';
 import { GridLayout, type LayoutBase, View } from './testing/ns-core.mjs';
+import { dialogCardLayout } from './widgets/window-state.js';
 
 /** The children of a layout, in paint order. */
 function childrenOf(layout: object): object[] {
@@ -170,6 +171,45 @@ export const AdwWindowRootsNsTest = async () => {
             );
         });
 
+        await it('auto is a bottom sheet in a window of at most 450 x 360, as adw-dialog.c breaks', () => {
+            expect(dialogCardLayout(null, 'auto', 600, -1)).toStrictEqual({ sheet: false, width: 600, height: 'auto' });
+            expect(dialogCardLayout({ width: 450, height: 800 }, 'auto', 600, -1).sheet).toBe(true);
+            expect(dialogCardLayout({ width: 800, height: 360 }, 'auto', 600, -1).sheet).toBe(true);
+            expect(dialogCardLayout({ width: 451, height: 361 }, 'auto', 300, -1).sheet).toBe(false);
+            expect(dialogCardLayout({ width: 400, height: 800 }, 'floating', 300, -1).sheet).toBe(false);
+            expect(dialogCardLayout({ width: 1280, height: 800 }, 'bottom-sheet', 600, -1).sheet).toBe(true);
+        });
+
+        await it('a content size never exceeds the window less the card margins', () => {
+            expect(dialogCardLayout({ width: 600, height: 500 }, 'floating', 800, 600)).toStrictEqual({
+                sheet: false,
+                width: 552,
+                height: 452,
+            });
+            expect(dialogCardLayout({ width: 1280, height: 800 }, 'auto', 800, 600)).toStrictEqual({
+                sheet: false,
+                width: 800,
+                height: 600,
+            });
+            expect(dialogCardLayout({ width: 360, height: 640 }, 'auto', 800, 900).height).toBe(592);
+        });
+
+        await it('lays the card out again against the window size a layout pass reports', () => {
+            const dialog = new Adw.Dialog({ contentWidth: 800 });
+            const [card] = childrenOf(dialog) as View[];
+            expect(card!.width).toBe(800);
+            let size = { width: 600, height: 700 };
+            (dialog as unknown as { getActualSize(): typeof size }).getActualSize = () => size;
+            dialog.notify({ eventName: 'layoutChanged', object: dialog });
+            expect(card!.width).toBe(552);
+            expect(card!.verticalAlignment).toBe('middle');
+            size = { width: 360, height: 700 };
+            dialog.notify({ eventName: 'layoutChanged', object: dialog });
+            expect(card!.width).toBe('auto');
+            expect(card!.verticalAlignment).toBe('bottom');
+            expect(card!.horizontalAlignment).toBe('stretch');
+        });
+
         await it('present(parent) mounts it ABOVE the window content and reveals it', () => {
             const window = new Adw.ApplicationWindow();
             const content = new Gtk.Box();
@@ -278,6 +318,52 @@ export const AdwWindowRootsNsTest = async () => {
             expect(() => build({ tag: 'AdwDialog', children: [{ tag: 'GtkLabel', slot: 'content' }] })).toThrow(
                 'declares no such builder slot',
             );
+        });
+    });
+
+    await describe('Adw.PreferencesDialog is an Adw.Dialog', async () => {
+        // Learn6502's `content-width: 800` threw "declares no 'contentWidth'" from the
+        // preferences action, and the menu item did nothing at all.
+        await it('takes the AdwDialog props from a template, and pages into its body', () => {
+            const dialog = build({
+                tag: 'AdwPreferencesDialog',
+                props: { title: 'Appearance', 'content-width': 800, 'content-height': 600 },
+                children: [{ tag: 'AdwPreferencesPage' }, { tag: 'AdwPreferencesPage' }],
+            }) as unknown as Adw.PreferencesDialog;
+            expect(dialog instanceof Adw.Dialog).toBe(true);
+            expect(dialog.title).toBe('Appearance');
+            expect(dialog.contentWidth).toBe(800);
+            expect(dialog.contentHeight).toBe(600);
+            expect(dialog.searchPages.length).toBe(2);
+            const pages = childrenOf(dialog.body as unknown as LayoutBase);
+            expect(pages.map((page) => GridLayout.placementOf(page as View).row)).toStrictEqual([0, 1]);
+        });
+
+        await it('starts at the template content-width of 640 and titles itself Preferences', () => {
+            const dialog = new Adw.PreferencesDialog();
+            expect(dialog.contentWidth).toBe(640);
+            expect(dialog.title).toBe('Preferences');
+            expect(dialog.className).toBe('adw-preferences-dialog');
+            const [card] = childrenOf(dialog) as View[];
+            expect(card!.className).toBe('adw-preferences-dialog-card');
+            expect(card!.width).toBe(640);
+        });
+
+        await it('honours can-close: close() emits close-attempt and stays, force_close() closes', () => {
+            const window = new Adw.Window();
+            const dialog = new Adw.PreferencesDialog({ canClose: false });
+            let attempts = 0;
+            let closed = 0;
+            dialog.connect('close-attempt', () => attempts++);
+            dialog.connect('closed', () => closed++);
+            dialog.present(window as unknown as never);
+            dialog.close();
+            expect(dialog.open).toBe(true);
+            expect(attempts).toBe(1);
+            dialog.force_close();
+            expect(dialog.open).toBe(false);
+            expect(closed).toBe(1);
+            expect(childrenOf(window).length).toBe(0);
         });
     });
 };

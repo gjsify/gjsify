@@ -1768,8 +1768,12 @@ Page.adw-window {
     background-color: #fafafb;
     border-radius: 16;
     padding: 24;
-    width: 320;
     margin: 24;
+}
+
+/* The about card has no `content-width`; the preferences card's comes from AdwDialog. */
+.adw-about-dialog-card {
+    width: 320;
 }
 
 .adw-about-dialog-icon {
