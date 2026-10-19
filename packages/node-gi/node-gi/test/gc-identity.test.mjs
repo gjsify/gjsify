@@ -296,43 +296,164 @@ test('L1 vfunc: a field written in a vfunc is visible on the constructed instanc
     assert.equal(inst._marker, 42, 'the L1 vfunc `this` is the constructed proxy');
 });
 
-// ---- Case 6: signal-cycle — narrowed-leak semantics ----
-// A handler that closes over its own object forms a GObject → GClosure →
-// napi_ref → callback → wrapper cycle the GC cannot break across C, so a
-// connected self-referential handler keeps the object alive (GJS-faithful: a
-// connected handler IS a reason to stay alive). Disconnect drops the closure's
-// napi_ref → the cycle breaks → the next GC collects it.
-test('signal-cycle: a self-referential handler pins until disconnect', { ...gcOpts }, async () => {
+// ---- Case 6: signal-cycle — a connected handler is NOT a reason to stay alive ----
+// A handler that closes over its own emitter used to be immortal here: the
+// GClosure held a STRONG napi_ref to the callback, so GObject → GClosure →
+// napi_ref → callback → captured wrapper → toggle ref → GObject was a cycle
+// spanning C, and no GC could break it. GJS has the same cycle on paper and
+// collects it anyway, because its signal closures hold the callable UNROOTED and
+// trace it from the owning wrapper (ObjectInstance::m_closures) — so the whole
+// cycle lives inside one heap the GC can reason about.
+//
+// Measured on gjs 1.88.1 with a FinalizationRegistry witness (GJS never calls
+// JS::ClearKeptObjects, so a WeakRef pins its target there forever and cannot
+// witness anything): all three capture shapes below are COLLECTED, and both
+// controls stay ALIVE with their handlers still firing. These cases are that
+// measurement, transplanted.
+test('signal-cycle: a handler capturing its emitter does not pin it', { ...gcOpts }, async () => {
     const Gio = requireGi('Gio', '2.0');
     let collected = 0;
     const reg = new FinalizationRegistry(() => {
         collected++;
     });
-    let handlerId;
-    let weak;
 
     (() => {
         const action = new Gio.SimpleAction({ name: 'sig', enabled: false });
-        // The handler closes over `action` — the self-referential cycle.
-        handlerId = action.connect('notify::enabled', () => {
+        action.connect('notify::enabled', () => {
             void action.name;
         });
-        weak = new WeakRef(action);
         reg.register(action, 'sig');
     })();
 
     await settle();
-    assert.equal(collected, 0, 'a connected self-referential handler keeps the object alive');
+    assert.equal(collected, 1, 'the self-referential cycle is collectable, as in GJS');
+});
 
-    // Disconnect (via the still-pinned wrapper) to break the cycle, then drop it.
+test('signal-cycle: a handler capturing the enclosing `this` does not pin it', { ...gcOpts }, async () => {
+    const Gio = requireGi('Gio', '2.0');
+    let collected = 0;
+    const reg = new FinalizationRegistry(() => {
+        collected++;
+    });
+
     (() => {
-        const a = weak.deref();
-        assert.ok(a, 'the pinned wrapper is still alive while connected');
-        a.disconnect(handlerId);
+        const holder = {
+            action: new Gio.SimpleAction({ name: 'this-cap', enabled: false }),
+            start() {
+                this.action.connect('notify::enabled', () => {
+                    void this.action.name;
+                });
+            },
+        };
+        holder.start();
+        reg.register(holder.action, 'this-cap');
     })();
 
     await settle();
-    assert.equal(collected, 1, 'after disconnect the cycle breaks and the object is collected');
+    assert.equal(collected, 1, 'capturing `this` is the same cycle one hop longer');
+});
+
+test('signal-cycle: a handler using only its emitter argument does not pin it', { ...gcOpts }, async () => {
+    const Gio = requireGi('Gio', '2.0');
+    let collected = 0;
+    const reg = new FinalizationRegistry(() => {
+        collected++;
+    });
+
+    (() => {
+        const action = new Gio.SimpleAction({ name: 'arg-only', enabled: false });
+        action.connect('notify::enabled', (src) => {
+            void src.name;
+        });
+        reg.register(action, 'arg-only');
+    })();
+
+    await settle();
+    assert.equal(collected, 1, 'the emitter-argument form was always collectable and stays so');
+});
+
+// The two controls. Without these, "collect the cycle" is indistinguishable from
+// "collect too eagerly" — which is the real regression risk of the fix.
+test('signal-cycle: a wrapper held in JS keeps its handler working', { ...gcOpts }, async () => {
+    const Gio = requireGi('Gio', '2.0');
+    let collected = 0;
+    const reg = new FinalizationRegistry(() => {
+        collected++;
+    });
+    const held = [];
+
+    (() => {
+        const action = new Gio.SimpleAction({ name: 'js-held', enabled: true });
+        action.connect('notify::enabled', () => {
+            void action.name;
+        });
+        held.push(action);
+        reg.register(action, 'js-held');
+    })();
+
+    await settle();
+    assert.equal(collected, 0, 'a wrapper reachable from JS must NOT be collected');
+
+    let fired = 0;
+    held[0].connect('notify::enabled', () => {
+        fired++;
+    });
+    held[0].enabled = false;
+    assert.equal(fired, 1, 'and its handlers must still fire after GC');
+});
+
+test('signal-cycle: a C-owned object keeps its handler working', { ...gcOpts }, async () => {
+    const Gio = requireGi('Gio', '2.0');
+    const group = new Gio.SimpleActionGroup();
+    let collected = 0;
+    const reg = new FinalizationRegistry(() => {
+        collected++;
+    });
+
+    (() => {
+        const action = new Gio.SimpleAction({ name: 'c-held', enabled: true });
+        action.connect('notify::enabled', () => {
+            void action.name;
+        });
+        group.add_action(action);
+        reg.register(action, 'c-held');
+    })();
+
+    await settle();
+    assert.equal(collected, 0, 'a C-owned (toggled-up) wrapper must NOT be collected');
+
+    let fired = 0;
+    const back = group.lookup_action('c-held');
+    back.connect('notify::enabled', () => {
+        fired++;
+    });
+    back.enabled = false;
+    assert.equal(fired, 1, 'and its handlers must still fire after GC');
+});
+
+test('signal-cycle: disconnect then drop still collects', { ...gcOpts }, async () => {
+    const Gio = requireGi('Gio', '2.0');
+    let collected = 0;
+    const reg = new FinalizationRegistry(() => {
+        collected++;
+    });
+    const held = [];
+
+    (() => {
+        const action = new Gio.SimpleAction({ name: 'disc', enabled: false });
+        const id = action.connect('notify::enabled', () => {
+            void action.name;
+        });
+        action.disconnect(id);
+        held.push(action);
+        reg.register(action, 'disc');
+    })();
+
+    await settle();
+    assert.equal(collected, 0, 'still reachable from JS');
+    held.length = 0;
+    await settle();
+    assert.equal(collected, 1, 'and collected once the last JS reference goes');
 });
 
 // ---- Case 7: soak — bounded RSS, crash-free ----
