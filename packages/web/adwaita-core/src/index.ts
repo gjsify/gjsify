@@ -1165,7 +1165,14 @@ export type {
     TemplateScope,
 } from './gobject.js';
 export { engineForTarget, registerGObjectEngine, registeredEngine, resetRegisteredEngine } from './engine.js';
-export type { EngineTarget, GObjectEngine } from './engine.js';
+export type {
+    EngineTarget,
+    ForeignClassMeta,
+    ForeignProperty,
+    ForeignPropertyKind,
+    ForeignSignal,
+    GObjectEngine,
+} from './engine.js';
 export { MAXUINT32, buildFilenamev, getCurrentDir, getSystemDataDirs } from './glib-paths.js';
 export { uriEscapeString } from './glib-uri.js';
 export { unicharIsalpha } from './glib-unichar.js';

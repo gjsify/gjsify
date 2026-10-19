@@ -28,11 +28,80 @@
 // `g_signal_connect` id instead of returning one — the subset's ids stay a single, dense space
 // shared with the door's foreign connections, which is what `disconnect(id)` needs.
 
-import type { Binding, BindingFlag, GObjectInstance, ParamSpec, RegisteredClass, SignalHandler } from './gobject.js';
+import type {
+    Binding,
+    BindingFlag,
+    ClassLike,
+    GObjectInstance,
+    ParamSpec,
+    RegisteredClass,
+    SignalHandler,
+} from './gobject.js';
+
+// --- The FOREIGN-PARENT vocabulary (ADR 0105 § 2 route D) -------------------------------------
+//
+// Route D is the other direction entirely: instead of a twin GObject beside the widget, node-gi
+// registers a GType over the widget's OWN `@nativescript/core` base and attaches it, so the
+// `Label` handed to `addChild` IS the GObject. The port's widget classes are the ones that want
+// it, and a widget class says what it wants with a declarative block at its `extends`.
+//
+// WHY THE BLOCK IS SPELLED HERE AND NOT IN node-gi's VOCABULARY. `GObject.ParamSpec.string(…)` is
+// the spelling node-gi takes, and a port that wrote it would have to IMPORT node-gi to describe
+// its own properties — tier 3 from tier 2, which is the exact dependency `engineForTarget` exists
+// to keep out (a port is installable in a browser). So a widget declares `{ kind: 'string' }` and
+// the engine that has node-gi translates. The pure-JS engine translates it to accessors over its
+// own store, which is what the browser and iOS get.
+
+/** The property kinds the subset has, and the only ones a declared widget property may take. */
+export type ForeignPropertyKind = 'string' | 'boolean' | 'int' | 'uint' | 'double';
+
+/** One property a widget class declares at its `extends`. `default` is the unset value. */
+export interface ForeignProperty {
+    readonly kind: ForeignPropertyKind;
+    readonly default?: string | boolean | number | null;
+    readonly nick?: string;
+    readonly blurb?: string;
+}
+
+/** One signal a widget class declares at its `extends`, in the subset's parameter vocabulary. */
+export interface ForeignSignal {
+    readonly param_types?: readonly ForeignPropertyKind[];
+}
+
+/**
+ * What a widget class declares at its `extends` — GJS's `registerClass` meta, in the port's own
+ * vocabulary. Keys are the CANONICAL (dashed or single-word) property names, as GObject's are.
+ */
+export interface ForeignClassMeta {
+    readonly GTypeName: string;
+    readonly Properties?: Readonly<Record<string, ForeignProperty>>;
+    readonly Signals?: Readonly<Record<string, ForeignSignal>>;
+}
 
 export interface GObjectEngine {
     /** Names the engine in a diagnostic; `'pure-js'` for the default one. */
     readonly name: string;
+
+    /**
+     * Whether {@link registerForeignClass} can do anything. Not a convenience: it is what makes
+     * "is this engine the real one, on a host that has route D" answerable BEFORE a widget class
+     * commits to a registration, so the seam can pick the pure-JS accessors instead of calling
+     * and catching. ADR 0105's no-silent-fallback rule is why it is a question and not a try.
+     *
+     * False on the pure-JS engine, and false on a real engine whose HOST has foreign parents off
+     * (`FOREIGN_PARENT_CLASSES` in node-gi's `#host` — true on NativeScript, false on node).
+     */
+    readonly supportsForeignParentClasses: boolean;
+
+    /**
+     * Registers `klass` — whose parent is a `@nativescript/core` class, not a GObject one — as a
+     * real GType, installing the GObject surface as own members of `klass.prototype`.
+     *
+     * Throws when {@link supportsForeignParentClasses} is false, and throws when the registration
+     * itself fails. It never falls back: a widget that asked for a real GObject and silently got
+     * a JS store is the one outcome ADR 0105 refuses, because nothing downstream could tell.
+     */
+    registerForeignClass(klass: ClassLike, meta: ForeignClassMeta): void;
 
     /**
      * A class finished registering. The engine may build whatever per-class thing it needs from

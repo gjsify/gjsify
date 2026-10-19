@@ -392,6 +392,17 @@ function runHandlers(instance: GObjectInstance, key: string, args: readonly unkn
 export const PURE_JS_ENGINE: GObjectEngine = {
     name: 'pure-js',
 
+    supportsForeignParentClasses: false,
+
+    registerForeignClass(klass, meta) {
+        throw new TypeError(
+            `The pure-JS GObject engine cannot register '${meta.GTypeName}' (${(klass as { name?: string }).name ?? 'anonymous'}) ` +
+                'over a foreign parent class: there is no GType to register it as. Check ' +
+                'supportsForeignParentClasses before calling — a caller that reaches this is one that ' +
+                'would otherwise have fallen back silently, which is what ADR 0105 refuses.',
+        );
+    },
+
     register() {},
 
     getValue(instance, spec) {
