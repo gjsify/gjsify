@@ -1,8 +1,8 @@
 // The platform half of `Adw.StyleManager` on NativeScript: hands `Application.systemAppearance()` and
 // its `systemAppearanceChanged` event to the source in `style-manager.ts`, so the scheme follows the
 // system and `system_supports_color_schemes` is true where the system reports a preference — the
-// "follow system" choice an app offers only then. `namespace/adw.ts` exports the class from here so
-// that reaching `Adw.StyleManager` is what wires it.
+// "follow system" choice an app offers only then. `namespace/adw.ts` exports the class from here; the
+// source subscribes to the event only once a manager is in use, so importing `Adw` touches nothing.
 
 import { Application } from '@nativescript/core';
 import type { AdwColorScheme } from '@gjsify/adwaita-core';

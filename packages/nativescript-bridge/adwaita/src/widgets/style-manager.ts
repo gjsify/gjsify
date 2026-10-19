@@ -27,6 +27,10 @@ export interface SystemAppearance {
 
 let system: SystemAppearance | null = null;
 let unfollow: (() => void) | null = null;
+// Whether a style manager listens yet. The system is attached only then, never on import: a bundle
+// that merely names `Adw` (a stub host, a tree that never asks for the manager) must not reach the
+// platform's event bus.
+let inUse = false;
 let forced = false;
 // DEFAULT hands the scheme back to the system; without one, to what it was before the first force.
 let beforeForce: AdwColorScheme | null = null;
@@ -44,14 +48,24 @@ export function setSystemAppearance(next: SystemAppearance | null): void {
     unfollow?.();
     unfollow = null;
     system = next;
-    if (next === null) return;
-    unfollow = next.subscribe(follow);
-    follow(next.current());
+    if (inUse) attach();
+}
+
+function attach(): void {
+    if (system === null || unfollow !== null) return;
+    unfollow = system.subscribe(follow);
+    follow(system.current());
 }
 
 export const nativeScriptStyleSource: StyleSource = {
     dark: () => adwaitaColorScheme() === 'dark',
-    subscribe: onAdwaitaColorSchemeChanged,
+    subscribe(changed) {
+        // Listen first, so a scheme the system changes on attach still reaches the manager.
+        const off = onAdwaitaColorSchemeChanged(changed);
+        inUse = true;
+        attach();
+        return off;
+    },
     force(dark) {
         if (dark === null) {
             if (!forced) return;
@@ -65,7 +79,10 @@ export const nativeScriptStyleSource: StyleSource = {
         forced = true;
         setAdwaitaColorScheme(dark ? 'dark' : 'light');
     },
-    supportsColorSchemes: () => (system?.current() ?? null) !== null,
+    supportsColorSchemes() {
+        attach();
+        return (system?.current() ?? null) !== null;
+    },
 };
 
 export class AdwStyleManager extends StyleManagerBase {
