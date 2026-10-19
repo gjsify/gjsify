@@ -90,9 +90,9 @@ export default async () => {
         // The name validator asks whether a non-ASCII character is a letter. It must reach that
         // answer WITHOUT a `\p{…}` regex literal: such a literal is checked while the script is
         // parsed, and on NativeScript's Android V8 (no i18n) it is a syntax error that takes the
-        // whole bundle with it. See the comment on `unicodeLetter`.
+        // whole bundle with it. `glib-unichar.ts` answers from a generated table instead.
         await it('accepts a non-ASCII element name and still rejects a non-letter one', () => {
-            // `ü` is a letter in both paths; the error names the element, so an accepted name
+            // `ü` is a letter; the error names the element, so an accepted name
             // proves the validator let it through rather than rejecting it as malformed.
             expect(releaseNotesBuffer({ releaseNotes: '<übel/>' }).error?.message).toBe("Unexpected element 'übel'");
             expect(releaseNotesBuffer({ releaseNotes: '<±/>' }).error?.message).toBe(
