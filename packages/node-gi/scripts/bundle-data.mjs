@@ -393,3 +393,21 @@ export function formatDuplicatedModuleProblems(leaves, { flatDir }) {
         'module directory added to the bundle repeats it.'
     );
 }
+
+/**
+ * Executables GLib's `g_spawn` launches on Windows, looked up beside `libglib-2.0-0.dll`.
+ * No DLL imports them, so a dependency-closure walk never reaches them; without both,
+ * every `Gio.Subprocess` fails with "Failed to execute helper program".
+ */
+export const WIN32_SPAWN_HELPERS = ['gspawn-win64-helper.exe', 'gspawn-win64-helper-console.exe'];
+
+/**
+ * The {@link WIN32_SPAWN_HELPERS} missing from `dir`, as operator messages.
+ * @param {string} dir a directory holding the GLib DLLs (prefix `bin/` or bundle `bin/`)
+ * @returns {string[]}
+ */
+export function missingWin32SpawnHelpers(dir) {
+    return WIN32_SPAWN_HELPERS.filter((f) => !existsSync(join(dir, f))).map(
+        (f) => `${f} is missing from ${dir} — GLib cannot spawn any process without it`,
+    );
+}
