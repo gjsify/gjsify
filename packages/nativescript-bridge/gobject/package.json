@@ -40,6 +40,14 @@
     "dependencies": {
         "@gjsify/adwaita-core": "workspace:^"
     },
+    "peerDependencies": {
+        "@gjsify/app-settings": "workspace:^"
+    },
+    "peerDependenciesMeta": {
+        "@gjsify/app-settings": {
+            "optional": true
+        }
+    },
     "devDependencies": {
         "@gjsify/app-settings": "workspace:^",
         "@gjsify/cli": "workspace:^",
