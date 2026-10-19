@@ -77,7 +77,7 @@ async function readUcd() {
 
 /** Every code point's general category; `Cn` for the ones the file does not list. */
 function categories(ucd) {
-    const category = new Array(0x110000).fill('Cn');
+    const category = Array.from({ length: 0x110000 }, () => 'Cn');
     let first = null;
     for (const line of ucd.split('\n')) {
         if (line === '') continue;
