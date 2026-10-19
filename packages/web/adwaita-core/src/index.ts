@@ -725,6 +725,7 @@ export {
     assertMenuRenderable,
     flattenMenu,
     menuItemAt,
+    menuLabelText,
     menuNodeAt,
     menuRefusals,
     normalizeMenuModel,

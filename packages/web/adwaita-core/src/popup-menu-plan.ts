@@ -8,7 +8,7 @@
 // Reference: android.view.Menu (add, addSubMenu, setGroupCheckable, setGroupDividerEnabled);
 // refs/gtk/gtk/gtkmenutrackeritem.c for the role of an item.
 
-import { parseDetailedAction, resolveMenuItemState } from './menu.js';
+import { menuLabelText, parseDetailedAction, resolveMenuItemState } from './menu.js';
 import type { AdwMenuActions, AdwMenuModel, AdwMenuNode, AdwMenuPath } from './menu.js';
 
 /** An item of the plan; `path` maps a tap back to the model. */
@@ -109,7 +109,7 @@ function levelOf(
                 into().entries.push({
                     kind: 'submenu',
                     path,
-                    title: node.label,
+                    title: menuLabelText(node.label),
                     level: levelOf(node.items, path, actions, refusals),
                 });
                 return;
@@ -127,7 +127,7 @@ function levelOf(
             into().entries.push({
                 kind: 'item',
                 path,
-                title: node.label,
+                title: menuLabelText(node.label),
                 enabled: state.sensitive,
                 checkable: state.role === 'check',
                 checked: state.toggled,

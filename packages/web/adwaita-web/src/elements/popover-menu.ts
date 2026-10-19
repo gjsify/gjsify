@@ -46,7 +46,7 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_menus.scss:68-90 (separator, accelerator, check/radio)
 // Copyright (c) GNOME contributors (GTK, libadwaita). LGPLv2.1+.
 
-import { flattenMenu, menuNodeAt, resolveMenuItemState } from '@gjsify/adwaita-core';
+import { flattenMenu, menuLabelText, menuNodeAt, resolveMenuItemState } from '@gjsify/adwaita-core';
 import type { AdwMenuActions, AdwMenuItem, AdwMenuModel, AdwMenuPath } from '@gjsify/adwaita-core';
 
 import { createGtkImage } from './gtk-image.js';
@@ -301,7 +301,7 @@ export class PopoverMenuView {
         text.className = `${this.prefix}-item-label`;
         // The parent's own label names where Back goes; `Back` alone is the fallback for
         // a submenu that has none.
-        text.textContent = label.length > 0 ? label : BACK_LABEL;
+        text.textContent = label.length > 0 ? menuLabelText(label) : BACK_LABEL;
         button.appendChild(text);
         button.addEventListener('click', () => {
             this._page = this._page.slice(0, -1);
@@ -322,7 +322,7 @@ export class PopoverMenuView {
         }
         const text = document.createElement('span');
         text.className = `${this.prefix}-item-label`;
-        text.textContent = label;
+        text.textContent = menuLabelText(label);
         button.appendChild(text);
         button.appendChild(createGtkImage('go-next', 'adw-popover-item-arrow'));
         button.addEventListener('click', () => {
@@ -371,7 +371,7 @@ export class PopoverMenuView {
         // handing author markup to `innerHTML` would be an injection door in a renderer
         // that has no other one, so the text is shown verbatim and the flag is carried
         // for the GTK path. Stated rather than silently honoured.
-        label.textContent = item.label;
+        label.textContent = menuLabelText(item.label);
         button.appendChild(label);
 
         if (item.accel !== undefined && item.accel.length > 0) {

@@ -637,6 +637,37 @@ function visibility(item: AdwMenuItem, canActivate: boolean, sensitive: boolean)
     }
 }
 
+/**
+ * The text a menu row shows for an item, submenu or menubar label.
+ *
+ * `GtkPopoverMenu` draws those labels through a `GtkLabel` with `use-underline` set, so a
+ * `_` marks the next character and is removed, and `__` is a literal underscore. Section
+ * headings are NOT parsed — their label has `use-underline` off — so they never pass
+ * through here.
+ *
+ * NOT `stripMnemonic` (glib.ts): that is `adw_strip_mnemonic`, which drops a trailing lone
+ * `_`. A `GtkLabel` keeps it, measured on GTK 4.22: `tail_` shows `tail_`, `_a_` shows
+ * `a_`. {@link MENU_LABEL_TEXT_VECTORS} holds both rows.
+ */
+export function menuLabelText(label: string): string {
+    const characters = [...label];
+    let text = '';
+    let index = 0;
+
+    while (index < characters.length) {
+        const character = characters[index];
+        const next = characters[index + 1];
+        if (character !== '_' || next === undefined) {
+            text += character;
+            index += 1;
+            continue;
+        }
+        text += next;
+        index += 2;
+    }
+    return text;
+}
+
 // --- The loud half ----------------------------------------------------------------
 
 /**

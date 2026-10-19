@@ -61,6 +61,7 @@ import {
     ADW_MENU_SURFACE_WEB,
     assertMenuRenderable,
     menuItemAt,
+    menuLabelText,
     menuRefusals,
     normalizeMenuModel,
     parseMenuModel,
@@ -260,7 +261,7 @@ export class GtkPopoverMenuBar extends WidgetElement {
         button.setAttribute('aria-expanded', 'false');
         const label = document.createElement('span');
         label.className = 'adw-popover-menu-bar-label';
-        label.textContent = node.label;
+        label.textContent = menuLabelText(node.label);
         button.appendChild(label);
 
         const popover = document.createElement('gtk-popover-menu') as GtkPopoverMenu;
