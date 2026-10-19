@@ -1,5 +1,79 @@
 # Changelog
 
+## [0.64.2](https://github.com/gjsify/gjsify/compare/v0.64.1...v0.64.2) (2026-10-19)
+
+### ⚠ BREAKING CHANGES
+
+* **adwaita:** drop the icon registration doors (#2279)
+
+### Features
+
+* **adwaita-core:** add ComboRow/SwitchRow accessors ([#2284](https://github.com/gjsify/gjsify/issues/2284)) ([764b4d5](https://github.com/gjsify/gjsify/commit/764b4d547c467c326e1c0d84be1603ba12af9de7))
+* **adwaita-core:** add Gtk.CheckButton group ([#2283](https://github.com/gjsify/gjsify/issues/2283)) ([a9a7c83](https://github.com/gjsify/gjsify/commit/a9a7c83ce7780d42bf7317475ca3be5e6c8bf8c5))
+* **adwaita-core:** add system-supports-color-schemes ([#2282](https://github.com/gjsify/gjsify/issues/2282)) ([a9a83f1](https://github.com/gjsify/gjsify/commit/a9a83f17c350fed3a9120fdcc16e19d0f8b374a6))
+* **adwaita-nativescript:** load icons from gresources ([#2273](https://github.com/gjsify/gjsify/issues/2273)) ([4aafadb](https://github.com/gjsify/gjsify/commit/4aafadbcca48771af0b4450c4a3c9b93c98b59a9)), closes [#2245](https://github.com/gjsify/gjsify/issues/2245)
+* **adwaita-web:** add Application.inhibit ([#2252](https://github.com/gjsify/gjsify/issues/2252)) ([da64278](https://github.com/gjsify/gjsify/commit/da64278fd88f1cd47812c81cbade309669cfffae))
+* **adwaita-web:** build siblings and stack pages ([#2253](https://github.com/gjsify/gjsify/issues/2253)) ([eacc59f](https://github.com/gjsify/gjsify/commit/eacc59f328e66f845abe9e60d2061d6d17c9c708))
+* **adwaita:** `Adw.Toast` GObject for web and NativeScript ([#2255](https://github.com/gjsify/gjsify/issues/2255)) ([13e4b2e](https://github.com/gjsify/gjsify/commit/13e4b2eb3f5217b26b4486716349671dbca2b823))
+* **adwaita:** close Learn6502 share and about gaps ([#2292](https://github.com/gjsify/gjsify/issues/2292)) ([6c88ac7](https://github.com/gjsify/gjsify/commit/6c88ac780b9742fce781e9b35aa2f45c125d8064))
+* **adwaita:** run Adw.AlertDialog as GJS writes it ([#2262](https://github.com/gjsify/gjsify/issues/2262)) ([a1f9129](https://github.com/gjsify/gjsify/commit/a1f912931e04f17785b61b444f21e2b5a959abc6)), closes [#2255](https://github.com/gjsify/gjsify/issues/2255)
+* **adwaita:** window application on every window ([#2264](https://github.com/gjsify/gjsify/issues/2264)) ([0502bd6](https://github.com/gjsify/gjsify/commit/0502bd665be0ece4474e42dd72c2350255915560))
+* **blueprint:** carry the accessibility block ([#2281](https://github.com/gjsify/gjsify/issues/2281)) ([31f1601](https://github.com/gjsify/gjsify/commit/31f1601f761cbdebf56ddd74acff039d9122a678))
+* **cli:** localised screenshot images in metainfo ([#2290](https://github.com/gjsify/gjsify/issues/2290)) ([f02ef6b](https://github.com/gjsify/gjsify/commit/f02ef6b5e09b6397ad4430be20f92aef46b0ec7c))
+* **node-gi:** bind the rest of cairo.Context ([#2293](https://github.com/gjsify/gjsify/issues/2293)) ([13be023](https://github.com/gjsify/gjsify/commit/13be02374e743aa5f091514b7e54ccf6278cc106)), closes [#2214](https://github.com/gjsify/gjsify/issues/2214)
+* select which GI namespaces an APK carries ([#2280](https://github.com/gjsify/gjsify/issues/2280)) ([c31d021](https://github.com/gjsify/gjsify/commit/c31d0219d51e0d96ae6c02dcb26410011d06f0f6))
+* **vite-plugin-gjsify:** embed gresource.xml imports ([#2274](https://github.com/gjsify/gjsify/issues/2274)) ([ca81ce2](https://github.com/gjsify/gjsify/commit/ca81ce237051d175c1f1e3b500eb555817b333de)), closes [#2240](https://github.com/gjsify/gjsify/issues/2240) [#2241](https://github.com/gjsify/gjsify/issues/2241)
+
+### Bug Fixes
+
+* **adwaita-core:** inhibit returns 0 without a guard host ([#2259](https://github.com/gjsify/gjsify/issues/2259)) ([6bd03d5](https://github.com/gjsify/gjsify/commit/6bd03d51497ae35cdff4de8e54af3d18a9499801))
+* **adwaita-nativescript:** convert props by ParamSpec ([#2278](https://github.com/gjsify/gjsify/issues/2278)) ([66c754b](https://github.com/gjsify/gjsify/commit/66c754b01e8c79e6f2385b332d12e72e914559b7))
+* **adwaita-nativescript:** fill scrolled window viewport ([#2272](https://github.com/gjsify/gjsify/issues/2272)) ([602b7f1](https://github.com/gjsify/gjsify/commit/602b7f13f27f0b1911bf8a3edc02d119e823779e))
+* **adwaita-nativescript:** host presented prefs dialog ([#2294](https://github.com/gjsify/gjsify/issues/2294)) ([a1c738f](https://github.com/gjsify/gjsify/commit/a1c738f6879ec380ff854a890f4a16c294555e3b))
+* **adwaita-web:** close three slot gaps for Learn6502 ([#2261](https://github.com/gjsify/gjsify/issues/2261)) ([6c7a16f](https://github.com/gjsify/gjsify/commit/6c7a16f16a0a0f81368c3d5b3759eafd20fc3705)), closes [#2253](https://github.com/gjsify/gjsify/issues/2253)
+* **adwaita-web:** compute expand, scroll request, stack cleanup ([#2269](https://github.com/gjsify/gjsify/issues/2269)) ([e8f4a62](https://github.com/gjsify/gjsify/commit/e8f4a6224b5c1b8d57c0d9a0a595566a2e9ea04a))
+* **adwaita-web:** define the named color palette ([#2296](https://github.com/gjsify/gjsify/issues/2296)) ([1d3fbb0](https://github.com/gjsify/gjsify/commit/1d3fbb08b2aef27144afe557d41635f7336578cd))
+* **adwaita-web:** let a wrapping gtk-label shrink ([#2288](https://github.com/gjsify/gjsify/issues/2288)) ([853ab78](https://github.com/gjsify/gjsify/commit/853ab7828bbda3a1a8b2db90fcc5ede28b5a5fcb))
+* **adwaita-web:** maximized window fills its box ([#2263](https://github.com/gjsify/gjsify/issues/2263)) ([ec5e1fb](https://github.com/gjsify/gjsify/commit/ec5e1fb1d907744dba1ee9c0baab947f8c72ad12))
+* **adwaita-web:** realise Gtk.Widget:visible ([#2267](https://github.com/gjsify/gjsify/issues/2267)) ([07d9fec](https://github.com/gjsify/gjsify/commit/07d9fec4b75b6066beb57688afd439caa5acc61e))
+* **adwaita-web:** single-child containers fill ([#2266](https://github.com/gjsify/gjsify/issues/2266)) ([3853c65](https://github.com/gjsify/gjsify/commit/3853c65f772d30460e3894ff08a6079a70d7b206))
+* **adwaita-web:** stack ignores descendant hidden ([#2265](https://github.com/gjsify/gjsify/issues/2265)) ([55d9cee](https://github.com/gjsify/gjsify/commit/55d9cee7677021d7ff28f9816342b04dd783b7a4))
+* **adwaita-web:** visible and tooltip-text on widgets ([#2270](https://github.com/gjsify/gjsify/issues/2270)) ([5ab7af9](https://github.com/gjsify/gjsify/commit/5ab7af9d84bcf9e4ea371d7099a5c6ed35d8de85))
+* **adwaita:** `Gtk.Widget` map/unmap on web and NativeScript ([#2287](https://github.com/gjsify/gjsify/issues/2287)) ([c2d0690](https://github.com/gjsify/gjsify/commit/c2d069021a83a8487cefe951af9ccdd4a9ac55cb))
+* **adwaita:** strip menu label mnemonics ([#2295](https://github.com/gjsify/gjsify/issues/2295)) ([7b24ab5](https://github.com/gjsify/gjsify/commit/7b24ab5fd0d64e8a0ce29e8eb327e7d4ccfecdd9))
+* **child_process:** add promisify.custom to exec ([#2277](https://github.com/gjsify/gjsify/issues/2277)) ([468cf39](https://github.com/gjsify/gjsify/commit/468cf39391867f009c750303efc78c758ec7a277))
+* **nativescript-vite:** pass gresource.xml past ns xml loader ([#2276](https://github.com/gjsify/gjsify/issues/2276)) ([56aa64d](https://github.com/gjsify/gjsify/commit/56aa64d82ea7a79ae5b417e2ab3c074cbdfa17e4)), closes [#2275](https://github.com/gjsify/gjsify/issues/2275)
+* **nativescript:** evaluate the engine opt-in first ([#2271](https://github.com/gjsify/gjsify/issues/2271)) ([5e2b738](https://github.com/gjsify/gjsify/commit/5e2b7387cb5c391c34ceac6314fc070c06c5d836)), closes [#2236](https://github.com/gjsify/gjsify/issues/2236)
+* **node-gi:** bundle gspawn helpers in the win32 GTK runtime ([#2300](https://github.com/gjsify/gjsify/issues/2300)) ([37ca18a](https://github.com/gjsify/gjsify/commit/37ca18a6acf86d911f555245508862a1219ceb68))
+* **node-gi:** match GJS on remaining int paths ([#2260](https://github.com/gjsify/gjsify/issues/2260)) ([8a89ac0](https://github.com/gjsify/gjsify/commit/8a89ac08881edef79b0f109d5e42b5e4c11da24d)), closes [#2247](https://github.com/gjsify/gjsify/issues/2247)
+* **rolldown-plugin-gjsify:** keep gresource.xml off text loader ([#2275](https://github.com/gjsify/gjsify/issues/2275)) ([4a7dbb0](https://github.com/gjsify/gjsify/commit/4a7dbb07e8747185763c6a198c097ce46e700ab4))
+
+### Performance Improvements
+
+* **node-gi:** load cairo and gettext lazily on NativeScript ([#2258](https://github.com/gjsify/gjsify/issues/2258)) ([b99b8b7](https://github.com/gjsify/gjsify/commit/b99b8b7fb08b64e5c0c5b17ec74ec1c60fa47644)), closes [#2187](https://github.com/gjsify/gjsify/issues/2187)
+* **node-gi:** load the native host lazily on Android ([#2250](https://github.com/gjsify/gjsify/issues/2250)) ([8c272fa](https://github.com/gjsify/gjsify/commit/8c272fabcfb4b7eecd7f305f1db5c2bf5ebcaa71))
+* **node-gi:** read prototype Proxy targets ([#2251](https://github.com/gjsify/gjsify/issues/2251)) ([4e08b36](https://github.com/gjsify/gjsify/commit/4e08b3692f79eb5c713ffdd5e825cb1448438969))
+
+### Documentation
+
+* **adr:** accept 0118 GLib.Variant subset ([#2289](https://github.com/gjsify/gjsify/issues/2289)) ([031a356](https://github.com/gjsify/gjsify/commit/031a3563cf41aa0d120513f3010af23e55ade01a))
+* **adr:** accept 0119 gtk css on the web ([#2298](https://github.com/gjsify/gjsify/issues/2298)) ([e3b825f](https://github.com/gjsify/gjsify/commit/e3b825faab2fbda5ba92456c12ba4e8f28f103b6))
+* **adr:** build-time GI selection on Android ([#2256](https://github.com/gjsify/gjsify/issues/2256)) ([465fb29](https://github.com/gjsify/gjsify/commit/465fb29e5a9f5774bc99e581a97c574ec67551be)), closes [#2179](https://github.com/gjsify/gjsify/issues/2179)
+* **adr:** decide the 0105 twin route by spike ([#2291](https://github.com/gjsify/gjsify/issues/2291)) ([72d229a](https://github.com/gjsify/gjsify/commit/72d229a5e1bfb89718f0afc22df15d00c6f8cbea))
+* **adr:** defer registerColorIcon removal ([#2254](https://github.com/gjsify/gjsify/issues/2254)) ([0fe430a](https://github.com/gjsify/gjsify/commit/0fe430acc001386c3bacd7dc655886344049b505))
+* **adr:** measure arm64 opt-out cold start ([#2257](https://github.com/gjsify/gjsify/issues/2257)) ([c334d53](https://github.com/gjsify/gjsify/commit/c334d5370337f7634c347484768080a65846443a)), closes [#2250](https://github.com/gjsify/gjsify/issues/2250)
+* **adr:** record the 0105 twin route options ([#2286](https://github.com/gjsify/gjsify/issues/2286)) ([84c8604](https://github.com/gjsify/gjsify/commit/84c860498d8dd191285353b116e60aa90d71776c))
+* **adr:** record the sysroot CI path ([#2268](https://github.com/gjsify/gjsify/issues/2268)) ([b05cfe4](https://github.com/gjsify/gjsify/commit/b05cfe40357fc17e05b51db7bf8ea0a67c183858))
+* **adr:** touch focus and IME text work on Android ([#2285](https://github.com/gjsify/gjsify/issues/2285)) ([ebaa1a2](https://github.com/gjsify/gjsify/commit/ebaa1a20e97e9017a6da6f08999225c9f56c0da0))
+
+### Code Refactoring
+
+* **adwaita:** drop the icon registration doors ([#2279](https://github.com/gjsify/gjsify/issues/2279)) ([172f029](https://github.com/gjsify/gjsify/commit/172f02981027f504346b1f18b05fdccc6071a695)), closes [#2239](https://github.com/gjsify/gjsify/issues/2239)
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([bf254c6](https://github.com/gjsify/gjsify/commit/bf254c6261b68b01ec4bdc6424a40a5b85f11f35))
+
 ## [0.64.1](https://github.com/gjsify/gjsify/compare/v0.64.0...v0.64.1) (2026-10-16)
 
 ### Features

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/mcp",
-    "version": "0.64.1",
+    "version": "0.64.2",
     "description": "MCP server runtime for GJS and Node — default-deny read-only gate, stdio serve loop that ends on client EOF, uniform tool results",
     "type": "module",
     "module": "lib/esm/index.js",
