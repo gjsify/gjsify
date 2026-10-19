@@ -2947,6 +2947,12 @@ function snakeToCamel(name) {
     return name.replace(/_([a-z])/g, (m) => m[1].toUpperCase());
 }
 
+/** The distinct spellings a member is installed under: one entry for an underscore-free name. */
+function memberSpellings(name) {
+    const camel = snakeToCamel(name);
+    return camel === name ? [name] : [name, camel];
+}
+
 // Install a member under `name` unless the host chain already answers under it — a
 // widget's own method ALWAYS wins, because consumer code and NativeScript's own
 // internals call it. Returns false (and the caller records the skip) when it loses.
@@ -3060,8 +3066,14 @@ function installForeignGObjectSurface(proto, properties) {
         const thunk = function giMethod(...args) {
             return wrapReturn(native.callMethod(foreignHandle(this), name, unwrapArgs(args)));
         };
-        defineForeignMember(proto, name, { value: thunk }, skipped);
-        defineForeignMember(proto, snakeToCamel(name), { value: thunk }, skipped);
+        // `memberSpellings(name)` and not `[name, snakeToCamel(name)]`: a name with no
+        // underscore camel-cases to ITSELF (`ref`, `unref`), so the second call would
+        // find the descriptor the first one just installed and record a skip against
+        // the host for a member the host never had. `$foreignSkipped` is read as "what
+        // did the widget already own", so a self-skip there is a false statement.
+        for (const spelling of memberSpellings(name)) {
+            defineForeignMember(proto, spelling, { value: thunk }, skipped);
+        }
     }
 
     // gjs's GObject.Object.prototype shims over namespace-level g_signal_* /
@@ -3073,7 +3085,7 @@ function installForeignGObjectSurface(proto, properties) {
         'stop_emission_by_name',
         'bind_property_full',
     ]) {
-        for (const spelling of [name, snakeToCamel(name)]) {
+        for (const spelling of memberSpellings(name)) {
             const shim = objectPrototypeShim(spelling);
             defineForeignMember(
                 proto,
@@ -3302,6 +3314,26 @@ function registerClass(metaOrClass, maybeClass) {
         const reg = registeredClasses.get(klass);
         reg.foreignSkipped = installForeignGObjectSurface(klass.prototype, properties);
         foreignRegByProto.set(klass.prototype, reg);
+    }
+    // `$foreignSkipped`, readable from outside, because "which GObject spelling did the
+    // host widget already own?" is the one question this route cannot answer in the
+    // abstract: it depends on the parent class, so it has to be reported per
+    // registration rather than documented once.
+    //
+    // On EVERY registration of this host, not only the foreign ones, and an empty array
+    // where nothing was skipped. A class's static side is a Proxy that answers any
+    // unknown name with a static-method thunk, so `X.$foreignSkipped` is already
+    // truthy — a FUNCTION — wherever the property is absent, and `if
+    // (X.$foreignSkipped.length)` would then throw rather than read "nothing". Defining
+    // it is what makes the read mean what it says. Gated on the host flag all the same,
+    // so the default host's registerClass keeps exactly GJS's static surface.
+    if (FOREIGN_PARENT_CLASSES) {
+        Object.defineProperty(klass, '$foreignSkipped', {
+            value: Object.freeze([...(registeredClasses.get(klass).foreignSkipped ?? [])]),
+            configurable: true,
+            enumerable: false,
+            writable: false,
+        });
     }
     // GJS parity: registration must be COMPLETE when registerClass returns. The
     // engine installs the custom properties, signals and vfunc trampolines in

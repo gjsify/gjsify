@@ -108,12 +108,18 @@ test('the default host still refuses a non-GObject parent', () => {
                  console.log('REGISTERED');
              } catch (e) {
                  console.log(e.constructor.name + ': ' + e.message);
-             }`,
+             }
+             // And the static surface stays GJS's: no \`$foreignSkipped\` own property on a
+             // class registered here, so nothing about this route is observable off the
+             // NativeScript host.
+             const Plain = GObject.registerClass({ GTypeName: 'DesktopPlain' }, class extends GObject.Object {});
+             console.log('OWN ' + (Object.getOwnPropertyDescriptor(Plain, '$foreignSkipped') === undefined));`,
         ],
         { cwd: root, encoding: 'utf8', env: { ...process.env, LC_ALL: 'C', NODE_GI_NATIVE: 'build' } },
     );
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /^TypeError: GObject\.registerClass: .* must extend a node-gi GObject class/);
+    assert.match(r.stdout, /^OWN true$/m);
 });
 
 // Criterion 1: the object is BOTH. Its prototype chain is the host's, untouched — which is
@@ -216,6 +222,39 @@ test('a host accessor keeps its name, and the engine store routes to it', () => 
     assert.equal(out.gobjectUntouched, '');
     assert.equal(out.viaSetProperty, 'host:y');
     assert.equal(out.skipped, true);
+});
+
+// What a registration did NOT get, readable from the class. Which GObject spellings the
+// host chain already owns depends on the parent, so it cannot be documented once — a
+// program (and the on-device spec) has to be able to read it per class.
+//
+// `notify` is deliberately NOT in the list: it is the one member whose GObject spelling IS
+// installed, with the host's implementation captured and forwarded by argument type. So
+// the list means "GObject's spelling lost here", not "this name collides" — the two
+// answers differ for exactly one name, and the test says which.
+test('$foreignSkipped names the spellings the host chain already owned', () => {
+    const out = onNativeScriptHost(`
+        class HostWidget {
+            notify(data) { return data.eventName; }
+            get_property(name) { return 'host:' + name; }
+        }
+        const Leaf = GObject.registerClass({ GTypeName: 'ForeignSkipped' }, class Leaf extends HostWidget {});
+        const Plain = GObject.registerClass({ GTypeName: 'PlainSkipped' }, class Plain extends GObject.Object {});
+        const w = new Leaf();
+        ok('skipped', [...Leaf.$foreignSkipped].sort());
+        ok('frozen', Object.isFrozen(Leaf.$foreignSkipped));
+        ok('emptyOffPath', Plain.$foreignSkipped.length === 0);
+        ok('hostKeptItsOwn', w.get_property('x'));
+        ok('camelStillGObject', typeof w.getProperty === 'function');
+        ok('notifyForwards', w.notify({ eventName: 'tap' }));
+        console.log(JSON.stringify(out));
+    `);
+    assert.deepEqual(out.skipped, ['get_property']);
+    assert.equal(out.frozen, true);
+    assert.equal(out.emptyOffPath, true);
+    assert.equal(out.hostKeptItsOwn, 'host:x');
+    assert.equal(out.camelStillGObject, true);
+    assert.equal(out.notifyForwards, 'tap');
 });
 
 // Criterion 4: a registered signal, and the `notify` collision. `notify(string)` is
