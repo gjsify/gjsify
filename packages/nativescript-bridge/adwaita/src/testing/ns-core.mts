@@ -933,6 +933,8 @@ const APPLIED_CSS: string[] = [];
 
 const LIFECYCLE = new Map<string, ((args: unknown) => void)[]>();
 
+const SYSTEM_APPEARANCE: { value: 'dark' | 'light' | null } = { value: null };
+
 // An object, not a `namespace`: the gi-renderer-arms e2e loads this file with Node's strip-only
 // type removal, which refuses every non-erasable construct.
 export const Application = {
@@ -968,6 +970,19 @@ export const Application = {
         if (existing === undefined) return;
         const at = existing.indexOf(callback);
         if (at !== -1) existing.splice(at, 1);
+    },
+
+    /** The double has no configuration to read, so it cannot tell — until a spec says otherwise. */
+    systemAppearance(): 'dark' | 'light' | null {
+        return SYSTEM_APPEARANCE.value;
+    },
+
+    /** Change the system's appearance and deliver `systemAppearanceChanged`, as the platform does. */
+    emitSystemAppearance(value: 'dark' | 'light'): void {
+        SYSTEM_APPEARANCE.value = value;
+        for (const callback of (LIFECYCLE.get('systemAppearanceChanged') ?? []).slice()) {
+            callback({ eventName: 'systemAppearanceChanged', newValue: value });
+        }
     },
 
     /** Deliver a lifecycle event (`resume`, `suspend`) to its subscribers, as the platform does. */

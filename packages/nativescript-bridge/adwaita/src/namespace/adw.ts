@@ -101,5 +101,5 @@ export { AdwWindow as Window } from '../widgets/adw-window.js';
 export { AdwWindowTitle as WindowTitle } from '../widgets/adw-window-title.js';
 export { AdwWrapBox as WrapBox } from '../widgets/adw-wrap-box.js';
 export { AdwApplication as Application } from '../widgets/application.js';
-export { AdwStyleManager as StyleManager } from '../widgets/style-manager.js';
+export { AdwStyleManager as StyleManager } from '../widgets/style-manager-host.js';
 export { ColorScheme, Toast, ToastPriority } from '@gjsify/adwaita-core';

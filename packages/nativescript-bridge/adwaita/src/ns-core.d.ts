@@ -611,6 +611,9 @@ declare module '@nativescript/core' {
         /** The root view the application runs, once it exists. */
         export function getRootView(): View | undefined;
 
+        /** The system's light/dark preference, `null` where the platform cannot tell. */
+        export function systemAppearance(): 'dark' | 'light' | null;
+
         /** Subscribe to an application lifecycle event (`resume`, `suspend`, …). */
         export function on(event: string, callback: (args: unknown) => void): void;
         /** Drop a subscription made with {@link on}. */
