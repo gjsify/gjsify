@@ -43,6 +43,7 @@ import buttonSlotTestSuite from './button-slot.spec.js';
 import avatarNsTestSuite from './avatar.spec.js';
 import constructPropsTestSuite from './construct-props.spec.js';
 import signalsTestSuite from './signals.spec.js';
+import signalsGObjectTestSuite from './signals-gobject.spec.js';
 import iconSizeTestSuite from './icon-size.spec.js';
 import gioMenuTestSuite from './gio-menu.spec.js';
 import gdkTestSuite from './gdk.spec.js';
@@ -63,6 +64,7 @@ run({
     headerBarBalanceTestSuite,
     constructPropsTestSuite,
     signalsTestSuite,
+    signalsGObjectTestSuite,
     iconSizeTestSuite,
     gioMenuTestSuite,
     gdkTestSuite,

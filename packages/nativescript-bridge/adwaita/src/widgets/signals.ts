@@ -189,6 +189,23 @@ function spellingsOf(name: string): string[] {
     return [...new Set([name, name.replace(/-/g, '_'), camelProperty(name)])];
 }
 
+/**
+ * `notify` on a class that DECLARES properties — GJS's `notify('<prop>')` beside NativeScript's
+ * `notify({ eventName })`, which is how both legs install it (node-gi routes on the argument's
+ * type, and the pure-JS leg imitates that).
+ *
+ * A migrated widget declares it the same way it declares its properties — `declare notify:
+ * GObjectNotify;` — rather than the mixin typing it for every class, because a class with no
+ * declaration HAS no property to name and the string form would be a type that lies about 39
+ * widgets. One line, beside the `declare` lines the migration already brings.
+ */
+export interface GObjectNotify {
+    /** `g_object_notify`: emit `notify::<propertyName>`. Throws on a name the class never declared. */
+    (propertyName: string): void;
+    /** NativeScript's own: dispatch `data` to the listeners of `data.eventName`. */
+    <T extends EventData>(data: T): void;
+}
+
 /** The two methods the mixin adds. Named so a consumer can annotate with it. */
 export interface GObjectSignals {
     /**
@@ -258,6 +275,11 @@ export function withSignals<TBase extends ObservableConstructor>(Base: TBase, me
      * The key GObject owns for `eventName`, or `null` when the pure-JS leg does. A declared
      * signal and a `notify::` of a declared property are GObject's; a NativeScript event, a
      * `WIDGET_SIGNALS` entry and the handled-accumulator protocol are not and never become so.
+     *
+     * It is also what CANONICALISES a detail, which is why the pure-JS leg asks it too: three
+     * spellings of a property are one property, so `notify::can_close` has to reach a handler
+     * connected to `notify::canClose` on either leg. Route D gets that from this map; without
+     * it the pure leg would emit only `notify::can-close` and silently drop the other two.
      */
     function giKeyOf(eventName: string): string | null {
         if (declaredSignals.has(eventName)) return eventName;
@@ -294,8 +316,8 @@ export function withSignals<TBase extends ObservableConstructor>(Base: TBase, me
         }
 
         connect(eventName: string, callback: (self: this, data: EventData) => unknown): number {
-            const key = routeD ? giKeyOf(eventName) : null;
-            if (key !== null) {
+            const key = giKeyOf(eventName);
+            if (routeD && key !== null) {
                 // GJS hands a handler `(self, ...args)`; this port hands it `(self, data)` with
                 // the port's own payload, so the real emission is reshaped into one. A
                 // `notify::` carries a GParamSpec in GJS and a bare payload here, as the
@@ -324,7 +346,7 @@ export function withSignals<TBase extends ObservableConstructor>(Base: TBase, me
                 if (accumulator.stopped) return;
                 accumulator.collect(callback(this, data));
             };
-            return pureConnect(this, eventName, listener);
+            return pureConnect(this, key ?? eventName, listener);
         }
 
         disconnect(handlerId: number): void {
@@ -340,12 +362,12 @@ export function withSignals<TBase extends ObservableConstructor>(Base: TBase, me
         }
 
         emit(eventName: string, ...args: unknown[]): void {
-            const key = routeD ? giKeyOf(eventName) : null;
-            if (key !== null) {
+            const key = giKeyOf(eventName);
+            if (routeD && key !== null) {
                 giEmit!.call(this, key, ...args);
                 return;
             }
-            pureEmit(this, eventName, args);
+            pureEmit(this, key ?? eventName, args);
         }
 
         get_property(name: string): unknown {

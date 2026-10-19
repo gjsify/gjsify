@@ -36,6 +36,7 @@ import { Label, StackLayout } from '@nativescript/core';
 import { WindowTitleState, toLabelVisuals } from './row-state.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
+import type { GObjectNotify } from './signals.js';
 
 /** Event name emitted when {@link AdwWindowTitle.title} changes. */
 export const NOTIFY_TITLE = 'notify::title';
@@ -57,6 +58,9 @@ export class AdwWindowTitle extends withSignals(StackLayout, {
 
     /** The subtitle (dim second line). Empty collapses its label. */
     declare subtitle: string;
+
+    /** `notify('title')` beside NativeScript's `notify({ eventName })` — see {@link GObjectNotify}. */
+    declare notify: GObjectNotify;
 
     /** The bold title label. */
     protected readonly _titleLabel: Label;

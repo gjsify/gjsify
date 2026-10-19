@@ -19,8 +19,12 @@ import { withSignals } from './widgets/signals.js';
 /**
  * The event half of `Observable`, as `ns-core.d.ts` declares it: enough for the mixin
  * to subscribe, unsubscribe and be notified, and nothing the mixin does not touch.
+ *
+ * Exported for `signals-gobject.spec.ts`, which drives the same mixin with a declaration
+ * attached and needs the same platform boundary under it. One stand-in, so the two legs of
+ * the seam are measured against one base rather than against two that can drift.
  */
-class ObservableShape {
+export class ObservableShape {
     private readonly _listeners = new Map<string, Array<(data: EventData) => void>>();
 
     _emit(eventName: string): void {
