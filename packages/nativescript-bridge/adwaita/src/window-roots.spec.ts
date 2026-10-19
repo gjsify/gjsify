@@ -339,6 +339,28 @@ export const AdwWindowRootsNsTest = async () => {
             expect(pages.map((page) => GridLayout.placementOf(page as View).row)).toStrictEqual([0, 1]);
         });
 
+        await it('builds a page and a group that carry style classes, and keep their own class', () => {
+            // Learn6502's appearance page and colour groups carry `css-classes`; the builder refused them.
+            const dialog = build({
+                tag: 'AdwPreferencesDialog',
+                children: [
+                    {
+                        tag: 'AdwPreferencesPage',
+                        styleClasses: ['appearance-page'],
+                        children: [{ tag: 'AdwPreferencesGroup', styleClasses: ['custom-color-group'] }],
+                    },
+                ],
+            }) as unknown as Adw.PreferencesDialog;
+            const [page] = dialog.searchPages as unknown as Adw.PreferencesPage[];
+            expect(page!.has_css_class('appearance-page')).toBe(true);
+            expect(page!.className).toBe('adw-preferences-page appearance-page');
+            page!.remove_css_class('appearance-page');
+            expect(page!.className).toBe('adw-preferences-page');
+            const [group] = page!.searchGroups() as unknown as Adw.PreferencesGroup[];
+            expect(group!.get_css_classes()).toStrictEqual(['custom-color-group']);
+            expect(group!.className).toBe('adw-preferences-group custom-color-group');
+        });
+
         await it('starts at the template content-width of 640 and titles itself Preferences', () => {
             const dialog = new Adw.PreferencesDialog();
             expect(dialog.contentWidth).toBe(640);

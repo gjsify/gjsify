@@ -23,6 +23,7 @@ import type { NsSearchableGroup, NsSearchablePage } from './preferences-search.j
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
+import { StyleClassList, type AdwStyleClassesInput } from './style-classes.js';
 
 export class AdwPreferencesPage extends withSignals(ScrollView) implements NsSearchablePage {
     static readonly GTypeName: string = 'AdwPreferencesPage';
@@ -50,12 +51,13 @@ export class AdwPreferencesPage extends withSignals(ScrollView) implements NsSea
     private _name = '';
     private _iconName = '';
     private _useUnderline = false;
+    private readonly _classList = new StyleClassList('adw-preferences-page');
 
     constructor(props?: ConstructProps<AdwPreferencesPage>) {
         super();
 
         this.orientation = 'vertical';
-        this.className = 'adw-preferences-page';
+        this._restyle();
 
         const content = new StackLayout();
         content.orientation = 'vertical';
@@ -153,5 +155,51 @@ export class AdwPreferencesPage extends withSignals(ScrollView) implements NsSea
     /** The vertical content stack holding the groups. */
     get groups(): StackLayout {
         return this._groups;
+    }
+
+    /**
+     * `GtkWidget:css-classes`, spelled `styleClasses` (`style-classes.ts`). A `.blp` scopes a page's
+     * CSS with `css-classes: ["appearance-page"]`, and the shared-tree builder refuses a class
+     * the widget has no door for.
+     */
+    get styleClasses(): string[] {
+        return this._classList.classes;
+    }
+
+    set styleClasses(value: AdwStyleClassesInput) {
+        this._classList.replace(value);
+        this._restyle();
+    }
+
+    /** `gtk_widget_add_css_class`. */
+    add_css_class(name: string): void {
+        this._classList.add(name);
+        this._restyle();
+    }
+
+    /** `gtk_widget_remove_css_class`. */
+    remove_css_class(name: string): void {
+        this._classList.remove(name);
+        this._restyle();
+    }
+
+    /** `gtk_widget_has_css_class`. */
+    has_css_class(name: string): boolean {
+        return this._classList.has(name);
+    }
+
+    /** `gtk_widget_get_css_classes` — the list, without the widget's own class. */
+    get_css_classes(): string[] {
+        return this._classList.classes;
+    }
+
+    /** `gtk_widget_set_css_classes` — REPLACES the list. */
+    set_css_classes(names: readonly string[]): void {
+        this._classList.replaceAll(names);
+        this._restyle();
+    }
+
+    private _restyle(): void {
+        this.className = this._classList.className;
     }
 }
