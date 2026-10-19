@@ -13,6 +13,7 @@
 // gjs modules/core/overrides/GLib.js (_readSingleType, _packVariant, _unpackVariant)
 // Copyright (c) GNOME contributors (GLib, GJS). LGPLv2.1+, MIT OR LGPLv2+.
 
+import { unicharIsprint } from './glib-unichar.js';
 import { UnsupportedGObjectError } from './gobject.js';
 
 type BasicType = 'b' | 'i' | 'u' | 'd' | 's';
@@ -143,9 +144,6 @@ const NAMED_ESCAPES: Readonly<Record<string, string>> = {
     '\r': '\\r',
 };
 
-/** `!g_unichar_isprint`: control, format, unassigned and surrogate code points. */
-const NON_PRINTING = /[\p{Cc}\p{Cf}\p{Cn}\p{Cs}]/u;
-
 function hex(codePoint: number, width: number): string {
     return codePoint.toString(16).padStart(width, '0');
 }
@@ -156,7 +154,7 @@ function printString(text: string): string {
     for (const char of text) {
         if (char === quote || char === '\\') out += `\\${char}`;
         else if (char in NAMED_ESCAPES) out += NAMED_ESCAPES[char];
-        else if (NON_PRINTING.test(char)) {
+        else if (!unicharIsprint(char)) {
             const codePoint = char.codePointAt(0) as number;
             out += codePoint < 0x10000 ? `\\u${hex(codePoint, 4)}` : `\\U${hex(codePoint, 8)}`;
         } else out += char;
