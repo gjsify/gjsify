@@ -1,3 +1,4 @@
+import { GLibVariant } from '@gjsify/adwaita-core';
 import { describe, expect, it, run } from '@gjsify/unit';
 
 import { Settings } from './browser.js';
@@ -11,6 +12,7 @@ run({
                 name: 'subset over localStorage',
                 isOracle: false,
                 Settings,
+                Variant: GLibVariant,
                 reset: () => globalThis.localStorage.clear(),
             },
             { describe, it, expect },
