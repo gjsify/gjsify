@@ -5,14 +5,17 @@
 import {
     GLIB_PATH_VECTORS,
     GLIB_TIMER_VECTORS,
+    GLIB_UNICHAR_VECTORS,
     GLIB_URI_VECTORS,
     GLIB_VARIANT_VECTORS,
     driveGLibPathVectors,
     driveGLibTimerVectors,
+    driveGLibUnicharVectors,
     driveGLibUriVectors,
     driveGLibVariantVectors,
     type GLibPathsLike,
     type GLibTimersLike,
+    type GLibUnicharLike,
     type GLibUriLike,
     type GLibVariantLike,
 } from '@gjsify/adwaita-core/conformance';
@@ -53,6 +56,11 @@ export default async () => {
         { name: 'adwaita-nativescript', isOracle: false, GLib: GLib as unknown as GLibVariantLike },
         { describe, it, expect },
         GLIB_VARIANT_VECTORS,
+    );
+    await driveGLibUnicharVectors(
+        { name: 'adwaita-nativescript', isOracle: false, GLib: GLib as unknown as GLibUnicharLike },
+        { describe, it, expect },
+        GLIB_UNICHAR_VECTORS,
     );
     await describe('adwaita-nativescript: GLib door', async () => {
         await it('answers the host-bound path questions with the root and no data dirs', () => {

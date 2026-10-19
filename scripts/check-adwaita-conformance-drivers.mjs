@@ -267,6 +267,9 @@ const MODULE_REASONS = {
     // namespace, never imported, so the file-chooser table carries their `bytes`/`error` rows.
     'glib-bytes': { table: 'FILE_CHOOSER_VECTORS' },
     'glib-error': { table: 'FILE_CHOOSER_VECTORS' },
+    // The letter table `glib-unichar.ts` reads, generated from a pinned UCD. Its behaviour is
+    // that module's: `GLIB_UNICHAR_VECTORS`, driven by the core, both doors and real gi://GLib.
+    'glib-unichar.generated': { table: 'GLIB_UNICHAR_VECTORS' },
     'length-unit': { table: 'ADW_LENGTH_UNIT_VECTORS', gap: NO_DRIVER_LEDGER },
     // THE THREE GIR AUTHORING DOORS (ADR 0034 § Amendment 19). `gio-menu.ts`,
     // `gtk-string-list.ts` and `gtk-adjustment.ts` add NO behaviour of their own: each one

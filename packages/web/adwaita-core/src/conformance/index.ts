@@ -757,6 +757,8 @@ export type {
     VariantClassLike,
     VariantLike,
 } from './glib-variant.js';
+export { GLIB_UNICHAR_ROWS, GLIB_UNICHAR_VECTORS, driveGLibUnicharVectors } from './glib-unichar.js';
+export type { GLibUnicharLike, GLibUnicharRow, GLibUnicharSubject, GLibUnicharVector } from './glib-unichar.js';
 export { GIO_APP_INFO_ROWS, GIO_APP_INFO_VECTORS, driveGioAppInfoVectors } from './gio-app-info.js';
 export type { GioAppInfoNamespaces, GioAppInfoRow, GioAppInfoSubject, GioAppInfoVector } from './gio-app-info.js';
 export { CAROUSEL_DOOR_VECTORS, driveCarouselDoorVectors } from './carousel-doors.js';

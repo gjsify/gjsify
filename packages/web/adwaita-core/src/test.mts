@@ -82,6 +82,8 @@ import glibUriTestSuite from './glib-uri.spec.js';
 import glibUriOracleTestSuite from './glib-uri.gjs.spec.js';
 import glibVariantTestSuite from './glib-variant.spec.js';
 import glibVariantOracleTestSuite from './glib-variant.gjs.spec.js';
+import glibUnicharTestSuite from './glib-unichar.spec.js';
+import glibUnicharOracleTestSuite from './glib-unichar.gjs.spec.js';
 import gioAppInfoTestSuite from './gio-app-info.spec.js';
 import gioAppInfoOracleTestSuite from './gio-app-info.gjs.spec.js';
 import carouselDoorsOracleTestSuite from './carousel-doors.gjs.spec.js';
@@ -182,6 +184,8 @@ run({
     glibUriOracleTestSuite,
     glibVariantTestSuite,
     glibVariantOracleTestSuite,
+    glibUnicharTestSuite,
+    glibUnicharOracleTestSuite,
     gioAppInfoTestSuite,
     gioAppInfoOracleTestSuite,
     carouselDoorsOracleTestSuite,
