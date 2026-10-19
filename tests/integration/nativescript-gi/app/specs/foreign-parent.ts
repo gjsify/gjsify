@@ -31,9 +31,10 @@ const gcFn = (): void => {
 const tick = (ms = 30): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Captures the EMITTER ARGUMENT, never an enclosing `this`. The prior spike's finding holds
- * here too: on node-gi a handler closure that captures the object is never collected, so the
- * realistic wiring is the one that reads the emitter it is handed.
+ * Captures the EMITTER ARGUMENT, never an enclosing `this`. Written that way because the prior
+ * spike measured a `this`-capturing handler as immortal on node-gi; that cycle is gone (signal
+ * closures hold their callback weakly now, as in GJS) and `FpSelfCapture` asserts it, so this
+ * stays the idiomatic shape rather than a workaround.
  */
 function driveTextFromProp(widget: Any): void {
     widget.connect('notify::caption', (emitter: Any) => {
@@ -396,7 +397,7 @@ export default async function foreignParentSpec(): Promise<void> {
             expect(gone).toBe(true);
         });
 
-        await it('lifetime probe: a handler capturing `this` pins the widget (node-gi closure root)', async () => {
+        await it('lifetime: a handler capturing `this` does not pin the widget', async () => {
             const token = `s${++serial}`;
             (() => {
                 const w = new FpSelfCapture();
@@ -405,6 +406,7 @@ export default async function foreignParentSpec(): Promise<void> {
             })();
             const gone = await waitFinalized([token], 6);
             info(`this-capturing handler: widget finalized=${gone} (prior spike: false)`);
+            expect(gone).toBe(true);
         });
 
         await it('lifetime: a live widget is not collected early, with both halves intact', async () => {

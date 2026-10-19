@@ -543,6 +543,18 @@ export function emitSignal(handle: GObjectHandle, signalName: string, args?: unk
 export function disconnectSignal(handle: GObjectHandle, handlerId: number): void;
 
 /**
+ * INTERNAL. Keep a callback alive for as long as `handle` is alive. Signal and
+ * template-callback GClosures hold their JS callback through a WEAK napi_ref, so
+ * a connected handler is not a GC root (which is what makes a handler capturing
+ * its own emitter collectable, as in GJS); this handle-keyed WeakMap is the
+ * ephemeron that keeps it callable meanwhile. `connectSignal` does it for you.
+ */
+export function retainClosure(handle: GObjectHandle, key: number | symbol, fn: Function): void;
+
+/** INTERNAL. Drop a closure retained by {@link retainClosure}. */
+export function releaseClosure(handle: GObjectHandle, key: number | symbol): void;
+
+/**
  * Register the L1 resolver mapping a Gtk.Template `<signal handler="…">` handler
  * name to the instance's bound JS method (engine template-callback scope).
  */

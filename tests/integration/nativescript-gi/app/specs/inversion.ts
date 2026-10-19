@@ -278,7 +278,7 @@ export default async function inversionSpec(): Promise<void> {
             expect(finalized.has(widgetToken) && finalized.has(viewToken)).toBe(true);
         });
 
-        await it('lifetime probe: a handler capturing `this` pins the widget (node-gi closure root)', async () => {
+        await it('lifetime: a handler capturing `this` does not pin the widget', async () => {
             const slot = new StackLayout();
             let widgetToken = '';
             (() => {
@@ -293,6 +293,7 @@ export default async function inversionSpec(): Promise<void> {
                 await tick(60);
             }
             info(`this-capturing handler: widget finalized=${finalized.has(widgetToken)}`);
+            expect(finalized.has(widgetToken)).toBe(true);
         });
 
         for (const [label, Klass, text] of [

@@ -94,9 +94,16 @@ export function ensureNative() {
     makePumpPendingCount = addon.makePumpPendingCount;
     pumpKick = addon.pumpKick;
     setMicrotaskDrain = addon.setMicrotaskDrain;
-    connectSignal = addon.connectSignal;
     emitSignal = addon.emitSignal;
-    disconnectSignal = addon.disconnectSignal;
+    connectSignal = (handle, signalName, callback, after) => {
+        const id = addon.connectSignal(handle, signalName, callback, after);
+        retainClosure(handle, id, callback);
+        return id;
+    };
+    disconnectSignal = (handle, handlerId) => {
+        releaseClosure(handle, handlerId);
+        return addon.disconnectSignal(handle, handlerId);
+    };
     setTemplateCallbackResolver = addon.setTemplateCallbackResolver;
     setConstructCallback = addon.setConstructCallback;
     setPropertySetCallback = addon.setPropertySetCallback;
@@ -205,6 +212,52 @@ export let mainContextHasPending;
 export let makePumpPendingCount;
 export let pumpKick;
 export let setMicrotaskDrain;
+// ---- signal-closure keep-alive (GJS's associate_closure, built in JS) ----
+//
+// A signal / template-callback GClosure holds its JS callback through a WEAK
+// napi_ref (src/signals.cc), so a C-held closure is NOT a GC root. That is what
+// makes `obj.connect('x', () => obj.y)` collectable instead of immortal, and it
+// is GJS's design: its signal closures keep the callable unrooted and TRACE it
+// from the owning wrapper (ObjectInstance::m_closures).
+//
+// node-gi has no tracing hook into V8, so the same edge is expressed as the one
+// ephemeron a non-extensible External can take part in: a WeakMap keyed by the
+// canonical handle. Handle reachable (JS holds the wrapper, or C owns the object
+// and the toggle ref roots the handle) → callback reachable → a connected handler
+// still fires. Handle reachable ONLY through the callback it retains → key and
+// value die together, which is exactly the cycle that used to leak.
+//
+// Pruned on disconnect. A handler disconnected by a route that bypasses
+// `disconnectSignal` (the introspected GObject.signal_handler_disconnect) leaves
+// its entry behind until the handle itself goes — harmless, the closure is
+// already gone, and the same divergence the gi.js handler-id registry documents.
+const retainedClosures = new WeakMap();
+
+/**
+ * Keep `fn` alive for as long as `handle` is alive. INTERNAL — the JS half of the
+ * weak closure refs in src/signals.cc.
+ * @param {object} handle canonical GObject handle (the WeakMap key / lifetime)
+ * @param {number | symbol} key handler id, or a unique key for a non-signal closure
+ * @param {Function} fn the callback the native closure holds weakly
+ */
+export function retainClosure(handle, key, fn) {
+    let byKey = retainedClosures.get(handle);
+    if (byKey === undefined) {
+        byKey = new Map();
+        retainedClosures.set(handle, byKey);
+    }
+    byKey.set(key, fn);
+}
+
+/**
+ * Drop a retained closure (on disconnect). INTERNAL — see retainClosure.
+ * @param {object} handle canonical GObject handle
+ * @param {number | symbol} key the key it was retained under
+ */
+export function releaseClosure(handle, key) {
+    retainedClosures.get(handle)?.delete(key);
+}
+
 export let connectSignal;
 export let emitSignal;
 export let disconnectSignal;

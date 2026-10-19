@@ -59,10 +59,12 @@ class-evaluation time, the engine is chosen at runtime, and `engineForTarget` is
 from a module's top level in the pure-JS leg.
 
 CARRY THESE: `vfunc_*` does not work on a foreign-parent class, so a widget that needs one stays
-on the twin. A handler that captures an enclosing `this` is not finalized (measured false on both
-devices, node-gi's unfixed C↔JS closure cycle) — every migrated widget must use the emitter
-argument the mixin already passes first. And a name the host chain owns is skipped, not shadowed:
-read `$foreignSkipped` in the device spec when a property silently does not take.
+on the twin. And a name the host chain owns is skipped, not shadowed: read `$foreignSkipped` in
+the device spec when a property silently does not take. (The third item is GONE: a handler that
+captures an enclosing `this` used to be immortal — node-gi's C↔JS closure cycle — so every
+migrated widget had to use the emitter argument. Signal closures hold their callback weakly now,
+as in GJS; `finalized=true` on both devices, asserted by `foreign-parent.ts` and `inversion.ts`.
+The emitter argument the mixin passes first stays the idiomatic spelling, not a requirement.)
 
 KEEP iOS GREEN: every migrated widget gets a test that builds it under the pure-JS engine
 (`engine-target.ios.ts`'s default) and asserts the same properties, notifies and signals as the
