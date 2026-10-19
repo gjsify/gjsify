@@ -1,15 +1,18 @@
 // AdwPreferencesDialog — a Libadwaita-style preferences dialog for NativeScript.
 //
-// Renders a REAL NativeScript `GridLayout` overlay holding a titled card with a
-// close button over a scrollable body that hosts `AdwPreferencesPage`s. Mirrors
-// `Adw.PreferencesDialog`: `add(page)`, `present()` / `close()`, `title`.
+// An `AdwDialog`, as `AdwPreferencesDialog` is one in libadwaita: the scrim, the card,
+// `present (parent)`, `close` / `force_close`, `can-close`, `content-width` /
+// `content-height` and `presentation-mode` are the base class's. What this adds is the
+// dialog's own child — a titled header with a close button over a body that hosts
+// `AdwPreferencesPage`s — and `add(page)`. Mirrors `Adw.PreferencesDialog`: `add(page)`,
+// `present()` / `close()`, `title`. `content-width` starts at 640, as the class template
+// (adw-preferences-dialog.ui) sets it.
 //
-// FIDELITY: approximated, same model as {@link AdwAboutDialog}. This is an in-page
-// modal overlay the consumer adds to their root layout and reveals on demand — NOT
-// a separate OS window. COMPROMISES: no backdrop blur / drop shadow / slide-in
-// animation (CSS subset has none). The titled-card-over-scrim LOOK and the
-// page-hosting + present/close are faithful; an `AdwPreferencesPage` dropped in
-// renders exactly as it does standalone.
+// FIDELITY: approximated. COMPROMISES: no backdrop blur / drop shadow / slide-in animation
+// (CSS subset has none), and no view switcher: libadwaita shows one page at a time, this
+// body gives every page a share of the height. Each page scrolls itself, so the body is a
+// grid with a star row per page — a vertical stack would offer a page unbounded height and
+// the page would never scroll.
 //
 // `search(query)` implements the dialog's headline feature — "the preferences
 // are searchable by the user", the first paragraph of the C class docs. The
@@ -26,49 +29,37 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import type { View } from '@nativescript/core';
-import { GridLayout, ItemSpec, Label, StackLayout, type EventData } from '@nativescript/core';
+import { GridLayout, ItemSpec, Label } from '@nativescript/core';
 import { windowCloseSymbolic } from '@gjsify/adwaita-icons/ui';
 import type { SearchPreferencesOptions } from '@gjsify/adwaita-core';
+import { AdwDialog, ADW_DIALOG_CLOSED } from './adw-dialog.js';
 import { AdwImageButton } from './adw-image-button.js';
 import { searchNsPreferences, type NsPreferencesSearchResult, type NsSearchablePage } from './preferences-search.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
-import { withSignals } from './signals.js';
-import { findDialogHost, type DialogHost } from './window-state.js';
 
 /** Event name emitted when the dialog is closed. */
-export const CLOSED = 'closed';
+export const CLOSED = ADW_DIALOG_CLOSED;
 
-export class AdwPreferencesDialog extends withSignals(GridLayout) {
-    static readonly GTypeName: string = 'AdwPreferencesDialog';
+/** `content-width` of the class template, adw-preferences-dialog.ui. */
+const PREFERENCES_DIALOG_CONTENT_WIDTH = 640;
 
-    protected readonly _card: GridLayout;
+export class AdwPreferencesDialog extends AdwDialog {
+    static override readonly GTypeName: string = 'AdwPreferencesDialog';
+
     protected readonly _headerBox: GridLayout;
     protected readonly _titleLabel: Label;
-    protected readonly _body: StackLayout;
-    /** The window `present (parent)` mounted this in, so closing can take it back out. */
-    private _host: DialogHost | null = null;
+    protected readonly _body: GridLayout;
 
     constructor(props?: ConstructProps<AdwPreferencesDialog>) {
         super();
+        this._card.className = 'adw-preferences-dialog-card';
 
-        this.className = 'adw-preferences-dialog';
-        this.visibility = 'collapse';
-        this.addColumn(new ItemSpec(1, 'star'));
-        this.addRow(new ItemSpec(1, 'star'));
-
-        // Card: rows `auto, *` — a header bar and a scroll-stack body.
-        const card = new GridLayout();
-        card.className = 'adw-preferences-dialog-card';
-        card.verticalAlignment = 'middle';
-        card.horizontalAlignment = 'center';
-        card.addColumn(new ItemSpec(1, 'star'));
-        card.addRow(new ItemSpec(1, 'auto'));
-        card.addRow(new ItemSpec(1, 'star'));
-        GridLayout.setColumn(card, 0);
-        GridLayout.setRow(card, 0);
-        this.addChild(card);
-        this._card = card;
+        // The dialog's child: rows `auto, *` — a header bar and the page body.
+        const content = new GridLayout();
+        content.addColumn(new ItemSpec(1, 'star'));
+        content.addRow(new ItemSpec(1, 'auto'));
+        content.addRow(new ItemSpec(1, 'star'));
 
         // Header: title (col 0) + close button (col 1).
         const header = new GridLayout();
@@ -77,12 +68,11 @@ export class AdwPreferencesDialog extends withSignals(GridLayout) {
         header.addColumn(new ItemSpec(1, 'auto'));
         header.addRow(new ItemSpec(1, 'auto'));
         GridLayout.setRow(header, 0);
-        card.addChild(header);
+        content.addChild(header);
         this._headerBox = header;
 
         const titleLabel = new Label();
         titleLabel.className = 'adw-preferences-dialog-title';
-        titleLabel.text = 'Preferences';
         GridLayout.setColumn(titleLabel, 0);
         header.addChild(titleLabel);
         this._titleLabel = titleLabel;
@@ -96,43 +86,52 @@ export class AdwPreferencesDialog extends withSignals(GridLayout) {
         GridLayout.setColumn(closeButton, 1);
         header.addChild(closeButton);
 
-        // Body: a vertical stack the consumer adds AdwPreferencesPages to.
-        const body = new StackLayout();
-        body.orientation = 'vertical';
+        const body = new GridLayout();
         body.className = 'adw-preferences-dialog-body';
+        body.addColumn(new ItemSpec(1, 'star'));
         GridLayout.setRow(body, 1);
-        card.addChild(body);
+        content.addChild(body);
         this._body = body;
 
+        this.child = content;
+        this.title = 'Preferences';
+        this.contentWidth = PREFERENCES_DIALOG_CONTENT_WIDTH;
         applyConstructProps(this, props);
     }
 
-    /** The dialog title. */
-    get title(): string {
-        return this._titleLabel.text ?? '';
+    protected override get _ownClass(): string {
+        return 'adw-preferences-dialog';
     }
 
-    set title(value: string) {
-        this._titleLabel.text = value ?? 'Preferences';
+    /** `AdwDialog:title`, shown in the header. */
+    override get title(): string {
+        return super.title;
+    }
+
+    override set title(value: string | null) {
+        super.title = value;
+        this._titleLabel.text = super.title;
     }
 
     /** Add an `AdwPreferencesPage` (or any view) to the dialog body. */
     add(view: View): void {
         this._body.addChild(view);
+        this._layoutBody();
     }
 
     /**
-     * An XML child is a page in the dialog BODY, not a child of the grid the dialog
-     * builds its header and scroller in — which is where `LayoutBase`'s inherited
-     * `_addChildFromBuilder` would have put it, on top of the title bar.
+     * An XML child is a page in the dialog BODY, not the dialog's `child` — which is
+     * where `AdwDialog`'s inherited `_addChildFromBuilder` would have put it, in place of
+     * the header and the body.
      */
-    _addChildFromBuilder(_name: string, view: View): void {
+    override _addChildFromBuilder(_name: string, view: View): void {
         this.add(view);
     }
 
     /** Remove a previously-added page from the body. */
     remove(view: View): void {
         this._body.removeChild(view);
+        this._layoutBody();
     }
 
     /**
@@ -163,42 +162,9 @@ export class AdwPreferencesDialog extends withSignals(GridLayout) {
         return searchNsPreferences(this.searchPages, query, options);
     }
 
-    /**
-     * Reveal the preferences overlay — `adw_dialog_present`.
-     *
-     * With a `parent` it is hosted in that widget's window like every other AdwDialog, so the
-     * window's back handling closes it first. Without one it must already sit in a layout.
-     */
-    present(parent?: View | null): void {
-        if (this.open) return;
-        if (this.parent === null || this.parent === undefined) {
-            const host = findDialogHost(parent ?? null);
-            if (host === null) {
-                throw new Error(
-                    `${this.constructor.name} has no window to appear in: pass a widget that sits inside an ` +
-                        'Adw.Window / Adw.ApplicationWindow to present(), or add the dialog to a layout first.',
-                );
-            }
-            host._hostDialog(this);
-            this._host = host;
-        }
-        this.visibility = 'visible';
-    }
-
-    /** Hide the preferences overlay, take it out of its window and emit `closed`. */
-    close(): void {
-        this.visibility = 'collapse';
-        if (this._host !== null) {
-            this._host._unhostDialog(this);
-            this._host = null;
-        }
-        const data: EventData = { eventName: CLOSED, object: this };
-        this.notify(data);
-    }
-
-    /** Whether the dialog is currently shown. */
-    get open(): boolean {
-        return this.visibility === 'visible';
+    /** Whether the dialog is currently shown; writing it presents or closes. */
+    override get open(): boolean {
+        return super.open;
     }
 
     set open(value: boolean | string) {
@@ -206,8 +172,19 @@ export class AdwPreferencesDialog extends withSignals(GridLayout) {
         else this.close();
     }
 
-    /** The scrollable body that hosts the preferences pages. */
-    get body(): StackLayout {
+    /** The body that hosts the preferences pages. */
+    get body(): GridLayout {
         return this._body;
+    }
+
+    /** One star row per page, in add order. */
+    private _layoutBody(): void {
+        const body = this._body;
+        body.removeRows();
+        const count = body.getChildrenCount();
+        for (let index = 0; index < count; index++) {
+            body.addRow(new ItemSpec(1, 'star'));
+            GridLayout.setRow(body.getChildAt(index), index);
+        }
     }
 }

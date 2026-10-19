@@ -11,13 +11,16 @@
 // (`Adw.ToolbarView { [top] Adw.HeaderBar }` is every shipped dialog's shape). `title` is
 // held, and read by assistive technology as the card's label.
 //
-// WHAT IS HELD AND NOT RENDERED. `presentation-mode` accepts `auto`, `floating` and
-// `bottom-sheet`; `bottom-sheet` pins the card to the bottom edge at full width, `floating`
-// centres it, and `auto` is `floating` — libadwaita chooses between them by window width
-// and this port has no layout pass to ask. `follows-content-size` is held: the card is
-// content-sized unless `content-width` / `content-height` say otherwise, so the default
-// `true` is what it does. No scrim animation and no focus trap — the CSS subset has no
-// transition and the platform has no focus chain to confine.
+// `presentation-mode` accepts `auto`, `floating` and `bottom-sheet`; `bottom-sheet` pins the
+// card to the bottom edge at full width, `floating` centres it, and `auto` picks one by the
+// window size as libadwaita's breakpoints do (`dialogCardLayout`). NativeScript has no
+// window-resize signal, so the scrim's own size after each `layoutChanged` is the window size
+// — the scrim covers the window. The same size caps `content-width` / `content-height`.
+//
+// WHAT IS HELD AND NOT RENDERED. `follows-content-size` is held: the card is content-sized
+// unless `content-width` / `content-height` say otherwise, so the default `true` is what it
+// does. No scrim animation and no focus trap — the CSS subset has no transition and the
+// platform has no focus chain to confine.
 //
 // `close()` honours `can-close` as `adw_dialog_close` does: a dialog that cannot close emits
 // `close-attempt` and stays; `force_close()` closes regardless.
@@ -33,6 +36,7 @@ import { AdwSingleChildBase } from './single-child-base.js';
 import {
     type AdwDialogPresentationNick,
     DEFAULT_DIALOG_PRESENTATION_MODE,
+    dialogCardLayout,
     dialogPresentationMode,
     findDialogHost,
     surfaceSize,
@@ -64,6 +68,8 @@ export class AdwDialog extends AdwSingleChildBase {
     private _presentationMode: AdwDialogPresentationNick = DEFAULT_DIALOG_PRESENTATION_MODE;
     /** The window `present (parent)` mounted this in, so closing can take it back out. */
     private _host: DialogHost | null = null;
+    /** The window size the card was last laid out against, in DIP; `null` before a layout. */
+    private _available: { width: number; height: number } | null = null;
 
     constructor(props?: ConstructProps<AdwDialog>) {
         super();
@@ -79,6 +85,7 @@ export class AdwDialog extends AdwSingleChildBase {
         this.addChild(card);
         this._card = card;
         this._layoutCard();
+        this.addEventListener('layoutChanged', () => this._measureWindow());
 
         applyConstructProps(this, props);
     }
@@ -209,18 +216,31 @@ export class AdwDialog extends AdwSingleChildBase {
         this.notify({ eventName: ADW_DIALOG_CLOSED, object: this } as EventData);
     }
 
-    /** The card's size and place, from `content-*` and `presentation-mode`. */
+    /**
+     * Re-read the window size after a layout pass. Guarded on a real change: re-sizing the
+     * card schedules another pass, which lands here again.
+     */
+    private _measureWindow(): void {
+        const size = this.getActualSize?.();
+        if (!size || size.width <= 0 || size.height <= 0) return;
+        const last = this._available;
+        if (last !== null && last.width === size.width && last.height === size.height) return;
+        this._available = { width: size.width, height: size.height };
+        this._layoutCard();
+    }
+
+    /** The card's size and place, from `content-*`, `presentation-mode` and the window size. */
     private _layoutCard(): void {
         const card = this._card;
-        card.width = this._contentWidth > 0 ? this._contentWidth : 'auto';
-        card.height = this._contentHeight > 0 ? this._contentHeight : 'auto';
-        if (this._presentationMode === 'bottom-sheet') {
-            card.horizontalAlignment = 'stretch';
-            card.verticalAlignment = 'bottom';
-            card.width = 'auto';
-        } else {
-            card.horizontalAlignment = 'center';
-            card.verticalAlignment = 'middle';
-        }
+        const layout = dialogCardLayout(
+            this._available,
+            this._presentationMode,
+            this._contentWidth,
+            this._contentHeight,
+        );
+        card.width = layout.width;
+        card.height = layout.height;
+        card.horizontalAlignment = layout.sheet ? 'stretch' : 'center';
+        card.verticalAlignment = layout.sheet ? 'bottom' : 'middle';
     }
 }

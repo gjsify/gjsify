@@ -48,6 +48,54 @@ export function surfaceSize(parsed: number, written: unknown, current: number, p
     throw new TypeError(`'${String(written)}' is not a size: '${property}' takes an integer from -1 upward.`);
 }
 
+/** `PORTRAIT_CONDITION` of adw-dialog.c: `max-width: 450px`. */
+export const DIALOG_PORTRAIT_MAX_WIDTH = 450;
+
+/** `LANDSCAPE_CONDITION` of adw-dialog.c: `max-height: 360px`. */
+export const DIALOG_LANDSCAPE_MAX_HEIGHT = 360;
+
+/** The card's margin on every side, as `.adw-dialog-card` writes it. */
+export const DIALOG_CARD_MARGIN = 24;
+
+/** Where a dialog's card goes and how big it is. `'auto'` follows the content. */
+export interface DialogCardLayout {
+    readonly sheet: boolean;
+    readonly width: number | 'auto';
+    readonly height: number | 'auto';
+}
+
+/**
+ * The card layout for a dialog shown over a window of `available` size (DIP), or over a window
+ * not laid out yet (`null`).
+ *
+ * `auto` is a bottom sheet when the window matches `max-width: 450px or max-height: 360px`, a
+ * floating card otherwise — adw-dialog.c's two breakpoints. Before the first layout there is
+ * no window size to ask, so `auto` floats. A floating card is `content-width` /
+ * `content-height` wide and high, but never more than the window leaves around its margins: an
+ * NS `width` is an exact size, and libadwaita shrinks a dialog that does not fit.
+ */
+export function dialogCardLayout(
+    available: { readonly width: number; readonly height: number } | null,
+    mode: AdwDialogPresentationNick,
+    contentWidth: number,
+    contentHeight: number,
+): DialogCardLayout {
+    const narrow =
+        available !== null &&
+        (available.width <= DIALOG_PORTRAIT_MAX_WIDTH || available.height <= DIALOG_LANDSCAPE_MAX_HEIGHT);
+    const sheet = mode === 'bottom-sheet' || (mode === 'auto' && narrow);
+    const fit = (wanted: number, extent: number | undefined): number | 'auto' => {
+        if (wanted <= 0) return 'auto';
+        if (extent === undefined) return wanted;
+        return Math.min(wanted, Math.max(0, extent - 2 * DIALOG_CARD_MARGIN));
+    };
+    return {
+        sheet,
+        width: sheet ? 'auto' : fit(contentWidth, available?.width),
+        height: fit(contentHeight, available?.height),
+    };
+}
+
 /** What a dialog hands itself to when it is presented over a widget. */
 export interface DialogHost {
     /** Put `dialog` above everything the host shows. */
