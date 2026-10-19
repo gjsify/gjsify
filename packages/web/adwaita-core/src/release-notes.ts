@@ -274,8 +274,63 @@ const isXmlSpace = (c: string | undefined): boolean => c === ' ' || c === '\t' |
 /** `IS_COMMON_NAME_END_CHAR`. */
 const isNameEnd = (c: string | undefined): boolean => c === '=' || c === '/' || c === '>' || c === ' ';
 const isAsciiAlpha = (c: string): boolean => /^[A-Za-z]$/.test(c);
+
+/**
+ * `/^\p{L}$/u`, built at RUNTIME and once.
+ *
+ * Not a style choice. A regular-expression LITERAL is validated while the script is parsed, so
+ * a `\p{…}` literal anywhere in a bundle is a syntax error for the whole module on a V8 built
+ * without i18n support — which is what NativeScript ships on Android. Measured 2026-10-19 on
+ * API 36: this file as a literal made `tests/integration/nativescript-gi` die before its first
+ * line with `Cannot compile ES module … SyntaxError: Invalid regular expression: /^\p{L}$/u:
+ * Invalid property name`, taking every other core module down with it. `new RegExp` moves the
+ * same construct past the parser, so the cost of an absent property table is a fallback here
+ * instead of an app that cannot start.
+ */
+const unicodeLetter: RegExp | null = (() => {
+    try {
+        return new RegExp('^\\p{L}$', 'u');
+    } catch {
+        return null;
+    }
+})();
+
+/**
+ * Where `\p{L}` is unavailable: the letter-bearing code-point ranges of XML 1.0's
+ * `NameStartChar` above ASCII, plus the three letters XML leaves out (`ª`, `µ`, `º`).
+ *
+ * An APPROXIMATION of `g_unichar_isalpha`, and deliberately the PERMISSIVE one: measured over
+ * the 63,360 non-ASCII BMP code points it admits 5,022 that `\p{L}` rejects — mostly the
+ * punctuation and symbols the broad `3001-D7FF` range sweeps up — and rejects NONE that
+ * `\p{L}` accepts. For a name validator, over-admitting a name someone wrote is the better
+ * failure than refusing one that is valid. The exact answer, on every runtime that has the
+ * property table, still comes from the escape above.
+ */
+const XML_NAME_START_RANGES: readonly [number, number][] = [
+    [0xaa, 0xaa],
+    [0xb5, 0xb5],
+    [0xba, 0xba],
+    [0xc0, 0xd6],
+    [0xd8, 0xf6],
+    [0xf8, 0x2ff],
+    [0x370, 0x37d],
+    [0x37f, 0x1fff],
+    [0x200c, 0x200d],
+    [0x2070, 0x218f],
+    [0x2c00, 0x2fef],
+    [0x3001, 0xd7ff],
+    [0xf900, 0xfdcf],
+    [0xfdf0, 0xfffd],
+    [0x10000, 0xeffff],
+];
+
 /** `g_unichar_isalpha` for a non-ASCII character. */
-const isUnicodeAlpha = (c: string): boolean => c.codePointAt(0)! >= 0x80 && /^\p{L}$/u.test(c);
+const isUnicodeAlpha = (c: string): boolean => {
+    const code = c.codePointAt(0)!;
+    if (code < 0x80) return false;
+    if (unicodeLetter !== null) return unicodeLetter.test(c);
+    return XML_NAME_START_RANGES.some(([from, to]) => code >= from && code <= to);
+};
 
 /** `name_validate`: `null`, or the message. An empty name is invalid too. */
 function nameError(name: string): string | null {
