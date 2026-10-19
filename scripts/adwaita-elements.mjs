@@ -554,6 +554,131 @@ export function observedAttributes(root) {
     return { byTag, unreadable };
 }
 
+/** Where GJS's `connect` / `disconnect` come from, and the wrapper a class takes them with. */
+export const SIGNALS_MIXIN = 'withSignals';
+
+/** The index of the `}` closing the `{` at {@link open}, or -1 when nothing does. */
+export function matchingBrace(text, open) {
+    let depth = 0;
+    for (let i = open; i < text.length; i += 1) {
+        if (text[i] === '{') depth += 1;
+        else if (text[i] === '}') {
+            depth -= 1;
+            if (depth === 0) return i;
+        }
+    }
+    return -1;
+}
+
+/** The index of the `)` closing the `(` at {@link open}, or -1 when nothing does. */
+export function matchingParen(text, open) {
+    let depth = 0;
+    for (let i = open; i < text.length; i += 1) {
+        if (text[i] === '(') depth += 1;
+        else if (text[i] === ')') {
+            depth -= 1;
+            if (depth === 0) return i;
+        }
+    }
+    return -1;
+}
+
+/**
+ * The properties a class DECLARES at its `extends` instead of writing accessors for —
+ * `withSignals(StackLayout, { Properties: { title: … } })` with `declare title: string;`
+ * in the body (ADR 0105 § 2, route D).
+ *
+ * A MIGRATED WIDGET HAS NO `set title(…)` AND MUST STILL BE READ. On Android those
+ * properties belong to a real GType registered over the NativeScript base, and node-gi
+ * reads them out of the GObject's own store rather than through a JS getter — so an
+ * accessor in the widget would shadow the registered one and leave the store stale. The
+ * declaration is the only place the property lives, and a reader keyed on `set x(` sees a
+ * class with no settable properties at all: `<AdwWindowTitle title=…>` would pass every
+ * XML gate because nothing here could tell it the attribute exists.
+ *
+ * THIS IS THE ONE READER, and it lives here rather than in `nativescript-xml-doors.mjs`
+ * because both files need it and that one already imports this one. A second copy over
+ * there is the defect `classBases` was extracted to end: two readings of the same
+ * declaration that can disagree while both stay green.
+ *
+ * The two halves are read TOGETHER on purpose. `Properties` carries the name and GObject's
+ * kind; only the `declare` line carries the TypeScript type, which is the key every
+ * downstream door turns on. A name in one half and not the other answers as an UNTYPED
+ * property (`annotation: null`) rather than being skipped, so a caller REPORTS it: silence
+ * is indistinguishable from a clean bill.
+ *
+ * The body is empty because there is none — the coercion such a property gets is node-gi's
+ * `GValue` on one leg and the seam's plain store on the other, neither of which is in this
+ * file. Arm 1 of `check-nativescript-xml-doors.mjs` therefore reports any declared property
+ * an XML attribute would carry as a NUMBER or a BOOLEAN, and that is a true finding: the
+ * pure-JS leg stores the raw string NativeScript handed it. Today every declared property
+ * is a string, so nothing is owed yet.
+ *
+ * @param {string} text the module source
+ * @returns {{ name: string, declared: true, params: string | null, annotation: string | null, body: string, executable: string }[]}
+ */
+export function declaredGObjectProperties(text) {
+    const code = stripComments(text);
+    const declared = [];
+    for (const open of mixinMetaBlocks(code)) {
+        const close = matchingBrace(code, open);
+        if (close === -1) continue;
+        const meta = code.slice(open, close + 1);
+        const head = /\bProperties\s*:\s*\{/.exec(meta);
+        if (head === null) continue;
+        const start = head.index + head[0].length - 1;
+        const end = matchingBrace(meta, start);
+        if (end === -1) continue;
+        for (const name of topLevelKeys(meta.slice(start + 1, end))) {
+            const typed = new RegExp(String.raw`^ {4}declare ${name}\s*:\s*([^;]+);`, 'm').exec(code);
+            declared.push({
+                name,
+                declared: true,
+                params: typed === null ? null : `value: ${typed[1].trim()}`,
+                annotation: typed === null ? null : typed[1].trim(),
+                body: '',
+                executable: '',
+            });
+        }
+    }
+    return declared;
+}
+
+/**
+ * The keys of an object literal's OWN level, `{` and `}` stripped.
+ *
+ * By brace depth rather than by indentation: `title: { kind: 'string' }` on one line and
+ * the same descriptor broken over four are the same declaration, and an indentation rule
+ * reads only whichever the formatter happens to produce today. The keys inside a
+ * property's own descriptor — `kind`, `default`, `blurb` — sit deeper and are not
+ * properties.
+ */
+function topLevelKeys(block) {
+    const keys = [];
+    let depth = 0;
+    for (const match of block.matchAll(/[{}[\]()]|([A-Za-z_$][\w$]*)\s*:/g)) {
+        if (match[1] !== undefined) {
+            if (depth === 0) keys.push(match[1]);
+            continue;
+        }
+        depth += '{[('.includes(match[0]) ? 1 : -1;
+    }
+    return keys;
+}
+
+/** The index of each `{` opening a `withSignals(Base, { … })` meta argument in {@link code}. */
+function mixinMetaBlocks(code) {
+    const opens = [];
+    for (const match of code.matchAll(new RegExp(String.raw`\b${SIGNALS_MIXIN}\s*\(`, 'g'))) {
+        const paren = match.index + match[0].length - 1;
+        const close = matchingParen(code, paren);
+        if (close === -1) continue;
+        const brace = code.indexOf('{', paren);
+        if (brace !== -1 && brace < close) opens.push(brace);
+    }
+    return opens;
+}
+
 /**
  * Every property a widget class lets a caller SET — `set <name>(`, PLUS the
  * attributes it observes.
@@ -569,6 +694,10 @@ export const settableProperties = (text, path) => {
     const setters = new Set(
         [...stripComments(text).matchAll(/\bset\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g)].map(([, name]) => name),
     );
+    // A property the signals mixin builds from a real GType has no `set` accessor anywhere
+    // in the file, and is settable in exactly the sense this asks about
+    // ({@link declaredGObjectProperties}).
+    for (const { name } of declaredGObjectProperties(text)) setters.add(name);
     // `show-apply-button` is the attribute; `showApplyButton` is the control name
     // a meta declares. Both spellings go in, so the caller can ask either way.
     for (const attrs of observedAttributesByClass(text, path).byClass.values()) {
@@ -609,6 +738,9 @@ export function settablePropertiesOfClass(text, className) {
     const to = at + 1 < classes.length ? classes[at + 1].index : code.length;
     const body = code.slice(from, to);
     const settable = new Set([...body.matchAll(/\bset\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g)].map(([, name]) => name));
+    // The slice starts AT the `class` keyword, so the `extends withSignals(Base, { … })` that
+    // declares a route-D property is inside this class's body and belongs to this class alone.
+    for (const { name } of declaredGObjectProperties(body)) settable.add(name);
     // A GTK property whose name the platform base owns has no accessor: the class types it in
     // the second half of its bag, `ConstructProps<Self, { direction: … }>`, and sets it through
     // `set_<p>()` (widgets/shadowed-properties.ts). That is a property it sets.
@@ -669,7 +801,33 @@ function valueImports(text) {
  * @param {string} root repository root, for naming files in a failure
  * @returns {(file: string) => boolean}
  */
+/**
+ * The helper modules the one hop deliberately does NOT traverse.
+ *
+ * `widgets/signals.ts` is the seam EVERY NativeScript widget takes its base through
+ * (`extends withSignals(GridLayout)`), and since ADR 0105 § 2 route D it imports
+ * `engineForTarget` from `@gjsify/adwaita-core` to ask which GObject engine the build runs
+ * on. That edge belongs to the MIXIN, not to any widget: traversed, it would score all 46
+ * wrapping classes core-backed at once, off one import none of them wrote — the same claim
+ * this reader exists to refuse, since `adw-header-bar` was published core-backed off a
+ * comment and a universally shared import is a comment with a semicolon.
+ *
+ * Kept short on purpose. A helper here is one EVERY element imports; anything a few of them
+ * import is a delegation and the one hop is what reads it.
+ */
+const NOT_A_DELEGATION = new Set(['packages/nativescript-bridge/adwaita/src/widgets/signals.ts']);
+
 export function coreReach(rendererFiles, root) {
+    for (const path of NOT_A_DELEGATION) {
+        // A stale entry reads as considered and silently widens the hop back. Same rule as
+        // `NOT_AN_XML_WIDGET`'s: the exemption has to still name something.
+        if (!existsSync(join(root, path))) {
+            throw new Error(
+                `NOT_A_DELEGATION names ${path}, which is not there. Drop the entry or point it at ` +
+                    'the module that took over — an exemption for a file nobody has reads as considered.',
+            );
+        }
+    }
     const read = (file) => {
         try {
             return readFileSync(file, 'utf8');
@@ -685,12 +843,13 @@ export function coreReach(rendererFiles, root) {
     const byImport = (file) => {
         const text = read(file);
         if (importsCore(text)) return true;
-        return valueImports(text).some(
-            (spec) =>
-                spec.startsWith('.') &&
-                !rendererFiles.has(sibling(file, spec)) &&
-                importsCore(read(sibling(file, spec))),
-        );
+        return valueImports(text).some((spec) => {
+            if (!spec.startsWith('.')) return false;
+            const target = sibling(file, spec);
+            if (rendererFiles.has(target)) return false;
+            if (NOT_A_DELEGATION.has(toPosixPath(relative(root, target)))) return false;
+            return importsCore(read(target));
+        });
     };
 
     return (file) => {

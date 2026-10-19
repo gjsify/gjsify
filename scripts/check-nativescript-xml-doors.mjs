@@ -182,10 +182,15 @@ for (const tag of [...reachable].sort()) {
         const { name } = setter;
         if (setter.annotation === null) {
             failures.push(
-                `${file}: \`set ${name}(${setter.params ?? '…'})\` declares no type for its parameter, so ` +
-                    'nothing here can tell whether an XML attribute may carry it. This package compiles with ' +
-                    '`"strict": false`, so the implicit `any` is not a type error either — annotate the ' +
-                    'parameter, and the coercion rule applies to it like every other setter.',
+                setter.declared
+                    ? `${file}: ${tag} declares the GObject property \`${name}\` at its \`extends\` with no ` +
+                          `matching \`declare ${name}: <type>;\` in the class body, so nothing here can tell ` +
+                          'whether an XML attribute may carry it. The mixin builds the accessor either way — the ' +
+                          'declaration is the only place the property keeps its TYPE and its docs.'
+                    : `${file}: \`set ${name}(${setter.params ?? '…'})\` declares no type for its parameter, so ` +
+                          'nothing here can tell whether an XML attribute may carry it. This package compiles with ' +
+                          '`"strict": false`, so the implicit `any` is not a type error either — annotate the ' +
+                          'parameter, and the coercion rule applies to it like every other setter.',
             );
             continue;
         }
