@@ -54,6 +54,20 @@ export const AdwAccentTest = async () => {
         }
     });
 
+    await describe('the named accent palette (`--accent-<name>` on :root)', async () => {
+        for (const vector of ACCENT_COLOR_VECTORS) {
+            await it(`--accent-${vector.name} is the accent's background, in both schemes`, async () => {
+                for (const scheme of ['theme-light', 'theme-dark']) {
+                    const host = document.createElement('div');
+                    host.className = scheme;
+                    document.body.append(host);
+                    expect(property(host, `--accent-${vector.name}`)).toBe(vector.background);
+                    host.remove();
+                }
+            });
+        }
+    });
+
     await describe('accent application', async () => {
         await it('reads the resolved scheme from the element rather than assuming light', async () => {
             const dark = document.createElement('div');
