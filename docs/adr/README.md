@@ -138,7 +138,7 @@ the TODO records the *what's left*.
 | [0116](0116-app-gresources-are-embedded-at-build-time-for-web-and-nativescript.md) | An app's GResources are embedded at build time, and a Gio subset answers them on the web and NativeScript | Accepted |
 | [0117](0117-android-gi-namespaces-are-selected-at-build-time.md) | Which GI namespaces enter an Android APK is selected at build time | Proposed |
 | [0118](0118-a-glib-variant-subset-runs-on-the-browser-and-nativescript.md) | A `GLib.Variant` subset runs on the browser and NativeScript, and `Gio.Settings` stores arrays with it | Accepted |
-| [0119](0119-gtk-css-from-a-css-provider-applies-on-the-web.md) | GTK CSS loaded through `Gtk.CssProvider` applies on the web, translated through one node table per widget | Proposed |
+| [0119](0119-gtk-css-from-a-css-provider-applies-on-the-web.md) | GTK CSS loaded through `Gtk.CssProvider` applies on the web, translated through one node table per widget | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

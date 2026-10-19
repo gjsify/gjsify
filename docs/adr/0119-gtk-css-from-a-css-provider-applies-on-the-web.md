@@ -1,6 +1,6 @@
 # 119. GTK CSS loaded through `Gtk.CssProvider` applies on the web, translated through one node table per widget
 
-- Status: **Proposed**
+- Status: **Accepted** (2026-10-19)
 - Date: 2026-10-19
 - Deciders: Pascal Garber
 - Depends on: [ADR 0004 (headless Adwaita core)](0004-headless-adwaita-core.md), the platform
@@ -140,8 +140,8 @@ GtkCheckButton: {
   `:disabled`) to the attribute the element publishes. `:hover`, `:active`, `:focus`,
   `:focus-visible` and `:focus-within` map to the browser's own pseudo-classes, which mean the same.
 - A style class stays a class: `add_css_class` already writes `classList` (`gobject-elements.ts`).
-- A widget name (`#name`) becomes an attribute selector on the name the element publishes for
-  `Gtk.Widget:name`. That attribute is part of the implementation, since adwaita-web does not
+- A widget name (`#name`) becomes `[gtk-name="name"]`, the attribute the element publishes for
+  `Gtk.Widget:name`. Publishing it is part of the implementation, since adwaita-web does not
   publish the name today.
 - `gtkProperties` maps a GTK-only property to the part that draws it. `-gtk-icon-source: none` on
   `radio` hides the glyph the skin draws in `::after`. A GTK-only property without a row is refused.
@@ -285,15 +285,15 @@ stylesheet, a widget tree built from GTK names, a state change, and the values t
 - The `parsing-error` signal and per-widget providers.
 - Design-language token sheets themselves (ADR 0090).
 
-## Open questions
+## Resolved at acceptance
 
-- **ADR 0010's reset (§ 4).** Is losing the reset against direct host rules acceptable, or does the
-  reset need its own treatment? The recommendation is to accept it and keep Shadow DOM as ADR
-  0010's answer for hostile hosts.
-- **`padding: 12` in Learn6502's `main-button.css`.** GTK drops it on GNOME today. The fix
-  (`12px`) belongs in Learn6502; this ADR only makes the web agree with GNOME.
-- **The widget-name attribute** (§ 3): which attribute name adwaita-web publishes for
-  `Gtk.Widget:name`.
+- **ADR 0010's reset (§ 4).** Accepted as stated: direct host rules outrank the layered reset, and
+  Shadow DOM stays ADR 0010's answer for hostile hosts.
+- **`padding: 12` in Learn6502's `main-button.css`.** Fixed to `12px` in Learn6502; this ADR only
+  makes the web agree with GNOME.
+- **The widget-name attribute** (§ 3): adwaita-web publishes `Gtk.Widget:name` as the `gtk-name`
+  attribute, and `#name` compiles to `[gtk-name="name"]`. Not `id`, which the DOM requires to be
+  unique while GTK widget names may repeat; not `name`, which form elements already own.
 
 ## Implementation
 

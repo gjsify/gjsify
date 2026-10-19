@@ -224,7 +224,7 @@ first. First consumer: Learn6502 `support-prompt-years` (`type="ai"`), unpersist
 
 ### GTK CSS from a `CssProvider` does not apply on the web (ADR 0119)
 
-ADR 0119 (Proposed 2026-10-19): `load_from_string` hands GTK CSS to the web `<style>` and to
+ADR 0119 (Accepted 2026-10-19): `load_from_string` hands GTK CSS to the web `<style>` and to
 NativeScript's `addCss` verbatim, so node selectors (`checkbutton.primary radio`, `:checked`)
 match nothing; Learn6502's colour swatches render as grey radios on the web. Planned:
 `GTK_CSS_VECTORS` against GJS first, then `adwaita-core/src/gtk-css/` (parser, node tables,
