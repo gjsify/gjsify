@@ -222,6 +222,15 @@ them, exported as `GLib.Variant` from both ports; `Gio.Settings` `get_value`/`se
 key types in `@gjsify/app-settings`, stored as GVariant text. `VARIANT_VECTORS` against GJS come
 first. First consumer: Learn6502 `support-prompt-years` (`type="ai"`), unpersisted on web/Android.
 
+### GTK CSS from a `CssProvider` does not apply on the web (ADR 0119)
+
+ADR 0119 (Accepted 2026-10-19): `load_from_string` hands GTK CSS to the web `<style>` and to
+NativeScript's `addCss` verbatim, so node selectors (`checkbutton.primary radio`, `:checked`)
+match nothing; Learn6502's colour swatches render as grey radios on the web. Planned:
+`GTK_CSS_VECTORS` against GJS first, then `adwaita-core/src/gtk-css/` (parser, node tables,
+web emitter), cascade layers per priority with the skin at `gtk-p0200`, nesting lowered for
+`--app browser`. NativeScript is a second stage after `var()` is measured there.
+
 ### The file chooser has no iOS picker and no on-device Android run
 
 ADR 0100 decides Android's Storage Access Framework only. `file-chooser-source.ios.ts` rejects, so
