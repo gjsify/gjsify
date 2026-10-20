@@ -607,12 +607,13 @@ export function matchingParen(text, open) {
  * property (`annotation: null`) rather than being skipped, so a caller REPORTS it: silence
  * is indistinguishable from a clean bill.
  *
- * The body is empty because there is none — the coercion such a property gets is node-gi's
- * `GValue` on one leg and the seam's plain store on the other, neither of which is in this
- * file. Arm 1 of `check-nativescript-xml-doors.mjs` therefore reports any declared property
- * an XML attribute would carry as a NUMBER or a BOOLEAN, and that is a true finding: the
- * pure-JS leg stores the raw string NativeScript handed it. Today every declared property
- * is a string, so nothing is owed yet.
+ * The body is empty because there is none — the coercion such a property gets is the seam's
+ * `coerceDeclared`, applied ahead of node-gi's `GValue` on one leg and of the plain store on
+ * the other, neither of which is in this file. Arm 1 of `check-nativescript-xml-doors.mjs`
+ * therefore takes a declared NUMBER or BOOLEAN as coerced (`coerces`), and arm 6 is what holds
+ * that the seam still calls `coerceDeclared` on both legs. Before `AdwSpinner` this was a true
+ * finding, not a formality: the pure-JS leg stored the raw string NativeScript handed it, and
+ * node-gi read `'false'` as true.
  *
  * @param {string} text the module source
  * @returns {{ name: string, declared: true, params: string | null, annotation: string | null, body: string, executable: string }[]}

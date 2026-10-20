@@ -1094,6 +1094,11 @@ export function publicMethodsOf(text, className) {
 /** Does the setter actually put the value through something that accepts a string? */
 export function coerces(setter, kind) {
     if (kind === 'string') return true;
+    // A property DECLARED at the `extends` has no setter body to read: the signals seam coerces a
+    // string to the declared boolean or number on BOTH legs (`coerceDeclared`), and arm 6 holds
+    // that the seam still does. Only the two primitive kinds — a declared property has no JSON or
+    // id kind, so those fall through and keep failing.
+    if (setter.declared === true && (kind === 'number' || kind === 'boolean')) return true;
     // A JSON door is not interchangeable with a primitive coercer: `xmlNumber` on an
     // object gives the fallback, and `parseAdjustment` on a number gives nothing
     // authored. So this kind is held against ITS OWN doors and no others.
