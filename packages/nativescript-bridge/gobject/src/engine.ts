@@ -35,7 +35,15 @@
 // imports the bridge at all; the caller passes `requireGi` in, exactly as the stage-0 oracle does.
 
 import { bindProperties, type Binding, type BindingFlag } from '@gjsify/adwaita-core';
-import type { ClassLike, GObjectEngine, GType, ParamSpec, RegisteredClass } from '@gjsify/adwaita-core';
+import type {
+    ClassLike,
+    ForeignClassMeta,
+    ForeignProperty,
+    GObjectEngine,
+    GType,
+    ParamSpec,
+    RegisteredClass,
+} from '@gjsify/adwaita-core';
 
 /**
  * `@gjsify/node-gi/gi`'s default export, as much of it as this engine uses. Declared rather than
@@ -63,6 +71,12 @@ type RealParamSpec = unknown;
 interface RealGObject {
     registerClass(meta: Record<string, unknown>, klass: Function): RealConstructor;
     Object: RealConstructor;
+    /**
+     * node-gi's answer to "does this host let a GType be registered over a FOREIGN parent class"
+     * — true on the NativeScript host, false on node. Asking beats registering and catching: ADR
+     * 0105's no-silent-fallback rule needs the question answerable before a class commits.
+     */
+    $foreignParentClasses?: boolean;
     ParamSpec: {
         string(name: string, nick: string, blurb: string, flags: number, value?: string): RealParamSpec;
         boolean(name: string, nick: string, blurb: string, flags: number, value?: boolean): RealParamSpec;
@@ -179,6 +193,37 @@ export function createRealGioEngine(requireGi: RequireGi): GObjectEngine {
         }
     }
 
+    /**
+     * The same translation as {@link paramSpecFor}, for a property a WIDGET class declared at its
+     * `extends` rather than one the subset's `registerClass` built. The two differ only in where
+     * the description comes from: a {@link ForeignProperty} is the port's own vocabulary, which
+     * carries a default and nothing else, so the range is always the kind's widest.
+     */
+    function foreignParamSpecFor(name: string, property: ForeignProperty): RealParamSpec {
+        const nick = property.nick ?? '';
+        const blurb = property.blurb ?? '';
+        const value = property.default;
+        switch (property.kind) {
+            case 'boolean':
+                return GObject.ParamSpec.boolean(name, nick, blurb, READWRITE, (value ?? false) as boolean);
+            case 'string':
+                // A null default is a NULL default: node-gi takes the absent argument for it.
+                return GObject.ParamSpec.string(name, nick, blurb, READWRITE, (value ?? undefined) as string);
+            default: {
+                const [minimum, maximum] = RANGES[property.kind];
+                return GObject.ParamSpec[property.kind](
+                    name,
+                    nick,
+                    blurb,
+                    READWRITE,
+                    minimum,
+                    maximum,
+                    (value ?? 0) as number,
+                );
+            }
+        }
+    }
+
     function signalTypeOf(type: GType): string {
         const mapped = SIGNAL_TYPES[type.name];
         if (mapped === undefined) {
@@ -262,6 +307,42 @@ export function createRealGioEngine(requireGi: RequireGi): GObjectEngine {
 
     return {
         name: 'real-gio',
+
+        // The HOST decides, not this engine: node-gi reaches real GObject on node too, and there
+        // a foreign parent is refused. `$foreignParentClasses` is the overlay node-gi publishes
+        // for exactly this question.
+        supportsForeignParentClasses: GObject.$foreignParentClasses === true,
+
+        registerForeignClass(klass: ClassLike, meta: ForeignClassMeta) {
+            if (GObject.$foreignParentClasses !== true) {
+                throw new Error(
+                    `real-gio engine: this host does not support foreign parent classes, ` +
+                        `so '${meta.GTypeName}' cannot be registered over its NativeScript base`,
+                );
+            }
+            const properties: Record<string, RealParamSpec> = {};
+            for (const [name, property] of Object.entries(meta.Properties ?? {})) {
+                properties[name] = foreignParamSpecFor(name, property);
+            }
+            const signals: Record<string, { param_types: string[] }> = {};
+            for (const [name, signal] of Object.entries(meta.Signals ?? {})) {
+                signals[name] = { param_types: [...(signal.param_types ?? [])] };
+            }
+            // GTypeName as the widget wrote it — a widget class registers ONCE per process, so
+            // the twin path's uniquifying suffix would only make the type unnameable from a
+            // debugger. A real collision is a real bug and GObject says so.
+            GObject.registerClass(
+                { GTypeName: meta.GTypeName, Properties: properties, Signals: signals },
+                klass as unknown as Function,
+            );
+            // NO SILENT FALLBACK. `registerClass` returns the same class it was handed, so the
+            // return value proves nothing; `$gtype` as an OWN property of `klass` is what the
+            // registration defines and what an inherited one (from an already registered parent)
+            // cannot fake.
+            if (!Object.prototype.hasOwnProperty.call(klass, '$gtype')) {
+                throw new Error(`real-gio engine: registering '${meta.GTypeName}' defined no GType`);
+            }
+        },
 
         register(info) {
             const Parent = parentTwinOf(info.klass);

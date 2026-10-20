@@ -51,6 +51,7 @@ import { AdwWidgetBaseNsTest } from './widget-base.spec.js';
 import { AdwWidgetMapNsTest } from './widget-map.spec.js';
 import { AdwWindowRootsNsTest } from './window-roots.spec.js';
 import { AdwWindowShellNsTest } from './window-shell.spec.js';
+import { AdwWindowTitlePropertiesNsTest } from './window-title-properties.spec.js';
 
 run({
     AdwApplicationNsTest,
@@ -75,6 +76,7 @@ run({
     AdwWindowRootsNsTest,
     GtkWindowMembersNsTest,
     AdwWindowShellNsTest,
+    AdwWindowTitlePropertiesNsTest,
     GtkToggleButtonNsTest,
     GtkWidgetTreeNsTest,
     GtkButtonActionsNsTest,

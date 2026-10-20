@@ -18,11 +18,25 @@
 // Reference: refs/libadwaita/src/adw-window-title.c, adw-window-title.ui
 // Reference: refs/libadwaita/src/stylesheet/widgets/_header-bar.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+//
+// THE FIRST WIDGET WHOSE PROPERTIES ARE A REAL GObject's (ADR 0105 § 2, route D). `title` and
+// `subtitle` are DECLARED at the `extends` and built by the seam, not written here: on Android
+// they are properties of a GType registered over `StackLayout`, so `instanceof GObject.Object`,
+// `bind_property` and `Gio.ListStore` identity are the real thing; everywhere else they are the
+// seam's own accessors, with the same names, the same notifies and the same equal-write rule.
+// `widgets/signals.ts` says why, at length.
+//
+// WHAT THAT COSTS THIS FILE. There is no `get title()` / `set title()` any more — node-gi reads
+// a property out of the GObject's store and never calls a JS getter, so an accessor here would
+// shadow the registered one and leave the store stale. `declare title: string;` keeps the type
+// and the docs without emitting code. And `_apply()` is no longer called from a setter: it hangs
+// off `notify::title` / `notify::subtitle`, which is where both legs agree a change is a change.
 
-import { Label, StackLayout, type EventData } from '@nativescript/core';
+import { Label, StackLayout } from '@nativescript/core';
 import { WindowTitleState, toLabelVisuals } from './row-state.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
+import type { GObjectNotify } from './signals.js';
 
 /** Event name emitted when {@link AdwWindowTitle.title} changes. */
 export const NOTIFY_TITLE = 'notify::title';
@@ -30,8 +44,23 @@ export const NOTIFY_TITLE = 'notify::title';
 /** Event name emitted when {@link AdwWindowTitle.subtitle} changes. */
 export const NOTIFY_SUBTITLE = 'notify::subtitle';
 
-export class AdwWindowTitle extends withSignals(StackLayout) {
+export class AdwWindowTitle extends withSignals(StackLayout, {
+    GTypeName: 'AdwWindowTitle',
+    Properties: {
+        title: { kind: 'string', default: '', blurb: 'The title to display' },
+        subtitle: { kind: 'string', default: '', blurb: 'The subtitle to display' },
+    },
+}) {
     static readonly GTypeName: string = 'AdwWindowTitle';
+
+    /** The window title (bold, top line). Empty collapses its label. */
+    declare title: string;
+
+    /** The subtitle (dim second line). Empty collapses its label. */
+    declare subtitle: string;
+
+    /** `notify('title')` beside NativeScript's `notify({ eventName })` — see {@link GObjectNotify}. */
+    declare notify: GObjectNotify;
 
     /** The bold title label. */
     protected readonly _titleLabel: Label;
@@ -63,44 +92,27 @@ export class AdwWindowTitle extends withSignals(StackLayout) {
         this.addChild(subtitleLabel);
         this._subtitleLabel = subtitleLabel;
 
+        // The property is the source of truth now, and a notification is what says it moved —
+        // on either leg. The handler reads the EMITTER rather than an enclosing `this`, which is
+        // the idiom `tests/integration/nativescript-gi/app/specs/foreign-parent.ts` settled on.
+        this.connect(NOTIFY_TITLE, (self) => self._apply());
+        this.connect(NOTIFY_SUBTITLE, (self) => self._apply());
+
         this._apply();
 
         applyConstructProps(this, props);
     }
 
-    /** The window title (bold, top line). Empty collapses its label. */
-    get title(): string {
-        return this._state.title;
-    }
-
-    set title(value: string) {
-        if (!this._state.setTitle(value)) return;
-        this._apply();
-        this._notify(NOTIFY_TITLE);
-    }
-
-    /** The subtitle (dim second line). Empty collapses its label. */
-    get subtitle(): string {
-        return this._state.subtitle;
-    }
-
-    set subtitle(value: string) {
-        if (!this._state.setSubtitle(value)) return;
-        this._apply();
-        this._notify(NOTIFY_SUBTITLE);
-    }
-
     /** Push the derived text + visibility onto the two `Label`s. */
     private _apply(): void {
+        // `WindowTitleState` stays the headless half (ADR 0004) and keeps deriving the visuals;
+        // what it no longer owns is the CHANGE DETECTION, which is the property's own now.
+        this._state.setTitle(this.title);
+        this._state.setSubtitle(this.subtitle);
         const visuals = toLabelVisuals(this._state.state);
         this._titleLabel.text = visuals.title;
         this._titleLabel.visibility = visuals.titleVisibility;
         this._subtitleLabel.text = visuals.subtitle;
         this._subtitleLabel.visibility = visuals.subtitleVisibility;
-    }
-
-    private _notify(eventName: string): void {
-        const data: EventData = { eventName, object: this };
-        this.notify(data);
     }
 }

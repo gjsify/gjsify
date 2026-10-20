@@ -31,7 +31,18 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-comments.mjs';
-import { namespaceExport } from './adwaita-elements.mjs';
+import {
+    declaredGObjectProperties,
+    matchingBrace,
+    matchingParen,
+    namespaceExport,
+    SIGNALS_MIXIN,
+} from './adwaita-elements.mjs';
+
+// Re-exported where this file's own consumers have always found them. The definitions moved
+// down to `adwaita-elements.mjs` so `declaredGObjectProperties` could sit beside them without
+// an import cycle — this file already reads from there, and the edge may not go both ways.
+export { declaredGObjectProperties, matchingBrace, matchingParen, SIGNALS_MIXIN };
 
 /** Where the widget classes live, relative to the repo root. */
 export const NS_WIDGETS_DIR = 'packages/nativescript-bridge/adwaita/src/widgets';
@@ -239,9 +250,8 @@ export function readCoreMethods(root) {
     return names;
 }
 
-/** Where GJS's `connect` / `disconnect` come from, and the wrapper a class takes them with. */
+/** Where GJS's `connect` / `disconnect` come from; {@link SIGNALS_MIXIN} is the wrapper. */
 export const NS_SIGNALS = `${NS_WIDGETS_DIR}/signals.ts`;
-export const SIGNALS_MIXIN = 'withSignals';
 
 /**
  * The `withSignals(` opener, tolerant of the line break a long declaration takes.
@@ -503,19 +513,6 @@ export function constructorOf(text, name) {
     return { params: text.slice(open + 1, close).trim(), body, executable: executable(body) };
 }
 
-/** The index of the `}` closing the `{` at {@link open}, or -1 when nothing does. */
-export function matchingBrace(text, open) {
-    let depth = 0;
-    for (let i = open; i < text.length; i += 1) {
-        if (text[i] === '{') depth += 1;
-        else if (text[i] === '}') {
-            depth -= 1;
-            if (depth === 0) return i;
-        }
-    }
-    return -1;
-}
-
 /**
  * A `Record` literal in a TypeScript source, as a Map of key to raw value text.
  *
@@ -732,19 +729,6 @@ export function chainOf(sources, tag) {
     return chain;
 }
 
-/** The index of the `)` closing the `(` at {@link open}, or -1 when nothing does. */
-export function matchingParen(text, open) {
-    let depth = 0;
-    for (let i = open; i < text.length; i += 1) {
-        if (text[i] === '(') depth += 1;
-        else if (text[i] === ')') {
-            depth -= 1;
-            if (depth === 0) return i;
-        }
-    }
-    return -1;
-}
-
 /**
  * EVERY setter a source declares, read by scanning rather than by one regex — including
  * the ones no regex over `([^)]+)` can spell.
@@ -765,6 +749,13 @@ export function matchingParen(text, open) {
  * type, and the caller REPORTS that instead of skipping it. A reader that cannot read
  * a declaration has to say so; silence is indistinguishable from a clean bill.
  *
+ * A THIRD SHAPE is not a setter at all: a property DECLARED at the `extends`, built by
+ * the signals mixin from a real GType (ADR 0105 § 2, route D). It is folded in here
+ * rather than left to each caller, because every one of them is asking what a widget
+ * settles for an XML attribute — and `AdwWindowTitle.title` is that whether the accessor
+ * was written in the class or generated at its base. {@link declaredGObjectProperties}
+ * reads it; `declared` on each record says which of the two a caller is looking at.
+ *
  * The BODY ends at the first line indented four spaces — the closing `}` of a
  * conventionally formatted setter, or the next member of the class. The old bound
  * (`indexOf('\n    }')`) ran past a one-line setter into whatever followed, so
@@ -772,12 +763,12 @@ export function matchingParen(text, open) {
  * coercing itself: a false pass, counted, with the arm reporting one more setter held.
  */
 export function settersOf(text) {
-    const setters = [];
+    const setters = [...declaredGObjectProperties(text)];
     for (const match of text.matchAll(/^ {4}set (\w+)\(/gm)) {
         const open = match.index + match[0].length - 1;
         const close = matchingParen(text, open);
         if (close === -1) {
-            setters.push({ name: match[1], params: null, annotation: null, body: '', executable: '' });
+            setters.push({ name: match[1], declared: false, params: null, annotation: null, body: '', executable: '' });
             continue;
         }
         const params = text.slice(open + 1, close).trim();
@@ -791,6 +782,7 @@ export function settersOf(text) {
         const typed = /^(\w+)\s*:\s*([\s\S]+)$/.exec(params);
         setters.push({
             name: match[1],
+            declared: false,
             params,
             annotation: typed === null ? null : typed[2].trim(),
             body,
@@ -967,13 +959,16 @@ export function attributeKind(texts, annotation, seen = new Set()) {
  *
  * Getters, setters and methods in one set, because a refusal reason names a member the
  * way a reader would — `GtkDropDown.options`, `AdwToastOverlay.add_toast` — without
- * caring which of the three it is.
+ * caring which of the three it is. A property declared at the `extends` and built by the
+ * signals mixin is in there for the same reason: a caller asking "does this widget have
+ * `title`" wants yes, not a lesson in where the accessor comes from.
  */
 export function membersOf(sources, tag) {
     const members = new Set();
     for (const text of chainOf(sources, tag)) {
         for (const [, name] of text.matchAll(/^ {4}(?:get|set) (\w+)[(<]/gm)) members.add(name);
         for (const [, name] of text.matchAll(/^ {4}(?:async )?(\w+)\(/gm)) members.add(name);
+        for (const { name } of declaredGObjectProperties(text)) members.add(name);
     }
     return members;
 }

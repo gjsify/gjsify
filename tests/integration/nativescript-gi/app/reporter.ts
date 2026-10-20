@@ -95,6 +95,16 @@ export function expect(actual: unknown) {
                 typeof actual === 'string' ? actual.includes(String(v)) : Array.isArray(actual) && actual.includes(v);
             if (!ok) fail(`expected ${JSON.stringify(actual)} to contain ${String(v)}`);
         },
+        /** `actual` is the CALL, not its result: `expect(() => w.disconnect(id)).toThrow()`. */
+        toThrow() {
+            if (typeof actual !== 'function') fail(`expected a function to call, got ${String(actual)}`);
+            try {
+                (actual as () => unknown)();
+            } catch {
+                return;
+            }
+            fail('expected the call to throw, it returned');
+        },
     };
 }
 

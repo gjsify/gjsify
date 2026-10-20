@@ -3435,6 +3435,12 @@ function signalEmitByName(object, ...nameAndArgs) {
 // makeClass). Merged enums are cached so identity is stable.
 const OVERLAY_NAMES = new Set([
     'registerClass',
+    // Whether THIS host registers a class over a non-GObject parent (the FOREIGN-PARENT
+    // section above) or throws on one. A caller that wants route D has no other way to
+    // ask: the only alternative is to register and catch, which registers a GType as a
+    // side effect of a question and turns "this host cannot" into the same outcome as
+    // "this registration was wrong". Read by @gjsify/adwaita-gobject-native's engine.
+    '$foreignParentClasses',
     'GTypeName',
     'properties',
     'signals',
@@ -3504,6 +3510,7 @@ function decorateGObjectNamespace(baseNs) {
         if (cache.has(prop)) return cache.get(prop);
         let value;
         if (prop === 'registerClass') value = registerClass;
+        else if (prop === '$foreignParentClasses') value = FOREIGN_PARENT_CLASSES;
         else if (prop === 'GTypeName') value = GTypeNameSymbol;
         else if (prop === 'properties') value = propertiesSymbol;
         else if (prop === 'signals') value = signalsSymbol;
