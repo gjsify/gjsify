@@ -55,17 +55,25 @@ first construction throws unless the app opted in or out explicitly, because rea
 Android default (ADR 0110 § 1) and a silent fallback would report the subset from a payload that
 carries the whole engine.
 
-MIGRATE NEXT: `widgets/adw-spinner.ts`. Same shape as window-title — `withSignals(GridLayout)`
-directly, no children a consumer passes in — and it brings exactly ONE new question:
-`spinning` is a boolean and `size` a number, so it is the first declared property that is not a
-string. Two things bend there and both are known. The ParamSpec kinds beyond `'string'` are
-declared in the seam's vocabulary but no widget has exercised them. And the xml-doors coercion
-arm will FAIL as written: NativeScript hands an XML attribute over as a raw string, the pure-JS
-leg stores exactly that, and route D's `set_property` coerces to the ParamSpec's type — so the
-two legs disagree on `<AdwSpinner spinning="true">` until the seam coerces on the pure side too.
-Pick that over `adw-switch-row.ts` (a port SUBCLASS, so it adds GObject inheritance on top) and
-over `adw-button-content.ts` (whose `hostButton` is a `View`, an object-typed property with no
-ParamSpec kind yet).
+`widgets/adw-spinner.ts` is the SECOND, and the first whose properties are not strings
+(`spinning` boolean, `size` double). The coercion trap is solved AT THE SEAM, not per widget:
+`signals.ts` `coerceDeclared()` turns an XML string into the declared type on BOTH legs (pure
+side: in the declared setter; route D: `wrapRouteDAccessors()` over the accessors node-gi
+installed). Only strings are touched; `'true'`/`'false'` for booleans, a finite `Number()` for
+number kinds, anything else throws. A property whose reading is more lenient than that (`size`
+accepts `"24px"` and floors at 16) declares `normalize`, which replaces the seam's coercion on
+both legs. No existing widget's observable types changed (window-title is string-kind). The one
+consumer-visible change: `spinning="maybe"` used to become false silently and now throws.
+The xml-doors gate accepts a declared number/boolean property and checks the seam still calls
+`coerceDeclared` on both legs. 702 trees tests, 1714 pure tests; device: emulator API 36 and a
+Galaxy S9, 143 real-gio and 61 pure-JS cases each, `specs/spinner.ts`.
+
+MIGRATE NEXT: `widgets/adw-switch-row.ts`, with its base `adw-action-row.ts` first (`withSignals
+(GridLayout)`, no `meta` yet). The new question is GObject INHERITANCE: the first port widget
+that is a registered class over another registered class, so the seam's lazy realization, the
+per-level `connect` router restore and `$foreignSkipped` all run twice on one prototype chain.
+Not `adw-button-content.ts` yet: its `hostButton` is a `View`, an object-typed property with no
+ParamSpec kind.
 
 CARRY THESE: `vfunc_*` does not work on a foreign-parent class, so a widget that needs one stays
 on the twin. And a name the host chain owns is skipped, not shadowed: read `$foreignSkipped` in
