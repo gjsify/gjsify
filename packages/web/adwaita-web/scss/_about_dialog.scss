@@ -199,8 +199,9 @@ adw-about-dialog {
     }
   }
 
-  // The trailing chevron / link affordance on a navigation or link row.
-  .adw-about-dialog-chevron {
+  // The trailing chevron on a navigation row, and the external-link / mail glyph on a link row.
+  .adw-about-dialog-chevron,
+  .adw-about-dialog-link-icon {
     width: 16px;
     height: 16px;
     opacity: var(--dim-opacity);

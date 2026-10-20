@@ -623,4 +623,59 @@ export const AdwAboutDialogTest = async () => {
             mounted.dispose();
         });
     });
+
+    await describe('adw-about-dialog link rows are AdwLinkRow, navigation rows are not', async () => {
+        const iconOf = (row: Element) => row.querySelector('gtk-image');
+
+        await it('draws website, support, issue and credit links as link rows with a tooltip', () => {
+            const mounted = mount({
+                website: 'https://example.org/a%20b',
+                'support-url': 'https://example.org/help',
+                'issue-url': 'https://example.org/issues',
+            });
+            mounted.dialog.developers = ['Ada <ada@example.org>', 'Bob https://example.org/bob'];
+            mounted.dialog.add_link('_Docs', 'https://example.org/docs');
+
+            const rows = [
+                ...page(mounted.dialog, 'main')!.querySelectorAll('adw-action-row.link'),
+                ...page(mounted.dialog, 'details')!.querySelectorAll('adw-action-row.link'),
+                ...page(mounted.dialog, 'credits')!.querySelectorAll('adw-action-row.link'),
+            ];
+            expect(rows.length).toBe(6);
+            for (const row of rows) {
+                expect(row.getAttribute('role')).toBe('link');
+                expect(row.hasAttribute('activatable')).toBe(true);
+                expect(row.querySelector('[icon-name="go-next"], [icon="go-next"]')).toBe(null);
+                expect(iconOf(row)).not.toBe(null);
+            }
+            const website = rows.find((r) => r.getAttribute('title') === label('websiteRow'))!;
+            expect(website.getAttribute('tooltip-text')).toBe('https://example.org/a b');
+            mounted.dispose();
+        });
+
+        await it('picks the glyph by scheme: mail-send for mailto:, external-link otherwise', () => {
+            const mounted = mount({ website: 'https://example.org' });
+            mounted.dialog.developers = ['Ada <ada@example.org>', 'Bob https://example.org/bob'];
+            const credits = page(mounted.dialog, 'credits')!;
+            const [ada, bob] = [...credits.querySelectorAll('adw-action-row.link')];
+            expect(iconOf(ada!)!.className).toContain('adw-icon--adw-mail-send');
+            expect(iconOf(bob!)!.className).toContain('adw-icon--adw-external-link');
+            mounted.dispose();
+        });
+
+        await it('keeps the chevron and no link class on navigation rows', () => {
+            const mounted = mount({ comments: 'Hi', website: 'https://example.org' });
+            mounted.dialog.developers = ['Ada'];
+            const nav = [...page(mounted.dialog, 'main')!.querySelectorAll('adw-action-row')].filter(
+                (r) => !r.classList.contains('link'),
+            );
+            expect(nav.length > 0).toBe(true);
+            for (const row of nav) {
+                expect(row.classList.contains('link')).toBe(false);
+                expect(row.getAttribute('role')).not.toBe('link');
+                expect(iconOf(row)!.className).toContain('adw-icon--go-next');
+            }
+            mounted.dispose();
+        });
+    });
 };

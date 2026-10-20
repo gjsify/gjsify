@@ -50,7 +50,8 @@
 // Details-page link row, as on GTK; `add_credit_section`, `add_acknowledgement_section`
 // and `add_legal_section` append a Credits, Acknowledgements or Legal group.
 //
-// NOT implemented here: the debug page's "Save As…" button (`debug-info-filename`), which
+// NOT implemented here: the link rows' context menu ("Open Link" / "Copy Link Address", right
+// click or long press) of libadwaita's private `AdwLinkRow`, the debug page's "Save As…" button (`debug-info-filename`), which
 // needs a file dialog, and `add_other_app` / `other-apps-title`. `new_from_appdata` is
 // refused by name: it needs an AppStream parser. An `add_*_section` call with no people
 // draws no row, where libadwaita 1.9 leaves a Credits row that opens a blank page.
@@ -75,6 +76,8 @@
 
 import {
     ADW_ABOUT_DIALOG_LABELS,
+    linkRowIconName,
+    linkRowTooltip,
     ADW_LICENSE_DEFAULTS,
     type AdwCreditPerson,
     type AdwCreditsSectionInput,
@@ -843,16 +846,29 @@ export class AdwAboutDialog extends WidgetElement {
     private _buildLinkRow(title: string, uri: string): HTMLElement {
         const row = document.createElement('adw-action-row');
         row.setAttribute('title', title);
-        row.setAttribute('activatable', '');
-        row.classList.add('adw-about-dialog-link-row');
+        this._makeLinkRow(row, uri);
+        return row;
+    }
 
-        const chevron = createGtkImage('go-next', 'adw-about-dialog-chevron');
-        chevron.setAttribute('slot', 'suffix');
-        row.appendChild(chevron);
+    /**
+     * `AdwLinkRow`: `adw_link_row_init` + `adw_link_row_set_uri`. The `link` class and the
+     * LINK state flag, accessible role LINK, the unescaped URI as tooltip, and a suffix glyph
+     * that says "leaves the app" (an envelope for `mailto:`) instead of a navigation chevron.
+     * Activation is `_activateLink`, which emits `activate-link` and then opens the URI.
+     */
+    private _makeLinkRow(row: HTMLElement, uri: string): void {
+        row.setAttribute('activatable', '');
+        row.setAttribute('role', 'link');
+        row.classList.add('link', 'adw-about-dialog-link-row');
+        const tooltip = linkRowTooltip(uri);
+        if (tooltip !== null) row.setAttribute('tooltip-text', tooltip);
+
+        const icon = createGtkImage(linkRowIconName(uri), 'adw-about-dialog-link-icon');
+        icon.setAttribute('slot', 'suffix');
+        icon.setAttribute('aria-hidden', 'true');
+        row.appendChild(icon);
 
         row.addEventListener('activated', () => this._activateLink(uri));
-
-        return row;
     }
 
     private _buildCreditsPage(sections: ReturnType<typeof creditsSections>): HTMLElement {
@@ -891,12 +907,7 @@ export class AdwAboutDialog extends WidgetElement {
 
         if (person.link !== null) {
             const uri = person.uri ?? '';
-            row.setAttribute('activatable', '');
-            row.classList.add('adw-about-dialog-link-row');
-            const chevron = createGtkImage('go-next', 'adw-about-dialog-chevron');
-            chevron.setAttribute('slot', 'suffix');
-            row.appendChild(chevron);
-            row.addEventListener('activated', () => this._activateLink(uri));
+            this._makeLinkRow(row, uri);
         }
 
         return row;

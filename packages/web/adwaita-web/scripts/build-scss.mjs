@@ -99,6 +99,19 @@ const viewColumnsSymbolic = `<svg height="16px" viewBox="0 0 16 16" width="16px"
     <path d="m 2 1 c -0.554688 0 -1 0.445312 -1 1 v 12 c 0 0.554688 0.445312 1 1 1 h 2 c 0.554688 0 1 -0.445312 1 -1 v -12 c 0 -0.554688 -0.445312 -1 -1 -1 z m 5 0 c -0.554688 0 -1 0.445312 -1 1 v 12 c 0 0.554688 0.445312 1 1 1 h 2 c 0.554688 0 1 -0.445312 1 -1 v -12 c 0 -0.554688 -0.445312 -1 -1 -1 z m 5 0 c -0.554688 0 -1 0.445312 -1 1 v 12 c 0 0.554688 0.445312 1 1 1 h 2 c 0.554688 0 1 -0.445312 1 -1 v -12 c 0 -0.554688 -0.445312 -1 -1 -1 z m 0 0" fill="currentColor"/>
 </svg>`;
 
+// `adw-external-link-symbolic` and `adw-mail-send-symbolic` are libadwaita-BUNDLED glyphs
+// (the suffix of its private AdwLinkRow), so they are in no icon theme either. These two
+// are drawn here from scratch in the symbolic style — an arrow leaving a box, a plain
+// envelope — not traced from libadwaita's LGPL SVGs. Argued in
+// status/adwaita-web-icon-masks.json like `view-columns-symbolic` above.
+const adwExternalLinkSymbolic = `<svg height="16px" viewBox="0 0 16 16" width="16px" xmlns="http://www.w3.org/2000/svg">
+    <path d="m 9 1 h 6 v 6 h -2 v -2.5 l -4.5 4.5 l -1.5 -1.5 l 4.5 -4.5 h -2.5 z m -6 2 h 4 v 2 h -3 v 8 h 8 v -3 h 2 v 4 c 0 0.55 -0.45 1 -1 1 h -10 c -0.55 0 -1 -0.45 -1 -1 v -10 c 0 -0.55 0.45 -1 1 -1 z" fill="currentColor"/>
+</svg>`;
+
+const adwMailSendSymbolic = `<svg height="16px" viewBox="0 0 16 16" width="16px" xmlns="http://www.w3.org/2000/svg">
+    <path d="m 2 3 h 12 c 0.55 0 1 0.45 1 1 v 8 c 0 0.55 -0.45 1 -1 1 h -12 c -0.55 0 -1 -0.45 -1 -1 v -8 c 0 -0.55 0.45 -1 1 -1 z m 1.5 2 l 4.5 3.5 l 4.5 -3.5 z m -0.5 1.7 v 5.3 h 10 v -5.3 l -5 3.9 z" fill="currentColor" fill-rule="evenodd"/>
+</svg>`;
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(__dirname, '..');
 const scssDir = resolve(pkgRoot, 'scss');
@@ -186,6 +199,8 @@ const ICONS = {
     'view-more': viewMoreSymbolic,
     'view-paged': viewPagedSymbolic,
     'view-columns': viewColumnsSymbolic,
+    'adw-external-link': adwExternalLinkSymbolic,
+    'adw-mail-send': adwMailSendSymbolic,
     'list-remove': listRemoveSymbolic,
     'send-to': sendToSymbolic,
     'folder-music': folderMusicSymbolic,

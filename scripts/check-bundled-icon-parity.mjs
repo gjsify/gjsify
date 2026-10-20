@@ -52,6 +52,21 @@ const GTK_EXCLUSIONS = {
         // exclusion is over.
         untilExportedAs: 'viewColumnsSymbolic',
     },
+    'adw-external-link': {
+        why:
+            'A libadwaita-BUNDLED glyph (the suffix of its private AdwLinkRow), in no icon theme and not an ' +
+            '@gjsify/adwaita-icons export. build-scss.mjs hand-draws it for the web; on GTK the name resolves ' +
+            "through libadwaita's own resources, so the real glyph is drawn there. Bundling the web drawing " +
+            'here would shadow libadwaita with a second, private copy.',
+        untilExportedAs: 'adwExternalLinkSymbolic',
+    },
+    'adw-mail-send': {
+        why:
+            "The mailto: variant of the AdwLinkRow suffix, libadwaita-BUNDLED and distinct from the theme's " +
+            "`mail-send`. Same situation as adw-external-link: hand-drawn for the web, and on GTK libadwaita's " +
+            'own resources draw the real glyph, so bundling the web drawing here would shadow it.',
+        untilExportedAs: 'adwMailSendSymbolic',
+    },
 };
 
 /** Shortest reason that can plausibly say why a name is out. */
