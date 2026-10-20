@@ -2657,9 +2657,19 @@ function findParentGType(klass) {
             if (dot > 0) {
                 return { parentNamespace: gt.slice(0, dot), parentType: gt.slice(dot + 1) };
             }
-            // A dotless `$gtypeName` with no registeredClasses entry should never occur
-            // (only registered types are dotless, and they are in the registry); be
-            // explicit rather than mis-resolving the namespace split.
+            // A dotless `$gtypeName` and no registry entry, with the name INHERITED: `c` is
+            // an ordinary unregistered subclass of a registered ancestor further up, reading
+            // that ancestor's static through the class-side prototype chain. Keep walking —
+            // `c` contributes no GType, and the registered ancestor above it is the parent.
+            // gjs answers the same way (measured, 1.88.1): `registerClass(C extends B)` where
+            // `class B extends RegisteredA {}` gives `type_parent(C) === A`. Without this the
+            // walk threw on its own inherited value, which is every port class that puts a
+            // plain subclass between two registrations — `AdwSwitchRow` between the two
+            // route-D mixins (ADR 0105 § 2) is the case that found it.
+            if (!Object.prototype.hasOwnProperty.call(c, '$gtypeName')) continue;
+            // An OWN dotless `$gtypeName` with no registry entry should never occur (only
+            // registered types are dotless, and they are in the registry); be explicit
+            // rather than mis-resolving the namespace split.
             throw new TypeError("GObject.registerClass: parent '" + gt + "' has no resolvable GType");
         }
     }
