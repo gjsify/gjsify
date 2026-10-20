@@ -955,7 +955,8 @@ export class AdwAboutDialog extends WidgetElement {
      */
     private _renderLegalLabel(target: HTMLElement, markup: string): void {
         target.replaceChildren();
-        const anchor = /<a\s+href="([^"]*)">([\s\S]*?)<\/a>/g;
+        // `\x22` is `"`: an odd number of literal quotes derails check-adwaita-connect-rebind's masker.
+        const anchor = /<a\s+href="([^\x22]*)">([\s\S]*?)<\/a>/g;
         let last = 0;
         const text = (value: string) => {
             if (value.length === 0) return;
