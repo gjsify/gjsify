@@ -51,6 +51,43 @@
 // silent no-op is the failure `xml-values.ts` exists to refuse, and a disconnect that quietly
 // did nothing leaves a handler firing after the caller was told it was gone.
 //
+// ONE DOOR PER DECLARED MEMBER, AND IT IS `connect`. A declared property's `notify::<prop>` and
+// a declared signal belong to GObject, so the NativeScript verbs REFUSE them by name —
+// `addEventListener`, `removeEventListener` and therefore `on`, `once` and `off` throw a
+// TypeError naming `connect`, identically on both legs. The first shape of this was worse than
+// either: route D made `addEventListener('notify::active')` a silent no-op while the pure-JS leg
+// still fired it, so the same line worked off-device and did nothing on it. A refusal is the
+// only reading that is both GJS-like (GJS has one subscribe verb) and leg-independent, and the
+// repository carries NO backward compatibility for the old spelling — there are no third-party
+// apps on this port, so a consumer of ours is UPDATED rather than kept working by a shim (the
+// rule is recorded in `status/open-todos/nativescript.md`).
+//
+// OVERRIDING TWO NAMES COVERS FIVE VERBS. Measured in `@nativescript/core` 9.0.20 and 9.1.3
+// (`data/observable/index.js`): `on` and `once` call `this.addEventListener`, `off` calls
+// `this.removeEventListener`, and `View` overrides only the latter two — so the three aliases
+// funnel through the overrides below and need no separate copies. The slice in `../ns-core.d.ts`
+// declares the two; the aliases are the real package's and are not re-declared here.
+//
+// `notify({ eventName: 'notify::<prop>' })` IS REFUSED TOO. It is NativeScript's dispatch door,
+// and a declared member has no NativeScript listeners to dispatch to — the subscribe door above
+// refuses them — so the call could only ever reach nobody. On the pure-JS leg the seam's own
+// `notify` wrapper refuses it; on route D the refusal wraps the `notify` node-gi installed
+// (which is why the seam no longer leaves that one untouched), so both legs answer the same.
+// The STRING form is unaffected on either: `notify('active')` is `g_object_notify`.
+//
+// A HANDLER EXCEPTION IS LOGGED AND THE NEXT HANDLER RUNS — on both legs, because that is what
+// GJS does. Measured with the installed `gjs`: a `notify::` handler that throws produces
+// `Gjs-CRITICAL … JS ERROR: Error: boom from handler`, the second handler still runs, the
+// assignment returns normally and the property keeps the written value; `emit` of an ordinary
+// signal behaves the same. node-gi reaches the same behaviour from `SurfacePendingException`
+// (`packages/node-gi/node-gi/src/calls.cc`), which prints `(node-gi) Unhandled exception in …`
+// and clears the pending exception, so the real leg had it already. The pure-JS leg used to let
+// the exception unwind its caller's `row.title = 'x'` instead, which was the second per-leg
+// difference in this area; {@link emitDeclared} now logs and continues. The consequence is the
+// one `adw-action-row.ts` records: a refusal may not live in a `notify::` handler, because
+// nothing can see it. It belongs in a {@link DeclaredProperty.normalize}, which runs on both
+// legs before the value lands.
+//
 // --- THE SECOND ARGUMENT: A REAL GObject UNDER THE WIDGET (ADR 0105 § 2, route D) --------------
 //
 // `withSignals(Base, meta)` is the same seam with a DECLARATION attached: `meta` says what
@@ -240,6 +277,26 @@ function unknownHandler(self: object, handlerId: number): TypeError {
     );
 }
 
+/** What `connect` records per handler of a DECLARED member on the pure-JS leg. */
+interface DeclaredHandler {
+    /** The CANONICAL key an emission matches on — `notify::icon-name`, `closed`. */
+    readonly key: string;
+    /** The spelling the caller subscribed with, echoed in the payload as route D echoes it. */
+    readonly eventName: string;
+    readonly callback: (self: Observable, data: EventData) => unknown;
+}
+
+/**
+ * The handlers of a declared property's `notify::` and of a declared signal, on the pure-JS leg.
+ *
+ * The seam's OWN table rather than NativeScript's listener list, so that a declared member is
+ * reachable through `connect` and through nothing else — on this leg as on route D, where the
+ * GObject holds them and the observable never sees them. Routing them through the observable
+ * instead is what let `notify({ eventName: 'notify::active' })` reach handlers off-device and
+ * nobody on it.
+ */
+const DECLARED_HANDLERS = new WeakMap<object, Map<number, DeclaredHandler>>();
+
 // The pure-JS leg, as module-level functions rather than only as class methods: under route D the
 // class methods become ROUTERS that still answer everything GObject does not own (NativeScript's
 // own events, `WIDGET_SIGNALS`, the handled-accumulator protocol), and a router calling a method
@@ -268,6 +325,81 @@ function pureDisconnect(self: Observable, handlerId: number): void {
 
 function pureEmit(self: Observable, eventName: string, args: readonly unknown[]): void {
     self.notify({ eventName, object: self, args });
+}
+
+function declaredConnect(
+    self: Observable,
+    key: string,
+    eventName: string,
+    callback: (self: Observable, data: EventData) => unknown,
+): number {
+    const id = nextHandlerId++;
+    let handlers = DECLARED_HANDLERS.get(self);
+    if (handlers === undefined) DECLARED_HANDLERS.set(self, (handlers = new Map()));
+    handlers.set(id, { key, eventName, callback });
+    return id;
+}
+
+/** Whether `handlerId` was one of this instance's declared handlers; removes it if so. */
+function declaredDisconnect(self: Observable, handlerId: number): boolean {
+    return DECLARED_HANDLERS.get(self)?.delete(handlerId) === true;
+}
+
+/**
+ * Run the declared handlers of `key` — the pure-JS leg's emission, shaped exactly as route D
+ * shapes the real one: a `notify::` carries no value and a signal carries its arguments, and the
+ * payload's `eventName` is the spelling each handler subscribed with.
+ *
+ * An exception a handler throws is LOGGED and the next handler runs, which is what GJS does and
+ * what node-gi already did on the real leg (see the header for both measurements).
+ */
+function emitDeclared(self: Observable, key: string, args: readonly unknown[]): void {
+    const handlers = DECLARED_HANDLERS.get(self);
+    if (handlers === undefined) return;
+    const isNotify = key.startsWith('notify::');
+    // A snapshot, and a re-check against the live map: GObject runs the handlers an emission
+    // started with, and one a previous handler disconnected does not run.
+    const snapshot = [...handlers];
+    for (const [id, handler] of snapshot) {
+        if (handler.key !== key || handlers.get(id) !== handler) continue;
+        const data = (
+            isNotify
+                ? { eventName: handler.eventName, object: self }
+                : { eventName: handler.eventName, object: self, args }
+        ) as EventData;
+        try {
+            handler.callback(self, data);
+        } catch (error) {
+            console.error(`[${self.constructor.name}] unhandled exception in a '${handler.eventName}' handler:`, error);
+        }
+    }
+}
+
+/**
+ * The refusal every NativeScript event verb gives for a DECLARED member — see the header:
+ * `connect` is the one subscribe door and the GObject verbs are the one emit door, and the
+ * answer is the same on both legs.
+ */
+function refuseDeclaredEvent(
+    self: object,
+    eventName: string,
+    verb: 'addEventListener' | 'removeEventListener' | 'notify',
+): void {
+    const key = giKeyOf(resolvedFor(self.constructor), eventName);
+    if (key === null) return;
+    const isNotify = key.startsWith('notify::');
+    const what = isNotify ? "a declared property's notification" : 'a declared signal';
+    const instead =
+        verb === 'notify'
+            ? isNotify
+                ? `write the property, or emit it with notify('${key.slice('notify::'.length)}')`
+                : `emit it with emit('${key}', …)`
+            : `subscribe with connect('${eventName}', (self, data) => …), whose id disconnect() takes`;
+    throw new TypeError(
+        `${self.constructor.name}.${verb}('${eventName}'): '${key}' is ${what} and GObject owns ` +
+            `it — ${instead}. On Android the emission belongs to the GObject and no NativeScript ` +
+            `listener can see it, so ${verb} would work off-device and be silent on it.`,
+    );
 }
 
 /**
@@ -525,9 +657,10 @@ function registerRouteD(declaration: Declaration, register: (klass: object, meta
     // `klass.prototype` itself, and records the skip in the frozen static `$foreignSkipped`.
     // The four names below are the ones this seam must get the REAL implementation of: the
     // router methods are deleted so the registration installs them, and `connect`, `disconnect`
-    // and `emit` are put back afterwards as routers over what it installed. `notify` is left
-    // as node-gi wrote it — its own arg-type routing captured `Observable.prototype.notify`
-    // as the host half, which is exactly the behaviour the pure-JS leg installs by hand.
+    // and `emit` are put back afterwards as routers over what it installed. `notify` keeps
+    // node-gi's arg-type routing — it captured `Observable.prototype.notify` as the host half,
+    // which is the behaviour the pure-JS leg installs by hand — with one refusal wrapped around
+    // it: a payload naming a declared member, which on this leg could only reach nobody.
     //
     // A `withProperties` declaration deletes nothing (it owns none of these) and so is
     // registered with all four already on the chain. That is deliberate: the names land in its
@@ -567,8 +700,38 @@ function registerRouteD(declaration: Declaration, register: (klass: object, meta
                 value: method,
             });
         }
+        refuseDeclaredNotifyPayload(prototype, prototype.notify as (this: object, ...args: unknown[]) => unknown);
     }
     declaration.routeD = true;
+}
+
+/**
+ * Wrap `installed` so `notify({ eventName: 'notify::<declared>' })` is refused rather than
+ * dispatched to the nobody a declared member has on the NativeScript side. The STRING form and
+ * every other payload go straight through, so `notify('active')` is still `g_object_notify` and
+ * a NativeScript event is still dispatched.
+ *
+ * Installed on both legs — here over node-gi's `notify`, and in {@link installPureNotify} over
+ * the host's — because a refusal on one leg only would be the per-leg difference again.
+ */
+function refuseDeclaredNotifyPayload(
+    prototype: Record<string, unknown>,
+    installed: (this: object, ...args: unknown[]) => unknown,
+): void {
+    const value = function notify(this: Observable, data: unknown, ...rest: unknown[]): unknown {
+        if (typeof data === 'object' && data !== null) {
+            const { eventName } = data as { eventName?: unknown };
+            if (typeof eventName === 'string') refuseDeclaredEvent(this, eventName, 'notify');
+        }
+        return installed.call(this, data, ...rest);
+    };
+    SEAM_NOTIFY.add(value);
+    Object.defineProperty(prototype, 'notify', {
+        configurable: true,
+        writable: true,
+        enumerable: false,
+        value,
+    });
 }
 
 /**
@@ -630,7 +793,7 @@ function installPureJsProperties(declaration: Declaration): void {
                     const values = valuesOf(this);
                     if (values.has(name) && values.get(name) === value) return;
                     values.set(name, value);
-                    pureEmit(this, `notify::${name}`, []);
+                    emitDeclared(this, `notify::${name}`, []);
                 },
             });
         }
@@ -646,7 +809,13 @@ function installPureNotify(declaration: Declaration): void {
     // included, so a second copy one prototype down would only add a hop.
     if (SEAM_NOTIFY.has(hostNotify)) return;
     const value = function notify(this: Observable, data: unknown, ...rest: unknown[]): unknown {
-        if (typeof data !== 'string') return hostNotify.call(this, data, ...rest);
+        if (typeof data !== 'string') {
+            if (typeof data === 'object' && data !== null) {
+                const { eventName } = data as { eventName?: unknown };
+                if (typeof eventName === 'string') refuseDeclaredEvent(this, eventName, 'notify');
+            }
+            return hostNotify.call(this, data, ...rest);
+        }
         const { canonicalOf } = resolvedFor(this.constructor);
         const canonical = canonicalOf.get(data);
         if (canonical === undefined) {
@@ -656,7 +825,7 @@ function installPureNotify(declaration: Declaration): void {
                     'with its payload object, not with a name.',
             );
         }
-        pureEmit(this, `notify::${canonical}`, []);
+        emitDeclared(this, `notify::${canonical}`, []);
         return undefined;
     };
     SEAM_NOTIFY.add(value);
@@ -692,6 +861,23 @@ export function withSignals<TBase extends ObservableConstructor>(Base: TBase, me
             realizeChain(new.target);
         }
 
+        /** Refuses a declared member's name; see the header. Covers `on` and `once` with it. */
+        override addEventListener(
+            eventName: string,
+            callback: (data: EventData) => void,
+            thisArg?: unknown,
+            once?: boolean,
+        ): void {
+            refuseDeclaredEvent(this, eventName, 'addEventListener');
+            super.addEventListener(eventName, callback, thisArg, once);
+        }
+
+        /** The other half of the refusal, and with it `off`. */
+        override removeEventListener(eventName: string, callback?: (data: EventData) => void, thisArg?: unknown): void {
+            refuseDeclaredEvent(this, eventName, 'removeEventListener');
+            super.removeEventListener(eventName, callback, thisArg);
+        }
+
         connect(eventName: string, callback: (self: this, data: EventData) => unknown): number {
             const resolved = resolvedFor(this.constructor);
             const key = giKeyOf(resolved, eventName);
@@ -711,6 +897,16 @@ export function withSignals<TBase extends ObservableConstructor>(Base: TBase, me
                 live.add(real);
                 return GOBJECT_ID_BASE + real;
             }
+            if (key !== null) {
+                // The pure-JS leg's declared channel — the seam's own table, not the
+                // observable's, so this leg has exactly the doors route D has.
+                return declaredConnect(
+                    this,
+                    key,
+                    eventName,
+                    callback as (self: Observable, data: EventData) => unknown,
+                );
+            }
             // One wrapper per connect, so two handlers sharing a callback stay two
             // handlers — `removeEventListener(name, callback)` would drop both.
             // A payload carrying an `accumulator` is a signal with a handled-accumulator (`close-request`):
@@ -724,7 +920,7 @@ export function withSignals<TBase extends ObservableConstructor>(Base: TBase, me
                 if (accumulator.stopped) return;
                 accumulator.collect(callback(this, data));
             };
-            return pureConnect(this, key ?? eventName, listener);
+            return pureConnect(this, eventName, listener);
         }
 
         disconnect(handlerId: number): void {
@@ -736,17 +932,19 @@ export function withSignals<TBase extends ObservableConstructor>(Base: TBase, me
                 resolvedFor(this.constructor).giDisconnect!.call(this, real);
                 return;
             }
+            if (declaredDisconnect(this, handlerId)) return;
             pureDisconnect(this, handlerId);
         }
 
         emit(eventName: string, ...args: unknown[]): void {
             const resolved = resolvedFor(this.constructor);
             const key = giKeyOf(resolved, eventName);
-            if (resolved.routeD && key !== null) {
-                resolved.giEmit!.call(this, key, ...args);
+            if (key !== null) {
+                if (resolved.routeD) resolved.giEmit!.call(this, key, ...args);
+                else emitDeclared(this, key, args);
                 return;
             }
-            pureEmit(this, key ?? eventName, args);
+            pureEmit(this, eventName, args);
         }
 
         get_property(name: string): unknown {

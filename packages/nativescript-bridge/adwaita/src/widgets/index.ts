@@ -35,7 +35,6 @@ export { AdwPreferencesPage } from './adw-preferences-page.js';
 export { AdwPreferencesGroup } from './adw-preferences-group.js';
 export { AdwActionRow } from './adw-action-row.js';
 export { AdwSwitchRow, NOTIFY_ACTIVE } from './adw-switch-row.js';
-export type { NotifyActiveEventData } from './adw-switch-row.js';
 export { AdwEntryRow, NOTIFY_TEXT } from './adw-entry-row.js';
 export type { NotifyTextEventData } from './adw-entry-row.js';
 export { AdwPasswordEntryRow } from './adw-password-entry-row.js';

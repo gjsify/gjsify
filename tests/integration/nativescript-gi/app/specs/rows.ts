@@ -249,6 +249,86 @@ export const rowsSpec = (engine: 'real-gio' | 'pure-js') => async (): Promise<vo
         });
     });
 
+    // ONE DOOR PER DECLARED MEMBER, on the device and in both legs. This is the suite that can
+    // see what the off-device specs cannot: before it, `addEventListener('notify::active')` added
+    // a listener nothing ever called on 'real-gio' — the emission belongs to the GObject — while
+    // the same line worked on 'pure-js', so a widget's own specs passed and the device was silent.
+    // Five verbs are refused through two overrides, because `on`, `once` and `off` delegate to
+    // `addEventListener` / `removeEventListener` in `@nativescript/core`; this run is what proves
+    // the installed version still does on the host that matters.
+    await describe(`a declared member has one door on '${engine}'`, async () => {
+        await it('refuses every NativeScript event verb for notify::active', () => {
+            const row = new Adw.SwitchRow() as Any;
+            for (const verb of ['addEventListener', 'removeEventListener', 'on', 'once', 'off']) {
+                expect(() => row[verb]('notify::active', () => {})).toThrow();
+            }
+            let message = '';
+            try {
+                row.addEventListener('notify::active', () => {});
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            info(`refusal=${message}`);
+            expect(message.indexOf('connect(') >= 0).toBe(true);
+        });
+
+        await it('refuses an inherited declared property under every spelling', () => {
+            const row = new Adw.SwitchRow() as Any;
+            for (const name of ['notify::icon-name', 'notify::icon_name', 'notify::iconName']) {
+                expect(() => row.addEventListener(name, () => {})).toThrow();
+            }
+        });
+
+        // `activated` is NOT declared, so all five verbs still answer it. The two listeners are
+        // DISTINCT on purpose: `Observable.addEventListener` drops a repeat of the same
+        // (callback, thisArg) pair, so subscribing one function through both verbs would measure
+        // the host's de-duplication rather than that both verbs reached the event.
+        await it('leaves a NativeScript event on every verb', () => {
+            const row = new Adw.ActionRow({ activatable: true });
+            const fired: string[] = [];
+            const viaAddEventListener = (): void => {
+                fired.push('addEventListener');
+            };
+            const viaOn = (): void => {
+                fired.push('on');
+            };
+            row.addEventListener('activated', viaAddEventListener);
+            (row as Any).on('activated', viaOn);
+            row.activate();
+            (row as Any).off('activated', viaOn);
+            row.removeEventListener('activated', viaAddEventListener);
+            row.activate();
+            info(`fired=[${fired.join(',')}]`);
+            expect(fired.join(',')).toBe('addEventListener,on');
+        });
+
+        await it("refuses notify({ eventName }) and keeps notify('active')", () => {
+            const row = new Adw.SwitchRow();
+            const seen: boolean[] = [];
+            row.connect('notify::active', (self: Adw.SwitchRow) => seen.push(self.active));
+            expect(() => (row as Any).notify({ eventName: 'notify::active', object: row })).toThrow();
+            // The GObject door: `g_object_notify`, which re-emits without a write.
+            (row as Any).notify('active');
+            info(`seen=[${seen.join(',')}]`);
+            expect(seen.join(',')).toBe('false');
+        });
+
+        await it('logs a handler exception, runs the next handler, and keeps the write', () => {
+            const row = new Adw.SwitchRow();
+            const seen: boolean[] = [];
+            row.connect('notify::active', () => {
+                throw new Error('gjsify: deliberate, the next handler must still run');
+            });
+            row.connect('notify::active', (self: Adw.SwitchRow) => seen.push(self.active));
+            // GJS's rule, measured off-device: the assignment returns normally and the value stays.
+            row.active = true;
+            info(`seen=[${seen.join(',')}] active=${row.active} checked=${inner(row)._switch.checked}`);
+            expect(seen.join(',')).toBe('true');
+            expect(row.active).toBe(true);
+            expect(inner(row)._switch.checked).toBe(true);
+        });
+    });
+
     if (engine !== 'real-gio') return;
 
     const GObject = requireGi('GObject', '2.0') as Any;

@@ -29,23 +29,21 @@
 // property is, and holding it twice would mean two stores and one of them stale. The class stays
 // in `@gjsify/adwaita-core` for `@gjsify/adwaita-web` and the conformance vectors.
 
-import { Switch, type EventData } from '@nativescript/core';
+import { Switch } from '@nativescript/core';
 import { AdwActionRow } from './adw-action-row.js';
 import { switchClassName } from './row-state.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withProperties } from './signals.js';
 
-/** Event name emitted when {@link AdwSwitchRow.active} changes. Mirrors GObject `notify::active`. */
-export const NOTIFY_ACTIVE = 'notify::active';
-
 /**
- * Payload of the `notify::active` event.
+ * Event name emitted when {@link AdwSwitchRow.active} changes. Mirrors GObject `notify::active`,
+ * and like every declared member it is subscribed with `connect` alone (see `signals.ts`).
  *
- * NO `active` FIELD any more: a real `notify::` carries a `GParamSpec`, not the value, and the
- * seam reshapes every emission into the port's `{ eventName, object }` on both legs. Read the
- * state off the emitter — `(self) => self.active`, or `data.object` from a plain listener.
+ * There is no payload TYPE to go with it: a real `notify::` carries a `GParamSpec`, not the
+ * value, and the seam hands a handler the port's plain `{ eventName, object }` on both legs.
+ * Read the state off the emitter — `(self) => self.active`.
  */
-export type NotifyActiveEventData = EventData;
+export const NOTIFY_ACTIVE = 'notify::active';
 
 export class AdwSwitchRow extends withProperties(AdwActionRow, {
     GTypeName: 'AdwSwitchRow',

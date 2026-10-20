@@ -89,30 +89,59 @@ capturing its own — `$foreignSkipped` on `AdwSwitchRow` lists all 37 GObject v
 second door now: `withProperties(Base, meta)` for a widget that declares properties and no
 routers, which is what the derived row uses.
 
-FOUR consumer-visible changes, all narrow: `activatable="maybe"` and `active="maybe"` now throw
-(the seam's coercion, same as `spinning` one widget back); `NotifyActiveEventData` lost its
-`active` field; `addEventListener('notify::active')` no longer hears the notification on the real
-leg, where `connect` does (the XML builder and the `bind`/`signals` paths already use `connect`,
-so authored trees are unaffected); and `iconName` no longer throws when something else fills the
+THREE consumer-visible changes, all narrow: `activatable="maybe"` and `active="maybe"` now throw
+(the seam's coercion, same as `spinning` one widget back); the `NotifyActiveEventData` type is
+gone, because a real `notify::` carries a `GParamSpec` and not the value — read the state off the
+emitter, `(self) => self.active`; and `iconName` no longer throws when something else fills the
 prefix slot — it REPLACES it, symmetric with `add_prefix`. That last one is forced, see below.
 `SwitchRowState` is gone from the widget and stays in `@gjsify/adwaita-core` for adwaita-web, the
-RN pillar and the conformance vectors. 795 pure tests / 1962 assertions; device: emulator API 36
-and a Galaxy S9, 167 real-gio and 79 pure-JS cases each, `specs/rows.ts`.
+RN pillar and the conformance vectors. 810 pure tests / 1983 assertions; device: emulator API 36
+and a Galaxy S9, 172 real-gio and 84 pure-JS cases each, `specs/rows.ts`.
+
+NO BACKWARD COMPATIBILITY (owner, 2026-10-20): no gjsify app exists outside this repo, so a
+migration has no third party to spare. The clean GJS-like API is designed and this repo's own
+callers — examples, specs, storybook, docs — are updated in the SAME PR. No compat shim, no
+deprecated alias, no per-leg migration layer; `NotifyActiveEventData` was deleted under this rule
+rather than kept as an alias of `EventData`. A shim would otherwise outlive the reason for it and
+become the API.
+
+ONE DOOR PER DECLARED MEMBER, both legs. A declared property's `notify::<prop>` and a declared
+signal belong to GObject, and `connect` is the only verb that subscribes to them:
+`addEventListener`, `removeEventListener`, `on`, `once` and `off` throw a `TypeError` that names
+`connect`, and so does `notify({ eventName: 'notify::<declared>' })`. Five verbs through two
+overrides — `on`/`once` call `this.addEventListener` and `off` calls `this.removeEventListener`
+in `@nativescript/core` (measured in 9.0.20 and 9.1.3; `View` overrides only the latter two). The
+string form `notify('active')` is still `g_object_notify`, and an undeclared NativeScript event
+is untouched on all five.
+
+This replaced a REAL per-leg difference, which is what route D may not ship: an
+`addEventListener('notify::active')` listener fired off-device and nothing on it, because the
+emission belongs to the GObject there. A silence a widget's own specs pass over is worse than a
+refusal. To make the refusal reachable on the pure leg at all, that leg's declared emissions moved
+off the NativeScript observable into the seam's own `DECLARED_HANDLERS` table — the pure leg now
+has exactly the doors route D has. Handler exceptions match too: LOGGED, and the next handler
+runs. Measured with the installed `gjs` (a throwing `notify::` handler logs `JS ERROR`, the second
+handler still runs, the assignment returns and the property keeps its value) and already node-gi's
+behaviour via `SurfacePendingException`. 16 both-legs vectors in `signals-gobject.spec.ts`, 5 on
+the device in `specs/rows.ts`.
 
 MIGRATE NEXT: `widgets/adw-entry-row.ts`, the first derived widget whose own vocabulary is not
-just properties. The new question is a REAL SIGNAL: it carries `apply` and `entry-activated`, the
-second with a payload, and both are `this.notify({ eventName })` today. Declaring them in the
-seam's `Signals` block routes `emit` to GObject, which is exactly what would stop
-`addEventListener('apply')` from hearing them — so the question is whether a port widget can hold
-both doors for one non-notify signal, or has to pick. Not `adw-button-content.ts` yet: its
-`hostButton` is a `View`, an object-typed property with no ParamSpec kind.
+just properties — `apply` and `entry-activated`, the second with a payload, both
+`this.notify({ eventName })` today. The signal QUESTION is answered by the rule above: declare
+them in the seam's `Signals` block and move this repo's callers to `connect`, rather than hold two
+doors for one member. `packages/nativescript-bridge/storybook/src/controls.ts` is the caller to
+fix with it (`addEventListener(NOTIFY_TEXT, …)` on the entry row). What is genuinely open is the
+DELEGATE CHILD: the row owns a `TextField` and its text has to be the declared property's single
+store. Not `adw-button-content.ts` yet: its `hostButton` is a `View`, an object-typed property
+with no ParamSpec kind.
 
 CARRY THESE: `vfunc_*` does not work on a foreign-parent class, so a widget that needs one stays
-on the twin. A REFUSAL MAY NOT LIVE IN A `notify::` HANDLER: an exception thrown there does not
-propagate on the real leg — node-gi logs `Unhandled exception in signal handler:` and swallows it,
-so the write that caused it appears to succeed. That is what dropped `AdwActionRow.iconName`'s
-"needs the prefix slot" TypeError; a declared property that wants to refuse has to do it in a
-`normalize`, where the seam calls it on both legs before the value lands. And a name the host
+on the twin. A REFUSAL MAY NOT LIVE IN A `notify::` HANDLER: an exception thrown there is logged
+and the next handler runs — GJS's rule, node-gi's, and now the seam's on both legs — while the
+write that caused it keeps its value, so there is nothing for a throw there to reject. That is
+what dropped `AdwActionRow.iconName`'s "needs the prefix slot" TypeError; a declared property that
+wants to refuse has to do it in a `normalize`, where the seam calls it on both legs before the
+value lands. And a name the host
 chain owns is skipped, not shadowed: read `$foreignSkipped` in
 the device spec when a property silently does not take. For `AdwWindowTitle` it measures
 `get_property, set_property, setProperty` — the first two are the PORT's own one-argument

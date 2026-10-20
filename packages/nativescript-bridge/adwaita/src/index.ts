@@ -172,7 +172,6 @@ export type {
     BoxOrientation,
     ButtonSlot,
     ButtonSlotWrite,
-    NotifyActiveEventData,
     NotifyTextEventData,
     NotifyEntryTextEventData,
     AdwComboOption,
