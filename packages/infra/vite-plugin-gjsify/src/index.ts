@@ -20,6 +20,7 @@
 //                                matching aliases and conditions can paper over.
 //   - blueprintPlugin()        → compile `.blp` GNOME Blueprint files to XML
 //   - gresourcePlugin()        → `import bytes from './x.gresource.xml'` (ADR 0116)
+//   - gschemaPlugin()          → `import './x.gschema.xml?schema'` (ADR 0099)
 //   - deepkitPlugin()          → optional Deepkit type reflection (opt-in)
 //   - an inline Vite config hook supplying the browser-target resolve aliases,
 //     conditions, mainFields, defines and build target.
@@ -53,6 +54,8 @@ import {
     nativescriptPlatformDefines,
     cssAsStringPlugin,
     gresourcePlugin,
+    gschemaPlugin,
+    GSCHEMA_REGISTER,
 } from '@gjsify/rolldown-plugin-gjsify';
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
@@ -196,6 +199,8 @@ export function gjsifyBrowser(options: GjsifyBrowserOptions = {}): Plugin[] {
         // `import bytes from './x.gresource.xml'` (ADR 0116 §§ 1, 7): the same `Uint8Array` as
         // `--app browser`, with `compressed="true"` stripped (no synchronous inflate on the web).
         gresourcePlugin({ compressed: 'strip' }) as unknown as Plugin,
+        // `import './x.gschema.xml?schema'` registers the schema (ADR 0099 § 1), as `--app browser`.
+        gschemaPlugin({ mode: 'emit', register: GSCHEMA_REGISTER.browser }) as unknown as Plugin,
         deepkitPlugin({ reflection: options.reflection }) as unknown as Plugin,
         // Opt-in: mirror `--app browser`'s css-as-string so `import css from
         // './x.css'` yields the CSS string in dev too (unify with the native
@@ -219,6 +224,7 @@ export default gjsifyBrowser;
 // What it composes (one-to-one with `--app nativescript`):
 //   - gjsImportsEmptyPlugin() → resolve `@girs/*` / `gi://*` to empty
 //   - gresourcePlugin() → `import bytes from './x.gresource.xml'` (ADR 0116)
+//   - gschemaPlugin() → `import './x.gschema.xml?schema'` (ADR 0099)
 //   - deepkitPlugin() → optional Deepkit reflection (opt-in)
 //   - inline Vite `config` hook setting NS-target aliases, conditions,
 //     mainFields, defines, build target.
@@ -572,6 +578,8 @@ export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plu
         // `import bytes from './x.gresource.xml'` (ADR 0116 §§ 1, 7), as `--app nativescript`;
         // no synchronous inflate on NativeScript either, so `compressed="true"` is stripped.
         gresourcePlugin({ compressed: 'strip' }) as unknown as Plugin,
+        // `import './x.gschema.xml?schema'` registers the schema (ADR 0099 § 1), as `--app nativescript`.
+        gschemaPlugin({ mode: 'emit', register: GSCHEMA_REGISTER.nativescript }) as unknown as Plugin,
         deepkitPlugin({ reflection: options.reflection }) as unknown as Plugin,
         configPlugin,
     ];

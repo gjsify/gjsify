@@ -3,8 +3,9 @@
 // The `.gschema.xml` stays the single source. On the targets with no Gio.Settings (browser,
 // NativeScript) the build reads it and emits `{ id, path, keys: { name: { type, default } } }`;
 // the runtime never parses XML. On GJS and Node the compiled schema is what GSettings reads
-// (`gjsify gsettings` builds it), so the import evaluates to the file's path and is ignored by
-// the no-op `Settings.register`.
+// (`gjsify gsettings` builds it), so the import evaluates to the file's path. The app builds
+// register the schema as the module evaluates (`register`), so importing it once, before the first
+// `new Gio.Settings`, is all an app does on every target.
 //
 // What the subset cannot honour is refused HERE, naming the key and the line, rather than
 // compiled into a schema that behaves differently from GNOME's: a key type outside `b i u d s`
@@ -159,9 +160,21 @@ const SUFFIX = /\.gschema\.xml\?schema(?:&|$)/;
 export interface GschemaPluginOptions {
     /** `emit`: the schema object (browser, NativeScript). `ignore`: the file path, for GJS/Node. */
     mode: 'emit' | 'ignore';
+    /**
+     * `emit` only: the module whose `Settings` the schema registers with, so the import alone is
+     * the registration and the app keeps to GIO's names. The port's `Gio` barrel re-exports the
+     * same `Settings`, so `new Gio.Settings(...)` finds the schema.
+     */
+    register?: string;
 }
 
-export function gschemaPlugin({ mode }: GschemaPluginOptions): Plugin {
+/** The `Settings` each port's `Gio` barrel re-exports (ADR 0099). */
+export const GSCHEMA_REGISTER = {
+    browser: '@gjsify/app-settings/browser',
+    nativescript: '@gjsify/app-settings/nativescript',
+} as const;
+
+export function gschemaPlugin({ mode, register }: GschemaPluginOptions): Plugin {
     return {
         name: GSCHEMA_PLUGIN,
         async resolveId(source, importer) {
@@ -176,7 +189,13 @@ export function gschemaPlugin({ mode }: GschemaPluginOptions): Plugin {
             if (mode === 'ignore') return `export default ${JSON.stringify(file)};`;
             const schema = parseGschema(await readFile(file, 'utf8'), file);
             this.addWatchFile(file);
-            return `export default ${JSON.stringify(schema)};`;
+            if (register === undefined) return `export default ${JSON.stringify(schema)};`;
+            return [
+                `import { Settings } from ${JSON.stringify(register)};`,
+                `const schema = ${JSON.stringify(schema)};`,
+                'Settings.register(schema);',
+                'export default schema;',
+            ].join('\n');
         },
     };
 }

@@ -20,7 +20,7 @@
             "default": "./lib/utils/runtime.js"
         },
         "./types": {
-            "types": "./types/gresource.d.ts"
+            "types": "./types/index.d.ts"
         },
         "./shims/console-gjs": {
             "default": "./lib/shims/console-gjs.js"

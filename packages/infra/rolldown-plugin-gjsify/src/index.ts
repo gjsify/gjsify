@@ -43,7 +43,7 @@ export {
     IMPLICIT_GLOBAL_ASSIGN_PLUGIN,
 } from './plugins/implicit-global-assign.js';
 export type { ImplicitGlobalAssignment } from './plugins/implicit-global-assign.js';
-export { gschemaPlugin, parseGschema, GSCHEMA_PLUGIN } from './plugins/gschema.js';
+export { gschemaPlugin, parseGschema, GSCHEMA_PLUGIN, GSCHEMA_REGISTER } from './plugins/gschema.js';
 export type { GschemaOut, GschemaKey, GschemaPluginOptions } from './plugins/gschema.js';
 export {
     gresourcePlugin,

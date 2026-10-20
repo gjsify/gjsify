@@ -24,7 +24,16 @@ Key types: `b i u d s` and the arrays `ab ai au ad as` (ADR 0118). An array key 
 
 ## Schema
 
-The schema is a `.gschema.xml`. Import it with the `?schema` specifier; the build step turns it into a module that calls `Settings.register`. On GJS, `register` is a no-op and the compiled schema is used.
+The schema is a `.gschema.xml`. Import it once, before the first `new Gio.Settings`:
+
+```ts
+import Gio from 'gi://Gio?version=2.0';
+import './org.example.App.gschema.xml?schema';
+
+const settings = new Gio.Settings({ schema_id: 'org.example.App', path: '/org/example/App/' });
+```
+
+On the browser and NativeScript the build step turns the import into a module that calls `Settings.register` with the parsed schema, on the `Settings` the port's `Gio` barrel re-exports. On GJS the import is the file's path and the compiled schema is used. Type the specifier with `@gjsify/rolldown-plugin-gjsify/types`.
 
 Unsupported schema features (range, choices, enum, flags, child, override) are refused at build time.
 
