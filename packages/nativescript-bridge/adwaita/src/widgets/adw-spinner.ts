@@ -26,21 +26,64 @@ import { ActivityIndicator, GridLayout, ItemSpec } from '@nativescript/core';
 import { resolveSpinnerSize, spinnerGeometry } from '@gjsify/adwaita-core';
 
 import { DEFAULT_SPINNER_SIZE } from './chrome.js';
-import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
+import type { GObjectNotify } from './signals.js';
 
 export { DEFAULT_SPINNER_SIZE };
 
-export class AdwSpinner extends withSignals(GridLayout) {
+/** Event name emitted when {@link AdwSpinner.spinning} changes. */
+export const NOTIFY_SPINNING = 'notify::spinning';
+
+/** Event name emitted when {@link AdwSpinner.size} changes. */
+export const NOTIFY_SIZE = 'notify::size';
+
+// THE SECOND WIDGET WHOSE PROPERTIES ARE A REAL GObject's (ADR 0105 § 2, route D), and the first
+// whose properties are not strings. `spinning` and `size` are DECLARED at the `extends` and built
+// by the seam (`signals.ts`): properties of a GType registered over `GridLayout` on Android, the
+// seam's own accessors everywhere else. There is no `get spinning()` / `set size()` here any more,
+// for the reason `adw-window-title.ts` gives — node-gi reads the GObject's store, never a JS
+// getter — and the two `_apply*` methods hang off `notify::` instead of a setter.
+//
+// XML hands `spinning="false"` and `size="96"` over as strings. The seam parses `spinning` to the
+// boolean it declares on both legs; `size` keeps its own lenient reading through `normalize`,
+// because `size="24px"` is a length and the floor at 16 is part of the property, not of a setter.
+export class AdwSpinner extends withSignals(GridLayout, {
+    GTypeName: 'AdwSpinner',
+    Properties: {
+        spinning: { kind: 'boolean', default: true, blurb: 'Whether the spinner is animating' },
+        size: {
+            kind: 'double',
+            default: DEFAULT_SPINNER_SIZE,
+            blurb: 'The box size in DIPs, floored at the measured minimum',
+            normalize: (value) => resolveSpinnerSize(value as number | string | null | undefined),
+        },
+    },
+}) {
     static readonly GTypeName: string = 'AdwSpinner';
+
+    /**
+     * Whether the spinner is animating. Gated on being mapped, as in GTK. A string from XML is
+     * parsed to a boolean by the seam; anything but `'true'` / `'false'` throws.
+     */
+    declare spinning: boolean;
+
+    /**
+     * The BOX size in DIPs — what was requested, floored at the measured
+     * minimum 16 and NOT capped.
+     *
+     * Reading it back after `size = 200` reports 200, because that is what the
+     * widget occupies. {@link ringDiameter} is the drawn ring, which is where
+     * the 64 cap lives. The two used to be one number, so an oversized spinner
+     * silently took 64 DIPs of layout instead of the 200 it was given.
+     */
+    declare size: number;
+
+    /** `notify('size')` beside NativeScript's `notify({ eventName })` — see {@link GObjectNotify}. */
+    declare notify: GObjectNotify;
 
     /** The platform indicator — the RING, capped at 64 DIPs. */
     private readonly _indicator: ActivityIndicator;
-    /** The requested BOX size, floored at the measured minimum 16. */
-    private _size = DEFAULT_SPINNER_SIZE;
-    /** Whether the consumer wants it spinning, independent of whether it is mapped. */
-    private _spinning = true;
 
     constructor(props?: ConstructProps<AdwSpinner>) {
         super();
@@ -77,6 +120,11 @@ export class AdwSpinner extends withSignals(GridLayout) {
             this._indicator.busy = false;
         });
 
+        // The property is the source of truth and a notification is what says it moved, on either
+        // leg. The handlers read the EMITTER, the idiom `adw-window-title.ts` settled on.
+        this.connect(NOTIFY_SIZE, (self) => self._applySize());
+        this.connect(NOTIFY_SPINNING, (self) => self._applySpinning());
+
         this._applySize();
         this._applySpinning();
 
@@ -85,10 +133,10 @@ export class AdwSpinner extends withSignals(GridLayout) {
 
     private _applySize(): void {
         // THE BOX: what was asked for.
-        this.width = this._size;
-        this.height = this._size;
+        this.width = this.size;
+        this.height = this.size;
         // THE RING: capped at 64, centred by the grid.
-        const { diameter } = spinnerGeometry(this._size, this._size);
+        const { diameter } = spinnerGeometry(this.size, this.size);
         this._indicator.width = diameter;
         this._indicator.height = diameter;
     }
@@ -98,39 +146,11 @@ export class AdwSpinner extends withSignals(GridLayout) {
         // inert, so a spec still sees the requested state rather than a widget
         // that never maps.
         const mapped = this.isLoaded !== false;
-        this._indicator.busy = this._spinning && mapped;
-    }
-
-    /** Whether the spinner is animating. Gated on being mapped, as in GTK. */
-    get spinning(): boolean {
-        return this._spinning;
-    }
-
-    set spinning(value: boolean | string) {
-        this._spinning = xmlBoolean(value, false);
-        this._applySpinning();
-    }
-
-    /**
-     * The BOX size in DIPs — what was requested, floored at the measured
-     * minimum 16 and NOT capped.
-     *
-     * Reading it back after `size = 200` reports 200, because that is what the
-     * widget occupies. {@link ringDiameter} is the drawn ring, which is where
-     * the 64 cap lives. The two used to be one number, so an oversized spinner
-     * silently took 64 DIPs of layout instead of the 200 it was given.
-     */
-    get size(): number {
-        return this._size;
-    }
-
-    set size(value: number | string) {
-        this._size = resolveSpinnerSize(value);
-        this._applySize();
+        this._indicator.busy = this.spinning && mapped;
     }
 
     /** The drawn ring diameter — `spinnerGeometry`, capped at 64. */
     get ringDiameter(): number {
-        return spinnerGeometry(this._size, this._size).diameter;
+        return spinnerGeometry(this.size, this.size).diameter;
     }
 }

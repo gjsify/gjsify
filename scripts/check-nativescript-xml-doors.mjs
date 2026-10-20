@@ -531,6 +531,16 @@ try {
 if (signalsSource !== '' && !signalsSource.includes(`export function ${SIGNALS_MIXIN}<`)) {
     failures.push(`${NS_SIGNALS} no longer exports ${SIGNALS_MIXIN} — every wrapped class below calls it.`);
 }
+// The claim `coerces()` makes for every declared number and boolean: the seam parses the string
+// before it reaches the store (pure-JS leg) and before it reaches node-gi (route D). One
+// definition and two call sites; fewer means a leg lost the coercion and the declared setters
+// above are passing on a promise nothing keeps.
+if (signalsSource !== '' && (signalsSource.match(/\bcoerceDeclared\(/g)?.length ?? 0) < 3) {
+    failures.push(
+        `${NS_SIGNALS} no longer calls coerceDeclared() on both legs (pure-JS setter and route-D accessor) — ` +
+            'a property declared at the `extends` would hand an XML string to the store or to node-gi raw.',
+    );
+}
 const coreClasses = readCoreClasses(ROOT);
 if (coreClasses.size === 0)
     failures.push('ns-core.d.ts declares no class — arm 6 cannot tell a platform base from a typo');

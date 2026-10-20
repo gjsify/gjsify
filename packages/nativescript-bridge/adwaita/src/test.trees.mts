@@ -52,6 +52,7 @@ import { AdwWidgetMapNsTest } from './widget-map.spec.js';
 import { AdwWindowRootsNsTest } from './window-roots.spec.js';
 import { AdwWindowShellNsTest } from './window-shell.spec.js';
 import { AdwWindowTitlePropertiesNsTest } from './window-title-properties.spec.js';
+import { AdwSpinnerPropertiesNsTest } from './spinner-properties.spec.js';
 
 run({
     AdwApplicationNsTest,
@@ -77,6 +78,7 @@ run({
     GtkWindowMembersNsTest,
     AdwWindowShellNsTest,
     AdwWindowTitlePropertiesNsTest,
+    AdwSpinnerPropertiesNsTest,
     GtkToggleButtonNsTest,
     GtkWidgetTreeNsTest,
     GtkButtonActionsNsTest,
