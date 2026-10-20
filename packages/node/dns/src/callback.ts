@@ -258,6 +258,16 @@ export function resolve(hostname: string, ...args: [string, Function] | [Functio
     }
 }
 
+/**
+ * Resolve TXT records: one `string[]` of chunks per record (Node's shape).
+ */
+export function resolveTxt(
+    hostname: string,
+    callback: (err: NodeJS.ErrnoException | null, records: string[][]) => void,
+): void {
+    _resolveRecords(hostname, 'TXT', callback);
+}
+
 function _resolveRecords(hostname: string, rrtype: string, callback: Function): void {
     const resolver = Gio.Resolver.get_default();
 
@@ -285,7 +295,11 @@ function _resolveRecords(hostname: string, rrtype: string, callback: Function): 
             try {
                 const records = resolver.lookup_records_finish(asyncResult);
                 // Records are GLib.Variant arrays — convert to JS
-                const results = records.map((r: GLib.Variant) => r.deep_unpack());
+                // TXT variants are `(as)` tuples; Node yields the chunk array itself (string[][])
+                const isTxt = gioType === Gio.ResolverRecordType.TXT;
+                const results = records.map((r: GLib.Variant) =>
+                    isTxt ? (r.deep_unpack() as [string[]])[0] : r.deep_unpack(),
+                );
                 callback(null, results as unknown[]);
             } catch (_err: unknown) {
                 callback(createDnsError(hostname, 'queryDns'), []);
