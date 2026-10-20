@@ -18,7 +18,7 @@ import * as Adw from './namespace/adw.js';
 
 interface CardLabels {
     _releaseNotesLabel: { text: string; visibility: string };
-    _linksLabel: { text: string; visibility: string };
+    _linksBox: { visibility: string; getChildrenCount(): number; getChildAt(i: number): { text: string } };
     _debugInfoLabel: { text: string; visibility: string };
 }
 
@@ -64,7 +64,7 @@ export const AdwAboutDialogDoorsNsTest = async () => {
             const labels = card(new Adw.AboutDialog());
             expect([
                 labels._releaseNotesLabel.visibility,
-                labels._linksLabel.visibility,
+                labels._linksBox.visibility,
                 labels._debugInfoLabel.visibility,
             ]).toStrictEqual(['collapse', 'collapse', 'collapse']);
         });
@@ -73,9 +73,9 @@ export const AdwAboutDialogDoorsNsTest = async () => {
             const dialog = new Adw.AboutDialog();
             dialog.add_link('_Docs', 'https://example.org/docs');
             dialog.add_link('Chat', 'https://example.org/chat');
-            expect(card(dialog)._linksLabel.text).toBe(
-                'Docs: https://example.org/docs\nChat: https://example.org/chat',
-            );
+            const box = card(dialog)._linksBox;
+            expect([0, 1].map((i) => box.getChildAt(i).text)).toStrictEqual(['Docs', 'Chat']);
+            expect(box.getChildrenCount()).toBe(2);
         });
 
         await it('shows debug-info verbatim', () => {

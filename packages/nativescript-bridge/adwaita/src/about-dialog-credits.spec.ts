@@ -27,8 +27,8 @@ interface Shown {
 }
 
 interface CardLabels {
-    _supportLabel: Shown;
-    _issueLabel: Shown;
+    _supportButton: Shown;
+    _issueButton: Shown;
     _creditsLabel: Shown;
     _acknowledgementsLabel: Shown;
     _legalLabel: Shown;
@@ -151,8 +151,8 @@ export const AdwAboutDialogCreditsNsTest = async () => {
                 if (supportUrl) dialog.supportUrl = 'https://example.org/help';
                 if (issueUrl) dialog.issueUrl = 'https://example.org/issues';
                 expect({
-                    supportRow: card(dialog)._supportLabel.visibility === 'visible',
-                    issueRow: card(dialog)._issueLabel.visibility === 'visible',
+                    supportRow: card(dialog)._supportButton.visibility === 'visible',
+                    issueRow: card(dialog)._issueButton.visibility === 'visible',
                 }).toStrictEqual({ supportRow: visible.supportRow, issueRow: visible.issueRow });
             });
         }

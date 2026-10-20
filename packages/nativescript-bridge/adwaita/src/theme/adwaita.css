@@ -1777,8 +1777,16 @@ Page.adw-window {
 }
 
 .adw-about-dialog-icon {
-    font-size: 48;
     margin: 0 0 8 0;
+}
+
+.adw-about-dialog-link,
+.adw-about-dialog-links-item {
+    background-color: transparent;
+    color: rgba(0, 0, 0, 0.8);
+    text-decoration: underline;
+    font-size: 13;
+    margin: 2 0 2 0;
 }
 
 .adw-about-dialog-name {
@@ -2648,6 +2656,11 @@ Page.ns-dark.adw-window {
 .ns-dark .adw-about-dialog-links,
 .ns-dark .adw-about-dialog-debug-info {
     color: rgba(255, 255, 255, 0.6);
+}
+
+.ns-dark .adw-about-dialog-link,
+.ns-dark .adw-about-dialog-links-item {
+    color: #ffffff;
 }
 
 .ns-dark .adw-about-dialog-copy,

@@ -21,6 +21,7 @@ import { AdwBlueprintMarkupNsTest } from './blueprint-markup.spec.js';
 import { AdwClampClasslessChildNsTest } from './clamp-child.spec.js';
 import { AdwAboutDialogDoorsNsTest } from './about-dialog-doors.spec.js';
 import { AdwAboutDialogCreditsNsTest } from './about-dialog-credits.spec.js';
+import { AdwAboutDialogLinksNsTest } from './about-dialog-links.spec.js';
 import { AdwCarouselDoorsNsTest } from './carousel-doors.spec.js';
 import { AdwConstructVectorsNsTest } from './construct-vectors.spec.js';
 import { AdwContainersNsTest } from './containers.spec.js';
@@ -63,6 +64,7 @@ run({
     AdwClampClasslessChildNsTest,
     AdwAboutDialogDoorsNsTest,
     AdwAboutDialogCreditsNsTest,
+    AdwAboutDialogLinksNsTest,
     AdwCarouselDoorsNsTest,
     AdwConstructVectorsNsTest,
     AdwGObjectDoorNsTest,
