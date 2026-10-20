@@ -32,7 +32,6 @@ import {
     NOTIFY_SLIDER_VALUE,
     NOTIFY_TEXT,
     NOTIFY_VALUE,
-    type NotifyActiveEventData,
     type NotifySelectedEventData,
     type NotifySliderValueEventData,
     type NotifyTextEventData,
@@ -99,7 +98,9 @@ const ADWAITA_NS_FACTORY: ControlWidgetFactory<View> = {
         row.title = label;
         if (desc) row.subtitle = desc;
         let cb: (v: boolean) => void = () => {};
-        row.addEventListener(NOTIFY_ACTIVE, (e) => cb((e as NotifyActiveEventData).active));
+        // A declared property's notification comes from GObject on Android, where only `connect`
+        // hears it, and carries no value of its own — so it is read off the emitter.
+        row.connect(NOTIFY_ACTIVE, (self) => cb(self.active));
         return {
             node: row,
             get: () => row.active,

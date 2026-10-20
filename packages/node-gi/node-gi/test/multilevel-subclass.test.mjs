@@ -340,6 +340,82 @@ test('3-level registered chain (storybook shape) constructs + composes every anc
     assert.equal(leaf2.leaf_prop, 3);
 });
 
+test('a PLAIN subclass between two registrations is skipped, not an error', () => {
+    // The chain every mixin-based port builds: a registered mixin, the concrete class
+    // that extends it WITHOUT registering, and a second registered mixin over that one.
+    // `MlSkipMid` is unregistered, so it has no GType of its own — but it READS
+    // `MlSkipBase.$gtypeName` through the class-side prototype chain, a dotless name with
+    // no registry entry of its own. findParentGType has to recognise that as inherited and
+    // keep walking. Measured against gjs 1.88.1, which answers the same: `type_parent` of
+    // the leaf is the registered ANCESTOR, skipping the plain class in between.
+    class MlSkipBase extends GObject.Object {
+        static {
+            GObject.registerClass(
+                {
+                    GTypeName: 'NodeGiMlSkipBase',
+                    Properties: { 'base-prop': GObject.ParamSpec.string('base-prop', '', '', RW, 'base') },
+                    Signals: { 'base-signal': {} },
+                },
+                MlSkipBase,
+            );
+        }
+    }
+    class MlSkipMid extends MlSkipBase {
+        midTag() {
+            return `mid:${this.base_prop}`;
+        }
+    }
+    class MlSkipLeaf extends MlSkipMid {
+        static {
+            GObject.registerClass(
+                {
+                    GTypeName: 'NodeGiMlSkipLeaf',
+                    Properties: { 'leaf-prop': GObject.ParamSpec.int('leaf-prop', '', '', RW, 0, 9, 4) },
+                },
+                MlSkipLeaf,
+            );
+        }
+    }
+
+    assert.equal(GObject.type_name(GObject.type_parent(MlSkipLeaf.$gtype)), 'NodeGiMlSkipBase');
+
+    const leaf = new MlSkipLeaf();
+    assert.equal(native.getTypeName(unwrap(leaf)), 'NodeGiMlSkipLeaf');
+    assert.equal(leaf instanceof MlSkipMid, true, 'the plain class stays in the JS chain');
+    assert.equal(leaf.midTag(), 'mid:base', "the plain class's own method + the inherited prop");
+    assert.equal(leaf.leaf_prop, 4);
+
+    // The inherited declaration composes on the leaf, both halves.
+    const seen = [];
+    leaf.connect('notify::base-prop', (_o, pspec) => seen.push(pspec.get_name()));
+    leaf.base_prop = 'changed';
+    assert.deepEqual(seen, ['base-prop']);
+    assert.equal(leaf.base_prop, 'changed');
+    let fired = 0;
+    leaf.connect('base-signal', () => {
+        fired += 1;
+    });
+    leaf.emit('base-signal');
+    assert.equal(fired, 1);
+
+    // The plain class in the middle is still unconstructible on its own — skipping it in
+    // the PARENT walk must not be mistaken for registering it.
+    assert.throws(() => new MlSkipMid(), /Object MlSkipMid is not registered with GObject\.registerClass\(\)/);
+});
+
+test('an OWN dotless $gtypeName that is not registered still throws', () => {
+    // The other side of the inherited-name branch above: a dotless name the class itself
+    // declares, with nothing in the registry behind it, cannot be split into a namespace
+    // and must not be guessed at.
+    class MlFakeGType extends GObject.Object {
+        static $gtypeName = 'NodeGiMlNeverRegistered';
+    }
+    assert.throws(
+        () => GObject.registerClass({ GTypeName: 'NodeGiMlOverFake' }, class extends MlFakeGType {}),
+        /parent 'NodeGiMlNeverRegistered' has no resolvable GType/,
+    );
+});
+
 test('an unregistered leaf subclass throws the clear "not registered" error', () => {
     // A subclass of an INTROSPECTED GObject class that was NEVER passed to
     // registerClass must not silently build the introspected base type.

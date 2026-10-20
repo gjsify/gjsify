@@ -452,3 +452,99 @@ test("a class's own accessor wins, and the store routes through it", () => {
     assert.equal(out.viaStore, 'own:b');
     assert.equal(out.store, 'b');
 });
+
+// The MIXIN shape: two foreign-parent registrations with an ORDINARY subclass between
+// them. This is how the adwaita port layers route D — `withSignals(GridLayout, meta)`
+// registers, the widget class extends it plainly, `withProperties(AdwActionRow, meta)`
+// registers again, the derived widget extends THAT plainly (ADR 0105 § 2) — so the
+// registered-over-registered case above has a class in between that contributes no GType.
+// Two things have to hold, and both broke before `findParentGType` learned to skip an
+// INHERITED dotless `$gtypeName`: the parent walk reaches the registered ANCESTOR, and
+// the derived registration SKIPS the GObject verbs it inherits instead of re-installing
+// them, which means the PARENT's captured thunks are what a leaf instance runs.
+test('a registered class over a plain subclass of a foreign-parent class', () => {
+    const out = onNativeScriptHost(`
+        class HostWidget {
+            notify(data) { (this._hostNotified ??= []).push(data && data.eventName); }
+        }
+        const RowMixin = GObject.registerClass(
+            { GTypeName: 'ForeignRowMixin', Properties: {
+                title: GObject.ParamSpec.string('title', '', '', GObject.ParamFlags.READWRITE, ''),
+            } },
+            class RowMixin extends HostWidget {},
+        );
+        // What the seam does: take the installed verbs off the prototype and put routers
+        // back over them, so the captured thunks are the only way to the GObject half.
+        const giConnect = RowMixin.prototype.connect;
+        const giDisconnect = RowMixin.prototype.disconnect;
+        Object.defineProperty(RowMixin.prototype, 'connect', {
+            configurable: true, writable: true, enumerable: false,
+            value: function router(name, cb) { return giConnect.call(this, name, cb); },
+        });
+        class ActionRow extends RowMixin {}
+        const SwitchMixin = GObject.registerClass(
+            { GTypeName: 'ForeignSwitchMixin', Properties: {
+                active: GObject.ParamSpec.boolean('active', '', '', GObject.ParamFlags.READWRITE, false),
+            } },
+            class SwitchMixin extends ActionRow {},
+        );
+        class SwitchRow extends SwitchMixin {}
+
+        const row = new SwitchRow();
+        ok('typeName', row.$typeName);
+        ok('parentType', GObject.type_name(GObject.type_parent(SwitchMixin.$gtype)));
+        ok('rootType', GObject.type_name(
+            GObject.type_parent(GObject.type_parent(SwitchMixin.$gtype)),
+        ));
+        ok('isPlainMid', row instanceof ActionRow);
+        ok('isHost', row instanceof HostWidget);
+        ok('isGObject', row instanceof GObject.Object);
+
+        // The derived registration found connect/disconnect/emit already on the chain and
+        // stepped aside — the names are in ITS skip list, and it installed no own copy.
+        ok('derivedSkipsConnect', SwitchMixin.$foreignSkipped.includes('connect'));
+        ok('derivedSkipsEmit', SwitchMixin.$foreignSkipped.includes('emit'));
+        ok('noOwnConnect', Object.hasOwn(SwitchMixin.prototype, 'connect'));
+
+        // So the PARENT's captured thunk is what runs on a leaf instance — including for a
+        // property only the LEAF declares, with the leaf as the emitter.
+        const seen = [];
+        const id = giConnect.call(row, 'notify::active', (self, pspec) =>
+            seen.push([pspec.get_name(), self === row]));
+        row.active = true;
+        ok('leafNotify', seen);
+        ok('leafRead', row.active);
+
+        // And the inherited property, read + notified through the same leaf.
+        const titles = [];
+        giConnect.call(row, 'notify::title', (_o, p) => titles.push(p.get_name()));
+        row.title = 'hello';
+        ok('inheritedNotify', titles);
+        ok('inheritedRead', row.title);
+
+        // disconnect through the parent's thunk removes the leaf's handler.
+        giDisconnect.call(row, id);
+        row.active = false;
+        ok('afterDisconnect', seen.length);
+
+        // The host half is untouched: an object payload still reaches HostWidget.notify.
+        row.notify({ eventName: 'activated' });
+        ok('hostNotified', row._hostNotified);
+        console.log(JSON.stringify(out));
+    `);
+    assert.equal(out.typeName, 'ForeignSwitchMixin');
+    assert.equal(out.parentType, 'ForeignRowMixin', 'the plain class in between is skipped');
+    assert.equal(out.rootType, 'GObject');
+    assert.equal(out.isPlainMid, true);
+    assert.equal(out.isHost, true);
+    assert.equal(out.isGObject, true);
+    assert.equal(out.derivedSkipsConnect, true);
+    assert.equal(out.derivedSkipsEmit, true);
+    assert.equal(out.noOwnConnect, false, 'the derived registration installed no own connect');
+    assert.deepEqual(out.leafNotify, [['active', true]]);
+    assert.equal(out.leafRead, true);
+    assert.deepEqual(out.inheritedNotify, ['title']);
+    assert.equal(out.inheritedRead, 'hello');
+    assert.equal(out.afterDisconnect, 1, 'the disconnected handler did not fire again');
+    assert.deepEqual(out.hostNotified, ['activated']);
+});

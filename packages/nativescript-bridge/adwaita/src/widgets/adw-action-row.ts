@@ -16,23 +16,66 @@
 // Reference: refs/libadwaita/src/adw-action-row.c, adw-action-row.ui
 // Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss (AdwActionRow)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+//
+// FOUR OF ITS PROPERTIES ARE A REAL GObject's (ADR 0105 § 2, route D). `title`, `subtitle`,
+// `icon-name` and `activatable` are DECLARED at the `extends` and built by the seam: on Android
+// this class is a GType registered over `GridLayout`, and `AdwSwitchRow` then registers over THIS
+// GType — the first derived registration in the port, and the reason node-gi learned to walk a
+// chain with a plain NativeScript class sitting between two registered ones. Off-device the seam
+// installs its own accessors with the same names, notifies and equal-write rule.
+//
+// WHAT THAT COSTS THIS FILE, beyond the four accessors becoming `declare` lines:
+//   - `_applyLabels()` and `_applyIconName()` hang off `notify::` instead of a setter, because
+//     node-gi reads a declared property out of the GObject's store and never calls a JS getter.
+//   - NOTHING MAY REFUSE A WRITE FROM A `notify::` HANDLER. node-gi logs and SWALLOWS an
+//     exception thrown in one (gi.js:431) while the property keeps the written value, so a
+//     TypeError there would fire off-device and vanish on-device. `iconName` used to throw when
+//     `add_prefix` already held the slot; it now REPLACES, which is `add_prefix`'s own rule.
+//   - `activated` is deliberately NOT declared as a signal. A declared signal routes `emit` to
+//     GObject alone, which would leave `addEventListener('activated')` — the door every consumer
+//     and every XML binding uses — silent. It stays a NativeScript event.
+//   - `ActionRowState` keeps only the activatable-widget ↔ sensitivity BINDING (ADR 0004); the
+//     labels' change detection is the property's now, and the binding's result is mirrored into
+//     the declared `activatable` using the "changed" booleans, so an unchanged re-assert cannot
+//     undo a direct write.
 
 import type { View } from '@nativescript/core';
 import { GridLayout, ItemSpec, StackLayout, Label, type EventData } from '@nativescript/core';
 import { ActionRowState, isViewSensitive, rowLabelVisuals } from './row-state.js';
-import { xmlBoolean } from './xml-values.js';
 import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
+import type { GObjectNotify } from './signals.js';
 import { GtkImage } from './gtk-image.js';
 
 /** Event name emitted when the row is activated. Mirrors `Adw.ActionRow::activated`. */
 export const ACTIVATED = 'activated';
 
+/** Event name emitted when {@link AdwActionRow.title} changes. */
+export const NOTIFY_TITLE = 'notify::title';
+
+/** Event name emitted when {@link AdwActionRow.subtitle} changes. */
+export const NOTIFY_SUBTITLE = 'notify::subtitle';
+
+/** Event name emitted when {@link AdwActionRow.iconName} changes. */
+export const NOTIFY_ICON_NAME = 'notify::icon-name';
+
+/** Event name emitted when {@link AdwActionRow.activatable} changes. */
+export const NOTIFY_ACTIVATABLE = 'notify::activatable';
+
 /** The edges an XML child of an action row can ask for. */
 const ACTION_ROW_SLOTS = ['prefix', 'suffix'] as const;
 
-export class AdwActionRow extends withSignals(GridLayout) {
+export class AdwActionRow extends withSignals(GridLayout, {
+    GTypeName: 'AdwActionRow',
+    Properties: {
+        title: { kind: 'string', default: '', blurb: 'The title of the row' },
+        subtitle: { kind: 'string', default: '', blurb: 'The subtitle of the row' },
+        // Canonical and dashed, as GObject spells it; the seam generates all three spellings.
+        'icon-name': { kind: 'string', default: '', blurb: 'The icon name for this row' },
+        activatable: { kind: 'boolean', default: false, blurb: 'Whether this row can be activated' },
+    },
+}) {
     static readonly GTypeName: string = 'AdwActionRow';
 
     /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
@@ -49,11 +92,39 @@ export class AdwActionRow extends withSignals(GridLayout) {
      * search behaves as GTK does.
      */
     readonly isActionRow: boolean = true;
+
+    /** The row title (column 1, top line). Empty collapses its label. */
+    declare title: string;
+
+    /**
+     * The row subtitle (column 1, dim second line). Empty collapses its label so it
+     * leaves no blank gap — `string_is_not_empty`, the rule the title follows too.
+     */
+    declare subtitle: string;
+
+    /**
+     * `AdwActionRow:icon-name` — an icon in the prefix slot, before the title.
+     *
+     * It TAKES that slot: setting it over a widget `add_prefix` put there replaces it, the same
+     * one-slot rule `add_prefix` applies to itself. The twin threw instead, which a declared
+     * property cannot (see the header).
+     */
+    declare iconName: string;
+
+    /** `GtkListBoxRow:activatable` — whether a tap activates this row at all. */
+    declare activatable: boolean;
+
+    /** `notify('title')` beside NativeScript's `notify({ eventName })` — see {@link GObjectNotify}. */
+    declare notify: GObjectNotify;
+
     /** The text/value column (column 1). */
     protected readonly _textStack: StackLayout;
     protected readonly _titleLabel: Label;
     protected readonly _subtitleLabel: Label;
-    /** The headless labels + activatable-widget coupling (ADR 0004). */
+    /**
+     * The activatable-widget ↔ sensitivity binding (ADR 0004). No longer the labels' store:
+     * `title` and `subtitle` are the declared properties', and their change detection with them.
+     */
     protected readonly _rowState = new ActionRowState<View>();
     private _prefix: View | null = null;
     private _iconImage: GtkImage | null = null;
@@ -93,6 +164,20 @@ export class AdwActionRow extends withSignals(GridLayout) {
         this._textStack = textStack;
         this._titleLabel = titleLabel;
         this._subtitleLabel = subtitleLabel;
+
+        // The property is the source of truth now, and a notification is what says it moved — on
+        // either leg. The handler reads the EMITTER rather than an enclosing `this`, the idiom
+        // `tests/integration/nativescript-gi/app/specs/foreign-parent.ts` settled on.
+        this.connect(NOTIFY_TITLE, (self) => self._applyLabels());
+        this.connect(NOTIFY_SUBTITLE, (self) => self._applyLabels());
+        this.connect(NOTIFY_ICON_NAME, (self) => self._applyIconName());
+        // The other direction of the binding mirror, so the two halves cannot drift: a direct
+        // write to `activatable` is also what `ActionRowState` holds, and the next unchanged
+        // sensitivity re-assert therefore stays the no-op `gtk_widget_set_sensitive` makes it.
+        this.connect(NOTIFY_ACTIVATABLE, (self) => {
+            self._rowState.setActivatable(self.activatable);
+        });
+
         this._applyLabels();
 
         this.addEventListener('tap', () => this.activate());
@@ -116,6 +201,9 @@ export class AdwActionRow extends withSignals(GridLayout) {
      * `<div class="adw-entry-row-prefixes">` both put it first. `adwaita-web`'s own slot
      * binding already records the rule ("`addPrefix` PREPENDS, mirroring `gtk_box_prepend`");
      * this is the third renderer joining it.
+     *
+     * An icon {@link AdwActionRow.iconName} put there is displaced like any other prefix, and
+     * clearing the property is part of that — see `remove()`.
      */
     add_prefix(view: View): void {
         if (this._prefix) this.remove(this._prefix);
@@ -125,60 +213,8 @@ export class AdwActionRow extends withSignals(GridLayout) {
         this._prefix = view;
     }
 
-    /**
-     * `AdwActionRow:icon-name` — an icon in the prefix slot, before the title. It takes that slot,
-     * so a row whose prefix was set with {@link add_prefix} refuses it rather than replace it.
-     */
-    get iconName(): string {
-        return this._iconImage !== null && this._prefix === this._iconImage ? this._iconImage.iconName : '';
-    }
-
-    set iconName(value: string | null) {
-        const name = value ?? '';
-        // add_prefix() or remove() may have replaced the icon since it was set.
-        if (this._iconImage !== null && this._prefix !== this._iconImage) this._iconImage = null;
-        if (name === '') {
-            if (this._iconImage !== null) {
-                this.remove(this._iconImage);
-                this._iconImage = null;
-            }
-            return;
-        }
-        if (this._iconImage === null) {
-            if (this._prefix) {
-                throw new TypeError(
-                    `${this.constructor.name}.iconName needs the prefix slot, which add_prefix() already filled.`,
-                );
-            }
-            this._iconImage = new GtkImage();
-            this.add_prefix(this._iconImage);
-        }
-        this._iconImage.iconName = name;
-    }
-
     get prefix(): View | null {
         return this._prefix;
-    }
-
-    /** The row title (column 1, top line). */
-    get title(): string {
-        return this._rowState.title;
-    }
-
-    set title(value: string) {
-        if (this._rowState.setTitle(value)) this._applyLabels();
-    }
-
-    /**
-     * The row subtitle (column 1, dim second line). Empty collapses its label so it
-     * leaves no blank gap — `string_is_not_empty`, the rule the title follows too.
-     */
-    get subtitle(): string {
-        return this._rowState.subtitle;
-    }
-
-    set subtitle(value: string) {
-        if (this._rowState.setSubtitle(value)) this._applyLabels();
     }
 
     /** Install a suffix widget in column 2 — `adw_action_row_add_suffix`. Same one-slot rule as {@link add_prefix}. */
@@ -206,6 +242,14 @@ export class AdwActionRow extends withSignals(GridLayout) {
             );
         }
         this.removeChild(view);
+        // The icon leaving the slot is what clears `icon-name` — whether it was removed outright
+        // or displaced by `add_prefix`, which removes the held prefix on its way in. Keeping the
+        // clear HERE is what makes `_iconImage !== null` imply `_prefix === _iconImage`, so the
+        // property and the tree cannot disagree about which widget the icon is.
+        if (view === this._iconImage) {
+            this._iconImage = null;
+            this.iconName = '';
+        }
     }
 
     get suffix(): View | null {
@@ -244,22 +288,22 @@ export class AdwActionRow extends withSignals(GridLayout) {
      * has to be driven, not observed.
      */
     set activatableWidget(widget: View | null) {
-        this._rowState.setActivatableWidget(widget, isViewSensitive(widget));
+        if (!this._rowState.setActivatableWidget(widget, isViewSensitive(widget))) return;
+        // `G_BINDING_SYNC_CREATE` copies the widget's sensitivity across on the spot; unsetting
+        // leaves `activatable` alone, which is why only a non-null widget mirrors.
+        if (widget !== null) this.activatable = this._rowState.activatable;
     }
 
     /** Re-read the activatable widget's sensitivity — the live half of the binding. */
     syncActivatableWidgetSensitivity(): void {
         const widget = this._rowState.activatableWidget;
-        if (widget) this._rowState.setActivatableWidgetSensitive(isViewSensitive(widget));
-    }
-
-    /** `GtkListBoxRow:activatable` — whether a tap activates this row at all. */
-    get activatable(): boolean {
-        return this._rowState.activatable;
-    }
-
-    set activatable(value: boolean | string) {
-        this._rowState.setActivatable(xmlBoolean(value, false));
+        if (!widget) return;
+        // The returned boolean is the gate: it is false both when nothing is bound and when the
+        // sensitivity is unchanged, and mirroring unconditionally would let the binding re-assert
+        // itself over a direct `activatable` write that GTK's one-way binding lets stand.
+        if (this._rowState.setActivatableWidgetSensitive(isViewSensitive(widget))) {
+            this.activatable = this._rowState.activatable;
+        }
     }
 
     /**
@@ -273,7 +317,7 @@ export class AdwActionRow extends withSignals(GridLayout) {
      * a plain action row only emits.
      */
     activate(): void {
-        if (!this._rowState.activatable) return;
+        if (!this.activatable) return;
         const data: EventData = { eventName: ACTIVATED, object: this };
         this.notify(data);
     }
@@ -290,10 +334,31 @@ export class AdwActionRow extends withSignals(GridLayout) {
 
     /** Push the derived label text + visibility onto the two `Label`s. */
     protected _applyLabels(): void {
-        const visuals = rowLabelVisuals({ title: this._rowState.title, subtitle: this._rowState.subtitle });
+        const visuals = rowLabelVisuals({ title: this.title, subtitle: this.subtitle });
         this._titleLabel.text = visuals.title;
         if (this._managesTitleVisibility) this._titleLabel.visibility = visuals.titleVisibility;
         this._subtitleLabel.text = visuals.subtitle;
         this._subtitleLabel.visibility = visuals.subtitleVisibility;
+    }
+
+    /**
+     * Put the named icon in the prefix slot, or take it out again — the render half of
+     * `icon-name`, run from `notify::icon-name`.
+     *
+     * Everything that can refuse happens BEFORE the write reaches here: an unparseable value is
+     * the seam's throw, and there is nothing left for this to reject (see the header on why it
+     * could not throw anyway). `remove()` is what clears the field on the way out.
+     */
+    private _applyIconName(): void {
+        const name = this.iconName;
+        if (name === '') {
+            if (this._iconImage !== null) this.remove(this._iconImage);
+            return;
+        }
+        if (this._iconImage === null) {
+            this._iconImage = new GtkImage();
+            this.add_prefix(this._iconImage);
+        }
+        this._iconImage.iconName = name;
     }
 }

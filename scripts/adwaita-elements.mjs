@@ -557,6 +557,17 @@ export function observedAttributes(root) {
 /** Where GJS's `connect` / `disconnect` come from, and the wrapper a class takes them with. */
 export const SIGNALS_MIXIN = 'withSignals';
 
+/**
+ * The seam's second door: a DECLARATION on a class whose base is already a widget of this
+ * package, which has `connect` / `disconnect` / `notify` already and must not take a second copy.
+ *
+ * Two names rather than one with an option, because the two are mutually exclusive per class and
+ * arm 6 of `check-nativescript-xml-doors.mjs` turns on WHICH one a class used: `withSignals` on a
+ * port base is the duplicated door it has always refused, and `withProperties` on a platform base
+ * is a widget with no `connect` at all. Both readers below therefore carry the name, not a flag.
+ */
+export const PROPERTIES_MIXIN = 'withProperties';
+
 /** The index of the `}` closing the `{` at {@link open}, or -1 when nothing does. */
 export function matchingBrace(text, open) {
     let depth = 0;
@@ -631,7 +642,13 @@ export function declaredGObjectProperties(text) {
         const end = matchingBrace(meta, start);
         if (end === -1) continue;
         for (const name of topLevelKeys(meta.slice(start + 1, end))) {
-            const typed = new RegExp(String.raw`^ {4}declare ${name}\s*:\s*([^;]+);`, 'm').exec(code);
+            // The declaration carries the CANONICAL name and the `declare` line the JS one, and
+            // for a dashed property those differ: `'icon-name'` is declared as `declare iconName`.
+            // Looked up under the dashed spelling the half is simply never found, and the property
+            // answers as untyped — which every door reads as a property with no TypeScript type
+            // rather than as a reader that looked in the wrong place.
+            const js = camelOf(name);
+            const typed = new RegExp(String.raw`^ {4}declare ${js}\s*:\s*([^;]+);`, 'm').exec(code);
             declared.push({
                 name,
                 declared: true,
@@ -646,6 +663,18 @@ export function declaredGObjectProperties(text) {
 }
 
 /**
+ * A GObject property's canonical DASHED name in the spelling JavaScript writes.
+ *
+ * The seam installs all three — `icon-name`, `icon_name` and `iconName` — on both legs, so for
+ * every "can a caller write this name" question the camel one is as real as the declared one.
+ * A name with no dash in it is already both.
+ *
+ * @param {string} name a property name as declared
+ * @returns {string}
+ */
+export const camelOf = (name) => name.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());
+
+/**
  * The keys of an object literal's OWN level, `{` and `}` stripped.
  *
  * By brace depth rather than by indentation: `title: { kind: 'string' }` on one line and
@@ -653,13 +682,20 @@ export function declaredGObjectProperties(text) {
  * reads only whichever the formatter happens to produce today. The keys inside a
  * property's own descriptor — `kind`, `default`, `blurb` — sit deeper and are not
  * properties.
+ *
+ * A QUOTED key counts, and it has to: a GObject property's canonical spelling is DASHED, so
+ * `'icon-name'` is not a legal identifier and the formatter writes it in quotes. Reading only
+ * bare identifiers did not fail loudly — the declaration simply was not there, and every gate
+ * over it read the property as one the port does not have.
  */
 function topLevelKeys(block) {
     const keys = [];
     let depth = 0;
-    for (const match of block.matchAll(/[{}[\]()]|([A-Za-z_$][\w$]*)\s*:/g)) {
-        if (match[1] !== undefined) {
-            if (depth === 0) keys.push(match[1]);
+    const key = /[{}[\]()]|(?:'([^']+)'|"([^"]+)"|([A-Za-z_$][\w$]*))\s*:/g;
+    for (const match of block.matchAll(key)) {
+        const name = match[1] ?? match[2] ?? match[3];
+        if (name !== undefined) {
+            if (depth === 0) keys.push(name);
             continue;
         }
         depth += '{[('.includes(match[0]) ? 1 : -1;
@@ -667,10 +703,16 @@ function topLevelKeys(block) {
     return keys;
 }
 
-/** The index of each `{` opening a `withSignals(Base, { … })` meta argument in {@link code}. */
+/**
+ * The index of each `{` opening a `withSignals(Base, { … })` meta argument in {@link code} — or a
+ * `withProperties(Base, { … })` one, which carries the SAME declaration for a class one prototype
+ * down. A reader that knew only the first door would read a migrated subclass as declaring
+ * nothing, and "declares nothing" is exactly what every door here takes as a clean bill.
+ */
 function mixinMetaBlocks(code) {
     const opens = [];
-    for (const match of code.matchAll(new RegExp(String.raw`\b${SIGNALS_MIXIN}\s*\(`, 'g'))) {
+    const opener = new RegExp(String.raw`\b(?:${SIGNALS_MIXIN}|${PROPERTIES_MIXIN})\s*\(`, 'g');
+    for (const match of code.matchAll(opener)) {
         const paren = match.index + match[0].length - 1;
         const close = matchingParen(code, paren);
         if (close === -1) continue;
@@ -697,8 +739,12 @@ export const settableProperties = (text, path) => {
     );
     // A property the signals mixin builds from a real GType has no `set` accessor anywhere
     // in the file, and is settable in exactly the sense this asks about
-    // ({@link declaredGObjectProperties}).
-    for (const { name } of declaredGObjectProperties(text)) setters.add(name);
+    // ({@link declaredGObjectProperties}). Both spellings, for the reason below: the seam
+    // installs `icon-name` and `iconName` alike ({@link camelOf}).
+    for (const { name } of declaredGObjectProperties(text)) {
+        setters.add(name);
+        setters.add(camelOf(name));
+    }
     // `show-apply-button` is the attribute; `showApplyButton` is the control name
     // a meta declares. Both spellings go in, so the caller can ask either way.
     for (const attrs of observedAttributesByClass(text, path).byClass.values()) {
@@ -741,7 +787,14 @@ export function settablePropertiesOfClass(text, className) {
     const settable = new Set([...body.matchAll(/\bset\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g)].map(([, name]) => name));
     // The slice starts AT the `class` keyword, so the `extends withSignals(Base, { … })` that
     // declares a route-D property is inside this class's body and belongs to this class alone.
-    for (const { name } of declaredGObjectProperties(body)) settable.add(name);
+    // Both spellings go in: the counterpart's property list is camelCase
+    // (`ConstructorProps.iconName`), the declaration is canonical (`'icon-name'`), and the seam
+    // installs both ({@link camelOf}). One spelling made the migrated `AdwActionRow` — and the
+    // `AdwExpanderRow` that inherits from it — read as not setting a property they both set.
+    for (const { name } of declaredGObjectProperties(body)) {
+        settable.add(name);
+        settable.add(camelOf(name));
+    }
     // A GTK property whose name the platform base owns has no accessor: the class types it in
     // the second half of its bag, `ConstructProps<Self, { direction: … }>`, and sets it through
     // `set_<p>()` (widgets/shadowed-properties.ts). That is a property it sets.

@@ -77,16 +77,56 @@
 // has decided neither way is told so at the first widget it builds, instead of silently getting
 // the subset.
 //
-// WHY THE REGISTRATION GOES ON THE MIXIN CLASS. `registerClass` wants one class per GType and
-// `WithSignals` is exactly one per widget class — stable, shared by every instance and by any
-// port subclass, where `new.target` would be a different class per subclass and would try to
-// register the same GType name twice.
+// WHY THE REGISTRATION GOES ON THE MIXIN CLASS, AND WHAT `new.target` IS FOR. `registerClass`
+// wants one class per GType and a mixin class is exactly one per widget class — stable, shared by
+// every instance and by any port subclass, where registering `new.target` would be a different
+// class per subclass and would try to register the same GType name twice. So the registration
+// TARGET is always the mixin class. `new.target` is read for one other thing: to discover which
+// mixin classes the instance being built actually has, so the WHOLE chain of them is realized
+// base-first (see the next paragraph).
+//
+// A SECOND DOOR, FOR A WIDGET THAT EXTENDS ANOTHER WIDGET. `AdwSwitchRow extends AdwActionRow`
+// adds `active` to a class that already declares four properties, and GObject answers that with
+// a GType over a GType — which node-gi supports over a foreign parent, and which this seam
+// reaches through {@link withProperties}: the same declaration mechanism as `withSignals`,
+// without the `connect` / `disconnect` / `emit` routers and without `withGtkWidgetLayout`,
+// because the base widget already carries both. Arm 6 of `check-nativescript-xml-doors.mjs`
+// allows exactly this wrapper on a port base, and still refuses a second `withSignals`.
+//
+// WHY THE DECLARATION STATE IS A MODULE-LEVEL REGISTRY AND NOT EACH CALL'S CLOSURE. With two
+// declarations in one chain, the methods that run on an `AdwSwitchRow` instance are the PARENT
+// mixin's — `withProperties` installs none, so `connect` resolves to `AdwActionRow`'s router,
+// whose closure knows nothing of `active`. So every declaration is recorded against its class in
+// {@link DECLARATIONS}, a router resolves the instance's whole chain through
+// {@link resolvedFor} (cached per concrete class), and the gi thunks come from the ancestor that
+// installed them: a derived registration finds `connect` already on the chain and SKIPS it
+// (measured — it lands in that class's `$foreignSkipped`), and the parent's captured thunk
+// works on a leaf instance, delivering the leaf's own `notify::active` with the leaf as emitter.
+//
+// WHY THE WHOLE CHAIN IS REALIZED FROM THE BASE-MOST CONSTRUCTOR. The GType an instance attaches
+// is decided the first time it touches a registered property, so every declaration in the chain
+// has to be registered BEFORE any widget constructor body runs. The one place that is true is
+// `WithSignals`'s constructor, after `super(...)`: realizing only `AdwActionRow`'s declaration
+// there and leaving `AdwSwitchRow`'s for later meant the instance attached the PARENT's GType and
+// the leaf's `active` did not exist on it at all.
 //
 // WHY THE SEAM OWNS THE ACCESSORS UNDER ROUTE D. node-gi reads a property out of the GObject's
 // own store (`NodeGiGetProperty`), not out of a JS getter — so a widget that kept `get title()`
 // would shadow the installed accessor with one the store never sees, and `bind_property` would
 // bind to a value nothing writes. The declaration is therefore the only place a migrated
 // widget's property lives, and `declare title: string;` is what keeps its TYPE and its docs.
+//
+// AND THE DECLARED NAMES DO NOT SHADOW ANYTHING EITHER. The measurement above is about `connect`,
+// `disconnect` and the six layout properties; every migrated widget adds names of its own, and
+// those meet the same hostile base — a name `ViewBase` assigns in its own constructor is dead on
+// arrival. Measured against BOTH versions in play, `@nativescript/core@9.1.3` (what
+// `tests/integration/nativescript-gi` installs, so the device legs) and `9.1.0-alpha.11` (the
+// showcases): the `GridLayout`, `StackLayout` and `Switch` chains declare none of `title`,
+// `subtitle`, `iconName` / `icon-name`, `activatable`, `activatableWidget`, `active`, `prefix`
+// or `suffix`. Both halves were read, because either alone is a half answer: the `.d.ts` for
+// each chain, and the runtime `.js` for a `Property({ name: … })`, a `defineProperty` and a bare
+// `this.<name> =`. A name the host chain DOES own is not a disaster but it is not ours — the
+// registration skips it rather than shadowing it, and says so in the frozen `$foreignSkipped`.
 
 import type { EventData, Observable } from '@nativescript/core';
 import { engineForTarget, type ForeignClassMeta, type ForeignProperty } from '@gjsify/adwaita-core';
@@ -303,76 +343,365 @@ export function emittedSignalsOf(ctor: unknown): readonly string[] {
 // oxlint-disable-next-line typescript/no-explicit-any -- TS2545 admits no other spelling for a mixin base
 export type ObservableConstructor = abstract new (...args: any[]) => Observable;
 
+/** `g_signal_connect` as node-gi installs it on a registered class's prototype. */
+type GiConnect = (this: object, key: string, handler: (...args: unknown[]) => unknown) => number;
+/** `g_signal_handler_disconnect`, same. */
+type GiDisconnect = (this: object, id: number) => void;
+/** `g_signal_emit_by_name`, same. */
+type GiEmit = (this: object, key: string, ...args: unknown[]) => unknown;
+
+/**
+ * One declaration — one `withSignals(Base, meta)` or `withProperties(Base, meta)` call, one
+ * class, and under route D one GType. Mutable where realization fills it in; see the header for
+ * why this is a registry entry rather than the call's own closure.
+ */
+interface Declaration {
+    /** What the class declares, or `undefined` for the plain `withSignals(Base)` seam. */
+    readonly meta: DeclaredClassMeta | undefined;
+    /** The class the registration targets, and whose prototype the accessors land on. */
+    readonly klass: ObservableConstructor;
+    /** `klass.prototype`, as the index signature the installing code needs. */
+    readonly prototype: Record<string, unknown>;
+    /** Every spelling of this class's OWN declared properties, mapped to the canonical name. */
+    readonly canonicalOf: ReadonlyMap<string, string>;
+    /** This class's OWN declared signal names. */
+    readonly declaredSignals: ReadonlySet<string>;
+    /**
+     * The router methods to restore over the GObject verbs the registration installs — the
+     * `withSignals` door's. `withProperties` has none: its base already carries them, and its
+     * own registration skips the names for exactly that reason.
+     */
+    readonly routers: Readonly<Record<string, unknown>> | undefined;
+    realized: boolean;
+    routeD: boolean;
+    giConnect?: GiConnect;
+    giDisconnect?: GiDisconnect;
+    giEmit?: GiEmit;
+}
+
+/** Every declaration, keyed on the class that carries it. */
+const DECLARATIONS = new WeakMap<object, Declaration>();
+
+/** Concrete classes whose whole declaration chain is realized; see {@link realizeChain}. */
+const REALIZED_TARGETS = new WeakSet<object>();
+
+/** The seam's own pure-JS `notify`, so a derived declaration does not install a second one. */
+const SEAM_NOTIFY = new WeakSet<object>();
+
+/**
+ * What a declared property's spellings and the GObject verbs look like for ONE concrete class:
+ * every declaration up its chain, merged. Cached per class in {@link RESOLVED}.
+ */
+interface Resolved {
+    readonly canonicalOf: ReadonlyMap<string, string>;
+    readonly declaredSignals: ReadonlySet<string>;
+    readonly routeD: boolean;
+    readonly giConnect: GiConnect | undefined;
+    readonly giDisconnect: GiDisconnect | undefined;
+    readonly giEmit: GiEmit | undefined;
+}
+
+const RESOLVED = new WeakMap<object, Resolved>();
+
+/** The declarations `target` has, base first — the order realization needs. */
+function declarationsOf(target: object): Declaration[] {
+    const found: Declaration[] = [];
+    for (let at: unknown = target; typeof at === 'function'; at = Object.getPrototypeOf(at)) {
+        const declaration = DECLARATIONS.get(at as object);
+        if (declaration !== undefined) found.unshift(declaration);
+    }
+    return found;
+}
+
+/**
+ * The merged view of `ctor`'s declarations. Read from the routers, which run on an instance and
+ * therefore strictly after {@link realizeChain} filled every declaration in.
+ *
+ * A derived declaration reuses its ANCESTOR's gi thunks: its own registration found `connect`,
+ * `disconnect` and `emit` on the chain and skipped them, and those captured thunks are the ones
+ * that answer a leaf instance.
+ */
+function resolvedFor(ctor: object): Resolved {
+    const cached = RESOLVED.get(ctor);
+    if (cached !== undefined) return cached;
+    const canonicalOf = new Map<string, string>();
+    const declaredSignals = new Set<string>();
+    const resolved: Resolved = {
+        canonicalOf,
+        declaredSignals,
+        routeD: false,
+        giConnect: undefined,
+        giDisconnect: undefined,
+        giEmit: undefined,
+    };
+    const merged = resolved as { -readonly [K in keyof Resolved]: Resolved[K] };
+    for (const declaration of declarationsOf(ctor)) {
+        for (const [spelling, canonical] of declaration.canonicalOf) canonicalOf.set(spelling, canonical);
+        for (const name of declaration.declaredSignals) declaredSignals.add(name);
+        if (declaration.routeD) merged.routeD = true;
+        if (declaration.giConnect !== undefined) merged.giConnect = declaration.giConnect;
+        if (declaration.giDisconnect !== undefined) merged.giDisconnect = declaration.giDisconnect;
+        if (declaration.giEmit !== undefined) merged.giEmit = declaration.giEmit;
+    }
+    RESOLVED.set(ctor, resolved);
+    return resolved;
+}
+
+/**
+ * The key GObject owns for `eventName`, or `null` when the pure-JS leg does. A declared signal
+ * and a `notify::` of a declared property are GObject's; a NativeScript event, a `WIDGET_SIGNALS`
+ * entry and the handled-accumulator protocol are not and never become so.
+ *
+ * It is also what CANONICALISES a detail, which is why the pure-JS leg asks it too: three
+ * spellings of a property are one property, so `notify::can_close` has to reach a handler
+ * connected to `notify::canClose` on either leg. Route D gets that from this map; without it the
+ * pure leg would emit only `notify::can-close` and silently drop the other two.
+ */
+function giKeyOf(resolved: Resolved, eventName: string): string | null {
+    if (resolved.declaredSignals.has(eventName)) return eventName;
+    if (!eventName.startsWith('notify::')) return null;
+    const canonical = resolved.canonicalOf.get(eventName.slice('notify::'.length));
+    return canonical === undefined ? null : `notify::${canonical}`;
+}
+
+/** Record a door's declaration against its class. Returns the entry so a door can finish it. */
+function declare(
+    klass: ObservableConstructor,
+    meta: DeclaredClassMeta | undefined,
+    routers: Readonly<Record<string, unknown>> | undefined,
+): Declaration {
+    const canonicalOf = new Map<string, string>();
+    for (const name of Object.keys(meta?.Properties ?? {})) {
+        for (const spelling of spellingsOf(name)) canonicalOf.set(spelling, name);
+    }
+    const declaration: Declaration = {
+        meta,
+        klass,
+        prototype: klass.prototype as unknown as Record<string, unknown>,
+        canonicalOf,
+        declaredSignals: new Set(Object.keys(meta?.Signals ?? {})),
+        routers,
+        realized: false,
+        routeD: false,
+    };
+    DECLARATIONS.set(klass, declaration);
+    return declaration;
+}
+
+/** What a door contributes to `emittedSignals`: its declared signals and one `notify::` each. */
+function declaredEmissionsOf(meta: DeclaredClassMeta | undefined): string[] {
+    return [
+        ...Object.keys(meta?.Signals ?? {}),
+        ...Object.keys(meta?.Properties ?? {}).map((name) => `notify::${name}`),
+    ];
+}
+
+/**
+ * Realize every declaration the class being constructed has, base first — once per concrete
+ * class. Called from `WithSignals`'s constructor with `new.target`; see the header for why the
+ * whole chain has to be standing before any widget constructor body runs, and why the engine is
+ * asked here rather than at class-evaluation time.
+ */
+function realizeChain(target: object): void {
+    if (REALIZED_TARGETS.has(target)) return;
+    REALIZED_TARGETS.add(target);
+    for (const declaration of declarationsOf(target)) realize(declaration);
+}
+
+function realize(declaration: Declaration): void {
+    if (declaration.realized) return;
+    declaration.realized = true;
+    if (declaration.meta === undefined) return;
+    const engine = engineForTarget(ENGINE_TARGET);
+    if (engine?.supportsForeignParentClasses === true) {
+        registerRouteD(declaration, engine.registerForeignClass.bind(engine));
+        return;
+    }
+    installPureJsProperties(declaration);
+}
+
+function registerRouteD(declaration: Declaration, register: (klass: object, meta: ForeignClassMeta) => void): void {
+    // node-gi SKIPS any member name the prototype chain already answers, starting at
+    // `klass.prototype` itself, and records the skip in the frozen static `$foreignSkipped`.
+    // The four names below are the ones this seam must get the REAL implementation of: the
+    // router methods are deleted so the registration installs them, and `connect`, `disconnect`
+    // and `emit` are put back afterwards as routers over what it installed. `notify` is left
+    // as node-gi wrote it — its own arg-type routing captured `Observable.prototype.notify`
+    // as the host half, which is exactly the behaviour the pure-JS leg installs by hand.
+    //
+    // A `withProperties` declaration deletes nothing (it owns none of these) and so is
+    // registered with all four already on the chain. That is deliberate: the names land in its
+    // `$foreignSkipped`, and the ancestor's thunks keep answering — for the derived class's own
+    // properties too, because `g_signal_connect` keys on the instance's GType, which is the
+    // leaf's.
+    const { meta, prototype, routers } = declaration;
+    if (routers !== undefined) {
+        delete prototype.connect;
+        delete prototype.disconnect;
+        delete prototype.emit;
+        delete prototype.notify;
+    }
+    register(declaration.klass, meta!);
+    wrapRouteDAccessors(declaration);
+    if (routers !== undefined) {
+        declaration.giConnect = prototype.connect as GiConnect | undefined;
+        declaration.giDisconnect = prototype.disconnect as GiDisconnect | undefined;
+        declaration.giEmit = prototype.emit as GiEmit | undefined;
+        if (
+            declaration.giConnect === undefined ||
+            declaration.giDisconnect === undefined ||
+            declaration.giEmit === undefined
+        ) {
+            throw new Error(
+                `Registering '${meta!.GTypeName}' over its NativeScript base installed no ` +
+                    'connect/disconnect/emit, so the widget would answer neither GObject nor this port. ' +
+                    'ADR 0105 refuses a silent fallback here: the subset is reachable only by calling ' +
+                    "usePureJsGObjectEngine() from '@gjsify/adwaita-core' before the port loads.",
+            );
+        }
+        for (const [name, method] of Object.entries(routers)) {
+            Object.defineProperty(prototype, name, {
+                configurable: true,
+                writable: true,
+                enumerable: false,
+                value: method,
+            });
+        }
+    }
+    declaration.routeD = true;
+}
+
+/**
+ * Puts {@link coerceDeclared} in front of the accessors node-gi installed, so a string reaches
+ * the GObject as the type the ParamSpec declares. A string-kind property with no `normalize`
+ * has nothing to coerce and keeps node-gi's accessor untouched.
+ *
+ * An accessor that is not there to wrap THROWS: it means the host chain owned the name and
+ * node-gi skipped it, and a property that quietly bypasses the coercion is the very
+ * disagreement between the legs this exists to close.
+ */
+function wrapRouteDAccessors(declaration: Declaration): void {
+    const { meta, prototype } = declaration;
+    for (const [name, property] of Object.entries(meta!.Properties ?? {})) {
+        if (property.kind === 'string' && property.normalize === undefined) continue;
+        for (const spelling of spellingsOf(name)) {
+            const installed = Object.getOwnPropertyDescriptor(prototype, spelling);
+            if (installed?.set === undefined) {
+                throw new Error(
+                    `Registering '${meta!.GTypeName}' installed no setter for '${spelling}', so a ` +
+                        'string from XML would reach the GObject uncoerced. The host chain probably ' +
+                        "owns that name (see the class's $foreignSkipped); rename the property.",
+                );
+            }
+            const set = installed.set;
+            Object.defineProperty(prototype, spelling, {
+                ...installed,
+                set(this: object, value: unknown): void {
+                    set.call(this, coerceDeclared(name, property, value));
+                },
+            });
+        }
+    }
+}
+
+/**
+ * The other leg: the declared properties as ordinary accessors over a JS store, and GJS's
+ * `notify('<prop>')` beside NativeScript's `notify({ eventName })`. Deliberately the same
+ * rules node-gi's own accessors follow, so a widget behaves alike on both — an equal write
+ * is not a change, a read MATERIALISES the default so that a later default-equal write is
+ * not one either, and a spelling the host chain already owns is left to it.
+ */
+function installPureJsProperties(declaration: Declaration): void {
+    const { meta, prototype } = declaration;
+    for (const [name, property] of Object.entries(meta!.Properties ?? {})) {
+        const fallback = defaultValueOf(property);
+        for (const spelling of spellingsOf(name)) {
+            if (spelling in prototype) continue;
+            Object.defineProperty(prototype, spelling, {
+                configurable: true,
+                enumerable: false,
+                get(this: object): unknown {
+                    const values = valuesOf(this);
+                    if (!values.has(name)) values.set(name, fallback);
+                    return values.get(name);
+                },
+                set(this: Observable, raw: unknown): void {
+                    const value = coerceDeclared(name, property, raw);
+                    const values = valuesOf(this);
+                    if (values.has(name) && values.get(name) === value) return;
+                    values.set(name, value);
+                    pureEmit(this, `notify::${name}`, []);
+                },
+            });
+        }
+    }
+    installPureNotify(declaration);
+}
+
+function installPureNotify(declaration: Declaration): void {
+    const { prototype } = declaration;
+    // Read through the chain: whatever answers `notify` today is the host half this one wraps.
+    const hostNotify = prototype.notify as (this: object, ...args: unknown[]) => unknown;
+    // Unless it is already the seam's. That one resolves the INSTANCE's declarations, this one
+    // included, so a second copy one prototype down would only add a hop.
+    if (SEAM_NOTIFY.has(hostNotify)) return;
+    const value = function notify(this: Observable, data: unknown, ...rest: unknown[]): unknown {
+        if (typeof data !== 'string') return hostNotify.call(this, data, ...rest);
+        const { canonicalOf } = resolvedFor(this.constructor);
+        const canonical = canonicalOf.get(data);
+        if (canonical === undefined) {
+            throw new TypeError(
+                `${this.constructor.name} has no property '${data}' to notify. The declared ones are ` +
+                    `${[...canonicalOf.keys()].join(', ') || '(none)'}; a NativeScript event is notified ` +
+                    'with its payload object, not with a name.',
+            );
+        }
+        pureEmit(this, `notify::${canonical}`, []);
+        return undefined;
+    };
+    SEAM_NOTIFY.add(value);
+    Object.defineProperty(prototype, 'notify', {
+        configurable: true,
+        writable: true,
+        enumerable: false,
+        value,
+    });
+}
+
 /**
  * Give a `@nativescript/core` base GJS's `connect` / `disconnect`, and `GtkWidget`'s layout
  * properties with them ({@link withGtkWidgetLayout}).
  *
  * Applied ONCE per class that extends a platform base — `extends withSignals(GridLayout)`
  * — and never on a class whose base is already a widget of this package, which inherits
- * the two methods and would otherwise carry a second, identical copy one prototype up.
+ * the two methods and would otherwise carry a second, identical copy one prototype up. Such a
+ * class adds properties with {@link withProperties} instead.
  */
 export function withSignals<TBase extends ObservableConstructor>(Base: TBase, meta?: DeclaredClassMeta) {
-    // Every spelling of a declared property, mapped to its CANONICAL name — the one GObject's
-    // `notify::` detail and `bind_property` take.
-    const canonicalOf = new Map<string, string>();
-    for (const name of Object.keys(meta?.Properties ?? {})) {
-        for (const spelling of spellingsOf(name)) canonicalOf.set(spelling, name);
-    }
-    const declaredSignals = new Set(Object.keys(meta?.Signals ?? {}));
-
-    /**
-     * The key GObject owns for `eventName`, or `null` when the pure-JS leg does. A declared
-     * signal and a `notify::` of a declared property are GObject's; a NativeScript event, a
-     * `WIDGET_SIGNALS` entry and the handled-accumulator protocol are not and never become so.
-     *
-     * It is also what CANONICALISES a detail, which is why the pure-JS leg asks it too: three
-     * spellings of a property are one property, so `notify::can_close` has to reach a handler
-     * connected to `notify::canClose` on either leg. Route D gets that from this map; without
-     * it the pure leg would emit only `notify::can-close` and silently drop the other two.
-     */
-    function giKeyOf(eventName: string): string | null {
-        if (declaredSignals.has(eventName)) return eventName;
-        if (!eventName.startsWith('notify::')) return null;
-        const canonical = canonicalOf.get(eventName.slice('notify::'.length));
-        return canonical === undefined ? null : `notify::${canonical}`;
-    }
-
-    // The realization state is THIS call's, not a WeakMap's: one `withSignals(...)` call is one
-    // widget class, and a port subclass sharing its parent's mixin shares its registration,
-    // which is what GObject inheritance does too.
-    let realized = false;
-    let routeD = false;
-    let giConnect: ((this: object, key: string, handler: (...args: unknown[]) => unknown) => number) | undefined;
-    let giDisconnect: ((this: object, id: number) => void) | undefined;
-    let giEmit: ((this: object, key: string, ...args: unknown[]) => unknown) | undefined;
-
     abstract class WithSignals extends withGtkWidgetLayout(Base) implements GObjectSignals {
         /**
          * What every widget emits; a class's own list adds to it (`emittedSignalsOf`). A
          * declared property's `notify::` and a declared signal are emitted by the seam itself,
          * so they belong here rather than in each migrated widget's own list.
          */
-        static readonly emittedSignals: readonly string[] = [
-            ...WIDGET_SIGNALS,
-            ...declaredSignals,
-            ...Object.keys(meta?.Properties ?? {}).map((name) => `notify::${name}`),
-        ];
+        static readonly emittedSignals: readonly string[] = [...WIDGET_SIGNALS, ...declaredEmissionsOf(meta)];
 
         // oxlint-disable-next-line typescript/no-explicit-any -- TS2545 admits no other spelling for a mixin base
         constructor(...args: any[]) {
             super(...args);
-            realize();
+            realizeChain(new.target);
         }
 
         connect(eventName: string, callback: (self: this, data: EventData) => unknown): number {
-            const key = giKeyOf(eventName);
-            if (routeD && key !== null) {
+            const resolved = resolvedFor(this.constructor);
+            const key = giKeyOf(resolved, eventName);
+            if (resolved.routeD && key !== null) {
                 // GJS hands a handler `(self, ...args)`; this port hands it `(self, data)` with
                 // the port's own payload, so the real emission is reshaped into one. A
                 // `notify::` carries a GParamSpec in GJS and a bare payload here, as the
                 // pure-JS leg's does — the value a snippet wants is on `self`.
                 const isNotify = key.startsWith('notify::');
-                const real = giConnect!.call(this, key, (self: unknown, ...rest: unknown[]) => {
+                const real = resolved.giConnect!.call(this, key, (self: unknown, ...rest: unknown[]) => {
                     const object = self as Observable;
                     const data = (isNotify ? { eventName, object } : { eventName, object, args: rest }) as EventData;
                     return callback(self as this, data);
@@ -404,16 +733,17 @@ export function withSignals<TBase extends ObservableConstructor>(Base: TBase, me
                 // The port's contract, not GObject's: an id nothing holds throws here too,
                 // where `g_signal_handler_disconnect` would only log a CRITICAL.
                 if (REAL_HANDLERS.get(this)?.delete(real) !== true) throw unknownHandler(this, handlerId);
-                giDisconnect!.call(this, real);
+                resolvedFor(this.constructor).giDisconnect!.call(this, real);
                 return;
             }
             pureDisconnect(this, handlerId);
         }
 
         emit(eventName: string, ...args: unknown[]): void {
-            const key = giKeyOf(eventName);
-            if (routeD && key !== null) {
-                giEmit!.call(this, key, ...args);
+            const resolved = resolvedFor(this.constructor);
+            const key = giKeyOf(resolved, eventName);
+            if (resolved.routeD && key !== null) {
+                resolved.giEmit!.call(this, key, ...args);
                 return;
             }
             pureEmit(this, key ?? eventName, args);
@@ -428,154 +758,32 @@ export function withSignals<TBase extends ObservableConstructor>(Base: TBase, me
         }
     }
 
-    const prototype = WithSignals.prototype as unknown as Record<string, unknown>;
-    /** The class methods above, held before route D deletes them to make room for GObject's. */
-    const ROUTERS = {
+    declare(WithSignals, meta, {
         connect: WithSignals.prototype.connect,
         disconnect: WithSignals.prototype.disconnect,
         emit: WithSignals.prototype.emit,
-    };
-
-    /**
-     * Asks — once, at the first construction of any instance of this class — which leg this
-     * build runs on, and builds it. See the header for why this is not class-evaluation time.
-     */
-    function realize(): void {
-        if (realized) return;
-        realized = true;
-        if (meta === undefined) return;
-        const engine = engineForTarget(ENGINE_TARGET);
-        if (engine?.supportsForeignParentClasses === true) {
-            registerRouteD(engine.registerForeignClass.bind(engine));
-            return;
-        }
-        installPureJsProperties();
-    }
-
-    function registerRouteD(register: (klass: object, meta: ForeignClassMeta) => void): void {
-        // node-gi SKIPS any member name the prototype chain already answers, starting at
-        // `klass.prototype` itself, and records the skip in the frozen static `$foreignSkipped`.
-        // The four names below are the ones this seam must get the REAL implementation of: the
-        // class methods are deleted so the registration installs them, and `connect`, `disconnect`
-        // and `emit` are put back afterwards as routers over what it installed. `notify` is left
-        // as node-gi wrote it — its own arg-type routing captured `Observable.prototype.notify`
-        // as the host half, which is exactly the behaviour the pure-JS leg installs by hand.
-        //
-        // `get_property` / `set_property` stay, and so appear in `$foreignSkipped`: node-gi's
-        // are the two-argument introspected form and this port's are the one-argument door its
-        // widgets already use.
-        delete prototype.connect;
-        delete prototype.disconnect;
-        delete prototype.emit;
-        delete prototype.notify;
-        register(WithSignals, meta!);
-        wrapRouteDAccessors();
-        giConnect = prototype.connect as typeof giConnect;
-        giDisconnect = prototype.disconnect as typeof giDisconnect;
-        giEmit = prototype.emit as typeof giEmit;
-        if (giConnect === undefined || giDisconnect === undefined || giEmit === undefined) {
-            throw new Error(
-                `Registering '${meta!.GTypeName}' over its NativeScript base installed no ` +
-                    'connect/disconnect/emit, so the widget would answer neither GObject nor this port. ' +
-                    'ADR 0105 refuses a silent fallback here: the subset is reachable only by calling ' +
-                    "usePureJsGObjectEngine() from '@gjsify/adwaita-core' before the port loads.",
-            );
-        }
-        for (const [name, method] of Object.entries(ROUTERS)) {
-            Object.defineProperty(prototype, name, {
-                configurable: true,
-                writable: true,
-                enumerable: false,
-                value: method,
-            });
-        }
-        routeD = true;
-    }
-
-    /**
-     * Puts {@link coerceDeclared} in front of the accessors node-gi installed, so a string reaches
-     * the GObject as the type the ParamSpec declares. A string-kind property with no `normalize`
-     * has nothing to coerce and keeps node-gi's accessor untouched.
-     *
-     * An accessor that is not there to wrap THROWS: it means the host chain owned the name and
-     * node-gi skipped it, and a property that quietly bypasses the coercion is the very
-     * disagreement between the legs this exists to close.
-     */
-    function wrapRouteDAccessors(): void {
-        for (const [name, property] of Object.entries(meta!.Properties ?? {})) {
-            if (property.kind === 'string' && property.normalize === undefined) continue;
-            for (const spelling of spellingsOf(name)) {
-                const installed = Object.getOwnPropertyDescriptor(prototype, spelling);
-                if (installed?.set === undefined) {
-                    throw new Error(
-                        `Registering '${meta!.GTypeName}' installed no setter for '${spelling}', so a ` +
-                            'string from XML would reach the GObject uncoerced. The host chain probably ' +
-                            "owns that name (see the class's $foreignSkipped); rename the property.",
-                    );
-                }
-                const set = installed.set;
-                Object.defineProperty(prototype, spelling, {
-                    ...installed,
-                    set(this: object, value: unknown): void {
-                        set.call(this, coerceDeclared(name, property, value));
-                    },
-                });
-            }
-        }
-    }
-
-    /**
-     * The other leg: the declared properties as ordinary accessors over a JS store, and GJS's
-     * `notify('<prop>')` beside NativeScript's `notify({ eventName })`. Deliberately the same
-     * rules node-gi's own accessors follow, so a widget behaves alike on both — an equal write
-     * is not a change, a read MATERIALISES the default so that a later default-equal write is
-     * not one either, and a spelling the host chain already owns is left to it.
-     */
-    function installPureJsProperties(): void {
-        const hostNotify = prototype.notify as (this: object, ...args: unknown[]) => unknown;
-        for (const [name, property] of Object.entries(meta!.Properties ?? {})) {
-            const fallback = defaultValueOf(property);
-            for (const spelling of spellingsOf(name)) {
-                if (spelling in prototype) continue;
-                Object.defineProperty(prototype, spelling, {
-                    configurable: true,
-                    enumerable: false,
-                    get(this: object): unknown {
-                        const values = valuesOf(this);
-                        if (!values.has(name)) values.set(name, fallback);
-                        return values.get(name);
-                    },
-                    set(this: Observable, raw: unknown): void {
-                        const value = coerceDeclared(name, property, raw);
-                        const values = valuesOf(this);
-                        if (values.has(name) && values.get(name) === value) return;
-                        values.set(name, value);
-                        pureEmit(this, `notify::${name}`, []);
-                    },
-                });
-            }
-        }
-        Object.defineProperty(prototype, 'notify', {
-            configurable: true,
-            writable: true,
-            enumerable: false,
-            value(this: Observable, data: unknown, ...rest: unknown[]): unknown {
-                if (typeof data !== 'string') return hostNotify.call(this, data, ...rest);
-                const canonical = canonicalOf.get(data);
-                if (canonical === undefined) {
-                    throw new TypeError(
-                        `${this.constructor.name} has no property '${data}' to notify. The declared ones are ` +
-                            `${[...canonicalOf.keys()].join(', ') || '(none)'}; a NativeScript event is notified ` +
-                            'with its payload object, not with a name.',
-                    );
-                }
-                pureEmit(this, `notify::${canonical}`, []);
-                return undefined;
-            },
-        });
-    }
-
+    });
     return WithSignals;
+}
+
+/**
+ * Declare properties and signals on a class whose base is ALREADY a widget of this package —
+ * `class AdwSwitchRow extends withProperties(AdwActionRow, { ... })`.
+ *
+ * The same declaration as {@link withSignals}'s second argument, and nothing else: `connect`,
+ * `disconnect`, `emit`, `notify` and `GtkWidget`'s layout properties come down from the base
+ * widget, and they already answer this class's declaration because they resolve the instance's
+ * whole chain (see the header). Under route D this is a GType over the base's GType; under the
+ * pure-JS leg it is the same accessors over the same store, one prototype down.
+ */
+export function withProperties<TBase extends ObservableConstructor>(Base: TBase, meta: DeclaredClassMeta) {
+    abstract class WithProperties extends Base {
+        /** Only what this class ADDS; `emittedSignalsOf` merges it with the base's. */
+        static readonly emittedSignals: readonly string[] = declaredEmissionsOf(meta);
+    }
+
+    declare(WithProperties, meta, undefined);
+    return WithProperties;
 }
 
 function valuesOf(instance: object): Map<string, unknown> {

@@ -171,10 +171,10 @@ const bannerButton = (banner: TreeNode) => findDescendant(banner, (view) => view
 /**
  * The platform control a composed row installed in its constructor, found in the TREE.
  *
- * WHY EVERY READ BELOW GOES THROUGH THIS. Two of this port's observables are served by a
- * headless `@gjsify/adwaita-core` state object — `AdwSwitchRow.active` returns
- * `SwitchRowState.active`, `AdwEntryRow.textLength` returns `EntryRowState.textLength` —
- * and that object is written by the SETTER, not by the render. Reading it would be the
+ * WHY EVERY READ BELOW GOES THROUGH THIS. Some of this port's observables answer out of a
+ * STORE rather than off the control — `AdwSwitchRow.active` is a declared property of a
+ * GObject (ADR 0105 route D), `AdwEntryRow.textLength` returns `EntryRowState.textLength` —
+ * and that store is written on the way IN, not by the render. Reading it would be the
  * renderer agreeing with its own bookkeeping while the control on screen is untouched.
  * Measured, twice: deleting `this._switch.checked = …` from `AdwSwitchRow._apply`, and
  * `views.field.text = state.text` from `applyEntryRowState`, both left this suite GREEN

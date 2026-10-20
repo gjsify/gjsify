@@ -33,13 +33,7 @@ import {
     adwaitaColorScheme,
     type AdwAccentColorName,
 } from '@gjsify/adwaita-core';
-import {
-    Adw,
-    applyAdwaitaNsAccent,
-    clearAdwaitaNsAccent,
-    NOTIFY_ACTIVE,
-    type NotifyActiveEventData,
-} from '@gjsify/adwaita-nativescript';
+import { Adw, applyAdwaitaNsAccent, clearAdwaitaNsAccent, NOTIFY_ACTIVE } from '@gjsify/adwaita-nativescript';
 import { StorybookSettings } from '@gjsify/storybook-core';
 import { GridLayout, WrapLayout } from '@nativescript/core';
 
@@ -135,8 +129,11 @@ export function buildAppearanceDialog(appearance: StorybookNsAppearance): Adw.Pr
         }
     };
 
-    accentSwitch.addEventListener(NOTIFY_ACTIVE, (event) => {
-        settings.accentMode = (event as NotifyActiveEventData).active ? 'custom' : 'system';
+    // `connect`, not `addEventListener`: `Adw.SwitchRow:active` is a DECLARED property now, so on
+    // Android the notification comes from GObject and never reaches the NativeScript observable —
+    // and the value rides on the emitter rather than in the payload.
+    accentSwitch.connect(NOTIFY_ACTIVE, (self) => {
+        settings.accentMode = self.active ? 'custom' : 'system';
     });
     settings.subscribe(sync);
     sync();
