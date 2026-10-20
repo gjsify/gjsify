@@ -11,6 +11,9 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import { gunzip } from '@gjsify/tar';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { assertOverlayIsLicensed, iconThemeDir, planOverlay, planStage, type StageInputs } from './plan.js';
 import { FORMATS } from './formats.js';
@@ -41,6 +44,7 @@ function settings(overrides: Partial<ShipSettings> = {}): ShipSettings {
         iconFiles: [],
         schemaFiles: [],
         typelibFiles: [],
+        formatFiles: {},
         localeFiles: [],
         fontFiles: [],
         extraFiles: {},
@@ -280,6 +284,41 @@ export default async () => {
     });
 
     await describe('planOverlay', async () => {
+        await it('adds the files of gjsify.ship.formats.<id> to that format only', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-overlay-'));
+            try {
+                for (const name of ['Gda-6.0.typelib', 'libgda-6.0.so.6.0.0', 'p.so'])
+                    writeFileSync(join(dir, name), name);
+                const withFormat = {
+                    ...settings(),
+                    formatFiles: {
+                        deb: {
+                            typelibFiles: [join(dir, 'Gda-6.0.typelib'), join(dir, 'libgda-6.0.so.6.0.0')],
+                            extraFiles: { 'lib/hello/gda/lib/providers/p.so': join(dir, 'p.so') },
+                        },
+                    },
+                };
+                const debFiles = await planOverlay(withFormat, FORMATS.deb, inputs({ licenseText: 'MIT\n' }));
+                const deb = debFiles.map((f) => f.path);
+                expect(deb.includes('lib/hello/gi/Gda-6.0.typelib')).toBe(true);
+                expect(deb.includes('lib/hello/gi/libgda-6.0.so.6.0.0')).toBe(true);
+                expect(deb.includes('lib/hello/gda/lib/providers/p.so')).toBe(true);
+                // Rendered bytes, the only thing a stage manifest may carry.
+                expect(debFiles.every((f) => f.source.kind !== 'file')).toBe(true);
+                const rpmFiles = await planOverlay(withFormat, FORMATS.rpm, inputs({ licenseText: 'MIT\n' }));
+                expect(rpmFiles.some((f) => /gda/i.test(f.path))).toBe(false);
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        });
+
+        await it('refuses a format file that escapes the prefix', async () => {
+            const bad = { ...settings(), formatFiles: { deb: { typelibFiles: [], extraFiles: { '../x': '/p/x' } } } };
+            expect(await rejection(planOverlay(bad, FORMATS.deb, inputs({ licenseText: 'MIT\n' })))).toContain(
+                'escapes the install prefix',
+            );
+        });
+
         await it('writes Debian machine-readable copyright, with blank lines escaped', async () => {
             const overlay = await planOverlay(settings(), FORMATS.deb, inputs({ licenseText: 'MIT\n\nPermission…\n' }));
             expect(overlay[0]?.path).toBe('share/doc/hello/copyright');

@@ -48,6 +48,7 @@ function settings(execArgs: string[]): ShipSettings {
         iconFiles: [],
         schemaFiles: [],
         typelibFiles: [],
+        formatFiles: {},
         localeFiles: [],
         fontFiles: [],
         extraFiles: {},
@@ -147,6 +148,17 @@ export default async () => {
             expect(renderLauncher(settings([]), 'gjs.js', LAYOUTS.darwin).includes('GJSIFY_GI_LIBRARY_PATH')).toBe(
                 false,
             );
+        });
+
+        await it('guards the GI paths of format-only typelibs on the directory existing', () => {
+            const perFormat = {
+                ...settings([]),
+                formatFiles: { deb: { typelibFiles: ['/p/Gda-6.0.typelib'], extraFiles: {} } },
+            };
+            const rendered = renderLauncher(perFormat as ShipSettings, 'gjs.js', LAYOUTS.linux);
+            expect(rendered.includes('if [ -d "$prefix"/lib/hello/gi ]; then')).toBe(true);
+            expect(rendered.includes('  export GI_TYPELIB_PATH')).toBe(true);
+            expect(renderLauncher(settings([]), 'gjs.js', LAYOUTS.linux).includes('GI_TYPELIB_PATH')).toBe(false);
         });
 
         await it('runs "%HERE%node.exe" instead of a name Windows cannot resolve', () => {

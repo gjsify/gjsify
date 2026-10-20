@@ -38,6 +38,7 @@ function input(overrides: Partial<SettingsInput> = {}): SettingsInput {
             iconFiles: ['/project/data/icon.svg'],
             schemaFiles: [],
             typelibFiles: [],
+            formatFiles: {},
             localeFiles: [],
             fontFiles: [],
         },

@@ -15,7 +15,7 @@ import {
     type DiscoveredPayload,
     type ShipPackageManifest,
 } from './settings.js';
-import type { HostOs } from './types.js';
+import type { HostOs, ShipSettings } from './types.js';
 
 const ICON_EXTENSIONS = ['.svg', '.png'];
 
@@ -97,11 +97,42 @@ export function discoverPayload(input: DiscoverInput): DiscoveredPayload {
         iconFiles: discoverIcons(projectDir, ship.icon ?? input.flatpakIcon),
         schemaFiles: discoverSchemas(projectDir, ship.schemas),
         typelibFiles: discoverTypelibs(projectDir, resolveBundledTypelibs(ship.bundledTypelibs, input.layoutOs)),
+        formatFiles: discoverFormatFiles(projectDir, ship, input.layoutOs),
         localeFiles,
         fontFiles: discoverFonts(projectDir, ship.fonts),
         licenseFile: discoverLicense(projectDir, ship.licenseFile),
         changelogFile: discoverChangelog(projectDir, ship.changelogFile),
     };
+}
+
+/**
+ * `gjsify.ship.formats`, resolved to absolute paths. A key other than `deb`/`rpm` is refused: a
+ * format that is not a distro package has no overlay to carry the files, so they would be
+ * dropped without a word.
+ */
+function discoverFormatFiles(
+    projectDir: string,
+    ship: ConfigDataShip,
+    layoutOs: HostOs | undefined,
+): ShipSettings['formatFiles'] {
+    const out: ShipSettings['formatFiles'] = {};
+    // deb and rpm exist on the Linux layout only. Looking for their files while assembling a macOS or
+    // Windows target would fail on a directory that only the Linux build produces.
+    if (layoutOs !== undefined && layoutOs !== 'linux') return out;
+    for (const [id, options] of Object.entries(ship.formats ?? {})) {
+        if (id !== 'deb' && id !== 'rpm') {
+            throw new Error(
+                `gjsify ship: \`gjsify.ship.formats.${id}\` is not a format that carries its own files. Known: deb, rpm.`,
+            );
+        }
+        out[id] = {
+            typelibFiles: discoverTypelibs(projectDir, options?.bundledTypelibs),
+            extraFiles: Object.fromEntries(
+                Object.entries(options?.extraFiles ?? {}).map(([dest, source]) => [dest, resolve(projectDir, source)]),
+            ),
+        };
+    }
+    return out;
 }
 
 /**
@@ -142,7 +173,7 @@ export function resolveBundledTypelibs(
  * is useless without `libgwebgl.so`, and staging one without the other produces a package that
  * installs and then fails at the first import.
  */
-function discoverTypelibs(projectDir: string, dirs: string[] | undefined): string[] {
+export function discoverTypelibs(projectDir: string, dirs: string[] | undefined): string[] {
     const out: string[] = [];
     for (const dir of dirs ?? []) {
         const root = resolve(projectDir, dir);

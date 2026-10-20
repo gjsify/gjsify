@@ -162,6 +162,17 @@ function renderPrefixLauncher(settings: ShipSettings, bundleRelPath: string, lay
         }
     }
 
+    // Typelibs only one format carries (`gjsify.ship.formats`). The launcher is shared by the
+    // layout, so the directory is tested at run time instead of decided here.
+    else if (Object.values(settings.formatFiles).some((f) => f.typelibFiles.length > 0)) {
+        const giDir = `"$prefix"/${dirs.native}`;
+        lines.push(`if [ -d ${giDir} ]; then`);
+        for (const variable of ['GI_TYPELIB_PATH', 'LD_LIBRARY_PATH']) {
+            lines.push(`  ${variable}=${giDir}\${${variable}:+:$${variable}}`, `  export ${variable}`);
+        }
+        lines.push('fi');
+    }
+
     // Where the app's gettext catalogues landed. `bindtextdomain` takes a DIRECTORY and there is no
     // standard environment variable it reads on its own (`TEXTDOMAINDIR` is honoured by the gettext
     // command-line tools, not by the library), so the prefix has to reach the app somehow. Passing

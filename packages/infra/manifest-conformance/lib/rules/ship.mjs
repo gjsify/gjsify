@@ -244,6 +244,34 @@ export function auditShip(ctx) {
             }
         }
 
+        // `formats`: per-format files. Only deb and rpm have an overlay to carry them, so another
+        // key would be dropped without a word.
+        const formats = block.formats;
+        if (formats !== undefined) {
+            if (formats === null || typeof formats !== 'object' || Array.isArray(formats)) {
+                failures.push(`${pkg.rel}/package.json: \`gjsify.ship.formats\` must be an object keyed by format.`);
+            } else {
+                for (const [id, options] of Object.entries(formats)) {
+                    if (id !== 'deb' && id !== 'rpm') {
+                        failures.push(
+                            `${pkg.rel}/package.json: \`gjsify.ship.formats.${id}\` is not a format that carries its ` +
+                                `own files. Known: deb, rpm.`,
+                        );
+                    } else if (options === null || typeof options !== 'object' || Array.isArray(options)) {
+                        failures.push(`${pkg.rel}/package.json: \`gjsify.ship.formats.${id}\` must be an object.`);
+                    } else if (
+                        options.bundledTypelibs !== undefined &&
+                        (!Array.isArray(options.bundledTypelibs) ||
+                            options.bundledTypelibs.some((dir) => typeof dir !== 'string'))
+                    ) {
+                        failures.push(
+                            `${pkg.rel}/package.json: \`gjsify.ship.formats.${id}.bundledTypelibs\` must be a list of directories.`,
+                        );
+                    }
+                }
+            }
+        }
+
         const app = block.app;
         if (app !== undefined) {
             if (app === null || typeof app !== 'object' || Array.isArray(app)) {

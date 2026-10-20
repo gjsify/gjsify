@@ -8,6 +8,7 @@ import { gzipDeterministic, POLICY_MAX_COMPRESSION } from './gzip.js';
 import { iconThemeDir, isSymbolicIcon } from './icons.js';
 import { renderMimePackage } from './mime.js';
 import { SHARE } from './share-dirs.js';
+import { readFile } from 'node:fs/promises';
 import { basename, extname, posix } from 'node:path';
 
 import type { FormatDescriptor, FormatId, ShipSettings, StagedFile } from './types.js';
@@ -232,6 +233,27 @@ export async function planOverlay(
                 kind: 'bytes',
                 data: await gzipDeterministic(new TextEncoder().encode(changelog), POLICY_MAX_COMPRESSION),
             },
+        });
+    }
+
+    // `gjsify.ship.formats.<id>`: files only THIS format carries (a library built against the
+    // distro's own sonames cannot ship in the other format). Typelibs land beside the bundle in
+    // `gi/`, where the launcher's guarded block finds them.
+    // READ here, as the changelog is compressed here: a stage manifest carries rendered bytes only
+    // (`--from-stage` rehydrates the overlay from the sidecar and never touches the project).
+    const own = settings.formatFiles[format.id as 'deb' | 'rpm'];
+    for (const file of own?.typelibFiles ?? []) {
+        files.push({
+            path: posix.join('lib', settings.binaryName, 'gi', basename(file)),
+            mode: 0o755,
+            source: { kind: 'bytes', data: new Uint8Array(await readFile(file)) },
+        });
+    }
+    for (const [dest, source] of Object.entries(own?.extraFiles ?? {})) {
+        files.push({
+            path: assertInsidePrefix(dest),
+            mode: dest.endsWith('.so') ? 0o755 : 0o644,
+            source: { kind: 'bytes', data: new Uint8Array(await readFile(source)) },
         });
     }
     return files;

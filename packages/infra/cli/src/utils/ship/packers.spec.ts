@@ -61,6 +61,7 @@ function settings(overrides: Partial<ShipSettings> = {}): ShipSettings {
         iconFiles: [],
         schemaFiles: [],
         typelibFiles: [],
+        formatFiles: {},
         localeFiles: [],
         fontFiles: [],
         extraFiles: {},
