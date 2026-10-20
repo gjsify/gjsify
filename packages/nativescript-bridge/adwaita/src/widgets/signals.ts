@@ -96,6 +96,55 @@ import { camelProperty, readGtkProperty, writeGtkProperty } from './shadowed-pro
 import { withGtkWidgetLayout } from './widget-layout.js';
 import { watchMapping, WIDGET_SIGNALS } from './widget-mapping.js';
 
+/**
+ * A declared property, plus the one thing the engine's vocabulary has no room for: how a value is
+ * brought into the property's shape BEFORE it is stored. The engine never sees `normalize`.
+ */
+export interface DeclaredProperty extends ForeignProperty {
+    /**
+     * Replaces the seam's own coercion for EVERY write, typed or not — a floor, a clamp, a lenient
+     * parse. Runs identically on both legs, ahead of the store and of the equal-write check, so a
+     * write the normalizer maps onto the held value is not a change.
+     */
+    readonly normalize?: (value: unknown) => unknown;
+}
+
+/** {@link ForeignClassMeta} whose properties may carry a {@link DeclaredProperty.normalize}. */
+export interface DeclaredClassMeta extends Omit<ForeignClassMeta, 'Properties'> {
+    readonly Properties?: Readonly<Record<string, DeclaredProperty>>;
+}
+
+/**
+ * What the seam does to a value on its way into a declared property, on BOTH legs.
+ *
+ * WHY IT EXISTS. NativeScript's XML builder assigns an attribute as `instance[name] = value` and
+ * nothing else, so `<AdwSpinner spinning="false">` arrives as the STRING `'false'`. The pure-JS
+ * leg would store that string, and the real leg hands it to node-gi, which converts as GJS does
+ * (`JS_ToBoolean`): `'false'` is true. Neither is what the author wrote, and they are not even
+ * wrong the same way. So a STRING written to a boolean or numeric property is parsed to the
+ * declared type here, in the one place both legs pass through — every later widget inherits it.
+ *
+ * ONLY A STRING IS TOUCHED. A boolean or number written from TypeScript goes through unchanged,
+ * to GObject's own conversion on the real leg and to the store on the pure one, so nothing a
+ * typed caller does moves. A string that is not a boolean or number THROWS rather than falling
+ * back to a default: `'maybe'` for a boolean, `''` or `'24px'` for a number. A widget that wants
+ * a lenient reading says so with {@link DeclaredProperty.normalize}.
+ */
+function coerceDeclared(name: string, property: DeclaredProperty, value: unknown): unknown {
+    if (property.normalize !== undefined) return property.normalize(value);
+    if (typeof value !== 'string' || property.kind === 'string') return value;
+    const text = value.trim();
+    if (property.kind === 'boolean') {
+        const lowered = text.toLowerCase();
+        if (lowered === 'true') return true;
+        if (lowered === 'false') return false;
+        throw new TypeError(`Property '${name}' is a boolean; '${value}' is neither 'true' nor 'false'.`);
+    }
+    const parsed = text === '' ? Number.NaN : Number(text);
+    if (!Number.isFinite(parsed)) throw new TypeError(`Property '${name}' is a number; '${value}' is not one.`);
+    return parsed;
+}
+
 /** The shape of `HandledAccumulator` (adwaita-core) a signal payload may carry; read structurally. */
 interface HandledAccumulatorLike {
     readonly stopped: boolean;
@@ -262,7 +311,7 @@ export type ObservableConstructor = abstract new (...args: any[]) => Observable;
  * — and never on a class whose base is already a widget of this package, which inherits
  * the two methods and would otherwise carry a second, identical copy one prototype up.
  */
-export function withSignals<TBase extends ObservableConstructor>(Base: TBase, meta?: ForeignClassMeta) {
+export function withSignals<TBase extends ObservableConstructor>(Base: TBase, meta?: DeclaredClassMeta) {
     // Every spelling of a declared property, mapped to its CANONICAL name — the one GObject's
     // `notify::` detail and `bind_property` take.
     const canonicalOf = new Map<string, string>();
@@ -420,6 +469,7 @@ export function withSignals<TBase extends ObservableConstructor>(Base: TBase, me
         delete prototype.emit;
         delete prototype.notify;
         register(WithSignals, meta!);
+        wrapRouteDAccessors();
         giConnect = prototype.connect as typeof giConnect;
         giDisconnect = prototype.disconnect as typeof giDisconnect;
         giEmit = prototype.emit as typeof giEmit;
@@ -443,6 +493,38 @@ export function withSignals<TBase extends ObservableConstructor>(Base: TBase, me
     }
 
     /**
+     * Puts {@link coerceDeclared} in front of the accessors node-gi installed, so a string reaches
+     * the GObject as the type the ParamSpec declares. A string-kind property with no `normalize`
+     * has nothing to coerce and keeps node-gi's accessor untouched.
+     *
+     * An accessor that is not there to wrap THROWS: it means the host chain owned the name and
+     * node-gi skipped it, and a property that quietly bypasses the coercion is the very
+     * disagreement between the legs this exists to close.
+     */
+    function wrapRouteDAccessors(): void {
+        for (const [name, property] of Object.entries(meta!.Properties ?? {})) {
+            if (property.kind === 'string' && property.normalize === undefined) continue;
+            for (const spelling of spellingsOf(name)) {
+                const installed = Object.getOwnPropertyDescriptor(prototype, spelling);
+                if (installed?.set === undefined) {
+                    throw new Error(
+                        `Registering '${meta!.GTypeName}' installed no setter for '${spelling}', so a ` +
+                            'string from XML would reach the GObject uncoerced. The host chain probably ' +
+                            "owns that name (see the class's $foreignSkipped); rename the property.",
+                    );
+                }
+                const set = installed.set;
+                Object.defineProperty(prototype, spelling, {
+                    ...installed,
+                    set(this: object, value: unknown): void {
+                        set.call(this, coerceDeclared(name, property, value));
+                    },
+                });
+            }
+        }
+    }
+
+    /**
      * The other leg: the declared properties as ordinary accessors over a JS store, and GJS's
      * `notify('<prop>')` beside NativeScript's `notify({ eventName })`. Deliberately the same
      * rules node-gi's own accessors follow, so a widget behaves alike on both — an equal write
@@ -463,7 +545,8 @@ export function withSignals<TBase extends ObservableConstructor>(Base: TBase, me
                         if (!values.has(name)) values.set(name, fallback);
                         return values.get(name);
                     },
-                    set(this: Observable, value: unknown): void {
+                    set(this: Observable, raw: unknown): void {
+                        const value = coerceDeclared(name, property, raw);
                         const values = valuesOf(this);
                         if (values.has(name) && values.get(name) === value) return;
                         values.set(name, value);

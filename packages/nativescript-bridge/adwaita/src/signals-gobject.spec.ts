@@ -26,6 +26,7 @@ import type { ClassLike, ForeignClassMeta, GObjectEngine } from '@gjsify/adwaita
 import type { Observable } from '@nativescript/core';
 
 import { withSignals } from './widgets/signals.js';
+import type { DeclaredClassMeta } from './widgets/signals.js';
 import type { GObjectNotify } from './widgets/signals.js';
 import { ObservableShape } from './signals.spec.js';
 
@@ -198,6 +199,102 @@ function declaredClass() {
         declare canClose: boolean;
         declare notify: GObjectNotify;
     };
+}
+
+/**
+ * Properties that are NOT strings — the first a widget declared (`AdwSpinner`). `size` carries a
+ * normalizer, the other two take the seam's own coercion.
+ */
+const TYPED: DeclaredClassMeta = {
+    GTypeName: 'SpecTyped',
+    Properties: {
+        spinning: { kind: 'boolean', default: true },
+        size: { kind: 'double', default: 16, normalize: (value) => Math.max(Number.parseFloat(String(value)), 16) },
+        'ring-count': { kind: 'int', default: 0 },
+    },
+};
+
+function typedClass() {
+    return class SpecTyped extends withSignals(Base, TYPED) {
+        declare spinning: boolean;
+        declare size: number;
+        declare ringCount: number;
+        declare notify: GObjectNotify;
+    };
+}
+
+/**
+ * The XML-string vectors, run once per leg. NativeScript's builder writes `instance[name] = value`
+ * with the attribute's raw string, so BOTH legs have to hand the same typed value on — the pure
+ * leg to its store, the real one to node-gi, which would otherwise read `'false'` as true.
+ */
+async function coercionVectors(leg: string, engineSetup: () => void): Promise<void> {
+    await describe(`withSignals(Base, meta) — a string written to a typed property (${leg})`, async () => {
+        await it('parses a boolean from its XML spelling, and notifies the typed value', () => {
+            resetRegisteredEngine();
+            engineSetup();
+            const widget = new (typedClass())();
+            const seen: boolean[] = [];
+            widget.connect('notify::spinning', (self) => seen.push(self.spinning));
+            expect(widget.spinning).toBe(true);
+            (widget as unknown as Record<string, unknown>).spinning = 'false';
+            expect(widget.spinning).toBe(false);
+            (widget as unknown as Record<string, unknown>).spinning = ' TRUE ';
+            expect(widget.spinning).toBe(true);
+            expect(seen).toStrictEqual([false, true]);
+        });
+
+        await it('counts a string that parses to the held value as an equal write', () => {
+            resetRegisteredEngine();
+            engineSetup();
+            const widget = new (typedClass())();
+            const seen: boolean[] = [];
+            // A read materialises the default, so the write below is measured against it.
+            expect(widget.spinning).toBe(true);
+            widget.connect('notify::spinning', (self) => seen.push(self.spinning));
+            (widget as unknown as Record<string, unknown>).spinning = 'true';
+            expect(seen.length).toBe(0);
+        });
+
+        await it('parses a number, and a typed number goes through untouched', () => {
+            resetRegisteredEngine();
+            engineSetup();
+            const widget = new (typedClass())();
+            (widget as unknown as Record<string, unknown>).ringCount = ' 3 ';
+            expect(widget.ringCount).toBe(3);
+            widget.ringCount = 4;
+            expect(widget.ringCount).toBe(4);
+            (widget as unknown as Record<string, unknown>)['ring-count'] = '5';
+            expect(widget.ringCount).toBe(5);
+        });
+
+        await it('refuses a string that is not the declared type instead of defaulting', () => {
+            resetRegisteredEngine();
+            engineSetup();
+            const widget = new (typedClass())();
+            const loose = widget as unknown as Record<string, unknown>;
+            expect(() => (loose.spinning = 'maybe')).toThrow();
+            expect(() => (loose.ringCount = '')).toThrow();
+            expect(() => (loose.ringCount = '24px')).toThrow();
+            expect(widget.spinning).toBe(true);
+            expect(widget.ringCount).toBe(0);
+        });
+
+        await it('lets a normalizer own every write: a floor, and a lenient length', () => {
+            resetRegisteredEngine();
+            engineSetup();
+            const widget = new (typedClass())();
+            const seen: number[] = [];
+            expect(widget.size).toBe(16);
+            widget.connect('notify::size', (self) => seen.push(self.size));
+            widget.size = 4;
+            expect(widget.size).toBe(16);
+            (widget as unknown as Record<string, unknown>).size = '24px';
+            expect(widget.size).toBe(24);
+            widget.size = 24;
+            expect(seen).toStrictEqual([24]);
+        });
+    });
 }
 
 export default async () => {
@@ -410,4 +507,7 @@ export default async () => {
             expect(() => new (declaredClass())()).toThrow();
         });
     });
+
+    await coercionVectors('pure-JS leg', () => {});
+    await coercionVectors('route D', () => registerGObjectEngine(stubEngine([])));
 };
