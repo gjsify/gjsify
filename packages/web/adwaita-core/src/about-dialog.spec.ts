@@ -10,18 +10,25 @@ import { describe, expect, it } from '@gjsify/unit';
 import {
     ADW_ABOUT_DIALOG_LABELS,
     ADW_CREDITS_SECTION_TITLES,
+    ADW_LEGAL_DEFAULT_TITLE,
     ADW_LICENSES,
     ADW_LICENSE_ALIASES,
     ADW_LICENSE_DEFAULTS,
     ADW_TRANSLATOR_CREDITS_SENTINELS,
     type AdwLicenseState,
+    type AdwLegalSectionInput,
     type AdwLicenseType,
     aboutDialogVisibility,
+    acknowledgementSections,
     creditsSections,
     GTK_LICENSE,
     isLicenseType,
     legalSectionVisible,
+    legalSections,
+    legalMarkupText,
+    legalVisible,
     licenseText,
+    licenseTypeForNick,
     licenseTypeForSpdxId,
     parseCreditPerson,
     setLicense,
@@ -35,8 +42,10 @@ import {
     ABOUT_DIALOG_HEADER_VECTORS,
     ABOUT_DIALOG_LABEL_VECTORS,
     ABOUT_DIALOG_SUPPORT_VECTORS,
+    ACKNOWLEDGEMENT_SECTIONS_VECTORS,
     CREDITS_SECTIONS_VECTORS,
     CREDIT_PERSON_VECTORS,
+    LEGAL_SECTIONS_VECTORS,
     LEGAL_SECTION_VECTORS,
     LICENSE_INFO_VECTORS,
     LICENSE_SETTER_VECTORS,
@@ -309,5 +318,61 @@ export default async () => {
                 expect(legalSectionVisible(copyright, licenseType as AdwLicenseType, license)).toBe(visible);
             });
         }
+    });
+
+    await describe('acknowledgementSections (add_acknowledgement_section)', async () => {
+        for (const { sections, groups, rule } of ACKNOWLEDGEMENT_SECTIONS_VECTORS) {
+            await it(rule, () => {
+                const actual = acknowledgementSections(sections).map((group) => ({
+                    title: group.title,
+                    people: group.people.map((person) => ({ name: person.name, uri: person.uri })),
+                }));
+                expect(actual).toStrictEqual(
+                    groups.map((group) => ({ title: group.title, people: [...group.people] })),
+                );
+            });
+        }
+    });
+
+    await describe('legalSections (update_legal)', async () => {
+        for (const vector of LEGAL_SECTIONS_VECTORS) {
+            await it(vector.rule, () => {
+                const input = {
+                    copyright: vector.copyright,
+                    licenseType: vector.licenseType as AdwLicenseType,
+                    license: vector.license,
+                    legalSections: (vector.legalSections ?? []) as AdwLegalSectionInput[],
+                };
+                expect(legalVisible(input)).toBe(vector.hasLegal);
+                expect(legalSections(input)).toStrictEqual(
+                    vector.sections.map((section) => ({ title: section.title, markup: section.markup })),
+                );
+            });
+        }
+
+        await it('reads each label as its plain text (legalMarkupText)', () => {
+            for (const vector of LEGAL_SECTIONS_VECTORS) {
+                for (const section of vector.sections) expect(legalMarkupText(section.markup)).toBe(section.text);
+            }
+            expect(legalMarkupText('<b>unclosed')).toBe('<b>unclosed');
+        });
+
+        await it('names the default section "This Application"', () => {
+            expect(ADW_LEGAL_DEFAULT_TITLE).toBe('This Application');
+        });
+    });
+
+    await describe('licenseTypeForNick (the GtkLicense GEnum nicks)', async () => {
+        await it('resolves a nick to its value', () => {
+            expect(licenseTypeForNick('gpl-3-0')).toBe(GTK_LICENSE.GPL_3_0);
+            expect(licenseTypeForNick('mit-x11')).toBe(GTK_LICENSE.MIT_X11);
+            expect(licenseTypeForNick('0bsd')).toBe(GTK_LICENSE['0BSD']);
+            expect(licenseTypeForNick('custom')).toBe(GTK_LICENSE.CUSTOM);
+        });
+
+        await it('answers null for a name that is no nick', () => {
+            expect(licenseTypeForNick('MIT')).toBe(null);
+            expect(licenseTypeForNick('')).toBe(null);
+        });
     });
 };

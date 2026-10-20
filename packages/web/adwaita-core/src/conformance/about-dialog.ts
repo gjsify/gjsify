@@ -339,12 +339,8 @@ export interface TranslatorCreditsVector {
  * and no section is drawn, where JS `''.split('\n')` is `['']` and
  * draws the section with one blank row.
  *
- * CORE-ONLY: GAP — `adw-about-dialog` has no `translator-credits` property, and the browser
- * spec skips every row that sets one (`if (input.translatorCredits !== undefined) continue`, in
- * adw-about-dialog.spec.ts). So the empty-string row above — the one this docblock singles out
- * as what a port gets wrong — reaches nothing outside the core suite. It was exempted here as an
- * internal step of ABOUT_DIALOG_CREDITS_LEGAL_VECTORS, a three-boolean visibility table with no
- * translator input at all. Tracked in #1072
+ * The browser element and the NativeScript widget both take `translator-credits` and are driven
+ * with these rows (adw-about-dialog.spec.ts, about-dialog.spec.ts).
  */
 export const TRANSLATOR_CREDITS_VECTORS: ReadonlyArray<TranslatorCreditsVector> = [
     { value: 'Ada Lovelace', people: ['Ada Lovelace'], rule: 'one translator, one row' },
@@ -786,7 +782,7 @@ export const ABOUT_DIALOG_CREDITS_LEGAL_VECTORS: ReadonlyArray<AboutDialogCredit
         hasLegal: false,
         hasAcknowledgements: true,
         visible: { creditsLegalGroup: true, creditsRow: false, legalRow: false, acknowledgementsRow: true },
-        rule: 'acknowledgements alone open the group (:486) — neither renderer has this page',
+        rule: 'acknowledgements alone open the group (:486)',
     },
     {
         hasCredits: true,
@@ -947,12 +943,9 @@ export interface LicenseInfoVector {
  * - 1 == GTK_LICENSE_0BSD)` is the C's own drift check; this is that
  * assertion, ported.
  *
- * CORE-ONLY: GAP — `adw-about-dialog` has no `license-type` property. It derives the type as
- * CUSTOM or UNKNOWN from whether `license` is empty (elements/adw-about-dialog.ts), and nothing
- * on either side reads an `spdxId` or a `url`, so rows 2, 7 and 18 reach no renderer; the
- * NativeScript bridge ships the widget without a spec. It was exempted here as an internal step
- * of ABOUT_DIALOG_CREDITS_LEGAL_VECTORS, a three-boolean visibility table whose only licence
- * input is `hasLegal`. Tracked in #1072
+ * CORE-ONLY: GAP — a renderer reaches the `url` and `name` columns only through the warranty
+ * line LEGAL_SECTIONS_VECTORS spells out, and nothing on either side reads an `spdxId`, so this
+ * table is asserted against `ADW_LICENSES` by the core suite alone. Tracked in #1072
  */
 export const LICENSE_INFO_VECTORS: ReadonlyArray<LicenseInfoVector> = [
     { licenseType: 0, spdxId: null, url: null, rule: 'unknown carries nothing (:216)' },
@@ -1086,10 +1079,8 @@ export interface LicenseSetterVector {
  * licence-type change DOES switch the type, while assigning `""` to an already
  * empty licence does not.
  *
- * CORE-ONLY: a property-ordering table with no rendered surface — the RESULT is
- * ABOUT_DIALOG_CREDITS_LEGAL_VECTORS, driven by the browser suite. ONE renderer, not two: the
- * NativeScript bridge ships an `adw-about-dialog` widget and no spec for it, so nothing on that
- * side is held to ANY about-dialog vector.
+ * Driven through the `license` and `license-type` properties of the browser element and the
+ * NativeScript widget, which read the state back after each step.
  */
 export const LICENSE_SETTER_VECTORS: ReadonlyArray<LicenseSetterVector> = [
     {
@@ -1209,5 +1200,162 @@ export const LEGAL_SECTION_VECTORS: ReadonlyArray<LegalSectionVector> = [
         license: '',
         visible: true,
         rule: 'a single space is a first character (:666) — the section exists and looks empty',
+    },
+];
+
+/** One acknowledgements-page expectation. */
+export interface AcknowledgementSectionsVector {
+    /** The `add_acknowledgement_section` calls, in order. */
+    sections: ReadonlyArray<{ title: string | null; people: ReadonlyArray<string> }>;
+    /** The groups on the page, in order, with each row's title + URI. */
+    groups: ReadonlyArray<{ title: string | null; people: ReadonlyArray<{ name: string; uri: string | null }> }>;
+    rule: string;
+}
+
+/**
+ * `add_acknowledgement_section` — the Acknowledgements page is Credits without the built-ins.
+ *
+ * The group structure and the `parse_person` rows are the same as on Credits, and a NULL title
+ * is a group with no heading. An empty section is no group; the C still shows the row for it
+ * (the stale-flag quirk CREDITS_SECTIONS_VECTORS leaves out), which this table does not copy.
+ */
+export const ACKNOWLEDGEMENT_SECTIONS_VECTORS: ReadonlyArray<AcknowledgementSectionsVector> = [
+    { sections: [], groups: [], rule: 'nothing added — no page, no row' },
+    {
+        sections: [{ title: 'Funded by', people: ['Ada <ada@lovelace.org>'] }],
+        groups: [{ title: 'Funded by', people: [{ name: 'Ada', uri: 'mailto:ada@lovelace.org' }] }],
+        rule: 'one section, one group, rows parsed like credits',
+    },
+    {
+        sections: [
+            { title: 'Backers', people: ['Bob https://bob.example'] },
+            { title: null, people: ['Anonymous'] },
+        ],
+        groups: [
+            { title: 'Backers', people: [{ name: 'Bob', uri: 'https://bob.example' }] },
+            { title: null, people: [{ name: 'Anonymous', uri: null }] },
+        ],
+        rule: 'call order is kept, and a NULL title is a group with no heading',
+    },
+    {
+        sections: [{ title: 'Backers', people: [] }],
+        groups: [],
+        rule: 'a section with no people creates no group',
+    },
+];
+
+/** One assembled Legal-page expectation. */
+export interface LegalSectionsVector {
+    copyright: string;
+    licenseType: number;
+    license: string;
+    /** The `add_legal_section` calls, in order. */
+    legalSections?: ReadonlyArray<{
+        title: string;
+        copyright: string | null;
+        licenseType: number;
+        license: string | null;
+    }>;
+    /** Whether the Legal row exists at all. */
+    hasLegal: boolean;
+    /** The sections on the page: the heading, the markup the label holds and what it reads as. */
+    sections: ReadonlyArray<{ title: string | null; markup: string; text: string }>;
+    rule: string;
+}
+
+/**
+ * `update_legal` — which sections exist, what heading each has and what its label holds.
+ *
+ * Every row was read off real libadwaita 1.9.4 under GJS: the page's labels, their markup flag
+ * and the heading labels. The default section's heading "This Application" appears exactly when
+ * the app added a section of its own; a stock licence ignores the `license` string; one label
+ * holds the copyright, a blank line and the licence text.
+ */
+export const LEGAL_SECTIONS_VECTORS: ReadonlyArray<LegalSectionsVector> = [
+    { copyright: '', licenseType: 0, license: '', hasLegal: false, sections: [], rule: 'nothing set — no Legal page' },
+    {
+        copyright: '© 2026 Ada',
+        licenseType: 0,
+        license: '',
+        hasLegal: true,
+        sections: [{ title: null, markup: '© 2026 Ada', text: '© 2026 Ada' }],
+        rule: 'a copyright alone is a section with no heading',
+    },
+    {
+        copyright: '',
+        licenseType: 1,
+        license: 'All rights reserved.',
+        hasLegal: true,
+        sections: [{ title: null, markup: 'All rights reserved.', text: 'All rights reserved.' }],
+        rule: 'a custom licence text is the label as it is',
+    },
+    {
+        copyright: '© 2026 Ada',
+        licenseType: 1,
+        license: 'All rights reserved.',
+        hasLegal: true,
+        sections: [
+            {
+                title: null,
+                markup: '© 2026 Ada\n\nAll rights reserved.',
+                text: '© 2026 Ada\n\nAll rights reserved.',
+            },
+        ],
+        rule: 'copyright and licence share ONE label, a blank line apart',
+    },
+    {
+        copyright: '',
+        licenseType: 7,
+        license: 'ignored',
+        hasLegal: true,
+        sections: [
+            {
+                title: null,
+                markup:
+                    'This application comes with absolutely no warranty. See the ' +
+                    '<a href="https://opensource.org/licenses/mit-license.php">The MIT License (MIT)</a> for details.',
+                text: 'This application comes with absolutely no warranty. See the The MIT License (MIT) for details.',
+            },
+        ],
+        rule: 'a stock licence is the warranty line and ignores the `license` string',
+    },
+    {
+        copyright: '',
+        licenseType: 0,
+        license: '',
+        legalSections: [{ title: 'Fonts', copyright: '© Foundry', licenseType: 0, license: null }],
+        hasLegal: true,
+        sections: [{ title: 'Fonts', markup: '© Foundry', text: '© Foundry' }],
+        rule: 'an added section alone makes the Legal row; the empty default section is dropped',
+    },
+    {
+        copyright: '© 2026 Ada',
+        licenseType: 0,
+        license: '',
+        legalSections: [{ title: 'Fonts', copyright: '© Foundry', licenseType: 1, license: 'OFL' }],
+        hasLegal: true,
+        sections: [
+            { title: 'This Application', markup: '© 2026 Ada', text: '© 2026 Ada' },
+            { title: 'Fonts', markup: '© Foundry\n\nOFL', text: '© Foundry\n\nOFL' },
+        ],
+        rule: 'the default section is titled "This Application" once another exists, and comes first',
+    },
+    {
+        copyright: '',
+        licenseType: 0,
+        license: '',
+        legalSections: [{ title: 'Artwork', copyright: null, licenseType: 0, license: null }],
+        hasLegal: true,
+        sections: [{ title: 'Artwork', markup: '', text: '' }],
+        rule: 'a section with a title and nothing else still exists',
+    },
+    {
+        copyright: '',
+        licenseType: 0,
+        license: '',
+        legalSections: [{ title: '', copyright: '© Foundry', licenseType: 0, license: null }],
+        hasLegal: true,
+        sections: [{ title: null, markup: '© Foundry', text: '© Foundry' }],
+        rule: 'an empty heading draws no heading label',
     },
 ];

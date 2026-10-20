@@ -20,6 +20,7 @@ import { AdwBlueprintTreesNsTest } from './blueprint-trees.spec.js';
 import { AdwBlueprintMarkupNsTest } from './blueprint-markup.spec.js';
 import { AdwClampClasslessChildNsTest } from './clamp-child.spec.js';
 import { AdwAboutDialogDoorsNsTest } from './about-dialog-doors.spec.js';
+import { AdwAboutDialogCreditsNsTest } from './about-dialog-credits.spec.js';
 import { AdwCarouselDoorsNsTest } from './carousel-doors.spec.js';
 import { AdwConstructVectorsNsTest } from './construct-vectors.spec.js';
 import { AdwContainersNsTest } from './containers.spec.js';
@@ -61,6 +62,7 @@ run({
     AdwRegisterBarrelNsTest,
     AdwClampClasslessChildNsTest,
     AdwAboutDialogDoorsNsTest,
+    AdwAboutDialogCreditsNsTest,
     AdwCarouselDoorsNsTest,
     AdwConstructVectorsNsTest,
     AdwGObjectDoorNsTest,

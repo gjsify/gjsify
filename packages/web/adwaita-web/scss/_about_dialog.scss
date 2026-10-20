@@ -265,8 +265,15 @@ adw-about-dialog {
     text-align: center;
   }
 
+  .adw-about-dialog-legal-title {
+    margin: var(--spacing-m) 0 0;
+    font-weight: 700;
+    text-align: center;
+  }
+
   .adw-about-dialog-license {
     margin: var(--spacing-s) 0 0;
+    white-space: pre-wrap;
     font-size: var(--font-size-small);
     opacity: var(--dim-opacity);
     text-align: center;

@@ -74,14 +74,12 @@ const KNOWN_GAPS = {
         'designers',
         'developers',
         'documenters',
-        'license-type',
         // The heading of a section this element does not render. `<adw-about-dialog>`
         // has no other-apps list — libadwaita builds one from `add_other_app()`, which
         // has no attribute and no counterpart here — so the title has nothing to title.
         // Same family as the credits sections above it, and it arrived with @girs
         // 4.5.0 rather than being overlooked.
         'other-apps-title',
-        'translator-credits',
     ],
     'adw-action-row': ['icon-name', 'subtitle-selectable'],
     'adw-avatar': ['icon-name'],

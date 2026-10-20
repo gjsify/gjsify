@@ -165,21 +165,8 @@ const KNOWN_GAPS = {
         why: 'A PopupMenu opens its submenus itself and reports no page, so there is nothing to read or write: Android owns the navigation (ADR 0097 § 2).',
     },
     'adw-about-dialog': {
-        gaps: [
-            'appdataResourcePath',
-            'artists',
-            'debugInfoFilename',
-            'designers',
-            'developers',
-            'documenters',
-            'issueUrl',
-            'license',
-            'licenseType',
-            'otherAppsTitle',
-            'supportUrl',
-            'translatorCredits',
-        ],
-        why: 'The port builds the identity CARD and none of the pages behind it: "the app icon glyph, name, version, developer, comments, and a close button" (adw-about-dialog.ts:3-4), which is exactly the seven properties it sets, plus release notes and debug info as labels on that card. Credits (artists, designers, developers, documenters, translator-credits), the legal text (license, license-type), the debug-info file name, the other-apps list and the two extra link rows are sections it does not render, so there is nothing for the value to reach. `<adw-about-dialog>` declares twelve of the same names on the web surface, which is the same absence measured by the sibling ratchet.',
+        gaps: ['appdataResourcePath', 'debugInfoFilename', 'otherAppsTitle'],
+        why: 'Credits, support, issue, acknowledgements and legal render as plain-text labels on the card. Still absent: the debug-info file name (no Save As on a card), the other-apps list and its title (`add_other_app` is left out), and the appdata resource path (`new_from_appdata` is refused by name). `<adw-about-dialog>` declares the same three names on the web surface.',
     },
     'adw-action-row': {
         gaps: ['subtitleLines', 'subtitleSelectable', 'titleLines'],

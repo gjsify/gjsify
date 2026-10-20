@@ -7,7 +7,13 @@
 // and `website` is the one input the Details-visibility predicate leaves OUT.
 import { describe, expect, it } from '@gjsify/unit';
 
-import { ADW_ABOUT_DIALOG_LABELS, type ReleaseNotesSegment, type Toast, stripMnemonic } from '@gjsify/adwaita-core';
+import {
+    ADW_ABOUT_DIALOG_LABELS,
+    type ReleaseNotesSegment,
+    type Toast,
+    licenseTypeForNick,
+    stripMnemonic,
+} from '@gjsify/adwaita-core';
 import {
     ABOUT_DIALOG_CREDITS_LEGAL_VECTORS,
     ABOUT_DIALOG_DETAILS_VECTORS,
@@ -15,9 +21,13 @@ import {
     ABOUT_DIALOG_HEADER_VECTORS,
     ABOUT_DIALOG_SUPPORT_VECTORS,
     type AboutDialogDoorLike,
+    ACKNOWLEDGEMENT_SECTIONS_VECTORS,
     CREDITS_SECTIONS_VECTORS,
     CREDIT_PERSON_VECTORS,
+    LEGAL_SECTIONS_VECTORS,
+    LICENSE_SETTER_VECTORS,
     RELEASE_NOTES_VECTORS,
+    TRANSLATOR_CREDITS_VECTORS,
     driveAboutDialogDoorVectors,
     driveReleaseNotesVectors,
 } from '@gjsify/adwaita-core/conformance';
@@ -27,7 +37,25 @@ const label = (key: keyof typeof ADW_ABOUT_DIALOG_LABELS) => stripMnemonic(ADW_A
 
 interface Mounted {
     dialog: HTMLElement &
-        AboutDialogDoorLike & { developers: string[]; designers: string[]; artists: string[]; documenters: string[] };
+        AboutDialogDoorLike & {
+            developers: string[];
+            designers: string[];
+            artists: string[];
+            documenters: string[];
+            copyright: string;
+            license: string;
+            licenseType: number;
+            licenseUrl: string;
+            translatorCredits: string;
+            add_credit_section(name: string | null, people: string[]): void;
+            add_acknowledgement_section(name: string | null, people: string[]): void;
+            add_legal_section(
+                title: string,
+                copyright: string | null,
+                licenseType: number,
+                license: string | null,
+            ): void;
+        };
     host: HTMLElement;
     /** Every `window.open` the dialog performed, most recent last. */
     opened: string[];
@@ -135,18 +163,18 @@ export const AdwAboutDialogTest = async () => {
 
     await describe('adw-about-dialog credits page (update_credits vectors)', async () => {
         for (const { input, sections, rule } of CREDITS_SECTIONS_VECTORS) {
-            // `add_credit_section` has no counterpart on this element yet, so the
-            // rows exercising it are asserted by the core suite alone.
-            if (input.creditSections) continue;
-            // Same for `translator-credits`: no property, so no "Translated by".
-            if (input.translatorCredits !== undefined) continue;
-
             await it(rule, () => {
                 const mounted = mount();
                 mounted.dialog.developers = [...(input.developers ?? [])];
                 mounted.dialog.designers = [...(input.designers ?? [])];
                 mounted.dialog.artists = [...(input.artists ?? [])];
                 mounted.dialog.documenters = [...(input.documenters ?? [])];
+                if (input.translatorCredits !== undefined && input.translatorCredits !== null) {
+                    mounted.dialog.translatorCredits = input.translatorCredits;
+                }
+                for (const section of input.creditSections ?? []) {
+                    mounted.dialog.add_credit_section(section.title, [...section.people]);
+                }
 
                 const credits = page(mounted.dialog, 'credits');
                 const groups = credits ? [...credits.querySelectorAll('adw-preferences-group')] : [];
@@ -254,30 +282,188 @@ export const AdwAboutDialogTest = async () => {
     });
 
     await describe('adw-about-dialog main page (credits/legal vectors)', async () => {
-        // No acknowledgements API on this element; the core suite covers it.
-        for (const vector of ABOUT_DIALOG_CREDITS_LEGAL_VECTORS.filter((row) => !row.hasAcknowledgements)) {
-            const { hasCredits, hasLegal, visible, rule } = vector;
-            await it(`credits=${hasCredits} legal=${hasLegal} — ${rule}`, () => {
+        for (const vector of ABOUT_DIALOG_CREDITS_LEGAL_VECTORS) {
+            const { hasCredits, hasLegal, hasAcknowledgements, visible, rule } = vector;
+            await it(`credits=${hasCredits} legal=${hasLegal} ack=${hasAcknowledgements} — ${rule}`, () => {
                 const mounted = mount({
                     'application-name': 'Builder',
                     ...(hasLegal ? { copyright: '© 2026 Ada' } : {}),
                 });
                 if (hasCredits) mounted.dialog.developers = ['Ada'];
+                if (hasAcknowledgements) mounted.dialog.add_acknowledgement_section('Funded by', ['Bob']);
 
                 const main = page(mounted.dialog, 'main');
                 expect({
                     creditsLegalGroup: group(mounted.dialog, 'credits-legal') !== null,
                     creditsRow: hasRow(main, label('creditsRow')),
                     legalRow: hasRow(main, label('legalRow')),
+                    acknowledgementsRow: hasRow(main, label('acknowledgementsRow')),
                 }).toStrictEqual({
                     creditsLegalGroup: visible.creditsLegalGroup,
                     creditsRow: visible.creditsRow,
                     legalRow: visible.legalRow,
+                    acknowledgementsRow: visible.acknowledgementsRow,
                 });
 
                 mounted.dispose();
             });
         }
+    });
+
+    await describe('adw-about-dialog translator-credits (split vectors)', async () => {
+        for (const { value, people, rule } of TRANSLATOR_CREDITS_VECTORS) {
+            await it(`${JSON.stringify(value)} — ${rule}`, () => {
+                const mounted = mount();
+                if (value !== null) mounted.dialog.translatorCredits = value;
+                const groups = [...(page(mounted.dialog, 'credits')?.querySelectorAll('adw-preferences-group') ?? [])];
+                if (people.length === 0) {
+                    expect(groups).toHaveLength(0);
+                } else {
+                    expect(groups).toHaveLength(1);
+                    expect(groups[0]!.getAttribute('title')).toBe('Translated by');
+                    expect(rowTitles(groups[0]!)).toStrictEqual([...people]);
+                }
+                mounted.dispose();
+            });
+        }
+    });
+
+    await describe('adw-about-dialog acknowledgements page (add_acknowledgement_section vectors)', async () => {
+        for (const { sections, groups, rule } of ACKNOWLEDGEMENT_SECTIONS_VECTORS) {
+            await it(rule, () => {
+                const mounted = mount();
+                for (const section of sections) {
+                    mounted.dialog.add_acknowledgement_section(section.title, [...section.people]);
+                }
+                const nodes = [
+                    ...(page(mounted.dialog, 'acknowledgements')?.querySelectorAll('adw-preferences-group') ?? []),
+                ];
+                expect(nodes.map((node) => node.getAttribute('title'))).toStrictEqual(groups.map((g) => g.title));
+                for (const [index, expected] of groups.entries()) {
+                    const rows = [...nodes[index]!.querySelectorAll('adw-action-row')];
+                    expect(rows.map((row) => row.getAttribute('title'))).toStrictEqual(
+                        expected.people.map((person) => person.name),
+                    );
+                    for (const [at, person] of expected.people.entries()) {
+                        expect(activateRow(mounted.dialog, rows[at]!)).toBe(person.uri);
+                    }
+                }
+                mounted.dispose();
+            });
+        }
+    });
+
+    await describe('adw-about-dialog license and legal page (update_legal vectors)', async () => {
+        for (const vector of LEGAL_SECTIONS_VECTORS) {
+            await it(vector.rule, () => {
+                const mounted = mount();
+                mounted.dialog.copyright = vector.copyright;
+                mounted.dialog.licenseType = vector.licenseType;
+                if (vector.license.length > 0 && vector.licenseType === 1) mounted.dialog.license = vector.license;
+                for (const section of vector.legalSections ?? []) {
+                    mounted.dialog.add_legal_section(
+                        section.title,
+                        section.copyright,
+                        section.licenseType,
+                        section.license,
+                    );
+                }
+
+                expect(hasRow(page(mounted.dialog, 'main'), label('legalRow'))).toBe(vector.hasLegal);
+                const legal = page(mounted.dialog, 'legal');
+                if (!vector.hasLegal) {
+                    expect(legal).toBe(null);
+                } else {
+                    const body = legal!;
+                    const titles = [...body.querySelectorAll('.adw-about-dialog-legal-title')].map(
+                        (node) => node.textContent,
+                    );
+                    expect(titles).toStrictEqual(
+                        vector.sections.filter((s) => s.title !== null).map((section) => section.title),
+                    );
+                    const texts = [...body.querySelectorAll('.adw-about-dialog-license')].map(
+                        (node) => node.textContent,
+                    );
+                    expect(texts).toStrictEqual(
+                        vector.sections.filter((s) => s.markup.length > 0).map((section) => section.text),
+                    );
+                }
+                mounted.dispose();
+            });
+        }
+
+        await it('turns the warranty line link into a cancelable activate-link', () => {
+            const mounted = mount();
+            mounted.dialog.licenseType = 7;
+            const anchor = page(mounted.dialog, 'legal')!.querySelector('a')!;
+            expect(anchor.textContent).toBe('The MIT License (MIT)');
+            mounted.dialog.addEventListener('activate-link', (event) => event.preventDefault());
+            anchor.click();
+            expect(mounted.opened).toStrictEqual([]);
+            mounted.dispose();
+        });
+
+        await it('opens a warranty line link when nothing handled it', () => {
+            const mounted = mount();
+            mounted.dialog.licenseType = 7;
+            page(mounted.dialog, 'legal')!.querySelector('a')!.click();
+            expect(mounted.opened).toStrictEqual(['https://opensource.org/licenses/mit-license.php']);
+            mounted.dispose();
+        });
+
+        await it('links a custom license to license-url (not in libadwaita)', () => {
+            const mounted = mount();
+            mounted.dialog.license = 'Proprietary';
+            mounted.dialog.licenseUrl = 'https://example.org/license';
+            const anchor = page(mounted.dialog, 'legal')!.querySelector('a')!;
+            expect(anchor.textContent).toBe('Proprietary');
+            anchor.click();
+            expect(mounted.opened).toStrictEqual(['https://example.org/license']);
+            mounted.dispose();
+        });
+    });
+
+    await describe('adw-about-dialog license / license-type (setter vectors)', async () => {
+        for (const { steps, license, licenseType, notify, rule } of LICENSE_SETTER_VECTORS) {
+            await it(rule, () => {
+                const mounted = mount();
+                const seen: string[] = [];
+                for (const name of ['license', 'license-type']) {
+                    mounted.dialog.addEventListener(`notify::${name}`, () => seen.push(name));
+                }
+                for (const step of steps) {
+                    if (step.property === 'license') mounted.dialog.license = String(step.value);
+                    else mounted.dialog.licenseType = Number(step.value);
+                }
+                expect(mounted.dialog.license).toBe(license);
+                expect(mounted.dialog.licenseType).toBe(licenseType);
+                expect(seen).toStrictEqual([...notify]);
+                mounted.dispose();
+            });
+        }
+
+        await it('takes a Gtk.License nick as the license-type attribute and keeps it', () => {
+            const mounted = mount({ 'license-type': 'mit-x11' });
+            expect(mounted.dialog.licenseType).toBe(licenseTypeForNick('mit-x11'));
+            expect(mounted.dialog.getAttribute('license-type')).toBe('mit-x11');
+            mounted.dispose();
+        });
+
+        await it('refuses an unknown nick and writes the real state back', () => {
+            const mounted = mount({ 'license-type': 'not-a-license' });
+            expect(mounted.dialog.licenseType).toBe(0);
+            expect(mounted.dialog.hasAttribute('license-type')).toBe(false);
+            mounted.dispose();
+        });
+
+        await it('honours license attributes set before the element connects', () => {
+            const dialog = document.createElement('adw-about-dialog') as Mounted['dialog'];
+            dialog.setAttribute('license', 'Early');
+            document.body.appendChild(dialog);
+            expect(dialog.license).toBe('Early');
+            expect(dialog.licenseType).toBe(1);
+            dialog.remove();
+        });
     });
 
     await describe('adw-about-dialog header fields (no invented fallbacks)', async () => {

@@ -31,9 +31,12 @@
 //   support-url        a support-forum URL (a main-page Support Questions row)
 //   issue-url          an issue-tracker URL (a main-page Report an Issue row)
 //   copyright          the copyright line (Legal page)
-//   license            the license text/name (Legal page); with a `license-url`
-//                        the name becomes a link
-//   license-url        a URL the license name links to
+//   license            the custom license text (Legal page, Pango markup); setting it makes
+//                        `license-type` custom, as in libadwaita
+//   license-type       a `Gtk.License`: its integer value or its nick (`mit-x11`, `gpl-3-0`);
+//                        a known type shows the stock warranty line and clears `license`
+//   license-url        NOT in libadwaita: a URL a custom `license` text links to
+//   translator-credits the translators, one per line (a "Translated by" credits group)
 //   release-notes      AppStream release-notes markup — a What's New row + page,
 //                        the buffer from the core's `releaseNotesBuffer`
 //   release-notes-version  the version the What's New heading names, else `version`
@@ -44,12 +47,17 @@
 // AdwAboutDialog `developers` / `designers` / `artists` / `documenters` properties
 // — entries may be `Name`, `Name <email>` or `Name https://url`, parsed by the
 // core's `parseCreditPerson` (`parse_person`). `add_link (title, url)` appends a
-// Details-page link row, as on GTK.
+// Details-page link row, as on GTK; `add_credit_section`, `add_acknowledgement_section`
+// and `add_legal_section` append a Credits, Acknowledgements or Legal group.
 //
-// NOT implemented here, so the core derivations see them empty: `add_credit_section`,
-// `translator-credits`, the Acknowledgements page, and the debug page's "Save As…"
-// button (`debug-info-filename`), which needs a file dialog. `new_from_appdata` is
-// refused by name: it needs an AppStream parser.
+// NOT implemented here: the debug page's "Save As…" button (`debug-info-filename`), which
+// needs a file dialog, and `add_other_app` / `other-apps-title`. `new_from_appdata` is
+// refused by name: it needs an AppStream parser. An `add_*_section` call with no people
+// draws no row, where libadwaita 1.9 leaves a Credits row that opens a blank page.
+//
+// Events (CustomEvent, bubbles): `notify::license` and `notify::license-type` (detail
+// `{ license, licenseType }`), in the order `adw_about_dialog_set_license` and
+// `set_license_type` notify them.
 //
 // Events (CustomEvent, bubbles): `notify::open` (detail `{ open }`), `closed`, and
 // `activate-link` (detail `{ uri }`, CANCELABLE — the signal's `true_handled`
@@ -67,16 +75,27 @@
 
 import {
     ADW_ABOUT_DIALOG_LABELS,
+    ADW_LICENSE_DEFAULTS,
     type AdwCreditPerson,
-    GTK_LICENSE,
+    type AdwCreditsSectionInput,
+    type AdwLegalSectionInput,
+    type AdwLicenseState,
     type ReleaseNotesSegment,
     Toast,
     aboutDialogVisibility,
+    acknowledgementSections,
     creditsSections,
+    isLicenseType,
     legalSectionVisible,
+    legalSections,
+    legalVisible,
+    licenseTypeForNick,
     refuseNewFromAppdata,
     releaseNotesBuffer,
+    setLicense,
+    setLicenseType,
     stripMnemonic,
+    GTK_LICENSE,
 } from '@gjsify/adwaita-core';
 
 import { webClipboardHost } from '../clipboard-host.js';
@@ -84,6 +103,7 @@ import type { AdwToastOverlay } from './adw-toast-overlay.js';
 import './adw-toast-overlay.js';
 import { createGtkImage } from './gtk-image.js';
 import { AdwModalSurface } from './modal-surface.js';
+import { renderPangoMarkup } from '../pango-markup.js';
 import { WidgetElement } from '../widget-element.js';
 
 /** A template label with its mnemonic marker removed — this renderer has no accelerator layer. */
@@ -108,6 +128,15 @@ export class AdwAboutDialog extends WidgetElement {
     private _artists: string[] = [];
     private _documenters: string[] = [];
 
+    /** `license` + `license-type`, one state driven by the core transitions. */
+    private _licenseState: AdwLicenseState = { ...ADW_LICENSE_DEFAULTS };
+    /** Set while an attribute is being written back from `_licenseState`. */
+    private _reflecting = false;
+    /** `add_credit_section`, `add_acknowledgement_section` and `add_legal_section`, in call order. */
+    private _creditSections: AdwCreditsSectionInput[] = [];
+    private _acknowledgementSections: AdwCreditsSectionInput[] = [];
+    private _legalSections: AdwLegalSectionInput[] = [];
+
     /** `add_link` rows, in order; `has_custom_links` latches with the first. */
     private _links: { title: string; url: string }[] = [];
     /**
@@ -129,7 +158,9 @@ export class AdwAboutDialog extends WidgetElement {
             'issue-url',
             'copyright',
             'license',
+            'license-type',
             'license-url',
+            'translator-credits',
             'release-notes',
             'release-notes-version',
             'debug-info',
@@ -214,12 +245,30 @@ export class AdwAboutDialog extends WidgetElement {
         this.setAttribute('copyright', value);
     }
 
+    /** `license`: the custom licence text, `''` for a stock licence. */
     get license(): string {
-        return this.getAttribute('license') ?? '';
+        return this._licenseState.license;
     }
 
     set license(value: string) {
         this.setAttribute('license', value);
+    }
+
+    /** `license-type`: a `Gtk.License` value (see `GTK_LICENSE`). */
+    get licenseType(): number {
+        return this._licenseState.licenseType;
+    }
+
+    set licenseType(value: number) {
+        this.setAttribute('license-type', String(value));
+    }
+
+    get translatorCredits(): string {
+        return this.getAttribute('translator-credits') ?? '';
+    }
+
+    set translatorCredits(value: string) {
+        this.setAttribute('translator-credits', value);
     }
 
     get licenseUrl(): string {
@@ -257,6 +306,28 @@ export class AdwAboutDialog extends WidgetElement {
     /** `adw_about_dialog_add_link`: a Details-page link row; `_` marks a mnemonic. */
     add_link(title: string, url: string): void {
         this._links.push({ title, url });
+        if (this._initialized) this._render();
+    }
+
+    /** `adw_about_dialog_add_credit_section`: a Credits group; `name` may be `null`. */
+    add_credit_section(name: string | null, people: string[]): void {
+        this._creditSections.push({ title: name, people: [...people] });
+        if (this._initialized) this._render();
+    }
+
+    /** `adw_about_dialog_add_acknowledgement_section`: an Acknowledgements group. */
+    add_acknowledgement_section(name: string | null, people: string[]): void {
+        this._acknowledgementSections.push({ title: name, people: [...people] });
+        if (this._initialized) this._render();
+    }
+
+    /**
+     * `adw_about_dialog_add_legal_section`: a Legal-page section. A `license_type` outside
+     * `Gtk.License` is rejected, like the property setter.
+     */
+    add_legal_section(title: string, copyright: string | null, license_type: number, license: string | null): void {
+        if (!isLicenseType(license_type)) return;
+        this._legalSections.push({ title, copyright, licenseType: license_type, license });
         if (this._initialized) this._render();
     }
 
@@ -353,6 +424,13 @@ export class AdwAboutDialog extends WidgetElement {
 
     attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null) {
         if (oldValue === newValue) return;
+        // Before the guard: the two attributes are ONE state, and a value set before the
+        // element connects has to be in it when the first render reads it.
+        if (name === 'license' || name === 'license-type') {
+            if (!this._reflecting) this._applyLicenseAttribute(name, newValue);
+            if (this._initialized && !this._reflecting) this._render();
+            return;
+        }
         // Before the guard: the heading reads `version` as it is when the NOTES change.
         if (name === 'release-notes' || name === 'release-notes-version') {
             this._releaseNotesSegments = releaseNotesBuffer(
@@ -372,6 +450,53 @@ export class AdwAboutDialog extends WidgetElement {
             return;
         }
         this._render();
+    }
+
+    /** Run the core setter an attribute maps to, notify what it notified, and write the pair back. */
+    private _applyLicenseAttribute(name: string, value: string | null): void {
+        const transition =
+            name === 'license'
+                ? setLicense(this._licenseState, value ?? '')
+                : setLicenseType(this._licenseState, this._parseLicenseType(value));
+        this._licenseState = transition.state;
+        this._reflectLicense();
+        for (const property of transition.notify) {
+            this.dispatchEvent(
+                new CustomEvent(`notify::${property}`, {
+                    bubbles: true,
+                    detail: { license: this._licenseState.license, licenseType: this._licenseState.licenseType },
+                }),
+            );
+        }
+    }
+
+    /** An integer or a `Gtk.License` nick; anything else is out of range, so the setter refuses it. */
+    private _parseLicenseType(value: string | null): number {
+        if (value === null) return GTK_LICENSE.UNKNOWN;
+        if (/^-?\d+$/.test(value.trim())) return Number(value);
+        return licenseTypeForNick(value.trim()) ?? -1;
+    }
+
+    /**
+     * Write `_licenseState` back onto the attributes, which a setter may have moved: a stock
+     * licence clears `license`. A `license-type` the app wrote as a nick is left as it wrote it.
+     */
+    private _reflectLicense(): void {
+        const { license, licenseType } = this._licenseState;
+        this._reflecting = true;
+        try {
+            if (license.length === 0) this.removeAttribute('license');
+            else if (this.getAttribute('license') !== license) this.setAttribute('license', license);
+
+            const written = this.getAttribute('license-type');
+            if (licenseType === GTK_LICENSE.UNKNOWN) {
+                if (written !== null) this.removeAttribute('license-type');
+            } else if (written === null || this._parseLicenseType(written) !== licenseType) {
+                this.setAttribute('license-type', String(licenseType));
+            }
+        } finally {
+            this._reflecting = false;
+        }
     }
 
     /** Reflect the presented state onto the host + reset the navigation stack. */
@@ -396,22 +521,24 @@ export class AdwAboutDialog extends WidgetElement {
             designers: this._designers,
             artists: this._artists,
             documenters: this._documenters,
+            translatorCredits: this.translatorCredits,
+            creditSections: this._creditSections,
         });
     }
 
-    /**
-     * Whether the Legal page has anything on it. This element's licence model is the
-     * simplified one — a name plus an optional URL — so it maps onto `GtkLicense` as
-     * "custom text when a licence is set, unknown otherwise", which is what
-     * `adw_about_dialog_set_license` does to the type anyway.
-     */
-    private _hasLegal(): boolean {
-        const licenseType = this.license.length > 0 ? GTK_LICENSE.CUSTOM : GTK_LICENSE.UNKNOWN;
-        return legalSectionVisible(this.copyright, licenseType, this.license);
+    /** What `update_legal` reads: the dialog's own copyright + licence, then the added sections. */
+    private _legalInput() {
+        return {
+            copyright: this.copyright,
+            licenseType: this._licenseState.licenseType,
+            license: this._licenseState.license,
+            legalSections: this._legalSections,
+        };
     }
 
     private _render(): void {
         const sections = this._creditsSections();
+        const acknowledgements = acknowledgementSections(this._acknowledgementSections);
         const visibility = aboutDialogVisibility({
             applicationIcon: this.applicationIcon,
             applicationName: this.applicationName,
@@ -425,7 +552,8 @@ export class AdwAboutDialog extends WidgetElement {
             releaseNotes: this.releaseNotes,
             hasCustomLinks: this._links.length > 0,
             hasCredits: sections.length > 0,
-            hasLegal: this._hasLegal(),
+            hasLegal: legalVisible(this._legalInput()),
+            hasAcknowledgements: acknowledgements.length > 0,
         });
 
         this._navView?.remove();
@@ -441,6 +569,7 @@ export class AdwAboutDialog extends WidgetElement {
         }
         if (visibility.creditsRow) this._navView.append(this._buildCreditsPage(sections));
         if (visibility.legalRow) this._navView.append(this._buildLegalPage());
+        if (visibility.acknowledgementsRow) this._navView.append(this._buildAcknowledgementsPage(acknowledgements));
 
         // Straight into the overlay's content box: appended to the overlay itself, the view
         // is re-homed a microtask later, and that move drops the focus `present` put in it.
@@ -583,6 +712,9 @@ export class AdwAboutDialog extends WidgetElement {
         const creditsLegalRows: HTMLElement[] = [];
         if (visibility.creditsRow) creditsLegalRows.push(this._buildNavRow(rowLabel('creditsRow'), 'credits'));
         if (visibility.legalRow) creditsLegalRows.push(this._buildNavRow(rowLabel('legalRow'), 'legal'));
+        if (visibility.acknowledgementsRow) {
+            creditsLegalRows.push(this._buildNavRow(rowLabel('acknowledgementsRow'), 'acknowledgements'));
+        }
 
         if (visibility.detailsGroup) body.appendChild(this._buildGroup('details', detailsGroupRows));
         if (visibility.supportGroup) body.appendChild(this._buildGroup('support', supportGroupRows));
@@ -724,7 +856,20 @@ export class AdwAboutDialog extends WidgetElement {
     }
 
     private _buildCreditsPage(sections: ReturnType<typeof creditsSections>): HTMLElement {
-        const { page, body } = this._buildPage('credits', ADW_ABOUT_DIALOG_LABELS.creditsPage, false);
+        return this._buildCreditGroupsPage('credits', ADW_ABOUT_DIALOG_LABELS.creditsPage, sections);
+    }
+
+    private _buildAcknowledgementsPage(sections: ReturnType<typeof acknowledgementSections>): HTMLElement {
+        return this._buildCreditGroupsPage('acknowledgements', ADW_ABOUT_DIALOG_LABELS.acknowledgementsPage, sections);
+    }
+
+    /** Credits and Acknowledgements are one structure: a group per section, a row per person. */
+    private _buildCreditGroupsPage(
+        tag: string,
+        title: string,
+        sections: ReturnType<typeof creditsSections>,
+    ): HTMLElement {
+        const { page, body } = this._buildPage(tag, title, false);
 
         for (const section of sections) {
             const rows = section.people.map((person) => this._buildCreditRow(person));
@@ -759,36 +904,84 @@ export class AdwAboutDialog extends WidgetElement {
 
     private _buildLegalPage(): HTMLElement {
         const { page, body } = this._buildPage('legal', ADW_ABOUT_DIALOG_LABELS.legalPage, false);
+        const input = this._legalInput();
+        const sections = legalSections(input);
+        const hasDefault = legalSectionVisible(input.copyright, input.licenseType, input.license);
 
-        if (this.copyright) {
-            const copyright = document.createElement('p');
-            copyright.className = 'adw-about-dialog-copyright';
-            copyright.textContent = this.copyright;
-            body.appendChild(copyright);
-        }
-
-        if (this.license) {
-            const license = document.createElement('p');
-            license.className = 'adw-about-dialog-license';
-            if (this.licenseUrl) {
-                // GTK connects the legal label's `activate-link` to the same
-                // handler as the rows, so this link is cancelable too.
-                const link = document.createElement('a');
-                link.href = this.licenseUrl;
-                link.rel = 'noopener noreferrer';
-                link.textContent = this.license;
-                link.addEventListener('click', (event) => {
-                    event.preventDefault();
-                    this._activateLink(this.licenseUrl);
-                });
-                license.appendChild(link);
-            } else {
-                license.textContent = this.license;
+        for (const [index, section] of sections.entries()) {
+            if (section.title !== null) {
+                const heading = document.createElement('p');
+                heading.className = 'adw-about-dialog-legal-title';
+                heading.textContent = section.title;
+                body.appendChild(heading);
             }
-            body.appendChild(license);
+
+            // `license-url` is the one input libadwaita does not have: the DEFAULT section's custom
+            // text becomes a link to it.
+            const label = document.createElement('p');
+            label.className = 'adw-about-dialog-license';
+            if (index === 0 && hasDefault && this.licenseUrl && input.licenseType === GTK_LICENSE.CUSTOM) {
+                this._renderLegalLabel(label, this.copyright);
+                if (this.copyright.length > 0) label.append('\n\n');
+                label.append(this._buildLicenseUrlLink());
+            } else {
+                this._renderLegalLabel(label, section.markup);
+            }
+            if (section.markup.length > 0) body.appendChild(label);
         }
 
         return page;
+    }
+
+    /** The custom licence text as a link to `license-url`. Cancelable like every other link. */
+    private _buildLicenseUrlLink(): HTMLElement {
+        const url = this.licenseUrl;
+        const link = document.createElement('a');
+        link.href = url;
+        link.rel = 'noopener noreferrer';
+        link.textContent = this.license;
+        link.addEventListener('click', (event) => {
+            event.preventDefault();
+            this._activateLink(url);
+        });
+        return link;
+    }
+
+    /**
+     * A legal label's markup: Pango markup, with the `<a href>` GtkLabel adds on top — the
+     * stock warranty line is one. Each link raises the cancelable `activate-link`. Only
+     * `http`, `https` and `mailto` targets become links; any other is drawn as its text,
+     * since the default action hands the URI to `window.open`.
+     */
+    private _renderLegalLabel(target: HTMLElement, markup: string): void {
+        target.replaceChildren();
+        // `\x22` is `"`: an odd number of literal quotes derails check-adwaita-connect-rebind's masker.
+        const anchor = /<a\s+href="([^\x22]*)">([\s\S]*?)<\/a>/g;
+        let last = 0;
+        const text = (value: string) => {
+            if (value.length === 0) return;
+            const span = document.createElement('span');
+            renderPangoMarkup(span, value);
+            target.appendChild(span);
+        };
+        for (const match of markup.matchAll(anchor)) {
+            text(markup.slice(last, match.index));
+            last = match.index + match[0].length;
+
+            const uri = match[1]!.replace(/&amp;/g, '&');
+            const link = document.createElement('a');
+            renderPangoMarkup(link, match[2]!);
+            if (/^(https?:|mailto:)/i.test(uri)) {
+                link.href = uri;
+                link.rel = 'noopener noreferrer';
+                link.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    this._activateLink(uri);
+                });
+            }
+            target.appendChild(link);
+        }
+        text(markup.slice(last));
     }
 
     /** Show the header title only once the main page is scrolled (AdwAboutDialog). */

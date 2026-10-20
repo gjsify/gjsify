@@ -42,6 +42,7 @@
 
 import { gStrStrip } from './glib.js';
 import { UnsupportedGObjectError } from './gobject.js';
+import { stripMarkup } from './pango-markup.js';
 
 /** One `LicenseInfo` row — the struct. */
 export interface AdwLicenseInfo {
@@ -517,9 +518,114 @@ export function creditsSections(input: AdwCreditsInput = {}): AdwCreditsSection[
         ...(input.creditSections ?? []),
     ];
 
-    return ordered
+    return creditGroups(ordered);
+}
+
+/** `add_credits_section`'s shared body: no people is no group, every line goes through `parse_person`. */
+function creditGroups(sections: ReadonlyArray<AdwCreditsSectionInput>): AdwCreditsSection[] {
+    return sections
         .filter((section) => section.people.length > 0)
         .map((section) => ({ title: section.title, people: section.people.map(parseCreditPerson) }));
+}
+
+/**
+ * The Acknowledgements page, as a list of groups — `add_acknowledgement_section`.
+ *
+ * The same group structure and the same `parse_person` rows as Credits, but there are no
+ * built-in sections: only what the app added, in call order. The ghost row for an empty
+ * section is skipped for the reason {@link creditsSections} gives.
+ */
+export function acknowledgementSections(sections: ReadonlyArray<AdwCreditsSectionInput> = []): AdwCreditsSection[] {
+    return creditGroups(sections);
+}
+
+/** The default legal section's heading once the app has added others (`update_legal`). */
+export const ADW_LEGAL_DEFAULT_TITLE = 'This Application';
+
+/** An app-provided extra legal section (`add_legal_section`). */
+export interface AdwLegalSectionInput {
+    /** The section heading. Not nullable in the C signature, unlike credits. */
+    title: string;
+    /** Pango markup, or `null`. */
+    copyright: string | null;
+    /** The section's `GtkLicense`. */
+    licenseType: AdwLicenseType;
+    /** The custom licence text, only read for `custom`. */
+    license: string | null;
+}
+
+/** One assembled legal section: a heading and ONE markup body. */
+export interface AdwLegalSection {
+    /** The heading label, or `null` for none. */
+    title: string | null;
+    /** Pango markup: the copyright, a blank line, then the licence text; either part may be absent. */
+    markup: string;
+}
+
+/** What `update_legal` reads. */
+export interface AdwLegalInput {
+    copyright: string;
+    licenseType: AdwLicenseType;
+    license: string;
+    /** Extra sections, in `add_legal_section` call order. */
+    legalSections?: ReadonlyArray<AdwLegalSectionInput>;
+}
+
+function legalMarkup(copyright: string | null, licenseType: AdwLicenseType, license: string | null): string {
+    const text = licenseText(licenseType, license ?? '');
+    return [copyright ?? '', text ?? ''].filter((part) => part.length > 0).join('\n\n');
+}
+
+/**
+ * `update_legal` — the Legal page, as a list of sections.
+ *
+ * The default section (the dialog's own `copyright` + licence) comes first and is dropped
+ * when it has nothing to show; it takes the heading {@link ADW_LEGAL_DEFAULT_TITLE} exactly
+ * when the app added sections of its own, which is computed here from the list rather than
+ * left behind by the order of calls. The app's sections follow in call order, and a section
+ * whose heading is non-empty is kept even with no body — a title-only section exists. A
+ * known licence type ignores the `license` string.
+ */
+export function legalSections(input: AdwLegalInput): AdwLegalSection[] {
+    const extras = input.legalSections ?? [];
+    const sections: AdwLegalSection[] = [];
+
+    if (legalSectionVisible(input.copyright, input.licenseType, input.license)) {
+        sections.push({
+            title: extras.length > 0 ? ADW_LEGAL_DEFAULT_TITLE : null,
+            markup: legalMarkup(input.copyright, input.licenseType, input.license),
+        });
+    }
+    for (const extra of extras) {
+        const title = extra.title.length > 0 ? extra.title : null;
+        const markup = legalMarkup(extra.copyright, extra.licenseType, extra.license);
+        if (title !== null || markup.length > 0) sections.push({ title, markup });
+    }
+    return sections;
+}
+
+/**
+ * What a legal label reads as without styling: Pango markup with the `<a href>` GtkLabel adds
+ * on top reduced to its link text. Markup that does not parse is shown as it is, like GtkLabel.
+ */
+export function legalMarkupText(markup: string): string {
+    const unlinked = markup.replace(/<a\s+href="[^"]*">([\s\S]*?)<\/a>/g, '$1');
+    return stripMarkup(unlinked) ?? markup;
+}
+
+/** Whether the Legal row shows: the default section has content, or the app added any section. */
+export function legalVisible(input: AdwLegalInput): boolean {
+    return (
+        (input.legalSections ?? []).length > 0 || legalSectionVisible(input.copyright, input.licenseType, input.license)
+    );
+}
+
+/** `Gtk.License` nick (`gpl-3-0`, `mit-x11`, `0bsd`) to its value, or `null` — the GEnum nick lookup. */
+export function licenseTypeForNick(nick: string): AdwLicenseType | null {
+    for (const [key, value] of Object.entries(GTK_LICENSE)) {
+        if (key.toLowerCase().replace(/_/g, '-') === nick) return value;
+    }
+    return null;
 }
 
 /**
