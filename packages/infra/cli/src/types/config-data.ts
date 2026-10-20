@@ -596,6 +596,19 @@ export interface ConfigDataShip extends AppMetadata {
      */
     bundledTypelibs?: string[] | ShipBundledTypelibsOptions;
     /**
+     * Additions for ONE package format — `deb` or `rpm` — on top of everything above.
+     *
+     * Exists for a library the distros disagree about: one that Fedora ships and Ubuntu does
+     * not (libgda 6), where the `.rpm` should use the system copy and only the `.deb` needs to
+     * carry its own. `bundledTypelibs` and `extraFiles` are staged for every format of a
+     * layout, so there is no way to say "the `.deb` only" with them.
+     *
+     * What a format carries here is read back off its package like any other staged file, so a
+     * namespace bundled this way no longer becomes a `Depends:` entry of THAT package — and
+     * still does in the other format's.
+     */
+    formats?: Partial<Record<'deb' | 'rpm', ShipFormatOptions>>;
+    /**
      * Directory holding COMPILED gettext catalogues in the layout `bindtextdomain` reads —
      * `<lang>/LC_MESSAGES/<domain>.mo` — e.g. `"dist/locale"`, which is what
      * `@gjsify/vite-plugin-gettext`'s `gettextPlugin` writes by default.
@@ -698,6 +711,22 @@ export interface ShipBundleOptions {
     darwin?: string;
     /** The entry the Windows program directory carries. */
     win32?: string;
+}
+
+/** One entry of `gjsify.ship.formats`: the staged files only that package format carries. */
+export interface ShipFormatOptions {
+    /**
+     * Directories whose `*.typelib` and shared libraries this format carries, staged flat into
+     * `lib/<name>/gi/` like {@link ConfigDataShip.bundledTypelibs}. The launcher puts that
+     * directory on `GI_TYPELIB_PATH` and `LD_LIBRARY_PATH` when it exists.
+     */
+    bundledTypelibs?: string[];
+    /**
+     * Destination (relative to the install prefix) → source file, like
+     * {@link ConfigDataShip.extraFiles} but for this format only, e.g. a plugin directory the
+     * bundled library finds by a path baked in at build time.
+     */
+    extraFiles?: Record<string, string>;
 }
 
 /**

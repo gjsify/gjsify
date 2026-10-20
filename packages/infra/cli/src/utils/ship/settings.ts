@@ -50,6 +50,8 @@ export interface DiscoveredPayload {
     schemaFiles: string[];
     /** Absolute paths of the typelibs + shared libraries the project ships itself. */
     typelibFiles: string[];
+    /** Per-format typelibs + files (`gjsify.ship.formats`), keyed by format id. */
+    formatFiles: ShipSettings['formatFiles'];
     /** Compiled gettext catalogues, each with its `<lang>/LC_MESSAGES/<domain>.mo` path. */
     localeFiles: { rel: string; abs: string }[];
     /** Absolute paths of the font faces the application ships itself. */
@@ -336,6 +338,7 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
         iconFiles: discovered.iconFiles,
         schemaFiles: discovered.schemaFiles,
         typelibFiles: discovered.typelibFiles,
+        formatFiles: discovered.formatFiles,
         localeFiles: discovered.localeFiles,
         fontFiles: discovered.fontFiles,
         extraFiles: ship.extraFiles ?? {},

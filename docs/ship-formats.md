@@ -408,6 +408,13 @@ entirely on macOS for `Contents/Resources/native` — deliberately NOT Apple's
 and refuses the bundle seal, and which the relocated GTK closure fills with three — and the
 launcher's own NAME changes on Windows (`<binaryName>.cmd`). What is the OS's and what is the app's:
 
+`gjsify.ship.formats.<deb|rpm>` (`bundledTypelibs`, `extraFiles`) is the same payload for ONE package
+format: its files join that format's overlay, typelibs flattened into `lib/<name>/gi/`, and the shared
+launcher adds the GI paths behind `if [ -d "$prefix"/lib/<name>/gi ]`. It exists for a library built
+against one distro's sonames (an Ubuntu-built libgda needs `libxml2.so.16`, Fedora has `.so.2`), which
+the other format must not carry. A namespace staged this way is host-provided for that format only, so
+only that format's derived `Depends` drops the `gir1.2-…` package. AppImage and Flatpak read no `formats`.
+
 | | fixed by the OS | from the consumer's `gjsify.ship` |
 |---|---|---|
 | macOS | `Contents/{MacOS,Resources,Frameworks}`, the `.app` suffix | the bundle directory's name (`name`), the executable inside it (`binaryName`), everything the data tree is keyed on (`appId`) |

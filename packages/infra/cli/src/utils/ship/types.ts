@@ -504,6 +504,11 @@ export interface ShipSettings extends PackSettings {
      */
     typelibFiles: string[];
     /**
+     * What ONLY one package format carries (`gjsify.ship.formats`), resolved to absolute paths.
+     * Staged into that format's overlay, not the shared payload — which is the whole point.
+     */
+    formatFiles: Partial<Record<DistroFormatId, { typelibFiles: string[]; extraFiles: Record<string, string> }>>;
+    /**
      * Compiled gettext catalogues (`gjsify.ship.localeDir`), each keeping its
      * `<lang>/LC_MESSAGES/<domain>.mo` path so `share/locale/` comes out in the layout
      * `bindtextdomain` reads.

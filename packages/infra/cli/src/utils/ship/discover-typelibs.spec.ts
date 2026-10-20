@@ -166,4 +166,57 @@ export default async () => {
             expect(() => stagedForLayout(table, undefined)).toThrow('per-OS table');
         });
     });
+
+    await describe('gjsify.ship.formats', async () => {
+        function formatFilesOf(ship: ConfigDataShip) {
+            const root = project(['Foo-1.typelib', 'libfoo.so']);
+            try {
+                writeFileSync(join(root, 'provider.so'), 'x');
+                return discoverPayload({
+                    projectDir: root,
+                    pkg: { name: 'hello', version: '1.0.0' },
+                    ship,
+                    declaredBundle: 'dist/app.gjs.mjs',
+                });
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        }
+
+        await it("keeps a format's typelibs and files out of the shared payload", () => {
+            const found = formatFilesOf({
+                formats: { deb: { bundledTypelibs: ['gi'], extraFiles: { 'lib/x/p.so': 'provider.so' } } },
+            } as ConfigDataShip);
+            expect(found.typelibFiles).toStrictEqual([]);
+            expect(found.formatFiles.deb?.typelibFiles.map((f) => basename(f)).sort()).toStrictEqual([
+                'Foo-1.typelib',
+                'libfoo.so',
+            ]);
+            expect(basename(found.formatFiles.deb?.extraFiles['lib/x/p.so'] ?? '')).toBe('provider.so');
+            expect(found.formatFiles.rpm).toBe(undefined);
+        });
+
+        await it('looks for them on the Linux layout only', () => {
+            const root = project([]);
+            try {
+                const ship = { formats: { deb: { bundledTypelibs: ['not-built-here'] } } } as ConfigDataShip;
+                const input = {
+                    projectDir: root,
+                    pkg: { name: 'hello', version: '1.0.0' },
+                    ship,
+                    declaredBundle: 'dist/app.gjs.mjs',
+                };
+                expect(discoverPayload({ ...input, layoutOs: 'darwin' }).formatFiles).toStrictEqual({});
+                expect(() => discoverPayload({ ...input, layoutOs: 'linux' })).toThrow();
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        await it('refuses a format that has no overlay to carry the files', () => {
+            expect(() => formatFilesOf({ formats: { appimage: { bundledTypelibs: ['gi'] } } } as never)).toThrow(
+                'formats.appimage',
+            );
+        });
+    });
 };
