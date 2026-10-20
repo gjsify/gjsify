@@ -1797,7 +1797,11 @@ Page.adw-window {
 .adw-about-dialog-developer,
 .adw-about-dialog-comments,
 .adw-about-dialog-website,
-.adw-about-dialog-copyright,
+.adw-about-dialog-support,
+.adw-about-dialog-issue,
+.adw-about-dialog-credits,
+.adw-about-dialog-acknowledgements,
+.adw-about-dialog-legal,
 .adw-about-dialog-release-notes,
 .adw-about-dialog-links,
 .adw-about-dialog-debug-info {
@@ -1806,6 +1810,7 @@ Page.adw-window {
     margin: 2 0 2 0;
 }
 
+.adw-about-dialog-copy,
 .adw-about-dialog-close {
     background-color: rgba(0, 0, 0, 0.08);
     color: rgba(0, 0, 0, 0.8);
@@ -2634,13 +2639,18 @@ Page.ns-dark.adw-window {
 .ns-dark .adw-about-dialog-developer,
 .ns-dark .adw-about-dialog-comments,
 .ns-dark .adw-about-dialog-website,
-.ns-dark .adw-about-dialog-copyright,
+.ns-dark .adw-about-dialog-support,
+.ns-dark .adw-about-dialog-issue,
+.ns-dark .adw-about-dialog-credits,
+.ns-dark .adw-about-dialog-acknowledgements,
+.ns-dark .adw-about-dialog-legal,
 .ns-dark .adw-about-dialog-release-notes,
 .ns-dark .adw-about-dialog-links,
 .ns-dark .adw-about-dialog-debug-info {
     color: rgba(255, 255, 255, 0.6);
 }
 
+.ns-dark .adw-about-dialog-copy,
 .ns-dark .adw-about-dialog-close {
     background-color: rgba(255, 255, 255, 0.1);
     color: #ffffff;

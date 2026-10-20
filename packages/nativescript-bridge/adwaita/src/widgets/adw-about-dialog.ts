@@ -14,11 +14,16 @@
 // (no icon-theme lookup), and `links` (website/issue) are rendered as plain text
 // rows, not tappable hyperlinks.
 //
-// The card has no subpages, so the What's New, Troubleshooting and Details doors land
-// on it as labels: `release-notes` shows the core's `releaseNotesBuffer` text (the
-// buffer rebuilt by the two release-notes setters only, as `update_release_notes` is),
-// `debug-info` its verbatim text with no Copy button, and `add_link (title, url)` one
-// "title: url" line each. `new_from_appdata` is refused by name: it needs AppStream.
+// The card has no subpages, so the What's New, Troubleshooting, Details, Credits, Legal and
+// Acknowledgements pages land on it as labels: `release-notes` shows the core's
+// `releaseNotesBuffer` text (the buffer rebuilt by the two release-notes setters only, as
+// `update_release_notes` is), `debug-info` its text with a Copy Text button, `add_link (title,
+// url)`, `support-url` and `issue-url` one "title: url" line each. The credit lists,
+// `translator-credits` and `add_credit_section` / `add_acknowledgement_section` become one
+// block per core group, `license`, `license-type`, `copyright` and `add_legal_section` one
+// block per core legal section — as plain text, so a markup link shows its text only.
+// Left out: `add_other_app` / `other-apps-title` and the debug-info Save As.
+// `new_from_appdata` is refused by name: it needs AppStream.
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-about-dialog`.
 // Reference: refs/libadwaita/src/stylesheet/widgets/_misc.scss (AdwAboutWindow)
@@ -27,14 +32,29 @@
 
 import {
     ADW_ABOUT_DIALOG_LABELS,
+    ADW_LICENSE_DEFAULTS,
+    type AdwCreditsSection,
+    type AdwCreditsSectionInput,
+    type AdwLegalSectionInput,
+    type AdwLicenseState,
     type ReleaseNotesSegment,
     aboutDialogVisibility,
+    acknowledgementSections,
+    creditsSections,
+    isLicenseType,
+    legalMarkupText,
+    legalSections,
+    legalVisible,
+    licenseTypeForNick,
     refuseNewFromAppdata,
     releaseNotesBuffer,
+    setLicense,
+    setLicenseType,
     stripMnemonic,
 } from '@gjsify/adwaita-core';
 import { Button, GridLayout, ItemSpec, Label, ScrollView, StackLayout, type EventData } from '@nativescript/core';
-import { xmlBoolean } from './xml-values.js';
+import { nativeClipboardHost } from '../clipboard-host.js';
+import { xmlBoolean, xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
 import { findDialogHost, type DialogHost } from './window-state.js';
@@ -42,6 +62,13 @@ import type { View } from '@nativescript/core';
 
 /** Event name emitted when the dialog is closed. */
 export const CLOSED = 'closed';
+
+/** A credits page as text: per group its heading (if any) and one line per person. */
+function creditsText(groups: ReadonlyArray<AdwCreditsSection>): string {
+    return groups
+        .map((group) => [...(group.title === null ? [] : [group.title]), ...group.people.map((p) => p.name)].join('\n'))
+        .join('\n\n');
+}
 
 export class AdwAboutDialog extends withSignals(GridLayout) {
     static readonly GTypeName: string = 'AdwAboutDialog';
@@ -53,10 +80,15 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
     protected readonly _developerLabel: Label;
     protected readonly _commentsLabel: Label;
     protected readonly _websiteLabel: Label;
-    protected readonly _copyrightLabel: Label;
+    protected readonly _supportLabel: Label;
+    protected readonly _issueLabel: Label;
+    protected readonly _creditsLabel: Label;
+    protected readonly _acknowledgementsLabel: Label;
+    protected readonly _legalLabel: Label;
     protected readonly _releaseNotesLabel: Label;
     protected readonly _linksLabel: Label;
     protected readonly _debugInfoLabel: Label;
+    protected readonly _copyButton: Button;
 
     private _applicationName = '';
     private _applicationIcon = '';
@@ -64,11 +96,22 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
     private _version = '';
     private _comments = '';
     private _website = '';
+    private _supportUrl = '';
+    private _issueUrl = '';
     private _copyright = '';
+    private _licenseState: AdwLicenseState = { ...ADW_LICENSE_DEFAULTS };
+    private _developers: string[] = [];
+    private _designers: string[] = [];
+    private _artists: string[] = [];
+    private _documenters: string[] = [];
+    private _translatorCredits = '';
     private _releaseNotes = '';
     private _releaseNotesVersion = '';
     private _debugInfo = '';
     private _links: { title: string; url: string }[] = [];
+    private _creditSections: AdwCreditsSectionInput[] = [];
+    private _acknowledgementSections: AdwCreditsSectionInput[] = [];
+    private _legalSections: AdwLegalSectionInput[] = [];
     /** The What's New buffer; `version` alone never rebuilds it. */
     private _releaseNotesSegments: ReleaseNotesSegment[] = [];
     /** The window `present (parent)` mounted this in, so closing can take it back out. */
@@ -104,8 +147,20 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         this._releaseNotesLabel = this._addCardLabel(card, 'adw-about-dialog-release-notes');
         this._websiteLabel = this._addCardLabel(card, 'adw-about-dialog-website');
         this._linksLabel = this._addCardLabel(card, 'adw-about-dialog-links');
-        this._copyrightLabel = this._addCardLabel(card, 'adw-about-dialog-copyright');
+        this._supportLabel = this._addCardLabel(card, 'adw-about-dialog-support');
+        this._issueLabel = this._addCardLabel(card, 'adw-about-dialog-issue');
+        this._creditsLabel = this._addCardLabel(card, 'adw-about-dialog-credits');
+        this._acknowledgementsLabel = this._addCardLabel(card, 'adw-about-dialog-acknowledgements');
+        this._legalLabel = this._addCardLabel(card, 'adw-about-dialog-legal');
         this._debugInfoLabel = this._addCardLabel(card, 'adw-about-dialog-debug-info');
+
+        const copyButton = new Button();
+        copyButton.text = stripMnemonic(ADW_ABOUT_DIALOG_LABELS.copyText);
+        copyButton.className = 'adw-about-dialog-copy';
+        copyButton.set('androidElevation', 0);
+        copyButton.addEventListener('tap', () => this._copyDebugInfo());
+        card.addChild(copyButton);
+        this._copyButton = copyButton;
 
         const closeButton = new Button();
         closeButton.text = 'Close';
@@ -114,7 +169,7 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         closeButton.addEventListener('tap', () => this.close());
         card.addChild(closeButton);
 
-        // A dialog nobody has written to yet is TEN empty labels, all visible —
+        // A dialog nobody has written to yet is a card of empty labels, all visible —
         // the same blank lines the visibility rules exist to remove. Every setter
         // re-renders the whole card, so one call here is what covers the state
         // before the first one.
@@ -192,13 +247,108 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         this._render();
     }
 
-    /** The copyright line. */
+    /** The support-questions URL (plain text). */
+    get supportUrl(): string {
+        return this._supportUrl;
+    }
+
+    set supportUrl(value: string) {
+        this._supportUrl = value ?? '';
+        this._render();
+    }
+
+    /** The issue-tracker URL (plain text). */
+    get issueUrl(): string {
+        return this._issueUrl;
+    }
+
+    set issueUrl(value: string) {
+        this._issueUrl = value ?? '';
+        this._render();
+    }
+
+    /** The copyright line, the first part of the Legal text. */
     get copyright(): string {
         return this._copyright;
     }
 
     set copyright(value: string) {
         this._copyright = value ?? '';
+        this._render();
+    }
+
+    /** The custom licence text, `''` for a stock licence. */
+    get license(): string {
+        return this._licenseState.license;
+    }
+
+    set license(value: string) {
+        this._licenseState = setLicense(this._licenseState, value ?? '').state;
+        this._render();
+    }
+
+    /**
+     * A `Gtk.License` value. A string from an XML attribute is an integer or a licence nick;
+     * anything outside `Gtk.License` is refused, as the C setter does.
+     */
+    get licenseType(): number {
+        return this._licenseState.licenseType;
+    }
+
+    set licenseType(value: number | string) {
+        const nick = typeof value === 'string' ? licenseTypeForNick(value.trim()) : undefined;
+        const type = nick ?? xmlNumber(value, -1);
+        this._licenseState = setLicenseType(this._licenseState, type).state;
+        this._render();
+    }
+
+    /** Names for the "Code by" credits; each line is `Name`, `Name <email>` or `Name https://url`. */
+    get developers(): string[] {
+        return this._developers;
+    }
+
+    set developers(value: string[]) {
+        this._developers = [...(value ?? [])];
+        this._render();
+    }
+
+    /** Names for the "Design by" credits. */
+    get designers(): string[] {
+        return this._designers;
+    }
+
+    set designers(value: string[]) {
+        this._designers = [...(value ?? [])];
+        this._render();
+    }
+
+    /** Names for the "Artwork by" credits. */
+    get artists(): string[] {
+        return this._artists;
+    }
+
+    set artists(value: string[]) {
+        this._artists = [...(value ?? [])];
+        this._render();
+    }
+
+    /** Names for the "Documentation by" credits. */
+    get documenters(): string[] {
+        return this._documenters;
+    }
+
+    set documenters(value: string[]) {
+        this._documenters = [...(value ?? [])];
+        this._render();
+    }
+
+    /** The translators, one per line; the untranslated gettext sentinel shows nothing. */
+    get translatorCredits(): string {
+        return this._translatorCredits;
+    }
+
+    set translatorCredits(value: string) {
+        this._translatorCredits = value ?? '';
         this._render();
     }
 
@@ -238,6 +388,25 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         this._render();
     }
 
+    /** `adw_about_dialog_add_credit_section`: a Credits block; `name` may be `null`. */
+    add_credit_section(name: string | null, people: string[]): void {
+        this._creditSections.push({ title: name, people: [...people] });
+        this._render();
+    }
+
+    /** `adw_about_dialog_add_acknowledgement_section`: an Acknowledgements block. */
+    add_acknowledgement_section(name: string | null, people: string[]): void {
+        this._acknowledgementSections.push({ title: name, people: [...people] });
+        this._render();
+    }
+
+    /** `adw_about_dialog_add_legal_section`: a Legal block. A `license_type` outside `Gtk.License` is refused. */
+    add_legal_section(title: string, copyright: string | null, license_type: number, license: string | null): void {
+        if (!isLicenseType(license_type)) return;
+        this._legalSections.push({ title, copyright, licenseType: license_type, license });
+        this._render();
+    }
+
     /** `adw_about_dialog_new_from_appdata`, refused by name. */
     static new_from_appdata(_resourcePath: string, _releaseNotesVersion?: string | null): never {
         refuseNewFromAppdata();
@@ -256,7 +425,7 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
     }
 
     /**
-     * Push the ten strings onto their labels, and COLLAPSE the ones with nothing
+     * Push the card's strings onto their labels, and COLLAPSE the ones with nothing
      * to say.
      *
      * Every label used to be unconditionally visible, so an about dialog without a
@@ -266,13 +435,26 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
      * Same input, two different dialogs, and nothing said so.
      *
      * The core's record covers a nineteen-part dialog; this port is a flat card, so
-     * it reads the parts it has. `copyright` is NOT one of them: upstream has no
-     * copyright LABEL, it derives the string into the Legal page this port does not
-     * build (`legalSectionVisible` takes it as a separate argument). It therefore
-     * keeps the same non-empty rule directly. The website row is the core's
-     * `websiteRow`, which is the flat-card equivalent here.
+     * it reads the parts it has. Upstream has no copyright label, it derives the string
+     * into the Legal page, so `copyright` reaches the card through `legalSections`. The
+     * website row is the core's `websiteRow`, which is the flat-card equivalent here.
      */
     private _render(): void {
+        const credits = creditsSections({
+            developers: this._developers,
+            designers: this._designers,
+            artists: this._artists,
+            documenters: this._documenters,
+            translatorCredits: this._translatorCredits,
+            creditSections: this._creditSections,
+        });
+        const acknowledgements = acknowledgementSections(this._acknowledgementSections);
+        const legalInput = {
+            copyright: this._copyright,
+            licenseType: this._licenseState.licenseType,
+            license: this._licenseState.license,
+            legalSections: this._legalSections,
+        };
         const visibility = aboutDialogVisibility({
             applicationName: this._applicationName,
             applicationIcon: this._applicationIcon,
@@ -280,9 +462,14 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
             version: this._version,
             comments: this._comments,
             website: this._website,
+            supportUrl: this._supportUrl,
+            issueUrl: this._issueUrl,
             debugInfo: this._debugInfo,
             releaseNotes: this._releaseNotes,
             hasCustomLinks: this._links.length > 0,
+            hasCredits: credits.length > 0,
+            hasLegal: legalVisible(legalInput),
+            hasAcknowledgements: acknowledgements.length > 0,
         });
         const show = (label: Label, text: string, shown: boolean): void => {
             label.text = text;
@@ -294,7 +481,27 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         show(this._developerLabel, this._developerName, visibility.developerName);
         show(this._commentsLabel, this._comments, visibility.commentsLabel);
         show(this._websiteLabel, this._website, visibility.websiteRow);
-        show(this._copyrightLabel, this._copyright, this._copyright.length > 0);
+        show(
+            this._supportLabel,
+            `${stripMnemonic(ADW_ABOUT_DIALOG_LABELS.supportRow)}: ${this._supportUrl}`,
+            visibility.supportRow,
+        );
+        show(
+            this._issueLabel,
+            `${stripMnemonic(ADW_ABOUT_DIALOG_LABELS.issueRow)}: ${this._issueUrl}`,
+            visibility.issueRow,
+        );
+        show(this._creditsLabel, creditsText(credits), visibility.creditsRow);
+        show(this._acknowledgementsLabel, creditsText(acknowledgements), visibility.acknowledgementsRow);
+        show(
+            this._legalLabel,
+            legalSections(legalInput)
+                .map((section) =>
+                    [section.title ?? '', legalMarkupText(section.markup)].filter((part) => part.length > 0).join('\n'),
+                )
+                .join('\n\n'),
+            visibility.legalRow,
+        );
         show(
             this._releaseNotesLabel,
             this._releaseNotesSegments.map((segment) => segment.text).join(''),
@@ -306,6 +513,15 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
             this._links.length > 0,
         );
         show(this._debugInfoLabel, this._debugInfo, visibility.troubleshootingRow);
+        this._copyButton.visibility = visibility.troubleshootingRow ? 'visible' : 'collapse';
+    }
+
+    /** Copy Text: the debug info to the platform clipboard. A host without one keeps the text on screen. */
+    private _copyDebugInfo(): void {
+        const text = this._debugInfo;
+        void Promise.resolve()
+            .then(() => nativeClipboardHost.writeText(text))
+            .catch(() => undefined);
     }
 
     /**
