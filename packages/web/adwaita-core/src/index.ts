@@ -1185,6 +1185,7 @@ export type {
 } from './engine.js';
 export { MAXUINT32, buildFilenamev, getCurrentDir, getSystemDataDirs } from './glib-paths.js';
 export { uriEscapeString } from './glib-uri.js';
+export { computeLanguageNames, languageNamesFromTags, localeFromLanguageTag } from './glib-language.js';
 export { unicharIsalpha } from './glib-unichar.js';
 export { GLIB_UNICHAR_UNICODE_VERSION } from './glib-unichar.generated.js';
 export { AppLaunchContext as GioAppLaunchContext, createAppInfo, uriPeekScheme } from './gio-app-info.js';

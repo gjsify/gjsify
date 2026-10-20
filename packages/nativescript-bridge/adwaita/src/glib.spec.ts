@@ -3,16 +3,19 @@
 // that stops being exported fails here.
 
 import {
+    GLIB_LANGUAGE_TAG_VECTORS,
     GLIB_PATH_VECTORS,
     GLIB_TIMER_VECTORS,
     GLIB_UNICHAR_VECTORS,
     GLIB_URI_VECTORS,
     GLIB_VARIANT_VECTORS,
+    driveGLibLanguageTagVectors,
     driveGLibPathVectors,
     driveGLibTimerVectors,
     driveGLibUnicharVectors,
     driveGLibUriVectors,
     driveGLibVariantVectors,
+    type GLibLanguageLike,
     type GLibPathsLike,
     type GLibTimersLike,
     type GLibUnicharLike,
@@ -21,6 +24,7 @@ import {
 } from '@gjsify/adwaita-core/conformance';
 import { describe, expect, it } from '@gjsify/unit';
 
+import { useLanguageHost } from './language-host.js';
 import * as GLib from './namespace/glib.js';
 
 export default async () => {
@@ -62,10 +66,30 @@ export default async () => {
         { describe, it, expect },
         GLIB_UNICHAR_VECTORS,
     );
+    await driveGLibLanguageTagVectors(
+        {
+            name: 'adwaita-nativescript',
+            isOracle: false,
+            GLib: GLib as unknown as GLibLanguageLike,
+            withTags: (tags, read) => {
+                useLanguageHost(() => [...tags]);
+                try {
+                    return read();
+                } finally {
+                    useLanguageHost(null);
+                }
+            },
+        },
+        { describe, it, expect },
+        GLIB_LANGUAGE_TAG_VECTORS,
+    );
     await describe('adwaita-nativescript: GLib door', async () => {
         await it('answers the host-bound path questions with the root and no data dirs', () => {
             expect(GLib.get_current_dir()).toBe('/');
             expect(GLib.get_system_data_dirs().length).toBe(0);
+        });
+        await it('answers C alone on a host with no platform language list', () => {
+            expect(GLib.get_language_names().join(',')).toBe('C');
         });
         await it('has a vector row for every vector', () => {
             expect(GLIB_TIMER_VECTORS.length > 0 && GLIB_PATH_VECTORS.length > 0).toBe(true);

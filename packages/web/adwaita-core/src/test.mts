@@ -80,6 +80,8 @@ import glibPathsTestSuite from './glib-paths.spec.js';
 import glibPathsOracleTestSuite from './glib-paths.gjs.spec.js';
 import glibUriTestSuite from './glib-uri.spec.js';
 import glibUriOracleTestSuite from './glib-uri.gjs.spec.js';
+import glibLanguageTestSuite from './glib-language.spec.js';
+import glibLanguageOracleTestSuite from './glib-language.gjs.spec.js';
 import glibVariantTestSuite from './glib-variant.spec.js';
 import glibVariantOracleTestSuite from './glib-variant.gjs.spec.js';
 import glibUnicharTestSuite from './glib-unichar.spec.js';
@@ -182,6 +184,8 @@ run({
     glibPathsOracleTestSuite,
     glibUriTestSuite,
     glibUriOracleTestSuite,
+    glibLanguageTestSuite,
+    glibLanguageOracleTestSuite,
     glibVariantTestSuite,
     glibVariantOracleTestSuite,
     glibUnicharTestSuite,

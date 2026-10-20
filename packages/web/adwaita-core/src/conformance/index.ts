@@ -861,3 +861,20 @@ export type {
     IconThemeResourceSubject,
     IconThemeResourceVector,
 } from './icon-theme-resources.js';
+export {
+    GLIB_LANGUAGE_ROWS,
+    GLIB_LANGUAGE_TAG_ROWS,
+    GLIB_LANGUAGE_TAG_VECTORS,
+    GLIB_LANGUAGE_VECTORS,
+    driveGLibLanguageTagVectors,
+    driveGLibLanguageVectors,
+} from './glib-language.js';
+export type {
+    GLibLanguageLike,
+    GLibLanguageRow,
+    GLibLanguageSubject,
+    GLibLanguageTagRow,
+    GLibLanguageTagSubject,
+    GLibLanguageTagVector,
+    GLibLanguageVector,
+} from './glib-language.js';

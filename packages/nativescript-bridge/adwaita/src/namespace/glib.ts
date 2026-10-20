@@ -7,6 +7,10 @@
 // in `glib-paths.ts` of the core; the host has no filesystem, so `get_current_dir()` is `"/"` and
 // `get_system_data_dirs()` is `[]`. A port that knows better replaces the member in its own file.
 //
+// `get_language_names` is the core's `glib-language.ts` over the host's language tags
+// (`language-host.ts` over `language-source.ts` and its `.android` / `.ios` variants), read when it is CALLED: NativeScript has no ICU
+// and so no `Intl`, only the platform's own list. The tag rule is in the core's header.
+//
 // `uri_escape_string` is the core's `glib-uri.ts`, a pure function over UTF-8 bytes;
 // `unichar_isalpha` is `glib-unichar.ts`, a generated table (no `\p{L}`: no ICU on NativeScript).
 //
@@ -26,10 +30,12 @@ import {
     createGLibTimers,
     getCurrentDir,
     getSystemDataDirs,
+    languageNamesFromTags,
     MAXUINT32 as GLIB_MAXUINT32,
     unicharIsalpha,
     uriEscapeString,
 } from '@gjsify/adwaita-core';
+import { hostLanguageTags } from '../language-host.js';
 
 const glib = createGLibTimers();
 
@@ -48,5 +54,6 @@ export const MAXUINT32 = GLIB_MAXUINT32;
 export const build_filenamev = buildFilenamev;
 export const get_current_dir = getCurrentDir;
 export const get_system_data_dirs = getSystemDataDirs;
+export const get_language_names = (): string[] => languageNamesFromTags(hostLanguageTags());
 export const uri_escape_string = uriEscapeString;
 export const unichar_isalpha = unicharIsalpha;
