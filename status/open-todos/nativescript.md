@@ -34,7 +34,7 @@ fails the day one appears. Not built here, because that suite is a device-adjace
 nobody runs in the required job, and a guard that runs nowhere is prose.
 
 
-### One widget is a real GObject subclass — 160 are not
+### Four widgets are real GObject subclasses — 157 are not
 
 ADR 0105 § 2's twin route was reversed on 2026-10-19: on NativeScript Android `registerClass`
 now takes a `@nativescript/core` parent, so a widget can BE its own GObject instead of carrying
@@ -68,15 +68,52 @@ The xml-doors gate accepts a declared number/boolean property and checks the sea
 `coerceDeclared` on both legs. 702 trees tests, 1714 pure tests; device: emulator API 36 and a
 Galaxy S9, 143 real-gio and 61 pure-JS cases each, `specs/spinner.ts`.
 
-MIGRATE NEXT: `widgets/adw-switch-row.ts`, with its base `adw-action-row.ts` first (`withSignals
-(GridLayout)`, no `meta` yet). The new question is GObject INHERITANCE: the first port widget
-that is a registered class over another registered class, so the seam's lazy realization, the
-per-level `connect` router restore and `$foreignSkipped` all run twice on one prototype chain.
-Not `adw-button-content.ts` yet: its `hostButton` is a `View`, an object-typed property with no
-ParamSpec kind.
+`widgets/adw-action-row.ts` and `widgets/adw-switch-row.ts` are the THIRD and FOURTH, and the
+first PAIR: `AdwSwitchRow` is a GType registered over `AdwActionRow`'s GType. Measured on the
+device, the chain is `AdwSwitchRow -> AdwActionRow -> GObject` — `GridLayout` is a NativeScript
+class with no GType, so the base registration roots at GObject rather than at its host parent.
+
+GObject inheritance needed a CORE fix, in node-gi rather than at the seam. `findParentGType`
+walked the class-side prototype chain and read `$gtypeName` through it, so an ordinary class
+between two registrations — which is what a widget extending a registered mixin IS — handed it
+the mixin's dotless name with no registry entry, and it threw. It now skips a class whose
+`$gtypeName` is INHERITED (`hasOwnProperty`) and takes the registered ancestor above it, which is
+the answer GJS gives. An OWN dotless name with no registry entry still throws. Host-independent,
+tested off-device in `test/multilevel-subclass.test.mjs` and `test/foreign-parent.test.mjs`.
+
+The seam's own change is that declaration state is CHAIN-AWARE: a `DECLARATIONS` WeakMap keyed on
+the mixin class, and `realizeChain(new.target)` registering the whole declared chain base-first at
+the first construction. A derived class reuses the PARENT's captured gi thunks rather than
+capturing its own — `$foreignSkipped` on `AdwSwitchRow` lists all 37 GObject verbs it inherits,
+`connect`/`disconnect`/`emit` among them, and that is correct rather than a conflict. There is a
+second door now: `withProperties(Base, meta)` for a widget that declares properties and no
+routers, which is what the derived row uses.
+
+FOUR consumer-visible changes, all narrow: `activatable="maybe"` and `active="maybe"` now throw
+(the seam's coercion, same as `spinning` one widget back); `NotifyActiveEventData` lost its
+`active` field; `addEventListener('notify::active')` no longer hears the notification on the real
+leg, where `connect` does (the XML builder and the `bind`/`signals` paths already use `connect`,
+so authored trees are unaffected); and `iconName` no longer throws when something else fills the
+prefix slot — it REPLACES it, symmetric with `add_prefix`. That last one is forced, see below.
+`SwitchRowState` is gone from the widget and stays in `@gjsify/adwaita-core` for adwaita-web, the
+RN pillar and the conformance vectors. 795 pure tests / 1962 assertions; device: emulator API 36
+and a Galaxy S9, 167 real-gio and 79 pure-JS cases each, `specs/rows.ts`.
+
+MIGRATE NEXT: `widgets/adw-entry-row.ts`, the first derived widget whose own vocabulary is not
+just properties. The new question is a REAL SIGNAL: it carries `apply` and `entry-activated`, the
+second with a payload, and both are `this.notify({ eventName })` today. Declaring them in the
+seam's `Signals` block routes `emit` to GObject, which is exactly what would stop
+`addEventListener('apply')` from hearing them — so the question is whether a port widget can hold
+both doors for one non-notify signal, or has to pick. Not `adw-button-content.ts` yet: its
+`hostButton` is a `View`, an object-typed property with no ParamSpec kind.
 
 CARRY THESE: `vfunc_*` does not work on a foreign-parent class, so a widget that needs one stays
-on the twin. And a name the host chain owns is skipped, not shadowed: read `$foreignSkipped` in
+on the twin. A REFUSAL MAY NOT LIVE IN A `notify::` HANDLER: an exception thrown there does not
+propagate on the real leg — node-gi logs `Unhandled exception in signal handler:` and swallows it,
+so the write that caused it appears to succeed. That is what dropped `AdwActionRow.iconName`'s
+"needs the prefix slot" TypeError; a declared property that wants to refuse has to do it in a
+`normalize`, where the seam calls it on both legs before the value lands. And a name the host
+chain owns is skipped, not shadowed: read `$foreignSkipped` in
 the device spec when a property silently does not take. For `AdwWindowTitle` it measures
 `get_property, set_property, setProperty` — the first two are the PORT's own one-argument
 property door answering before node-gi could install the introspected pair, the third is
