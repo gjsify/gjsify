@@ -13,6 +13,7 @@ import entryWrapperSuite from './utils/entry-wrapper.spec.js';
 import zipPathSuite from './utils/zip-path.spec.js';
 import autoGlobalsSuite from './utils/auto-globals.spec.js';
 import textLoaderSuite from './plugins/text-loader.spec.js';
+import selfGlobalSuite from './utils/self-global.spec.js';
 
 run({
     addonResolveSuite,
@@ -26,6 +27,7 @@ run({
     implicitGlobalAssignSuite,
     nativescriptExternalSuite,
     rnRouteManifestSuite,
+    selfGlobalSuite,
     textLoaderSuite,
     zipPathSuite,
 });

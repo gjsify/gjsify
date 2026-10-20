@@ -43,6 +43,7 @@ export const GJS_GLOBALS_GROUPS = {
         'navigator',
     ],
     web: [
+        'self',
         'fetch',
         'Headers',
         'Request',
@@ -165,6 +166,14 @@ export const GJS_GLOBALS_MAP = {
 
     // --- FormData ----------------------------------------------------------
     FormData: '@gjsify/web-globals/register/formdata',
+
+    // --- self --------------------------------------------------------------
+    // GJS defines `window` as an alias of the global but not `self`, the other half of the same
+    // web-platform identity. A UMD bundle built with webpack's `globalObject: 'self'` reads it
+    // with no guard (`}(self, …)`, e.g. joi's browser build) and dies at import. A register, not
+    // a define: a define would flip every `typeof self` guard in the bundle and would rewrite the
+    // target of a bare `self = …` (see the register's own note and ADR 0079).
+    self: '@gjsify/web-globals/register/self',
 
     // --- WHATWG Streams (granular register subpaths) ------------------------
     ReadableStream: 'web-streams/register/readable',
@@ -400,6 +409,7 @@ export const GJS_GI_BACKED_REGISTERS = {
  */
 export const BROWSER_NATIVE_IDENTS = new Set([
     // Web group — all browser-native
+    'self',
     'fetch',
     'Headers',
     'Request',
