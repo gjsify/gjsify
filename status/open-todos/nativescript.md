@@ -34,33 +34,46 @@ fails the day one appears. Not built here, because that suite is a device-adjace
 nobody runs in the required job, and a guard that runs nowhere is prose.
 
 
-### No widget is a real GObject subclass yet — route D is proven and unused
+### One widget is a real GObject subclass — 160 are not
 
 ADR 0105 § 2's twin route was reversed on 2026-10-19: on NativeScript Android `registerClass`
 now takes a `@nativescript/core` parent, so a widget can BE its own GObject instead of carrying
 a twin beside it (the gated divergence, [report](../../docs/reports/2026-10-19-adr-0105-route-d.md)).
-123 device cases hold the mechanism on an emulator and a Galaxy S9. **No widget in
-`packages/nativescript-bridge/adwaita` uses it.** That gap is deliberate — the spike shipped the
-capability, not a port — and it is the whole of what is left.
+`widgets/adw-window-title.ts` is the FIRST port widget that uses it, and the seam it went
+through is built: on the real engine `AdwWindowTitle` is a GType over `StackLayout`, with
+`bind_property` and `Gio.ListStore` identity; on the pure-JS leg it is byte-identical to what it
+was. 133 real-gio and 55 pure-JS device cases on an emulator and a Galaxy S9.
 
-MIGRATE FIRST: `widgets/adw-window-title.ts`. Two string properties, one `notify::` each
-(`NOTIFY_TITLE`, `NOTIFY_SUBTITLE`), no children a consumer passes in, and its change detection
-is already headless in `WindowTitleState` — so the only thing the migration moves is WHO owns
-the property and emits the notify. Everything bigger brings a second question with it (children,
-`bind_property` chains, a `GListModel`), and this one brings none.
+THE SEAM IS `widgets/signals.ts`, and the per-widget cost is now a `Properties` block:
+`withSignals(Base, { GTypeName, Properties, Signals })` in the port's own vocabulary
+(`kind: 'string' | 'boolean' | 'int' | 'uint' | 'double'`). `meta === undefined` is the old
+hand-rolled mixin unchanged, which is why 160 untouched widgets did not move. The engine check
+was the hard part the previous note predicted, and it is settled by LAZY REALIZATION: the mixin
+cannot ask at class-evaluation time, so it asks at the first CONSTRUCTION of the class. The
+consequence is deliberate and documented in the seam header — on Android a migrated widget's
+first construction throws unless the app opted in or out explicitly, because real GObject is the
+Android default (ADR 0110 § 1) and a silent fallback would report the subset from a payload that
+carries the whole engine.
 
-THE SEAM IS `widgets/signals.ts`. `withSignals(Base)` is the single place every widget class
-meets the platform, and route D belongs exactly there: under the real engine on Android it can
-return a `registerClass`ed class over `Base` with the declared `Properties`/`Signals`, and
-elsewhere the hand-rolled mixin it returns today. That keeps the per-widget change to a
-`Properties` block, keeps `connect`/`disconnect` spelled the same, and keeps the pure-JS leg —
-browser and iOS — untouched. Expect the engine check to be the hard part: the mixin runs at
-class-evaluation time, the engine is chosen at runtime, and `engineForTarget` is not consultable
-from a module's top level in the pure-JS leg.
+MIGRATE NEXT: `widgets/adw-spinner.ts`. Same shape as window-title — `withSignals(GridLayout)`
+directly, no children a consumer passes in — and it brings exactly ONE new question:
+`spinning` is a boolean and `size` a number, so it is the first declared property that is not a
+string. Two things bend there and both are known. The ParamSpec kinds beyond `'string'` are
+declared in the seam's vocabulary but no widget has exercised them. And the xml-doors coercion
+arm will FAIL as written: NativeScript hands an XML attribute over as a raw string, the pure-JS
+leg stores exactly that, and route D's `set_property` coerces to the ParamSpec's type — so the
+two legs disagree on `<AdwSpinner spinning="true">` until the seam coerces on the pure side too.
+Pick that over `adw-switch-row.ts` (a port SUBCLASS, so it adds GObject inheritance on top) and
+over `adw-button-content.ts` (whose `hostButton` is a `View`, an object-typed property with no
+ParamSpec kind yet).
 
 CARRY THESE: `vfunc_*` does not work on a foreign-parent class, so a widget that needs one stays
 on the twin. And a name the host chain owns is skipped, not shadowed: read `$foreignSkipped` in
-the device spec when a property silently does not take. (The third item is GONE: a handler that
+the device spec when a property silently does not take. For `AdwWindowTitle` it measures
+`get_property, set_property, setProperty` — the first two are the PORT's own one-argument
+property door answering before node-gi could install the introspected pair, the third is
+NativeScript's `Observable.setProperty`. So the list mixes both kinds of owner, and a name in it
+is not by itself evidence of a conflict. (The third item is GONE: a handler that
 captures an enclosing `this` used to be immortal — node-gi's C↔JS closure cycle — so every
 migrated widget had to use the emitter argument. Signal closures hold their callback weakly now,
 as in GJS; `finalized=true` on both devices, asserted by `foreign-parent.ts` and `inversion.ts`.
