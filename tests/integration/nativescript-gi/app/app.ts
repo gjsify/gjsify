@@ -22,6 +22,7 @@ import { viewsSpec } from './specs/views.js';
 import { storybookSpec } from './specs/storybook.js';
 import { spinnerSpec } from './specs/spinner.js';
 import { windowTitleSpec } from './specs/window-title.js';
+import { rowsSpec } from './specs/rows.js';
 import benchSpec from './specs/bench.js';
 import inversionSpec from './specs/inversion.js';
 import foreignParentSpec from './specs/foreign-parent.js';
@@ -87,6 +88,9 @@ async function runSuite(): Promise<void> {
                 await windowTitleSpec(engine)();
                 // The second, and the first with typed (boolean, double) properties.
                 await spinnerSpec(engine)();
+                // The third and fourth, and the first PAIR: a GType registered over another
+                // registered GType, with a plain NativeScript class between the two.
+                await rowsSpec(engine)();
             }
             if (optedIn) await inversionSpec();
             if (optedIn) await foreignParentSpec();
