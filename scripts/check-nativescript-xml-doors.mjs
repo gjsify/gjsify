@@ -69,6 +69,12 @@
 //      base is a widget a GJS event snippet cannot run on, and a second wrap is a second,
 //      identical copy of the door one prototype up. The count is PRINTED, split by which
 //      way each class got it, so "every class" is a number and not a sentence.
+//      THE ONE THING A PORT BASE MAY TAKE is `withProperties(…)`, the seam's second door:
+//      a DECLARATION with no routers, for a subclass that adds GObject properties to a
+//      base that already has the first door (`AdwSwitchRow` over `AdwActionRow`). The two
+//      wrappers are legal on opposite bases and the arm turns on which one it finds, so
+//      `withProperties` on a platform base fails here as well — it declares properties
+//      onto a class with no `connect` to declare them against.
 //   7. THE `Gtk.IconSize` TABLE. Arm 5's shape with a second oracle. Its nick list is
 //      `GtkIconSizeNick`'s, in that order and that spelling; every member carries a pixel
 //      size; and the POSITIONS are held against the typelib-read values in
@@ -123,6 +129,7 @@ import {
     SETTER_ONLY_ON_BASE,
     settersOf,
     classReaderSelfTest,
+    PROPERTIES_MIXIN,
     SIGNALS_MIXIN,
     stringTolerant,
     STRING_TOLERANT,
@@ -528,8 +535,10 @@ try {
 } catch {
     failures.push(`${NS_SIGNALS} is not readable — arm 6 has nothing to hold the widgets against.`);
 }
-if (signalsSource !== '' && !signalsSource.includes(`export function ${SIGNALS_MIXIN}<`)) {
-    failures.push(`${NS_SIGNALS} no longer exports ${SIGNALS_MIXIN} — every wrapped class below calls it.`);
+for (const mixin of [SIGNALS_MIXIN, PROPERTIES_MIXIN]) {
+    if (signalsSource !== '' && !signalsSource.includes(`export function ${mixin}<`)) {
+        failures.push(`${NS_SIGNALS} no longer exports ${mixin} — every wrapped class below calls one of the two.`);
+    }
 }
 // The claim `coerces()` makes for every declared number and boolean: the seam parses the string
 // before it reaches the store (pure-JS leg) and before it reaches node-gi (route D). One
@@ -547,6 +556,9 @@ if (coreClasses.size === 0)
 
 let wrapped = 0;
 let inherited = 0;
+let declaring = 0;
+/** Both doors live in `signals.ts`, so either wrapper has to be imported from there. */
+const importsSeam = (text) => text.includes(`from './signals.js'`);
 for (const [tag, { file, text }] of [...sources].sort()) {
     if (isApplication(sources, tag)) continue;
     const head = extendsOf(text, tag);
@@ -557,22 +569,46 @@ for (const [tag, { file, text }] of [...sources].sort()) {
         continue;
     }
     if (sources.has(head.base)) {
-        if (head.wrapped) {
+        if (head.wrapper === SIGNALS_MIXIN) {
             failures.push(
                 `${file}: ${tag} wraps ${head.base} in ${SIGNALS_MIXIN}(), but ${head.base} is a widget of this ` +
                     'package and already carries connect/disconnect. A second application is a second, identical ' +
-                    'copy one prototype up — drop the wrapper and inherit.',
+                    `copy one prototype up — inherit, and use ${PROPERTIES_MIXIN}() if what you wanted was to ` +
+                    'declare properties.',
             );
+            continue;
+        }
+        if (head.wrapper === PROPERTIES_MIXIN) {
+            // The second door on the base it is for: a declaration over a class that already has
+            // the routers. Counted apart from a bare `extends` because the two are different
+            // claims — this one says the subclass adds GObject properties of its own.
+            if (!importsSeam(text)) {
+                failures.push(
+                    `${file}: ${tag} wraps ${head.base} in ${PROPERTIES_MIXIN}() without importing it from ` +
+                        './signals.js.',
+                );
+                continue;
+            }
+            declaring += 1;
             continue;
         }
         inherited += 1;
         continue;
     }
-    if (!head.wrapped) {
+    if (head.wrapper === null) {
         failures.push(
             `${file}: ${tag} extends ${head.base} bare. Every class that meets @nativescript/core takes GJS's ` +
                 `connect/disconnect there — \`extends ${SIGNALS_MIXIN}(${head.base})\` — or a GJS event snippet ` +
                 'runs on every widget but this one (ADR 0034 § Amendment 15).',
+        );
+        continue;
+    }
+    if (head.wrapper === PROPERTIES_MIXIN) {
+        failures.push(
+            `${file}: ${tag} wraps the platform base ${head.base} in ${PROPERTIES_MIXIN}(), which declares ` +
+                'properties and installs no routers. On a @nativescript/core base there is no connect/disconnect ' +
+                `for them to be declared against — \`extends ${SIGNALS_MIXIN}(${head.base}, { … })\` takes the ` +
+                'declaration too.',
         );
         continue;
     }
@@ -584,15 +620,16 @@ for (const [tag, { file, text }] of [...sources].sort()) {
         );
         continue;
     }
-    if (!text.includes(`from './signals.js'`)) {
+    if (!importsSeam(text)) {
         failures.push(`${file}: ${tag} wraps its base in ${SIGNALS_MIXIN}() without importing it from ./signals.js.`);
         continue;
     }
     wrapped += 1;
 }
 notes.push(
-    `${wrapped + inherited} widget class(es) reach connect/disconnect — ${wrapped} wrap their @nativescript/core ` +
-        `base in ${SIGNALS_MIXIN}(), ${inherited} inherit it through a port base`,
+    `${wrapped + inherited + declaring} widget class(es) reach connect/disconnect — ${wrapped} wrap their ` +
+        `@nativescript/core base in ${SIGNALS_MIXIN}(), ${inherited} inherit it through a port base, ${declaring} ` +
+        `inherit it and declare properties of their own with ${PROPERTIES_MIXIN}()`,
 );
 if (wrapped === 0) failures.push('no widget class wraps a platform base — arm 6 proved nothing');
 

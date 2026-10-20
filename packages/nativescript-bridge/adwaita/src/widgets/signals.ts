@@ -115,6 +115,18 @@
 // would shadow the installed accessor with one the store never sees, and `bind_property` would
 // bind to a value nothing writes. The declaration is therefore the only place a migrated
 // widget's property lives, and `declare title: string;` is what keeps its TYPE and its docs.
+//
+// AND THE DECLARED NAMES DO NOT SHADOW ANYTHING EITHER. The measurement above is about `connect`,
+// `disconnect` and the six layout properties; every migrated widget adds names of its own, and
+// those meet the same hostile base — a name `ViewBase` assigns in its own constructor is dead on
+// arrival. Measured against BOTH versions in play, `@nativescript/core@9.1.3` (what
+// `tests/integration/nativescript-gi` installs, so the device legs) and `9.1.0-alpha.11` (the
+// showcases): the `GridLayout`, `StackLayout` and `Switch` chains declare none of `title`,
+// `subtitle`, `iconName` / `icon-name`, `activatable`, `activatableWidget`, `active`, `prefix`
+// or `suffix`. Both halves were read, because either alone is a half answer: the `.d.ts` for
+// each chain, and the runtime `.js` for a `Property({ name: … })`, a `defineProperty` and a bare
+// `this.<name> =`. A name the host chain DOES own is not a disaster but it is not ours — the
+// registration skips it rather than shadowing it, and says so in the frozen `$foreignSkipped`.
 
 import type { EventData, Observable } from '@nativescript/core';
 import { engineForTarget, type ForeignClassMeta, type ForeignProperty } from '@gjsify/adwaita-core';

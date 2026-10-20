@@ -36,13 +36,14 @@ import {
     matchingBrace,
     matchingParen,
     namespaceExport,
+    PROPERTIES_MIXIN,
     SIGNALS_MIXIN,
 } from './adwaita-elements.mjs';
 
 // Re-exported where this file's own consumers have always found them. The definitions moved
 // down to `adwaita-elements.mjs` so `declaredGObjectProperties` could sit beside them without
 // an import cycle — this file already reads from there, and the edge may not go both ways.
-export { declaredGObjectProperties, matchingBrace, matchingParen, SIGNALS_MIXIN };
+export { declaredGObjectProperties, matchingBrace, matchingParen, PROPERTIES_MIXIN, SIGNALS_MIXIN };
 
 /** Where the widget classes live, relative to the repo root. */
 export const NS_WIDGETS_DIR = 'packages/nativescript-bridge/adwaita/src/widgets';
@@ -250,11 +251,16 @@ export function readCoreMethods(root) {
     return names;
 }
 
-/** Where GJS's `connect` / `disconnect` come from; {@link SIGNALS_MIXIN} is the wrapper. */
+/**
+ * Where GJS's `connect` / `disconnect` come from; {@link SIGNALS_MIXIN} is the wrapper, and
+ * {@link PROPERTIES_MIXIN} the declaration-only door for a class that inherits them.
+ */
 export const NS_SIGNALS = `${NS_WIDGETS_DIR}/signals.ts`;
 
 /**
- * The `withSignals(` opener, tolerant of the line break a long declaration takes.
+ * The `withSignals(` / `withProperties(` opener, tolerant of the line break a long declaration
+ * takes, with the wrapper's NAME captured — the two doors are legal on different bases, so a
+ * reader that only said "wrapped" could not tell arm 6 which of its two refusals applies.
  *
  * ONE CLASS IN THE PORT DOES NOT FIT ON A LINE, and it is what made this a constant
  * rather than an inline pattern. `AdwSplitViewBase` is generic AND wrapped, so the
@@ -277,7 +283,7 @@ export const NS_SIGNALS = `${NS_WIDGETS_DIR}/signals.ts`;
  * written down: the readers were proven against the shape they were written against.
  * {@link CLASS_BASE_VECTORS} now carries the wrapped-and-broken form.
  */
-const MIXIN_OPEN = `${SIGNALS_MIXIN}\\(\\s*`;
+const MIXIN_OPEN = `(?:${SIGNALS_MIXIN}|${PROPERTIES_MIXIN})\\(\\s*`;
 
 /**
  * Every class a source declares and what it extends, comments stripped.
@@ -293,7 +299,7 @@ const MIXIN_OPEN = `${SIGNALS_MIXIN}\\(\\s*`;
  * missing — which ends a chain walk and hands the widget a setter set seven short.
  *
  * @param {string} source
- * @returns {Map<string, { base: string | null, wrapped: boolean }>}
+ * @returns {Map<string, { base: string | null, wrapper: string | null }>}
  */
 export function classBases(source) {
     const bases = new Map();
@@ -304,23 +310,28 @@ export function classBases(source) {
         'g',
     );
     for (const [, name, open, base] of executable(source).matchAll(pattern)) {
-        bases.set(name, { base: base ?? null, wrapped: open !== undefined });
+        // `open` is the whole opener including the paren and the line break after it; the
+        // wrapper is what stands before the paren. Read off the match rather than with a
+        // nested group, so adding a third door cannot renumber the two captures above.
+        const wrapper = open === undefined ? null : open.slice(0, open.indexOf('('));
+        bases.set(name, { base: base ?? null, wrapper });
     }
     return bases;
 }
 
 /**
- * What one widget class extends: the base name, and whether it is wrapped in
- * `withSignals(…)`. `null` when the class is absent or its declaration has no `extends`.
+ * What one widget class extends: the base name, and the seam wrapper it is applied through —
+ * {@link SIGNALS_MIXIN}, {@link PROPERTIES_MIXIN}, or `null` for a bare `extends`. `null` for
+ * the whole answer when the class is absent or its declaration has no `extends`.
  *
  * @param {string} text the module source
  * @param {string} name the class
- * @returns {{ base: string, wrapped: boolean } | null}
+ * @returns {{ base: string, wrapper: string | null } | null}
  */
 export function extendsOf(text, name) {
     const entry = classBases(text).get(name);
     if (entry === undefined || entry.base === null) return null;
-    return { base: entry.base, wrapped: entry.wrapped };
+    return { base: entry.base, wrapper: entry.wrapper };
 }
 
 /** Every class a source declares — where the port's chains are allowed to end. */
@@ -334,42 +345,115 @@ export function readCoreClasses(root) {
 }
 
 /**
- * The reader's own vectors: source, class, the base wanted, and whether it is wrapped.
+ * The reader's own vectors: source, class, the base wanted, and the wrapper wanted.
  *
- * `undefined` as the wanted base means the class must not appear at all. The last four
- * rows are the ones the two copies of this reader failed — a wrapped base pushed onto its
- * own line, with and without the trailing comma the formatter adds, and with a type
+ * `undefined` as the wanted base means the class must not appear at all. The four rows before
+ * the last three are the ones the two copies of this reader failed — a wrapped base pushed onto
+ * its own line, with and without the trailing comma the formatter adds, and with a type
  * parameter that itself contains the word `extends`.
+ *
+ * The last three are the second door: `withProperties` read as itself and not as "not wrapped",
+ * including over a PORT base, which is the only place it is legal and the one shape arm 6 used
+ * to refuse outright.
  */
 export const CLASS_BASE_VECTORS = [
-    ['export class AdwDemo extends GridLayout {}', 'AdwDemo', 'GridLayout', false],
-    ['export abstract class AdwBase<T> extends GridLayout {}', 'AdwBase', 'GridLayout', false],
-    ['class AdwDemo extends AdwBase<NsState> {}', 'AdwDemo', 'AdwBase', false],
-    ['class AdwDemo extends AdwBase<NsState<Deep>> {}', 'AdwDemo', 'AdwBase', false],
-    ['export class AdwGroup extends StackLayout implements NsSearchableGroup {}', 'AdwGroup', 'StackLayout', false],
-    ['export class AdwDemo extends withSignals(GridLayout) {}', 'AdwDemo', 'GridLayout', true],
+    ['export class AdwDemo extends GridLayout {}', 'AdwDemo', 'GridLayout', null],
+    ['export abstract class AdwBase<T> extends GridLayout {}', 'AdwBase', 'GridLayout', null],
+    ['class AdwDemo extends AdwBase<NsState> {}', 'AdwDemo', 'AdwBase', null],
+    ['class AdwDemo extends AdwBase<NsState<Deep>> {}', 'AdwDemo', 'AdwBase', null],
+    ['export class AdwGroup extends StackLayout implements NsSearchableGroup {}', 'AdwGroup', 'StackLayout', null],
+    ['export class AdwDemo extends withSignals(GridLayout) {}', 'AdwDemo', 'GridLayout', 'withSignals'],
     [
         'export abstract class AdwBase<T> extends withSignals(GridLayout) implements NsX {}',
         'AdwBase',
         'GridLayout',
-        true,
+        'withSignals',
     ],
-    ['export class AdwRoot {}', 'AdwRoot', null, false],
+    ['export class AdwRoot {}', 'AdwRoot', null, null],
     // A class named inside a comment is prose, and these files explain their own
     // hierarchies in prose — `adw-combo-row.ts` opens with "Extends {@link AdwActionRow}".
-    ['// class AdwGhost extends GridLayout\nexport class AdwDemo extends Image {}', 'AdwGhost', undefined, false],
-    ['export class AdwDemo extends withSignals(\n    GridLayout,\n) {}', 'AdwDemo', 'GridLayout', true],
-    ['export class AdwDemo extends withSignals(\n    GridLayout\n) {}', 'AdwDemo', 'GridLayout', true],
+    ['// class AdwGhost extends GridLayout\nexport class AdwDemo extends Image {}', 'AdwGhost', undefined, null],
+    ['export class AdwDemo extends withSignals(\n    GridLayout,\n) {}', 'AdwDemo', 'GridLayout', 'withSignals'],
+    ['export class AdwDemo extends withSignals(\n    GridLayout\n) {}', 'AdwDemo', 'GridLayout', 'withSignals'],
     [
         'export abstract class AdwBase<T extends NsState = NsState> extends withSignals(\n    GridLayout,\n) {}',
         'AdwBase',
         'GridLayout',
-        true,
+        'withSignals',
+    ],
+    ['export class AdwDemo extends withProperties(AdwActionRow, {}) {}', 'AdwDemo', 'AdwActionRow', 'withProperties'],
+    [
+        'export class AdwDemo extends withProperties(\n    AdwActionRow,\n    { Properties: {} },\n) {}',
+        'AdwDemo',
+        'AdwActionRow',
+        'withProperties',
+    ],
+    [
+        'export abstract class AdwBase<T> extends withProperties(AdwActionRow, {}) implements NsX {}',
+        'AdwBase',
+        'AdwActionRow',
+        'withProperties',
     ],
 ];
 
 /**
- * Prove the reader before either gate reads real data.
+ * {@link publicMethodsOf}'s vectors: source, class, and the methods wanted — `null` for a class
+ * the source does not declare.
+ *
+ * The first two rows are the shape the reader used to lose: a route-D class whose heritage clause
+ * is a CALL with an object literal in it, one line and several, where `[^{]*\{` matched the META's
+ * brace and the method list came back empty. The rest are what must not change — the plain
+ * `extends`, the accessors and `_`-prefixed members that are other ledgers' business, and the
+ * free function after the class that a slice-to-the-next-`class` reader used to mine for `if (`.
+ */
+const PUBLIC_METHOD_VECTORS = [
+    ['class AdwDemo extends GridLayout {\n    activate() {}\n}', 'AdwDemo', ['activate']],
+    [
+        'class AdwDemo extends withSignals(GridLayout, {\n' +
+            "    GTypeName: 'AdwDemo',\n" +
+            "    Properties: { title: { kind: 'string' } },\n" +
+            '}) {\n' +
+            '    activate() {}\n' +
+            '    syncActivatableWidgetSensitivity() {}\n' +
+            '}',
+        'AdwDemo',
+        ['activate', 'syncActivatableWidgetSensitivity'],
+    ],
+    [
+        "class AdwDemo extends withProperties(AdwActionRow, { Properties: { active: { kind: 'boolean' } } }) {\n" +
+            '    get_active() {}\n' +
+            '}',
+        'AdwDemo',
+        ['get_active'],
+    ],
+    // A blurb is prose, and prose has an unbalanced bracket in it sooner or later.
+    [
+        'class AdwDemo extends withSignals(GridLayout, {\n' +
+            "    Properties: { title: { blurb: 'the title (short' } },\n" +
+            '}) {\n' +
+            '    activate() {}\n' +
+            '}',
+        'AdwDemo',
+        ['activate'],
+    ],
+    [
+        'class AdwDemo extends GridLayout {\n' +
+            '    get title() {}\n' +
+            '    set title(value) {}\n' +
+            '    static of() {}\n' +
+            '    private hide() {}\n' +
+            '    _addChildFromBuilder() {}\n' +
+            '    override addChild() {}\n' +
+            '}\n' +
+            'function helper() {\n    if (true) {}\n}',
+        'AdwDemo',
+        ['addChild'],
+    ],
+    ['class AdwDemo extends GridLayout {}', 'AdwOther', null],
+];
+
+/**
+ * Prove the readers before either gate reads real data.
  *
  * Exported and called by BOTH gates rather than by the one that happens to own the file:
  * they each depend on this reading, and a reader proven in only one job is proven for
@@ -379,13 +463,23 @@ export const CLASS_BASE_VECTORS = [
  */
 export function classReaderSelfTest() {
     const failures = [];
-    for (const [source, klass, wantBase, wantWrapped] of CLASS_BASE_VECTORS) {
+    for (const [source, klass, wantBase, wantWrapper] of CLASS_BASE_VECTORS) {
         const entry = classBases(source).get(klass);
         const gotBase = entry === undefined ? undefined : entry.base;
-        const gotWrapped = entry === undefined ? false : entry.wrapped;
+        const gotWrapper = entry === undefined ? null : entry.wrapper;
         const label = `classBases(${JSON.stringify(source)}).get('${klass}')`;
         if (gotBase !== wantBase) failures.push(`${label} base is ${gotBase}, wanted ${wantBase}`);
-        if (gotWrapped !== wantWrapped) failures.push(`${label} wrapped is ${gotWrapped}, wanted ${wantWrapped}`);
+        if (gotWrapper !== wantWrapper) failures.push(`${label} wrapper is ${gotWrapper}, wanted ${wantWrapper}`);
+    }
+    for (const [source, klass, want] of PUBLIC_METHOD_VECTORS) {
+        const got = publicMethodsOf(source, klass);
+        const same = got === null || want === null ? got === want : got.join() === want.join();
+        if (!same) {
+            failures.push(
+                `publicMethodsOf(${JSON.stringify(source)}, '${klass}') is ` +
+                    `${JSON.stringify(got)}, wanted ${JSON.stringify(want)}`,
+            );
+        }
     }
     return failures;
 }
@@ -1049,6 +1143,51 @@ export function writeSurfaces(root) {
 }
 
 /**
+ * The index of the `{` that opens one class's BODY, or `-1` when the class is not there.
+ *
+ * `class X[^{]*\{` was the pattern, and route D broke it: a class whose heritage clause is a
+ * CALL carries an object literal inside it, and the first `{` after the name is then the
+ * mixin's meta —
+ *
+ *     export class AdwActionRow extends withSignals(GridLayout, {
+ *         GTypeName: 'AdwActionRow',
+ *
+ * — so the reader brace-matched the META, read its keys as a body with no four-space members
+ * in it, and answered "this class declares no public methods". Not a red: an EMPTY side, which
+ * agreed with everything and then reported the ledger's `syncActivatableWidgetSensitivity` as a
+ * method that no longer exists. The first two migrated widgets hid it by having no public
+ * method at all.
+ *
+ * So the brace is found by SCANNING, with paren depth: the `{` that opens the body is the first
+ * one standing outside the `extends …(…)` call. A type argument carrying an object literal
+ * (`extends Foo<{ a: 1 }>`) is not in this package and would need angle-bracket depth, which
+ * cannot be tracked by counting alone (`a < b`).
+ *
+ * String literals are skipped, because a declared property's `blurb` is prose and prose has
+ * brackets in it: one unbalanced `(` in a blurb would otherwise move every brace after it.
+ *
+ * @param {string} code the module source, comments already out
+ * @param {string} className the class to locate
+ * @returns {number} the index of the opening `{`, or `-1`
+ */
+function classBodyBrace(code, className) {
+    const head = new RegExp(String.raw`\bclass\s+${className}\b`).exec(code);
+    if (head === null) return -1;
+    let depth = 0;
+    for (let at = head.index + head[0].length; at < code.length; at++) {
+        const ch = code[at];
+        if (ch === "'" || ch === '"' || ch === '`') {
+            for (at++; at < code.length && code[at] !== ch; at++) if (code[at] === '\\') at++;
+            continue;
+        }
+        if (ch === '(' || ch === '[') depth++;
+        else if (ch === ')' || ch === ']') depth--;
+        else if (ch === '{' && depth === 0) return at;
+    }
+    return -1;
+}
+
+/**
  * The PUBLIC methods one class declares in its own body — the port's method vocabulary,
  * which is what `check-vocabulary-alignment.mjs` holds against the GIR's.
  *
@@ -1075,9 +1214,8 @@ export function writeSurfaces(root) {
  */
 export function publicMethodsOf(text, className) {
     const code = executable(text);
-    const head = new RegExp(`\\bclass\\s+${className}\\b[^{]*\\{`).exec(code);
-    if (head === null) return null;
-    const open = head.index + head[0].length - 1;
+    const open = classBodyBrace(code, className);
+    if (open === -1) return null;
     const close = matchingBrace(code, open);
     if (close === -1) return null;
     const body = code.slice(open + 1, close);

@@ -55,6 +55,8 @@ import { AdwWindowRootsNsTest } from './window-roots.spec.js';
 import { AdwWindowShellNsTest } from './window-shell.spec.js';
 import { AdwWindowTitlePropertiesNsTest } from './window-title-properties.spec.js';
 import { AdwSpinnerPropertiesNsTest } from './spinner-properties.spec.js';
+import { AdwActionRowPropertiesNsTest } from './action-row-properties.spec.js';
+import { AdwSwitchRowPropertiesNsTest } from './switch-row-properties.spec.js';
 
 run({
     AdwApplicationNsTest,
@@ -83,6 +85,8 @@ run({
     AdwWindowShellNsTest,
     AdwWindowTitlePropertiesNsTest,
     AdwSpinnerPropertiesNsTest,
+    AdwActionRowPropertiesNsTest,
+    AdwSwitchRowPropertiesNsTest,
     GtkToggleButtonNsTest,
     GtkWidgetTreeNsTest,
     GtkButtonActionsNsTest,

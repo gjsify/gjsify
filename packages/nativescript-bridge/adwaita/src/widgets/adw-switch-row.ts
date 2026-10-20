@@ -1,50 +1,65 @@
 // AdwSwitchRow — a Libadwaita-style switch row for NativeScript.
 //
 // Extends {@link AdwActionRow} and installs a REAL NativeScript `Switch` in the
-// suffix slot. The ACTIVE flag and its notify rule are HEADLESS and live in
-// `@gjsify/adwaita-core` (ADR 0004) as `SwitchRowState`, shared with
-// `@gjsify/adwaita-web`; this class keeps only the NativeScript render half.
-// `notify::active` mirrors the GObject signal name `Adw.SwitchRow` emits.
+// suffix slot. `notify::active` mirrors the GObject signal name `Adw.SwitchRow` emits.
 //
-// What routing every path through the shared state fixes: the row is now the
-// switch's activator. `adw_switch_row_init` sets the row activatable and points
-// the activatable-widget at the slider (adw-switch-row.c:160-162) — "the user can
-// control the switch by activating the row or by dragging on the switch handle"
-// (C:23-27) — and here only the handle worked. It also makes the notify gate the
-// one libadwaita has: a set to the value already held is dropped by the equality
-// early-return (C:224-225) BEFORE the slider is written, so it emits nothing.
-// Re-emitting `checkedChange` blindly could not express that.
+// What routing every path through one gate fixes: the row is now the switch's
+// activator. `adw_switch_row_init` sets the row activatable and points the
+// activatable-widget at the slider (adw-switch-row.c:160-162) — "the user can control
+// the switch by activating the row or by dragging on the switch handle" (C:23-27) — and
+// here only the handle worked. It also makes the notify gate the one libadwaita has: a
+// set to the value already held is dropped by the equality early-return (C:224-225)
+// BEFORE the slider is written, so it emits nothing. Re-emitting `checkedChange` blindly
+// could not express that.
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-switch-row` / `_switch_row.scss`.
 // Reference: refs/libadwaita/src/adw-switch-row.c
 // Reference: refs/libadwaita/src/stylesheet/widgets/_switch.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+//
+// THE FIRST DERIVED REGISTRATION OF THE PORT (ADR 0105 § 2, route D). `withProperties` rather
+// than `withSignals`: the base is already a widget of this package, so `connect`, `disconnect`,
+// `emit`, `notify` and the layout properties come down from it and already answer this class's
+// declaration — they resolve the INSTANCE's whole chain. What is new is the registration itself,
+// a GType over `AdwActionRow`'s GType over the foreign `GridLayout`. node-gi used to stop its
+// parent walk at the plain NativeScript class between the two registrations; it now steps over
+// one, which is a GJS-parity fix and not a host-gated one.
+//
+// So `SwitchRowState` is gone from here: a flag plus a notify gate is exactly what the declared
+// property is, and holding it twice would mean two stores and one of them stale. The class stays
+// in `@gjsify/adwaita-core` for `@gjsify/adwaita-web` and the conformance vectors.
 
 import { Switch, type EventData } from '@nativescript/core';
 import { AdwActionRow } from './adw-action-row.js';
-import { SwitchRowState, switchClassName } from './row-state.js';
-import { xmlBoolean } from './xml-values.js';
+import { switchClassName } from './row-state.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { withProperties } from './signals.js';
 
 /** Event name emitted when {@link AdwSwitchRow.active} changes. Mirrors GObject `notify::active`. */
 export const NOTIFY_ACTIVE = 'notify::active';
 
-/** Payload of the `notify::active` event. */
-export interface NotifyActiveEventData extends EventData {
-    /** The new `active` state. */
-    active: boolean;
-}
+/**
+ * Payload of the `notify::active` event.
+ *
+ * NO `active` FIELD any more: a real `notify::` carries a `GParamSpec`, not the value, and the
+ * seam reshapes every emission into the port's `{ eventName, object }` on both legs. Read the
+ * state off the emitter — `(self) => self.active`, or `data.object` from a plain listener.
+ */
+export type NotifyActiveEventData = EventData;
 
-export class AdwSwitchRow extends AdwActionRow {
+export class AdwSwitchRow extends withProperties(AdwActionRow, {
+    GTypeName: 'AdwSwitchRow',
+    Properties: {
+        active: { kind: 'boolean', default: false, blurb: 'Whether the switch row is in its "on" or "off" position' },
+    },
+}) {
     static readonly GTypeName: string = 'AdwSwitchRow';
 
-    /** What the builder checks before it binds to `active`, one way or both. */
-    static readonly emittedSignals: readonly string[] = [NOTIFY_ACTIVE];
+    /** Whether the switch is on. */
+    declare active: boolean;
 
     /** The suffix Switch control. */
     protected readonly _switch: Switch;
-    /** The headless active flag + its notify rule (ADR 0004). */
-    private readonly _switchState = new SwitchRowState();
 
     constructor(props?: ConstructProps<AdwSwitchRow>) {
         super();
@@ -61,24 +76,18 @@ export class AdwSwitchRow extends AdwActionRow {
         this.activatableWidget = sw;
         this.activatable = true;
 
-        // NativeScript fires `checkedChange` for a PROGRAMMATIC write as well as
-        // for a drag, so this is the single funnel: `setActive` returns false for
-        // the write `_apply` itself just made, which is what stops the re-entry.
+        // NativeScript fires `checkedChange` for a PROGRAMMATIC write as well as for a drag, so
+        // this is the single funnel INTO the property — and the property's own equal-write rule
+        // is what stops the re-entry, where the twin needed `setActive`'s return value for it.
         sw.addEventListener('checkedChange', () => {
-            sw.className = switchClassName(sw.checked);
-            this._apply(this._switchState.setActive(sw.checked));
+            this.active = sw.checked;
         });
 
+        // …and `notify::active` is the single funnel OUT. The handler reads the emitter, so it
+        // works unchanged when node-gi owns the property and hands the instance back itself.
+        this.connect(NOTIFY_ACTIVE, (self) => self._apply());
+
         applyConstructProps(this, props);
-    }
-
-    /** Whether the switch is on. */
-    get active(): boolean {
-        return this._switchState.active;
-    }
-
-    set active(value: boolean | string) {
-        this._apply(this._switchState.setActive(xmlBoolean(value, false)));
     }
 
     get_active(): boolean {
@@ -102,23 +111,13 @@ export class AdwSwitchRow extends AdwActionRow {
      */
     override activate(): void {
         if (!this.activatable) return;
-        this._apply(this._switchState.activate());
+        this.active = !this.active;
         super.activate();
     }
 
-    /**
-     * Push a state transition out to the Switch and emit `notify::active` — only
-     * when something actually changed, which is the `g_object_notify` gate
-     * libadwaita puts on the same transition (C:224-225 → :76).
-     */
-    private _apply(changed: boolean): void {
-        if (!changed) return;
-        this._switch.checked = this._switchState.active;
-        const data: NotifyActiveEventData = {
-            eventName: NOTIFY_ACTIVE,
-            object: this,
-            active: this._switchState.active,
-        };
-        this.notify(data);
+    /** Push the state out to the `Switch`. Run from `notify::active`, which is already the gate. */
+    private _apply(): void {
+        this._switch.checked = this.active;
+        this._switch.className = switchClassName(this.active);
     }
 }
