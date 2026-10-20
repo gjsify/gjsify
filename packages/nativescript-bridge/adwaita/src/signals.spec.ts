@@ -31,15 +31,42 @@ export class ObservableShape {
         this.notify({ eventName, object: this as unknown as Observable });
     }
 
-    addEventListener(eventName: string, callback: (data: EventData) => void): void {
+    // A repeat of the same callback is DROPPED, as the host drops it (9.1.3's
+    // `addEventListener` returns early when `_indexOfListener(list, callback, thisArg) !== -1`).
+    // Without that, a spec could subscribe one function through `addEventListener` and again
+    // through `on`, count two emissions, and pass off-device while the device counted one.
+    addEventListener(
+        eventName: string,
+        callback: (data: EventData) => void,
+        _thisArg?: unknown,
+        _once?: boolean,
+    ): void {
         const list = this._listeners.get(eventName) ?? [];
+        if (list.includes(callback)) return;
         list.push(callback);
         this._listeners.set(eventName, list);
     }
 
-    removeEventListener(eventName: string, callback?: (data: EventData) => void): void {
+    removeEventListener(eventName: string, callback?: (data: EventData) => void, _thisArg?: unknown): void {
         const list = this._listeners.get(eventName) ?? [];
         this._listeners.set(eventName, callback === undefined ? [] : list.filter((listener) => listener !== callback));
+    }
+
+    // `on`, `once` and `off` DELEGATE, exactly as `@nativescript/core`'s `Observable` does
+    // (measured in 9.0.20 and 9.1.3: `on`/`once` call `this.addEventListener`, `off` calls
+    // `this.removeEventListener`). That is what lets the seam's two overrides answer all five
+    // verbs, so the stand-in has to delegate too or the specs would measure a surface no host has.
+
+    on(eventName: string, callback: (data: EventData) => void, thisArg?: unknown): void {
+        this.addEventListener(eventName, callback, thisArg);
+    }
+
+    once(eventName: string, callback: (data: EventData) => void, thisArg?: unknown): void {
+        this.addEventListener(eventName, callback, thisArg, true);
+    }
+
+    off(eventName: string, callback?: (data: EventData) => void, thisArg?: unknown): void {
+        this.removeEventListener(eventName, callback, thisArg);
     }
 
     notify<T extends EventData>(data: T): void {

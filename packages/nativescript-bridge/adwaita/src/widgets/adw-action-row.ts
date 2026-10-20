@@ -27,13 +27,15 @@
 // WHAT THAT COSTS THIS FILE, beyond the four accessors becoming `declare` lines:
 //   - `_applyLabels()` and `_applyIconName()` hang off `notify::` instead of a setter, because
 //     node-gi reads a declared property out of the GObject's store and never calls a JS getter.
-//   - NOTHING MAY REFUSE A WRITE FROM A `notify::` HANDLER. node-gi logs and SWALLOWS an
-//     exception thrown in one (gi.js:431) while the property keeps the written value, so a
-//     TypeError there would fire off-device and vanish on-device. `iconName` used to throw when
-//     `add_prefix` already held the slot; it now REPLACES, which is `add_prefix`'s own rule.
-//   - `activated` is deliberately NOT declared as a signal. A declared signal routes `emit` to
-//     GObject alone, which would leave `addEventListener('activated')` — the door every consumer
-//     and every XML binding uses — silent. It stays a NativeScript event.
+//   - NOTHING MAY REFUSE A WRITE FROM A `notify::` HANDLER. A handler that throws is logged and
+//     the next one still runs — GJS's own rule (measured), node-gi's (gi.js:431), and now the
+//     seam's on both legs — while the property keeps the written value. A TypeError there would
+//     therefore reject nothing. `iconName` used to throw when `add_prefix` already held the
+//     slot; it now REPLACES, which is `add_prefix`'s own rule.
+//   - `activated` is still a NativeScript event rather than a declared signal. Declaring it is
+//     the eventual shape (a declared member lives behind `connect` alone, see `signals.ts`), and
+//     it waits for the first widget that needs a signal ON the real leg to carry the node-gi
+//     side of it; nothing here is kept as it is for a consumer's sake.
 //   - `ActionRowState` keeps only the activatable-widget ↔ sensitivity BINDING (ADR 0004); the
 //     labels' change detection is the property's now, and the binding's result is mirrored into
 //     the declared `activatable` using the "changed" booleans, so an unchanged re-assert cannot

@@ -111,9 +111,18 @@ function installForeignSurface(prototype: Record<string, unknown>, meta: Foreign
     };
     const hostNotify = prototype.notify as ((this: object, ...args: unknown[]) => unknown) | undefined;
 
+    // node-gi SWALLOWS an exception a handler throws and logs it (`SurfacePendingException`,
+    // `packages/node-gi/node-gi/src/calls.cc`), which is what GJS does as well — measured with the
+    // installed `gjs`: the second handler still runs and the assignment returns normally. Imitated
+    // here, because a stub that let the exception unwind would measure a leg nothing has.
     const emitReal = (instance: object, key: string, args: readonly unknown[]): void => {
         for (const { key: each, handler } of handlersOf(instance).values()) {
-            if (each === key) handler(instance, ...args);
+            if (each !== key) continue;
+            try {
+                handler(instance, ...args);
+            } catch (error) {
+                console.error(`(node-gi) Unhandled exception in signal handler for '${key}':`, error);
+            }
         }
     };
 
@@ -221,6 +230,144 @@ function typedClass() {
         declare ringCount: number;
         declare notify: GObjectNotify;
     };
+}
+
+/** Collect what the body logs to `console.error`, and keep the suite's output clean. */
+async function captureErrors(body: () => void | Promise<void>): Promise<unknown[][]> {
+    const original = console.error;
+    const logged: unknown[][] = [];
+    console.error = (...args: unknown[]): void => {
+        logged.push(args);
+    };
+    try {
+        await body();
+    } finally {
+        console.error = original;
+    }
+    return logged;
+}
+
+/**
+ * ONE DOOR PER DECLARED MEMBER, run once per leg: a declared property's `notify::` and a declared
+ * signal are the GObject's, `connect` is the only verb that subscribes to them, and the GObject
+ * verbs are the only ones that emit them.
+ *
+ * The vectors are shared because the per-leg difference is exactly what they exist to forbid. The
+ * refusal replaces a silence that only route D had: a `notify::active` listener added with
+ * `addEventListener` fired off-device and nothing on it, so a widget's own specs passed while the
+ * device did not. Five verbs are listed and only two are overridden — `on`, `once` and `off`
+ * delegate to `addEventListener` / `removeEventListener` in `@nativescript/core` (measured in
+ * 9.0.20 and 9.1.3), so they are covered rather than reimplemented, and this pins that.
+ */
+async function oneDoorVectors(leg: string, engineSetup: () => void): Promise<void> {
+    await describe(`withSignals(Base, meta) — a declared member has one door (${leg})`, async () => {
+        const widgetWith = (): InstanceType<ReturnType<typeof declaredClass>> => {
+            resetRegisteredEngine();
+            engineSetup();
+            return new (declaredClass())();
+        };
+
+        await it("refuses all five NativeScript verbs for a declared property's notify::", () => {
+            const widget = widgetWith();
+            const loose = widget as unknown as Record<string, (...args: unknown[]) => unknown>;
+            for (const verb of ['addEventListener', 'removeEventListener', 'on', 'once', 'off']) {
+                expect(() => loose[verb]('notify::title', () => {})).toThrow(TypeError);
+            }
+            // Under every spelling of the detail, as `connect` accepts every spelling.
+            for (const detail of ['can-close', 'can_close', 'canClose']) {
+                expect(() => widget.addEventListener(`notify::${detail}`, () => {})).toThrow(TypeError);
+            }
+        });
+
+        await it('refuses all five for a declared signal', () => {
+            const widget = widgetWith();
+            const loose = widget as unknown as Record<string, (...args: unknown[]) => unknown>;
+            for (const verb of ['addEventListener', 'removeEventListener', 'on', 'once', 'off']) {
+                expect(() => loose[verb]('closed', () => {})).toThrow(TypeError);
+            }
+        });
+
+        await it('names connect in the refusal, so the message carries the fix', () => {
+            const widget = widgetWith();
+            let message = '';
+            try {
+                widget.addEventListener('notify::title', () => {});
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message.includes('connect(')).toBe(true);
+            expect(message.includes('notify::title')).toBe(true);
+        });
+
+        await it('still subscribes the declared member through connect', () => {
+            const widget = widgetWith();
+            const seen: string[] = [];
+            const id = widget.connect('notify::title', (self) => seen.push(self.title));
+            widget.connect('closed', (_self, data) => seen.push(String((data as { args?: unknown[] }).args?.[0])));
+            widget.title = 'Inbox';
+            widget.emit('closed', 'by-user');
+            widget.disconnect(id);
+            widget.title = 'Drafts';
+            expect(seen).toStrictEqual(['Inbox', 'by-user']);
+        });
+
+        // `tap` is not declared, so all five verbs still answer it. Two DISTINCT listeners,
+        // because the host (and the stand-in with it) drops a repeat of the same callback.
+        await it('leaves a NativeScript event on all five verbs', () => {
+            const widget = widgetWith();
+            const seen: string[] = [];
+            const viaAddEventListener = (): void => void seen.push('addEventListener');
+            const viaOn = (): void => void seen.push('on');
+            widget.addEventListener('tap', viaAddEventListener);
+            widget.on('tap', viaOn);
+            widget._emit('tap');
+            widget.off('tap', viaOn);
+            widget.removeEventListener('tap', viaAddEventListener);
+            widget._emit('tap');
+            expect(seen).toStrictEqual(['addEventListener', 'on']);
+        });
+
+        await it("refuses notify({ eventName }) of a declared member, and keeps notify('<prop>')", () => {
+            const widget = widgetWith();
+            const object = widget as unknown as Observable;
+            const seen: string[] = [];
+            widget.connect('notify::title', () => seen.push('title'));
+            expect(() => widget.notify({ eventName: 'notify::title', object })).toThrow(TypeError);
+            expect(() => widget.notify({ eventName: 'notify::canClose', object })).toThrow(TypeError);
+            expect(() => widget.notify({ eventName: 'closed', object })).toThrow(TypeError);
+            // The GObject door is untouched: the string form is `g_object_notify`.
+            widget.notify('title');
+            expect(seen).toStrictEqual(['title']);
+        });
+
+        await it('logs an exception from a handler, runs the next one, and keeps the write', async () => {
+            const widget = widgetWith();
+            const seen: string[] = [];
+            widget.connect('notify::title', () => {
+                throw new Error('from the first handler');
+            });
+            widget.connect('notify::title', (self) => seen.push(self.title));
+            const logged = await captureErrors(() => {
+                // GJS's rule, measured: the assignment returns normally.
+                widget.title = 'Inbox';
+            });
+            expect(seen).toStrictEqual(['Inbox']);
+            expect(widget.title).toBe('Inbox');
+            expect(logged.length).toBe(1);
+        });
+
+        await it('logs an exception from a declared signal handler and runs the next one', async () => {
+            const widget = widgetWith();
+            const seen: string[] = [];
+            widget.connect('closed', () => {
+                throw new Error('from the first handler');
+            });
+            widget.connect('closed', () => seen.push('second'));
+            const logged = await captureErrors(() => widget.emit('closed', 'by-user'));
+            expect(seen).toStrictEqual(['second']);
+            expect(logged.length).toBe(1);
+        });
+    });
 }
 
 /**
@@ -510,4 +657,6 @@ export default async () => {
 
     await coercionVectors('pure-JS leg', () => {});
     await coercionVectors('route D', () => registerGObjectEngine(stubEngine([])));
+    await oneDoorVectors('pure-JS leg', () => {});
+    await oneDoorVectors('route D', () => registerGObjectEngine(stubEngine([])));
 };
