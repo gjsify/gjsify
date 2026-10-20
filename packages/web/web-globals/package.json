@@ -16,6 +16,9 @@
         "./register/performance": {
             "default": "./lib/esm/register/performance.js"
         },
+        "./register/self": {
+            "default": "./lib/esm/register/self.js"
+        },
         "./register/formdata": {
             "default": "./lib/esm/register/formdata.js"
         },

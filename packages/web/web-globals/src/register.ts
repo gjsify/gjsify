@@ -6,6 +6,10 @@
 // On Node.js the alias layer maps this subpath to @gjsify/empty since all of
 // these APIs are already native.
 
+// `self` — the web platform's alias of the global object. First, because a UMD factory
+// invoked as `}(self, …)` reads it before anything else in the bundle runs.
+import './register/self.js';
+
 // DOMException (WebIDL standard)
 import '@gjsify/dom-exception/register';
 
