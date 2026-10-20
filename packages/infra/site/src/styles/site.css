@@ -330,6 +330,12 @@ h1 {
 }
 
 .download-cta {
+  border-radius: var(--radius);
+}
+
+/* Only a CTA with the toggle beside it gives up its right corners: without a release there is no
+ * split, just the button to the source or the releases. */
+.download-split .download-cta {
   border-radius: var(--radius) 0 0 var(--radius);
 }
 
@@ -341,12 +347,12 @@ h1 {
 /* The accent would have to be contrasted against the app's colour, which is unknowable here. The
  * band's text colour was already measured against it, so the button inverts that pair and is
  * readable on any brand. */
-.masthead .download-split .button {
+.masthead .download .button {
   background: var(--band-fg);
   color: var(--brand);
 }
 
-.masthead .download-split .button:hover {
+.masthead .download .button:hover {
   background: color-mix(in srgb, var(--band-fg) 86%, var(--brand));
 }
 
@@ -1082,6 +1088,10 @@ app-support:not([data-enhanced]) .dialog-head {
 
 app-download:not([data-enhanced]) .download-toggle {
   display: none;
+}
+
+app-download:not([data-enhanced]) .download-cta {
+  border-radius: var(--radius);
 }
 
 /* The inline panel is taller than the name, so the hero reads top down, not centred. */
