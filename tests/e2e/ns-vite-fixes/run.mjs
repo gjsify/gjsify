@@ -905,3 +905,49 @@ describe('gjsify Vite presets embed .gresource.xml imports (ADR 0116)', () => {
         });
     }
 });
+
+// Both Vite presets carry the build-time imports `gjsify build` carries: `*.gresource.xml`
+// (ADR 0116 § 1) and `*.gschema.xml?schema` (ADR 0099 § 1). A preset without the gschema
+// loader handed `?schema` to Vite's asset fallback, so `new Gio.Settings` found no schema.
+describe('Vite presets carry ?schema and .gresource.xml', () => {
+    let presets;
+
+    before(async () => {
+        const url = new URL('../../../packages/infra/vite-plugin-gjsify/lib/index.js', import.meta.url);
+        const mod = await import(url);
+        presets = { gjsifyBrowser: mod.gjsifyBrowser, gjsifyNativescript: mod.gjsifyNativescript };
+    });
+
+    for (const preset of ['gjsifyBrowser', 'gjsifyNativescript']) {
+        it(`${preset}() includes gjsify-gschema and gjsify-gresource`, () => {
+            const names = presets[preset]().map((p) => p && p.name);
+            assert.ok(names.includes('gjsify-gschema'), `${preset}() lacks gjsify-gschema: ${names.join(', ')}`);
+            assert.ok(names.includes('gjsify-gresource'), `${preset}() lacks gjsify-gresource: ${names.join(', ')}`);
+        });
+    }
+
+    it("gjsifyNativescript()'s gschema loader registers the schema with the NativeScript Settings", async () => {
+        const dir = mkdtempSync(join(tmpdir(), 'gjsify-gschema-'));
+        try {
+            const file = join(dir, 'a.B.gschema.xml');
+            writeFileSync(
+                file,
+                '<schemalist><schema id="a.B" path="/a/B/"><key name="k" type="i"><default>3</default></key></schema></schemalist>',
+            );
+            const loader = presets.gjsifyNativescript().find((p) => p && p.name === 'gjsify-gschema');
+            const code = await loader.load.call({ addWatchFile() {} }, `${file}?schema`);
+            const schema = JSON.stringify({ id: 'a.B', path: '/a/B/', keys: { k: { type: 'i', default: 3 } } });
+            assert.equal(
+                code,
+                [
+                    'import { Settings } from "@gjsify/app-settings/nativescript";',
+                    `const schema = ${schema};`,
+                    'Settings.register(schema);',
+                    'export default schema;',
+                ].join('\n'),
+            );
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});

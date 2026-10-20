@@ -45,6 +45,8 @@ Both presets resolve `@girs/*` / `gi://` imports to an empty module (those are G
 
 Both presets also embed `*.gresource.xml` imports ([ADR 0116](../../../docs/adr/0116-app-gresources-are-embedded-at-build-time-for-web-and-nativescript.md) §§ 1, 7): `import bytes from './data/app.data.gresource.xml'` yields the `Uint8Array` that `gjsify build` yields, ready for `Gio.resources_register(Gio.Resource.new_from_data(bytes))`. `glib-compile-resources` must be on the build host, `compressed="true"` is dropped (the web and NativeScript cannot inflate synchronously), and the dev server reloads the module when the XML or a file it lists changes. Type the import with `@gjsify/rolldown-plugin-gjsify/types`.
 
+They carry `*.gschema.xml?schema` imports the same way ([ADR 0099](../../../docs/adr/0099-gio-settings-runs-on-the-browser-and-nativescript.md) § 1): the import registers the schema with `@gjsify/app-settings`, as under `gjsify build`, so `new Gio.Settings(...)` finds it. The same `types` entry declares the specifier.
+
 ## License
 
 MIT

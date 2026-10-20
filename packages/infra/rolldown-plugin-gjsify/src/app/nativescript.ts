@@ -57,7 +57,7 @@ import {
     nativescriptPlatformDefines,
 } from '../plugins/platform-resolve.js';
 import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
-import { gschemaPlugin } from '../plugins/gschema.js';
+import { GSCHEMA_REGISTER, gschemaPlugin } from '../plugins/gschema.js';
 import { gresourcePlugin } from '../plugins/gresource.js';
 import { implicitGlobalAssignPlugin } from '../plugins/implicit-global-assign.js';
 
@@ -227,7 +227,7 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
         // a NativeScript app gates on the absence of `window`, but a WRITE to it is a
         // `ReferenceError` in a strict module body, not a gate. `globalThis.window = …`
         // holds the author's intent; the guard and the absence are untouched.
-        gschemaPlugin({ mode: 'emit' }),
+        gschemaPlugin({ mode: 'emit', register: GSCHEMA_REGISTER.nativescript }),
         gresourcePlugin({ compressed: 'strip' }),
         implicitGlobalAssignPlugin(),
         // NO cssAsStringPlugin — NS ships its own CSS pipeline via
