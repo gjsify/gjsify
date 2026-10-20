@@ -814,6 +814,18 @@ export function aboutDialogVisibility(props: Partial<AdwAboutDialogProps> = {}):
 }
 
 /**
+ * Whether a renderer WITHOUT subpages shows the website: on whichever page libadwaita puts it.
+ *
+ * {@link AdwAboutDialogVisibility.websiteRow} is the MAIN-page copy and goes away when the
+ * Details page appears, because the website moves onto it ({@link
+ * AdwAboutDialogVisibility.detailsWebsiteRow}). A flat card has no Details page to move it to,
+ * so it reads both: the website is on the card exactly when `website` is set.
+ */
+export function flatCardShowsWebsite(visibility: AdwAboutDialogVisibility): boolean {
+    return visibility.websiteRow || visibility.detailsWebsiteRow;
+}
+
+/**
  * Whether the Legal page has anything on it — `append_legal_section`'s two
  * early-outs collapsed for the DEFAULT section.
  *

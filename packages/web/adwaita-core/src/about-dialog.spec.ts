@@ -21,6 +21,7 @@ import {
     aboutDialogVisibility,
     acknowledgementSections,
     creditsSections,
+    flatCardShowsWebsite,
     GTK_LICENSE,
     isLicenseType,
     legalSectionVisible,
@@ -202,6 +203,17 @@ export default async () => {
                     for (const hasCustomLinks of [false, true]) {
                         const state = aboutDialogVisibility({ website, comments, hasCustomLinks });
                         expect(state.websiteRow && state.detailsWebsiteRow).toBe(false);
+                    }
+                }
+            }
+        });
+
+        await it('flatCardShowsWebsite is exactly "a website is set", whichever page holds it', () => {
+            for (const website of ['', 'https://example.org']) {
+                for (const comments of ['', 'A description.']) {
+                    for (const hasCustomLinks of [false, true]) {
+                        const state = aboutDialogVisibility({ website, comments, hasCustomLinks });
+                        expect(flatCardShowsWebsite(state)).toBe(website.length > 0);
                     }
                 }
             }

@@ -49,6 +49,7 @@ export {
     aboutDialogVisibility,
     acknowledgementSections,
     creditsSections,
+    flatCardShowsWebsite,
     isLicenseType,
     legalSectionVisible,
     legalSections,
