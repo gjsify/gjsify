@@ -40,7 +40,7 @@ all. It was needed while importing the bridge `dlopen`ed `libnode_gi.so` from it
 body; the NativeScript host loads it lazily now, so it is the B0 rung rather than the only
 way to pay nothing.
 `GJSIFY_GI_BENCH=1` adds the per-instance benchmark, off by default so it lands in
-neither the cold-start nor the APK-size numbers. `GJSIFY_GI_UI=0` drops the two § 3 UI
+neither the cold-start nor the APK-size numbers. `GJSIFY_GI_UI=0` drops the three § 3 UI
 specs, which are on by default and which every release rung sets off — they pull
 `@gjsify/storybook-nativescript` and a pile of real widgets into the bundle, and the
 ladder's numbers were measured without them. Together:

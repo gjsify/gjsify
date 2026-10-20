@@ -20,6 +20,7 @@ import settingsVectors from './specs/settings.js';
 import fileChooserVectors from './specs/file-chooser.js';
 import { viewsSpec } from './specs/views.js';
 import { storybookSpec } from './specs/storybook.js';
+import { windowTitleSpec } from './specs/window-title.js';
 import benchSpec from './specs/bench.js';
 import inversionSpec from './specs/inversion.js';
 import foreignParentSpec from './specs/foreign-parent.js';
@@ -79,6 +80,10 @@ async function runSuite(): Promise<void> {
             if (__GJSIFY_GI_UI__) {
                 await viewsSpec(engine)();
                 await storybookSpec(engine)();
+                // The first PORT widget whose properties are a GObject on this leg (ADR 0105 § 2,
+                // route D). Dual for the same reason as the two above, and last of the three
+                // because it mounts a view the others do not expect.
+                await windowTitleSpec(engine)();
             }
             if (optedIn) await inversionSpec();
             if (optedIn) await foreignParentSpec();
