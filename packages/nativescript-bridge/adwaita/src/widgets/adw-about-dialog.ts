@@ -1,7 +1,7 @@
 // AdwAboutDialog — a Libadwaita-style about dialog for NativeScript.
 //
 // Renders a REAL NativeScript `GridLayout` overlay holding a centered card with
-// the app icon glyph, name, version, developer, comments, and a close button.
+// the app icon, name, version, developer, comments, and a close button.
 // Mirrors `Adw.AboutDialog`'s common fields. `present()` reveals the overlay,
 // `close()` hides it; tapping the close button or the scrim closes it.
 //
@@ -10,15 +10,21 @@
 // layout (e.g. as the top child of the app's root `GridLayout`) and reveals on
 // demand — NOT a separate OS window. COMPROMISES: no backdrop blur / drop shadow
 // (CSS subset has neither) and no slide/fade animation; the dimmed-scrim card LOOK
-// and the field set + present/close are faithful. The app icon is a glyph `Label`
-// (no icon-theme lookup), and `links` (website/issue) are rendered as plain text
-// rows, not tappable hyperlinks.
+// and the field set + present/close are faithful. `application-icon` is a `Gtk.Image` at
+// pixel-size 128 (as `adw-about-dialog.ui`), so it resolves through the icon theme like any
+// icon name; a name nothing carries draws the `image-missing` glyph, never the name as text.
+//
+// LINKS are tappable buttons: website, support-url, issue-url and every `add_link`. A tap
+// emits `activate-link` (payload `{ uri }`, handled accumulator): a handler returning true keeps
+// the default, which is `Gio.AppInfo.launch_default_for_uri` over the platform host. The
+// website shows whenever `website` is set, since libadwaita moves it onto the Details page
+// (`flatCardShowsWebsite`) and this card has none.
 //
 // The card has no subpages, so the What's New, Troubleshooting, Details, Credits, Legal and
 // Acknowledgements pages land on it as labels: `release-notes` shows the core's
 // `releaseNotesBuffer` text (the buffer rebuilt by the two release-notes setters only, as
 // `update_release_notes` is), `debug-info` its text with a Copy Text button, `add_link (title,
-// url)`, `support-url` and `issue-url` one "title: url" line each. The credit lists,
+// url)`, `support-url` and `issue-url` one link button each. The credit lists,
 // `translator-credits` and `add_credit_section` / `add_acknowledgement_section` become one
 // block per core group, `license`, `license-type`, `copyright` and `add_legal_section` one
 // block per core legal section — as plain text, so a markup link shows its text only.
@@ -39,8 +45,11 @@ import {
     type AdwLicenseState,
     type ReleaseNotesSegment,
     aboutDialogVisibility,
+    HandledAccumulator,
     acknowledgementSections,
+    createAppInfo,
     creditsSections,
+    flatCardShowsWebsite,
     isLicenseType,
     legalMarkupText,
     legalSections,
@@ -54,6 +63,8 @@ import {
 } from '@gjsify/adwaita-core';
 import { Button, GridLayout, ItemSpec, Label, ScrollView, StackLayout, type EventData } from '@nativescript/core';
 import { nativeClipboardHost } from '../clipboard-host.js';
+import { nativePlatformHost } from '../platform-host.js';
+import { GtkImage } from './gtk-image.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
@@ -62,6 +73,14 @@ import type { View } from '@nativescript/core';
 
 /** Event name emitted when the dialog is closed. */
 export const CLOSED = 'closed';
+
+/** Event name emitted when a link is tapped, before it is opened. */
+export const ACTIVATE_LINK = 'activate-link';
+
+/** The pixel size `adw-about-dialog.ui` gives the application icon. */
+const APPLICATION_ICON_PIXEL_SIZE = 128;
+
+const appInfo = createAppInfo(nativePlatformHost);
 
 /** A credits page as text: per group its heading (if any) and one line per person. */
 function creditsText(groups: ReadonlyArray<AdwCreditsSection>): string {
@@ -74,19 +93,19 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
     static readonly GTypeName: string = 'AdwAboutDialog';
 
     protected readonly _card: StackLayout;
-    protected readonly _iconLabel: Label;
+    protected readonly _appIcon: GtkImage;
     protected readonly _nameLabel: Label;
     protected readonly _versionLabel: Label;
     protected readonly _developerLabel: Label;
     protected readonly _commentsLabel: Label;
-    protected readonly _websiteLabel: Label;
-    protected readonly _supportLabel: Label;
-    protected readonly _issueLabel: Label;
+    protected readonly _websiteButton: Button;
+    protected readonly _supportButton: Button;
+    protected readonly _issueButton: Button;
     protected readonly _creditsLabel: Label;
     protected readonly _acknowledgementsLabel: Label;
     protected readonly _legalLabel: Label;
     protected readonly _releaseNotesLabel: Label;
-    protected readonly _linksLabel: Label;
+    protected readonly _linksBox: StackLayout;
     protected readonly _debugInfoLabel: Label;
     protected readonly _copyButton: Button;
 
@@ -139,16 +158,23 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         this.addChild(scroller);
         this._card = card;
 
-        this._iconLabel = this._addCardLabel(card, 'adw-about-dialog-icon');
+        const icon = new GtkImage();
+        icon.className = 'adw-icon adw-about-dialog-icon';
+        icon.pixelSize = APPLICATION_ICON_PIXEL_SIZE;
+        icon.horizontalAlignment = 'center';
+        card.addChild(icon);
+        this._appIcon = icon;
         this._nameLabel = this._addCardLabel(card, 'adw-about-dialog-name');
         this._versionLabel = this._addCardLabel(card, 'adw-about-dialog-version');
         this._developerLabel = this._addCardLabel(card, 'adw-about-dialog-developer');
         this._commentsLabel = this._addCardLabel(card, 'adw-about-dialog-comments');
         this._releaseNotesLabel = this._addCardLabel(card, 'adw-about-dialog-release-notes');
-        this._websiteLabel = this._addCardLabel(card, 'adw-about-dialog-website');
-        this._linksLabel = this._addCardLabel(card, 'adw-about-dialog-links');
-        this._supportLabel = this._addCardLabel(card, 'adw-about-dialog-support');
-        this._issueLabel = this._addCardLabel(card, 'adw-about-dialog-issue');
+        this._websiteButton = this._addLinkButton(card, 'adw-about-dialog-website');
+        this._linksBox = new StackLayout();
+        this._linksBox.className = 'adw-about-dialog-links';
+        card.addChild(this._linksBox);
+        this._supportButton = this._addLinkButton(card, 'adw-about-dialog-support');
+        this._issueButton = this._addLinkButton(card, 'adw-about-dialog-issue');
         this._creditsLabel = this._addCardLabel(card, 'adw-about-dialog-credits');
         this._acknowledgementsLabel = this._addCardLabel(card, 'adw-about-dialog-acknowledgements');
         this._legalLabel = this._addCardLabel(card, 'adw-about-dialog-legal');
@@ -187,6 +213,40 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         return label;
     }
 
+    /** A link row: tapping it activates whatever URI the render last gave it. */
+    private _addLinkButton(parent: StackLayout, className: string): Button {
+        const button = new Button();
+        button.className = `adw-about-dialog-link ${className}`;
+        button.set('androidElevation', 0);
+        parent.addChild(button);
+        return button;
+    }
+
+    /**
+     * `activate-link`: emit with GTK's handled accumulator, then launch unless a handler
+     * returned true. A URI the host cannot launch is dropped, as a failed launch is.
+     */
+    private _activateLink(uri: string): void {
+        const accumulator = new HandledAccumulator();
+        this.notify({ eventName: ACTIVATE_LINK, object: this, uri, accumulator } as EventData);
+        if (accumulator.stopped) return;
+        try {
+            appInfo.launch_default_for_uri(uri, null);
+        } catch {
+            // no scheme, nothing to open
+        }
+    }
+
+    /** Point a link button at `uri`; the tap handler is replaced, never stacked. */
+    private _setLink(button: Button, title: string, uri: string, shown: boolean): void {
+        button.text = title;
+        button.visibility = shown ? 'visible' : 'collapse';
+        const slot = button as Button & { _uriTap?: () => void };
+        if (slot._uriTap) button.removeEventListener('tap', slot._uriTap);
+        slot._uriTap = () => this._activateLink(uri);
+        button.addEventListener('tap', slot._uriTap);
+    }
+
     /** The application name (bold, centered). */
     get applicationName(): string {
         return this._applicationName;
@@ -197,7 +257,7 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         this._render();
     }
 
-    /** A glyph standing in for the app icon (no icon-theme lookup in the NS subset). */
+    /** The icon name, drawn like any `Gtk.Image` icon name. */
     get applicationIcon(): string {
         return this._applicationIcon;
     }
@@ -237,7 +297,7 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         this._render();
     }
 
-    /** The website URL (plain text — not a tappable link in this subset). */
+    /** The website URL, a link button. */
     get website(): string {
         return this._website;
     }
@@ -247,7 +307,7 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         this._render();
     }
 
-    /** The support-questions URL (plain text). */
+    /** The support-questions URL, a link button. */
     get supportUrl(): string {
         return this._supportUrl;
     }
@@ -257,7 +317,7 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         this._render();
     }
 
-    /** The issue-tracker URL (plain text). */
+    /** The issue-tracker URL, a link button. */
     get issueUrl(): string {
         return this._issueUrl;
     }
@@ -475,20 +535,28 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
             label.text = text;
             label.visibility = shown ? 'visible' : 'collapse';
         };
-        show(this._iconLabel, this._applicationIcon, visibility.appIcon);
+        this._appIcon.iconName = this._applicationIcon;
+        this._appIcon.visibility = visibility.appIcon ? 'visible' : 'collapse';
         show(this._nameLabel, this._applicationName, visibility.appName);
         show(this._versionLabel, this._version, visibility.version);
         show(this._developerLabel, this._developerName, visibility.developerName);
         show(this._commentsLabel, this._comments, visibility.commentsLabel);
-        show(this._websiteLabel, this._website, visibility.websiteRow);
-        show(
-            this._supportLabel,
-            `${stripMnemonic(ADW_ABOUT_DIALOG_LABELS.supportRow)}: ${this._supportUrl}`,
+        this._setLink(
+            this._websiteButton,
+            stripMnemonic(ADW_ABOUT_DIALOG_LABELS.websiteRow),
+            this._website,
+            flatCardShowsWebsite(visibility),
+        );
+        this._setLink(
+            this._supportButton,
+            stripMnemonic(ADW_ABOUT_DIALOG_LABELS.supportRow),
+            this._supportUrl,
             visibility.supportRow,
         );
-        show(
-            this._issueLabel,
-            `${stripMnemonic(ADW_ABOUT_DIALOG_LABELS.issueRow)}: ${this._issueUrl}`,
+        this._setLink(
+            this._issueButton,
+            stripMnemonic(ADW_ABOUT_DIALOG_LABELS.issueRow),
+            this._issueUrl,
             visibility.issueRow,
         );
         show(this._creditsLabel, creditsText(credits), visibility.creditsRow);
@@ -507,11 +575,12 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
             this._releaseNotesSegments.map((segment) => segment.text).join(''),
             visibility.whatsNewRow,
         );
-        show(
-            this._linksLabel,
-            this._links.map((link) => `${stripMnemonic(link.title)}: ${link.url}`).join('\n'),
-            this._links.length > 0,
-        );
+        this._linksBox.removeChildren();
+        for (const link of this._links) {
+            const button = this._addLinkButton(this._linksBox, 'adw-about-dialog-links-item');
+            this._setLink(button, stripMnemonic(link.title), link.url, true);
+        }
+        this._linksBox.visibility = this._links.length > 0 ? 'visible' : 'collapse';
         show(this._debugInfoLabel, this._debugInfo, visibility.troubleshootingRow);
         this._copyButton.visibility = visibility.troubleshootingRow ? 'visible' : 'collapse';
     }
