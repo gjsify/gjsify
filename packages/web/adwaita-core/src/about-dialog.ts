@@ -853,3 +853,44 @@ export function refuseNewFromAppdata(): never {
             'Construct the dialog and set its properties instead.',
     );
 }
+
+/** `adw_link_row_set_uri`'s icon for every URI but `mailto:` — a libadwaita-bundled glyph. */
+export const ADW_LINK_ROW_ICON_NAME = 'adw-external-link-symbolic';
+
+/** `adw_link_row_set_uri`'s icon for a `mailto:` URI — also libadwaita-bundled. */
+export const ADW_LINK_ROW_MAIL_ICON_NAME = 'adw-mail-send-symbolic';
+
+/**
+ * The suffix icon `AdwLinkRow` draws for `uri`. The branch is `g_uri_peek_scheme (uri)`
+ * equal to `"mailto"`, so the scheme is compared case-insensitively (GLib lowercases it) and
+ * a bare `mailto` with no colon has no scheme at all.
+ */
+export function linkRowIconName(uri: string): string {
+    const scheme = /^([A-Za-z][A-Za-z0-9+.-]*):/.exec(uri)?.[1];
+    return scheme?.toLowerCase() === 'mailto' ? ADW_LINK_ROW_MAIL_ICON_NAME : ADW_LINK_ROW_ICON_NAME;
+}
+
+/**
+ * The tooltip `AdwLinkRow` sets: `g_uri_unescape_string (uri, NULL)`. That returns NULL for a
+ * malformed `%` escape or one that decodes to NUL, and `gtk_widget_set_tooltip_text (NULL)`
+ * clears the tooltip, so the answer is `null` there rather than the raw URI.
+ */
+export function linkRowTooltip(uri: string): string | null {
+    const bytes: number[] = [];
+    const encoder = new TextEncoder();
+    for (let i = 0; i < uri.length;) {
+        if (uri[i] !== '%') {
+            const point = uri.codePointAt(i)!;
+            bytes.push(...encoder.encode(String.fromCodePoint(point)));
+            i += point > 0xffff ? 2 : 1;
+            continue;
+        }
+        const hex = uri.slice(i + 1, i + 3);
+        if (!/^[0-9A-Fa-f]{2}$/.test(hex)) return null;
+        const byte = Number.parseInt(hex, 16);
+        if (byte === 0) return null;
+        bytes.push(byte);
+        i += 3;
+    }
+    return new TextDecoder().decode(new Uint8Array(bytes));
+}

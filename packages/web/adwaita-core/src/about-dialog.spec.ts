@@ -35,6 +35,10 @@ import {
     setLicense,
     setLicenseType,
     translatorCreditsPeople,
+    ADW_LINK_ROW_ICON_NAME,
+    ADW_LINK_ROW_MAIL_ICON_NAME,
+    linkRowIconName,
+    linkRowTooltip,
 } from './about-dialog.js';
 import { gStrStrip, stripMnemonic } from './glib.js';
 import {
@@ -385,6 +389,30 @@ export default async () => {
         await it('answers null for a name that is no nick', () => {
             expect(licenseTypeForNick('MIT')).toBe(null);
             expect(licenseTypeForNick('')).toBe(null);
+        });
+    });
+
+    await describe('AdwLinkRow (adw_link_row_set_uri)', async () => {
+        await it('picks the mail glyph for a mailto: scheme, any case, and the external-link glyph otherwise', () => {
+            expect(linkRowIconName('mailto:ada@x.org')).toBe(ADW_LINK_ROW_MAIL_ICON_NAME);
+            expect(linkRowIconName('MAILTO:ada@x.org')).toBe(ADW_LINK_ROW_MAIL_ICON_NAME);
+            expect(linkRowIconName('mailto:')).toBe(ADW_LINK_ROW_MAIL_ICON_NAME);
+            expect(linkRowIconName('https://example.org')).toBe(ADW_LINK_ROW_ICON_NAME);
+            expect(linkRowIconName('mailto')).toBe(ADW_LINK_ROW_ICON_NAME);
+            expect(linkRowIconName('')).toBe(ADW_LINK_ROW_ICON_NAME);
+        });
+
+        await it('unescapes the URI for the tooltip like g_uri_unescape_string', () => {
+            expect(linkRowTooltip('https://x.org/a%20b')).toBe('https://x.org/a b');
+            expect(linkRowTooltip('https://x.org/%C3%A4')).toBe('https://x.org/\u00e4');
+            expect(linkRowTooltip('https://x.org/\u00e4')).toBe('https://x.org/\u00e4');
+            expect(linkRowTooltip('mailto:')).toBe('mailto:');
+        });
+
+        await it('has no tooltip for a malformed escape or an escaped NUL', () => {
+            expect(linkRowTooltip('https://x.org/%zz')).toBe(null);
+            expect(linkRowTooltip('https://x.org/%2')).toBe(null);
+            expect(linkRowTooltip('https://x.org/%00')).toBe(null);
         });
     });
 };

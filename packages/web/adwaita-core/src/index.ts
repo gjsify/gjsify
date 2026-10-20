@@ -38,6 +38,10 @@ export type {
 // --- About dialog (Adw.AboutDialog licences, credits, page visibility) ---
 export {
     ADW_ABOUT_DIALOG_LABELS,
+    ADW_LINK_ROW_ICON_NAME,
+    ADW_LINK_ROW_MAIL_ICON_NAME,
+    linkRowIconName,
+    linkRowTooltip,
     ADW_CREDITS_SECTION_TITLES,
     ADW_LEGAL_DEFAULT_TITLE,
     ADW_LICENSES,

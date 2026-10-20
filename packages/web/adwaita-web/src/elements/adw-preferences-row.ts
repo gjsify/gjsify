@@ -121,7 +121,8 @@ export class AdwPreferencesRow extends TooltipElement {
         bindSlottedChildren(this, [{ name: 'child', into: this._contentEl }]).install(this._titleEl, this._contentEl);
         bindEmptySections(this._contentEl);
 
-        this.setAttribute('role', 'listitem');
+        // An author-set role wins: `AdwLinkRow` is a row whose accessible role is LINK.
+        if (!this.hasAttribute('role')) this.setAttribute('role', 'listitem');
         this._render();
     }
 
