@@ -8,7 +8,8 @@ export const APP_MANIFEST_FILE = 'app.json';
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const sameUrl = (a: string, b: string) => a.replace(/\/+$/, '') === b.replace(/\/+$/, '');
+const urlKey = (url: string) => url.replace(/\/+$/, '').toLowerCase();
+const sameUrl = (a: string, b: string) => urlKey(a) === urlKey(b);
 
 const HTTP_URL = /^https?:\/\//;
 

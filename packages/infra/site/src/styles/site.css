@@ -1130,6 +1130,8 @@ app-support {
   border-radius: var(--radius-lg);
   background: var(--surface);
   overflow: hidden;
+  list-style: none;
+  padding: 0;
 }
 
 .related-list li + li {

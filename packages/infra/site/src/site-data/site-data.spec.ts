@@ -642,6 +642,16 @@ export default async () => {
             );
         });
 
+        await it('matches the site itself regardless of letter case', async () => {
+            await withFixture(
+                async (root) => {
+                    const data = await loadSiteData({ root, network: { fetch: serve({}) } });
+                    expect(data.relatedApps).toStrictEqual([]);
+                },
+                site(['https://Example.org/NOTES']),
+            );
+        });
+
         await it("drops an entry that carries the site's own app id", async () => {
             await withFixture(
                 async (root) => {
