@@ -289,5 +289,23 @@ export default async () => {
         });
     });
 
+    await describe('a large bound string', async () => {
+        await it('is not kept alive by the statement after the insert', async () => {
+            const db = new DatabaseSync(nextDb());
+            db.exec('CREATE TABLE t(id INTEGER PRIMARY KEY, v TEXT)');
+            // Distinct texts per row, so nothing is shared; the holder of an earlier
+            // execution used to pin its copy until the garbage collector ran.
+            const base = 'x'.repeat(64 * 1024);
+            const rss = () => process.memoryUsage().rss;
+            for (let i = 0; i < 50; i++) db.prepare('INSERT INTO t (v) VALUES (?)').run(`${i}${base}`);
+            const before = rss();
+            for (let i = 0; i < 1500; i++) db.prepare('INSERT INTO t (v) VALUES (?)').run(`${i}${base}`);
+            const grown = (rss() - before) / (1024 * 1024);
+            // 1500 × 64 KiB is ~94 MiB; unreleased holders showed up as most of it.
+            expect(grown < 60).toBe(true);
+            db.close();
+        });
+    });
+
     cleanup();
 };

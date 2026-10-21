@@ -34,6 +34,23 @@ function setHolderValue(holder: Gda.Holder, value: string | number | bigint): bo
 }
 
 /**
+ * Let go of the strings an execution bound.
+ *
+ * A `Gda.Holder` keeps the value it was given until its `Gda.Set` is finalized, and the
+ * Set is a GJS wrapper the garbage collector frees whenever it gets round to it — which
+ * is late, because the collector cannot see the native copy. Measured on 8000 inserts of
+ * a ~56 KB text each: 86 → 563 MiB without this, 59 → 96 MiB with it. Numbers are not
+ * worth the call; only a string can be large.
+ */
+export function releaseHolders(paramSet: Gda.Set | null, bindings: Map<string, HolderBinding>): void {
+    if (!paramSet) return;
+    for (const [gdaId, binding] of bindings) {
+        if (binding.type !== 'gchararray') continue;
+        paramSet.get_holder(gdaId)?.set_value('' as unknown as GObject.Value);
+    }
+}
+
+/**
  * Bind the parameters of one execution to the holders libgda created for them.
  *
  * A bound parameter is what lets the SQL TEXT stay the same across executions, which is

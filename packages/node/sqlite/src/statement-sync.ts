@@ -14,7 +14,7 @@ import {
 import { readAllRows, readFirstRow, type ReadOptions } from './data-model-reader.ts';
 import { rewriteExistsSubqueries } from './exists-subquery.ts';
 import { ColumnTypes, executeStatement, integerColumns, releaseStatement } from './execution.ts';
-import { bindHolders, type HolderBinding } from './param-binding.ts';
+import { bindHolders, type HolderBinding, releaseHolders } from './param-binding.ts';
 import { convertParameterSyntax, type ParamInfo } from './parameter-syntax.ts';
 import { parseSql } from './parse-sql.ts';
 import type { RunResult, StatementSyncOptions } from './types.ts';
@@ -399,8 +399,10 @@ export class StatementSync {
         columns?: ColumnTypes,
     ): T {
         const { sql, bindings } = this.#buildStatement(args);
+        let params: Gda.Set | null = null;
         try {
-            const [stmt, params] = this.#statementFor(sql);
+            let stmt: Gda.Statement;
+            [stmt, params] = this.#statementFor(sql);
             bindHolders(params, bindings);
             return executeStatement(this.#connection, stmt, params, read, { columns, retain: true });
         } catch (e: unknown) {
@@ -410,6 +412,8 @@ export class StatementSync {
             // validation errors already carry that shape and pass through unchanged.
             if (isNodeSqliteError(e)) throw e;
             throw new SqliteError(sqliteErrorMessage(e));
+        } finally {
+            releaseHolders(params, bindings);
         }
     }
 
