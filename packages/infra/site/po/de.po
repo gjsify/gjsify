@@ -168,6 +168,12 @@ msgstr "Ältere Versionen"
 msgid "Links"
 msgstr "Links"
 
+msgid "More apps by {developer}"
+msgstr "Weitere Apps von {developer}"
+
+msgid "More apps"
+msgstr "Weitere Apps"
+
 msgid "Copied"
 msgstr "Kopiert"
 

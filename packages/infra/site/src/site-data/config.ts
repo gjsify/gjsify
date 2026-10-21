@@ -6,6 +6,7 @@ import type {
     SiteConfig,
     SiteDownloadConfig,
     SiteLegalLink,
+    SiteRelatedAppConfig,
     SiteSupportEntry,
 } from './types.js';
 
@@ -72,6 +73,37 @@ function parseSupport(entry: Raw, where: string): SiteSupportEntry {
     }
     return { kind: 'sepa', name, iban, bic, reference };
 }
+
+function httpUrl(value: string, where: string): string {
+    if (!/^https?:\/\//.test(value)) throw new Error(`${where} must be an http(s) address`);
+    return value;
+}
+
+/** Strings are site addresses to fetch `app.json` from; objects are inline entries for apps without one. */
+function parseRelatedApps(raw: Raw): SiteRelatedAppConfig[] {
+    const value = raw.relatedApps;
+    if (value === undefined) return [];
+    if (!Array.isArray(value)) throw new Error('gjsify.site.relatedApps must be a list');
+    return value.map((entry: unknown, index): SiteRelatedAppConfig => {
+        const where = `gjsify.site.relatedApps[${index}]`;
+        if (typeof entry === 'string') return { url: withSlash(httpUrl(entry, where)) };
+        if (!isRecord(entry)) throw new Error(`${where} must be a site address or an object`);
+        const field = (key: string) => (entry[key] === undefined ? undefined : stringField(entry, key, where));
+        const url = withSlash(httpUrl(stringField(entry, 'url', where), `${where}.url`));
+        const name = field('name');
+        if (name === undefined) {
+            for (const key of ['summary', 'icon']) {
+                if (entry[key] !== undefined)
+                    throw new Error(`${where}.${key} needs "name": inline entries have all three`);
+            }
+            return { url };
+        }
+        const icon = field('icon');
+        return { url, name, summary: field('summary'), icon: icon && httpUrl(icon, `${where}.icon`) };
+    });
+}
+
+const withSlash = (url: string) => (url.endsWith('/') ? url : `${url}/`);
 
 const PLATFORMS: readonly TargetPlatform[] = ['linux', 'darwin', 'win32', 'android', 'web', 'firefox', 'chromium'];
 const FORMATS: readonly TargetFormat[] = [
@@ -171,7 +203,7 @@ export function parseSiteConfig(manifest: RootManifest): SiteConfig {
     return {
         metainfo: requireString(raw, 'metainfo'),
         base: normalizeBase(requireString(raw, 'base')),
-        url: url.endsWith('/') ? url : `${url}/`,
+        url: withSlash(url),
         languages: languages as string[],
         defaultLanguage,
         sourceLanguage: optionalString(raw, 'sourceLanguage') ?? 'en',
@@ -191,6 +223,7 @@ export function parseSiteConfig(manifest: RootManifest): SiteConfig {
                 url: stringField(entry, 'url', `gjsify.site.legal[${index}]`),
             }),
         ),
+        relatedApps: parseRelatedApps(raw),
     };
 }
 

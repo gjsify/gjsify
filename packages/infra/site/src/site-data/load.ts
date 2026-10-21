@@ -9,6 +9,7 @@ import { parseMetainfo } from './metainfo.js';
 import type { NetworkOptions } from './network.js';
 import { minimumAge } from './oars.js';
 import { completeLocalized, languageCandidates, parseCatalog, type Catalog } from './po.js';
+import { loadRelatedApps } from './related.js';
 import { resolveScreenshots } from './screenshots.js';
 import type {
     DescriptionBlock,
@@ -166,6 +167,12 @@ export async function loadSiteData(options: LoadOptions): Promise<SiteData> {
         ? metainfo.developer
         : { id: manifest.gjsify?.flatpak?.developer?.id, name: manifest.gjsify?.flatpak?.developer?.name ?? '' };
 
+    const relatedApps = await loadRelatedApps(config, metainfo.id, {
+        offline: options.offline,
+        network: options.network,
+        warn,
+    });
+
     const releases: Release[] = metainfo.releases.map((release) => ({
         ...release,
         description: completeBlocks(release.description),
@@ -205,6 +212,7 @@ export async function loadSiteData(options: LoadOptions): Promise<SiteData> {
             hasReleases,
         },
         stats,
+        relatedApps,
         warnings,
     };
 }

@@ -1115,6 +1115,72 @@ app-support {
   margin-block: 1.5rem 0;
 }
 
+/* Related apps: same card list as the links, with the app's own icon */
+
+.related {
+  margin-block: 2rem;
+}
+
+.related h2 {
+  font-size: 1.15rem;
+}
+
+.related-list {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.related-list li + li {
+  border-top: 1px solid var(--line);
+}
+
+.related-list a {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.75rem 1rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.related-list a:hover {
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+}
+
+.related-icon {
+  flex: none;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 10px;
+  object-fit: contain;
+}
+
+.related-icon-blank {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--muted);
+}
+
+.related-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.related-name {
+  font-weight: 600;
+}
+
+.related-summary {
+  color: var(--muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
 /* Footer */
 
 .footer {

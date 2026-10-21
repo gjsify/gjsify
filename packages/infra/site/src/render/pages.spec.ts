@@ -2,7 +2,7 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import type { DownloadTarget, Screenshot, SiteData } from '../site-data/index.js';
 import type { ProcessedImage } from './images.js';
-import { badges, ctaLabel, downloadWidget, frameAttribute, sepaCard } from './pages.js';
+import { badges, ctaLabel, downloadWidget, frameAttribute, relatedSection, sepaCard } from './pages.js';
 
 const t = (msgid: string) => msgid;
 const target = (os: DownloadTarget['os'], format: DownloadTarget['format'], component?: string): DownloadTarget => ({
@@ -115,6 +115,26 @@ export default async () => {
             });
             expect(named).toMatch(/<h3 class="component-title"><span>Desktop app<\/span>/);
             expect(named).not.toMatch(/component-step/);
+        });
+
+        await it('renders the related apps section only when there are apps', async () => {
+            const apps = [
+                {
+                    name: { en: 'Other', de: 'Anderes' },
+                    summary: { en: 'Things' },
+                    icon: 'https://example.org/i.svg',
+                    url: 'https://example.org/other/',
+                    languages: ['en', 'de'],
+                },
+            ];
+            const data = (relatedApps: unknown[]) =>
+                ({ relatedApps, app: { developer: { name: 'Dev & Co' } } }) as unknown as SiteData;
+            expect(relatedSection({ data: data([]), t, lang: 'en' })).toBe('');
+            const html = relatedSection({ data: data(apps), t, lang: 'de' });
+            expect(html).toMatch(/<h2>More apps by Dev &amp; Co<\/h2>/);
+            expect(html).toMatch(/href="https:\/\/example.org\/other\/de\/"/);
+            expect(html).toMatch(/related-name">Anderes</);
+            expect(html).toMatch(/related-summary">Things</);
         });
     });
 };
