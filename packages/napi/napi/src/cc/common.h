@@ -57,6 +57,7 @@
 #include <js/Exception.h>
 #include <js/GCAPI.h>
 #include <js/GlobalObject.h>
+#include <js/MemoryFunctions.h>
 #include <js/PropertyAndElement.h>
 #include <js/RootingAPI.h>
 #include <js/String.h>
@@ -423,6 +424,11 @@ struct napi_env__ {
     // Foreign-object InstanceState WeakMap (§5d fallback tier), lazily
     // created. Reset in teardown().
     JS::PersistentRooted<JSObject*> wrap_map;
+    // Net external memory the addon has reported
+    // (napi_adjust_external_memory). Mirrors exactly what is booked against
+    // `global` via JS::AddAssociatedMemory, so teardown can hand that amount
+    // back — see env.cc.
+    int64_t external_memory = 0;
 
     // §5b ref lists (sentinel heads; two-list teardown order per
     // js_native_api_v8.h:121-130).
@@ -466,7 +472,8 @@ struct napi_env__ {
     // 3. RefTracker::FinalizeAll(finalizing_reflist) then (reflist);
     // 4. instance-data finalizer;
     // 5. flip can_call_into_js/torn_down (subsequent napi entry → status);
-    // 6. drop every root: remove the extra-roots tracer, reset
+    // 6. return the still-booked external memory, then drop every root:
+    //    remove the extra-roots tracer, reset
     //    PersistentRooteds, clear arena/scopes/weak set — all BEFORE
     //    JS_DestroyContext runs (a live root past that point is the UAF
     //    class). Callback bundles are NOT freed here: live function

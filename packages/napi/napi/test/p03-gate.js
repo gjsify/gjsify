@@ -157,6 +157,39 @@ gc();
 pump();
 checkArr('external finalizer fired once', t.finalizeLog(), [31]);
 
+// ---- external memory accounting (napi_adjust_external_memory) ----
+// node-addon-api's MemoryManagement::AdjustExternalMemory aborts the process
+// on any non-ok status, so an unimplemented hook killed node-llama-cpp's
+// model load. The counter is a NET BALANCE: the engine must get back exactly
+// what was booked, so the shim tracks the sum and returns it.
+check('external memory starts at 0', t.adjustExternalMemory(0n), 0n);
+check('positive delta returns the total', t.adjustExternalMemory(1024n), 1024n);
+check('deltas accumulate', t.adjustExternalMemory(4096n), 5120n);
+check('negative delta subtracts', t.adjustExternalMemory(-1024n), 4096n);
+check('zero delta queries without changing', t.adjustExternalMemory(0n), 4096n);
+// Over-subtract CLAMPS at 0 rather than going negative: the engine must never
+// be handed back more than was booked for its (object, use) pair. Node has no
+// clamp and V8 CHECK-fails instead (heap.cc UpdateExternalMemory) — failing
+// soft is the deliberate deviation, and the total stays non-negative as in
+// Node either way.
+check('over-subtract clamps at 0', t.adjustExternalMemory(-999999n), 0n);
+check('still 0 after clamp', t.adjustExternalMemory(0n), 0n);
+// NULL adjusted_value -> napi_invalid_arg(1); the counter must not move.
+check('null out-param -> invalid_arg', t.adjustExternalMemoryStatus(64n, true), 1);
+check('rejected call did not book', t.adjustExternalMemory(0n), 0n);
+check('non-null out-param -> ok', t.adjustExternalMemoryStatus(64n, false), 0);
+check('accepted call booked', t.adjustExternalMemory(0n), 64n);
+check('give the 64 back', t.adjustExternalMemory(-64n), 0n);
+
+// A finalizer gives its bytes back: the external books 8 MiB and returns it
+// when it dies, printing "EXTMEM FINALIZE <status> <total>".
+let memExt = t.makeExternalWithMemory(8388608n);
+check('external booked its bytes', t.adjustExternalMemory(0n), 8388608n);
+memExt = null;
+gc();
+pump();
+check('finalizer gave the bytes back', t.adjustExternalMemory(0n), 0n);
+
 // ---- type tags: fast tier (external) + foreign tier (plain object) ----
 const taggedExt = t.makeExternal(0);
 check('tag external', t.tagObject(taggedExt, 7), 0);
@@ -202,6 +235,10 @@ t.registerCleanupHooks();
 globalThis.__keepAliveWrapped = t.wrapFinalize({ keep: true }, 61);
 // And a strong ref that is never unrefd (released at teardown, no finalizer).
 t.makeRef({ pinned: true }, 1);
+// An external-memory balance the addon never gives back: teardown must drain
+// it before the roots are dropped, or the engine keeps accounting for bytes
+// whose owner is gone (post-exit assert via run-p03-gate.sh).
+check('leftover balance booked', t.adjustExternalMemory(3000000n), 3000000n);
 
 t.resetLog();
 if (failures > 0) throw new Error(`${failures} check(s) failed`);

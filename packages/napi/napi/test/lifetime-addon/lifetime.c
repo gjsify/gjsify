@@ -4,7 +4,9 @@
 // THE CRASH CLASS, empirically: strong/weak refs (death under forced GC,
 // resurrection), v10 primitive refs, wrap + finalizer (exactly-once on GC
 // death OR teardown, never both), externals, napi_add_finalizer, type tags,
-// instance data (overwrite un-finalized), env cleanup hooks (LIFO). Finalizer
+// instance data (overwrite un-finalized), env cleanup hooks (LIFO), external
+// memory accounting (booked by a native allocation, returned in its
+// finalizer or drained at teardown). Finalizer
 // invocations are logged into a static ring the driver reads back; teardown-
 // time finalizers additionally print to stdout so the runner script can
 // assert post-exit ordering. Built with stock node-gyp (NAPI_VERSION=10).
@@ -269,6 +271,69 @@ static napi_value AddFinalizer(napi_env env, napi_callback_info info) {
   return obj;
 }
 
+// ---- external memory accounting ----
+
+// BigInt in/out: the counter is int64 and a double loses the top bits, so
+// JS numbers cannot assert the boundary cases exactly.
+static napi_value AdjustExternalMemory(napi_env env, napi_callback_info info) {
+  napi_value delta_v = get_arg(env, info, NULL);
+  int64_t delta = 0;
+  bool lossless = false;
+  OK_OR_NULL(napi_get_value_bigint_int64(env, delta_v, &delta, &lossless));
+  int64_t adjusted = -1;
+  OK_OR_NULL(napi_adjust_external_memory(env, delta, &adjusted));
+  napi_value out;
+  OK_OR_NULL(napi_create_bigint_int64(env, adjusted, &out));
+  return out;
+}
+
+// adjustExternalMemoryStatus(delta, passNull) -> status int. node-addon-api
+// turns any non-ok status into a FATAL ERROR, so the status is the contract.
+static napi_value AdjustExternalMemoryStatus(napi_env env,
+                                             napi_callback_info info) {
+  napi_value null_v = NULL;
+  napi_value delta_v = get_arg(env, info, &null_v);
+  int64_t delta = 0;
+  bool lossless = false;
+  napi_get_value_bigint_int64(env, delta_v, &delta, &lossless);
+  bool pass_null = false;
+  napi_get_value_bool(env, null_v, &pass_null);
+  int64_t adjusted = -1;
+  napi_status s =
+      napi_adjust_external_memory(env, delta, pass_null ? NULL : &adjusted);
+  napi_value out;
+  OK_OR_NULL(napi_create_int32(env, (int32_t)s, &out));
+  return out;
+}
+
+// Gives the booked bytes back from inside a finalizer — the better-sqlite3 /
+// node-llama-cpp shape, and the one ordering hazard: a finalizer runs during
+// env teardown, after which the engine-side accounting must still be valid.
+static void ExtMemFinalizer(napi_env env, void* data, void* hint) {
+  (void)hint;
+  int64_t bytes = (int64_t)(intptr_t)data;
+  int64_t adjusted = -1;
+  napi_status s = napi_adjust_external_memory(env, -bytes, &adjusted);
+  printf("EXTMEM FINALIZE %d %lld\n", (int)s, (long long)adjusted);
+  fflush(stdout);
+}
+
+// makeExternalWithMemory(bytes) -> external; books `bytes` now and returns
+// them when the external dies.
+static napi_value MakeExternalWithMemory(napi_env env,
+                                         napi_callback_info info) {
+  napi_value bytes_v = get_arg(env, info, NULL);
+  int64_t bytes = 0;
+  bool lossless = false;
+  OK_OR_NULL(napi_get_value_bigint_int64(env, bytes_v, &bytes, &lossless));
+  int64_t adjusted = -1;
+  OK_OR_NULL(napi_adjust_external_memory(env, bytes, &adjusted));
+  napi_value out = NULL;
+  OK_OR_NULL(napi_create_external(env, (void*)(intptr_t)bytes, ExtMemFinalizer,
+                                  NULL, &out));
+  return out;
+}
+
 // ---- type tags ----
 
 static napi_value TagObject(napi_env env, napi_callback_info info) {
@@ -371,6 +436,9 @@ static napi_value Init(napi_env env, napi_value exports) {
   EXPORT_FN("externalId", ExternalId);
   EXPORT_FN("typeofName", TypeofName);
   EXPORT_FN("addFinalizer", AddFinalizer);
+  EXPORT_FN("adjustExternalMemory", AdjustExternalMemory);
+  EXPORT_FN("adjustExternalMemoryStatus", AdjustExternalMemoryStatus);
+  EXPORT_FN("makeExternalWithMemory", MakeExternalWithMemory);
   EXPORT_FN("tagObject", TagObject);
   EXPORT_FN("checkTag", CheckTag);
   EXPORT_FN("setInstanceData", SetInstanceData);
