@@ -1,12 +1,12 @@
 // Unit tests for the `--app browser` HTML-entry helpers.
 //
 // Pure string/path logic — no filesystem, no bundler. Verifies detection of a
-// single html entry, extraction of the local module script, and the `src`
-// rewrite in the emitted page.
+// single html entry, extraction of the local module script, the `src`
+// rewrite in the emitted page, and the linked icons' `assets/` copies.
 
 import { describe, expect, it } from '@gjsify/unit';
 import { resolve, dirname } from 'node:path';
-import { detectHtmlEntry, parseHtmlEntry, emitBrowserHtml } from './html-entry.js';
+import { collectLinkedAssets, detectHtmlEntry, parseHtmlEntry, emitBrowserHtml } from './html-entry.js';
 
 const HTML = [
     '<!doctype html>',
@@ -80,6 +80,54 @@ export default async (): Promise<void> => {
                 outHtmlPath: resolve('dist-app/index.html'),
             });
             expect(out).toContain('src="./assets/app.js"');
+        });
+    });
+
+    await describe('html-entry.collectLinkedAssets', async () => {
+        const ICONS = [
+            '<head>',
+            '<link rel="icon" type="image/svg+xml" href="../icons/app.svg" />',
+            '<link rel="apple-touch-icon" href="../icons/app.svg">',
+            '<link rel="shortcut icon" href="./other/app.svg?v=2">',
+            '<link rel="stylesheet" href="./style.css">',
+            '<link rel="icon" href="https://example.org/favicon.ico">',
+            '<link rel="icon" href="/favicon.ico">',
+            '<link rel="icon" href="data:,">',
+            '</head>',
+            '<script type="module" src="./main.ts"></script>',
+        ].join('\n');
+
+        await it('collects local icon links only, resolved against the html directory', async () => {
+            const assets = collectLinkedAssets('src/app/app.html', ICONS);
+            expect(assets.map((a) => a.href)).toStrictEqual([
+                '../icons/app.svg',
+                '../icons/app.svg',
+                './other/app.svg?v=2',
+            ]);
+            expect(assets[0].source).toBe(resolve('src/icons/app.svg'));
+            expect(assets[2].source).toBe(resolve('src/app/other/app.svg'));
+        });
+        await it('one target per file, a suffix for a second file with the same name', async () => {
+            const assets = collectLinkedAssets('src/app/app.html', ICONS);
+            expect(assets.map((a) => a.target)).toStrictEqual(['assets/app.svg', 'assets/app.svg', 'assets/app-1.svg']);
+        });
+        await it('the emitted page links the copies and leaves other links alone', async () => {
+            const { scriptTag, scriptSrc } = parseHtmlEntry('src/app/app.html', ICONS);
+            const out = emitBrowserHtml({
+                htmlSource: ICONS,
+                scriptTag,
+                scriptSrc,
+                jsOutPath: resolve('dist-app/app.js'),
+                outHtmlPath: resolve('dist-app/index.html'),
+                assets: collectLinkedAssets('src/app/app.html', ICONS),
+            });
+            expect(out).toContain('<link rel="icon" type="image/svg+xml" href="./assets/app.svg" />');
+            expect(out).toContain('<link rel="apple-touch-icon" href="./assets/app.svg">');
+            expect(out).toContain('<link rel="shortcut icon" href="./assets/app-1.svg">');
+            expect(out).toContain('href="./style.css"');
+            expect(out).toContain('href="https://example.org/favicon.ico"');
+            expect(out).toContain('href="/favicon.ico"');
+            expect(out).not.toContain('../icons/');
         });
     });
 };

@@ -21,10 +21,17 @@ import {
 import { pnpPlugin } from '@gjsify/rolldown-plugin-pnp';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { chmod, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { normalizeBundlerOptions, mergeBundlerOptions } from '../utils/normalize-bundler-options.js';
 import { inputSourceDirs, isOutdirInsideSource, libraryOutputLeakError } from '../utils/library-output.js';
-import { detectHtmlEntry, parseHtmlEntry, emitBrowserHtml, htmlOutPathFor } from '../utils/html-entry.js';
+import {
+    collectLinkedAssets,
+    detectHtmlEntry,
+    emitBrowserHtml,
+    htmlOutPathFor,
+    parseHtmlEntry,
+    type LinkedAsset,
+} from '../utils/html-entry.js';
 import { assertGjsBundleLoadable, assertGjsBundleParses } from '../utils/gjs-bundle-guard.js';
 import { collectEntryPaths, describeJsxConfig, findJsxEntryPoint, jsxConfigMissingError } from '../utils/jsx-config.js';
 import { giSystemProbes } from '../utils/gi-runtime-paths.js';
@@ -539,12 +546,13 @@ export class BuildAction {
     /**
      * Post-bundle step for a `--app browser` HTML entry: write the processed
      * `index.html` beside the JS bundle, with the entry `<script>`'s `src`
-     * rewritten to point at the built bundle. Mirrors `applyShebang` — kept in
+     * rewritten to point at the built bundle and the page's linked icons copied
+     * to `assets/` beside it. Mirrors `applyShebang` — kept in
      * the CLI (not a Rolldown plugin) because the native rolldown engine
      * exposes no `emitFile`.
      */
     private async applyBrowserHtml(
-        htmlEntry: { htmlSource: string; scriptTag: string; scriptSrc: string },
+        htmlEntry: { htmlSource: string; scriptTag: string; scriptSrc: string; assets: LinkedAsset[] },
         outfile: string,
         verbose: boolean | undefined,
     ): Promise<void> {
@@ -556,9 +564,15 @@ export class BuildAction {
             scriptSrc: htmlEntry.scriptSrc,
             jsOutPath,
             outHtmlPath,
+            assets: htmlEntry.assets,
         });
         await mkdir(dirname(outHtmlPath), { recursive: true });
         await writeFile(outHtmlPath, html);
+        for (const { source, target } of new Map(htmlEntry.assets.map((a) => [a.target, a])).values()) {
+            const dest = resolve(dirname(outHtmlPath), target);
+            await mkdir(dirname(dest), { recursive: true });
+            await copyFile(source, dest);
+        }
         if (verbose) console.debug(`[gjsify] --app browser: wrote ${outHtmlPath}`);
     }
 
@@ -808,14 +822,15 @@ export class BuildAction {
         // entry, NOT the html) and remember the page so a post-bundle step can
         // emit a processed `index.html` next to the JS. Guarded on browser +
         // an html input; every other build path is untouched.
-        let htmlEntry: { htmlSource: string; scriptTag: string; scriptSrc: string } | null = null;
+        let htmlEntry: { htmlSource: string; scriptTag: string; scriptSrc: string; assets: LinkedAsset[] } | null =
+            null;
         if (app === 'browser') {
             const htmlPath = detectHtmlEntry(userBundler.input);
             if (htmlPath) {
                 const htmlSource = await readFile(htmlPath, 'utf-8');
                 const { moduleEntry, scriptTag, scriptSrc } = parseHtmlEntry(htmlPath, htmlSource);
                 userBundler.input = moduleEntry;
-                htmlEntry = { htmlSource, scriptTag, scriptSrc };
+                htmlEntry = { htmlSource, scriptTag, scriptSrc, assets: collectLinkedAssets(htmlPath, htmlSource) };
             }
         }
 
