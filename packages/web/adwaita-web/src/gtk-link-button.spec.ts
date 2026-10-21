@@ -105,6 +105,20 @@ export const GtkLinkButtonTest = async () => {
             host.remove();
         });
 
+        await it('the link treatment is button.link only — a row with the .link class stays plain', () => {
+            // AdwLinkRow adds `.link` to its row (adw-link-row.c:377) and no upstream rule
+            // matches `row.link`; only the `link` node and `button.link` are styled.
+            const { el, host } = mount({ uri: 'https://example.org/a', label: 'Example' });
+            const row = document.createElement('div');
+            row.classList.add('link');
+            row.textContent = 'Row';
+            host.appendChild(row);
+            expect(getComputedStyle(el.button).textDecorationLine).toBe('underline');
+            expect(getComputedStyle(row).textDecorationLine).toBe('none');
+            expect(getComputedStyle(row).color).toBe(getComputedStyle(host).color);
+            host.remove();
+        });
+
         await it('keeps the link treatment through a re-render of the label', () => {
             const { el, host } = mount({ uri: 'https://example.org/a', label: 'Example', visited: '' });
             el.setAttribute('label', 'Other');
