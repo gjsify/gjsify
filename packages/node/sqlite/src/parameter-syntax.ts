@@ -13,9 +13,10 @@ export interface ParamInfo {
  * Decides what a placeholder becomes in the SQL handed to libgda.
  *
  * `StatementSync` substitutes this per execution, because the choice depends on the value:
- * a string becomes a `##id::string` holder so its text never enters the SQL, everything
- * else becomes a literal drawn from an alphabet that cannot end a quoted region. Callers
- * that only need to VALIDATE the SQL, where no values exist yet, take the default.
+ * anything libgda can carry becomes a `##id::<type>` holder so the value never enters the
+ * SQL, and only NULL and a BLOB — which no holder accepts — become a literal, drawn from
+ * an alphabet that cannot end a quoted region. Callers that only need to VALIDATE the SQL,
+ * where no values exist yet, take the default.
  */
 export type PlaceholderRenderer = (param: ParamInfo) => string;
 

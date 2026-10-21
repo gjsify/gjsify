@@ -7,6 +7,7 @@ import testSuiteStatementSync from './statement-sync.spec.js';
 import testSuiteDataTypes from './data-types.spec.js';
 import testSuiteParamBinding from './param-binding.spec.js';
 import testSuiteSubquery from './subquery.spec.js';
+import testSuiteStatementCache from './statement-cache.spec.js';
 
 run({
     testSuiteConnectionLifetime,
@@ -16,4 +17,5 @@ run({
     testSuiteDataTypes,
     testSuiteParamBinding,
     testSuiteSubquery,
+    testSuiteStatementCache,
 });

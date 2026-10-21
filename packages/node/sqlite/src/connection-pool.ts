@@ -4,7 +4,7 @@
 
 import type Gda from '@girs/gda-6.0';
 import Gio from '@girs/gio-2.0';
-import { executeStatement, integerColumns } from './execution.ts';
+import { executeStatement, integerColumns, releaseRetained } from './execution.ts';
 import { parseSql } from './parse-sql.ts';
 
 /**
@@ -121,7 +121,7 @@ function query(connection: Gda.Connection, sql: string, columnCount: number): st
             }
             return rows;
         },
-        integerColumns(columnCount),
+        { columns: integerColumns(columnCount) },
     );
 }
 
@@ -229,6 +229,7 @@ export function acquire(key: PoolKey, create: () => Gda.Connection): Gda.Connect
  */
 export function release(key: PoolKey, connection: Gda.Connection): void {
     try {
+        releaseRetained(connection);
         rollbackIfNeeded(connection);
         if (key.isMemory) {
             wipeMemory(connection);

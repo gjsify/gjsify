@@ -272,8 +272,7 @@ export class DatabaseSync {
             throw new SqliteError(sqliteErrorMessage(e));
         }
 
-        // Track transaction state
-        this.#updateTransactionState(sql);
+        this.#updateTransactionState();
 
         return undefined;
     }
@@ -433,14 +432,21 @@ export class DatabaseSync {
         return stmts;
     }
 
-    #updateTransactionState(sql: string): void {
-        const trimmed = sql.trim().toUpperCase();
-        if (/\bBEGIN\b/.test(trimmed)) {
-            this.#inTransaction = true;
-        }
-        if (/\bCOMMIT\b/.test(trimmed) || /\bROLLBACK\b/.test(trimmed)) {
-            this.#inTransaction = false;
-        }
+    /**
+     * Ask libgda whether the connection is in a transaction, rather than reading the SQL.
+     *
+     * The SQL cannot answer it. `CREATE TRIGGER … BEGIN … END` carries the word BEGIN and
+     * opens no transaction; `SAVEPOINT`/`RELEASE` open and close one and carry neither
+     * word. libgda tracks the real state per connection — `get_transaction_status()`
+     * returns a status object while one is open and null otherwise, which is also how
+     * `rollbackIfNeeded` decides what a parked connection owes (see connection-pool.ts).
+     *
+     * SAVEPOINT remains invisible: measured, libgda registers no status for it. That is a
+     * libgda limit, not a reading of the text, and it is the one case where this and
+     * node:sqlite's `sqlite3_get_autocommit()` disagree.
+     */
+    #updateTransactionState(): void {
+        this.#inTransaction = this.#connection!.get_transaction_status() !== null;
     }
 }
 
