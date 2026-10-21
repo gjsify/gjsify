@@ -182,8 +182,13 @@ export interface DeclaredProperty extends ForeignProperty {
      * Replaces the seam's own coercion for EVERY write, typed or not — a floor, a clamp, a lenient
      * parse. Runs identically on both legs, ahead of the store and of the equal-write check, so a
      * write the normalizer maps onto the held value is not a change.
+     *
+     * `self` is the INSTANCE being written, so a normalizer may read the row's other properties:
+     * `AdwEntryRow` clamps `text` to that row's own `max-length`, and derives `text-length` from
+     * its own `text` — which is also how a property that is read-only upstream is held read-only
+     * here, since a write that resolves to the value already held is not a change.
      */
-    readonly normalize?: (value: unknown) => unknown;
+    readonly normalize?: (value: unknown, self: object) => unknown;
 }
 
 /** {@link ForeignClassMeta} whose properties may carry a {@link DeclaredProperty.normalize}. */
@@ -207,11 +212,21 @@ export interface DeclaredClassMeta extends Omit<ForeignClassMeta, 'Properties'> 
  * back to a default: `'maybe'` for a boolean, `''` or `'24px'` for a number. A widget that wants
  * a lenient reading says so with {@link DeclaredProperty.normalize}.
  */
-function coerceDeclared(name: string, property: DeclaredProperty, value: unknown): unknown {
-    if (property.normalize !== undefined) return property.normalize(value);
-    if (typeof value !== 'string' || property.kind === 'string') return value;
+function coerceDeclared(name: string, property: DeclaredProperty, value: unknown, self: object): unknown {
+    if (property.normalize !== undefined) return property.normalize(value, self);
+    return readDeclaredValue(name, property.kind, value);
+}
+
+/**
+ * {@link coerceDeclared}'s string reading on its own, so a {@link DeclaredProperty.normalize} that
+ * only wants to ADD a rule — a clamp, a floor — does not have to restate it. Without it every
+ * normalizer re-decides what `<AdwEntryRow maxLength="12">` means, and XML would answer one way
+ * for a property that has a normalizer and another way for one that does not.
+ */
+export function readDeclaredValue(name: string, kind: ForeignProperty['kind'], value: unknown): unknown {
+    if (typeof value !== 'string' || kind === 'string') return value;
     const text = value.trim();
-    if (property.kind === 'boolean') {
+    if (kind === 'boolean') {
         const lowered = text.toLowerCase();
         if (lowered === 'true') return true;
         if (lowered === 'false') return false;
@@ -760,7 +775,7 @@ function wrapRouteDAccessors(declaration: Declaration): void {
             Object.defineProperty(prototype, spelling, {
                 ...installed,
                 set(this: object, value: unknown): void {
-                    set.call(this, coerceDeclared(name, property, value));
+                    set.call(this, coerceDeclared(name, property, value, this));
                 },
             });
         }
@@ -789,7 +804,7 @@ function installPureJsProperties(declaration: Declaration): void {
                     return values.get(name);
                 },
                 set(this: Observable, raw: unknown): void {
-                    const value = coerceDeclared(name, property, raw);
+                    const value = coerceDeclared(name, property, raw, this);
                     const values = valuesOf(this);
                     if (values.has(name) && values.get(name) === value) return;
                     values.set(name, value);

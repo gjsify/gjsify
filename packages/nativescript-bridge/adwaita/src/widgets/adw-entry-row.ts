@@ -7,11 +7,36 @@
 //
 // The DERIVATION — `update_empty`'s five-output truth table, the `text_changed`
 // apply latch, character-counted max-length truncation, the two-way return-key
-// dispatch — is HEADLESS in `@gjsify/adwaita-core` (ADR 0004) as
-// {@link EntryRowState}, shared with `@gjsify/adwaita-web` and held to one
+// dispatch — is HEADLESS in `@gjsify/adwaita-core` (ADR 0004) as the pure functions
+// `deriveEntryRowState` / `entryRowLatches` / `clampEntryText` /
+// `resolveEntryRowActivation`, shared with `@gjsify/adwaita-web` and held to one
 // conformance table. This class keeps only the NS render half; the painting sits in
 // `entry-row-view.ts` (free of `@nativescript/core` value imports) so the spec suite
 // can drive the REAL applier off-device.
+//
+// THE SIX PROPERTIES ARE DECLARED, NOT HELD IN AN `EntryRowState` (ADR 0105 § 2, route D).
+// `text`, `text-length`, `max-length`, `editable`, `show-apply-button` and
+// `activates-default` are GObject properties of this class, so on Android they live in the
+// GObject's own store — which is what `bind_property` binds to and what `NodeGiGetProperty`
+// reads. Keeping an `EntryRowState` beside them would be the defect `adw-switch-row.ts`
+// names: two stores, one of them stale. What the state object DID own that a property cannot
+// — the `update_empty` table and the latch rule — moved into `@gjsify/adwaita-core` as
+// functions, so there is still exactly one copy of the derivation and the conformance
+// vectors still drive it. `EntryRowState` stays in the core for `@gjsify/adwaita-web`.
+//
+// `text-length` IS READ-ONLY, AND ITS NORMALIZER IS HOW. Upstream declares it
+// `G_PARAM_READABLE` only; this seam has no read-only flag, so the property's `normalize`
+// derives the value from the row's OWN `text` and ignores what was written. A write
+// therefore resolves to the value already held, the equal-write rule drops it, and the only
+// thing that can move it is `text` moving — which is what read-only means here.
+//
+// WHAT THE THREE EVENT PAYLOADS BECAME. `NotifyTextEventData` / `NotifyTextLengthEventData`
+// carried the new value; a real `notify::` carries a `GParamSpec`, never a value, so a
+// handler reads the emitter — `(self) => self.text`. `EntryActivatedEventData` carried
+// `activateDefault`, which was only ever this row's own `activates-default`: upstream's
+// `AdwEntryRow::entry-activated` takes no parameters, and the value a handler wants is on
+// the emitter too. All three are gone rather than kept as aliases — this port carries no
+// backward compatibility (`status/open-todos/nativescript.md`).
 //
 // COMPROMISES, all CSS-subset limits rather than logic: the two titles swap at the
 // endpoints instead of cross-fading (no transform or animation in NS CSS); there is
@@ -23,20 +48,28 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_entries.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { Label, StackLayout, TextField, type EventData, type View } from '@nativescript/core';
+import { Label, StackLayout, TextField, type View } from '@nativescript/core';
 import { documentEditSymbolic, objectSelectSymbolic } from '@gjsify/adwaita-icons/actions';
-import { ADW_ACCENT_FG_COLOR, EntryRowState, type EntryRowRenderState } from '@gjsify/adwaita-core';
+import {
+    ADW_ACCENT_FG_COLOR,
+    clampEntryMaxLength,
+    clampEntryText,
+    deriveEntryRowState,
+    entryRowLatches,
+    entryTextLength,
+    resolveEntryRowActivation,
+    type EntryRowRenderState,
+} from '@gjsify/adwaita-core';
 
 import { AdwActionRow } from './adw-action-row.js';
 import { GtkImage } from './gtk-image.js';
 import { AdwImageButton } from './adw-image-button.js';
 import { NS_EDIT_ICON_CLASS, NS_ENTRY_ROW_CLASS, applyEntryRowState } from './entry-row-view.js';
-import { xmlBoolean, xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { readDeclaredValue, withProperties } from './signals.js';
 
-// Re-exported so consumers reach the headless state machine (and the vector-driven
-// painter) from `@gjsify/adwaita-nativescript` without a second import path.
-export { EntryRowState } from '@gjsify/adwaita-core';
+// Re-exported so consumers reach the vector-driven painter's vocabulary from
+// `@gjsify/adwaita-nativescript` without a second import path.
 export type { EntryRowRenderState, EntryRowActivation } from '@gjsify/adwaita-core';
 
 /** Event name emitted when {@link AdwEntryRow.text} changes. Mirrors GObject `notify::text`. */
@@ -45,42 +78,122 @@ export const NOTIFY_TEXT = 'notify::text';
 /** Event name emitted when the character count changes. */
 export const NOTIFY_TEXT_LENGTH = 'notify::text-length';
 
+/** Event name emitted when {@link AdwEntryRow.maxLength} changes. */
+export const NOTIFY_MAX_LENGTH = 'notify::max-length';
+
+/** Event name emitted when {@link AdwEntryRow.editable} changes. */
+export const NOTIFY_EDITABLE = 'notify::editable';
+
+/** Event name emitted when {@link AdwEntryRow.showApplyButton} changes. */
+export const NOTIFY_SHOW_APPLY_BUTTON = 'notify::show-apply-button';
+
+/** Event name emitted when {@link AdwEntryRow.activatesDefault} changes. */
+export const NOTIFY_ACTIVATES_DEFAULT = 'notify::activates-default';
+
 /** `AdwEntryRow::apply` — the apply button, or the return key while it shows. */
 export const SIGNAL_APPLY = 'apply';
 
-/** `AdwEntryRow::entry-activated` — the return key when there is nothing to apply. */
+/**
+ * `AdwEntryRow::entry-activated` — the return key when there is nothing to apply.
+ *
+ * No parameters, as upstream declares it. The C activates the default widget itself before
+ * emitting and NativeScript has no default-widget concept, so that ordering is the host's
+ * here — and what it needs to know is the row's own `activates-default`, which a handler
+ * reads off the emitter: `(self) => self.activatesDefault`.
+ */
 export const SIGNAL_ENTRY_ACTIVATED = 'entry-activated';
 
-/** Payload of the `notify::text` event. */
-export interface NotifyTextEventData extends EventData {
-    text: string;
+/**
+ * The row a declared property's {@link DeclaredProperty.normalize} reads its siblings off.
+ * Structural, because `normalize` is handed a bare `object` — the seam knows nothing of this
+ * class, and a cast to `AdwEntryRow` would be a lie while the instance is still constructing.
+ */
+interface EntryRowValues {
+    readonly text: string;
+    readonly maxLength: number;
 }
 
-/** Payload of the `notify::text-length` event. */
-export interface NotifyTextLengthEventData extends EventData {
-    /** The new number of CHARACTERS (not UTF-16 units). */
-    textLength: number;
-}
-
-/** Payload of the `entry-activated` event. */
-export interface EntryActivatedEventData extends EventData {
-    /**
-     * Whether the host must activate its default action FIRST — C calls
-     * `gtk_widget_activate_default` before emitting, and NS has no default-widget
-     * concept, so the ordering becomes the host's.
-     */
-    activateDefault: boolean;
-}
-
-export class AdwEntryRow extends AdwActionRow {
+export class AdwEntryRow extends withProperties(AdwActionRow, {
+    GTypeName: 'AdwEntryRow',
+    Properties: {
+        text: {
+            kind: 'string',
+            default: '',
+            blurb: 'The entry text',
+            // Truncation belongs HERE and not in a `notify::text` handler: a handler runs
+            // after the store already took the over-long value, and a refusal or a rewrite
+            // from one cannot be seen at all (see `signals.ts` on logged handler exceptions).
+            normalize: (value, self) => clampEntryText(String(value ?? ''), (self as EntryRowValues).maxLength),
+        },
+        'text-length': {
+            kind: 'uint',
+            default: 0,
+            blurb: 'The length of the text, in characters',
+            // Read-only upstream, and read-only here BY DERIVATION — see the module header.
+            normalize: (_value, self) => entryTextLength((self as EntryRowValues).text),
+        },
+        'max-length': {
+            kind: 'int',
+            default: 0,
+            blurb: 'The maximum length of the text, in characters',
+            // `readDeclaredValue` first, so `<AdwEntryRow maxLength="12">` reads the same as
+            // on a property with no normalizer at all; the clamp is what this one ADDS.
+            normalize: (value) => clampEntryMaxLength(readDeclaredValue('max-length', 'int', value) as number),
+        },
+        editable: { kind: 'boolean', default: true, blurb: 'Whether the entry is editable' },
+        'show-apply-button': { kind: 'boolean', default: false, blurb: 'Whether to show the apply button' },
+        'activates-default': {
+            kind: 'boolean',
+            default: false,
+            blurb: 'Whether activating the embedded entry can activate the default widget',
+        },
+    },
+    Signals: {
+        apply: {},
+        'entry-activated': {},
+    },
+}) {
     static readonly GTypeName: string = 'AdwEntryRow';
 
     /** `AdwEntryRow` derives from `AdwPreferencesRow` in C, so the preferences search
      *  must NOT read the text typed into it. */
     override readonly isActionRow: boolean = false;
 
-    /** The headless `update_empty` derivation + apply latch (ADR 0004). */
-    protected readonly _state = new EntryRowState();
+    /** The editable text, truncated to {@link maxLength} by the property's normalizer. */
+    declare text: string;
+
+    /**
+     * `Adw.EntryRow:text-length` — the number of CHARACTERS, not UTF-16 units.
+     *
+     * READ-ONLY, as upstream declares it: a write is normalized back to the count derived from
+     * this row's own {@link text}, so it resolves to the value already held and changes nothing
+     * (module header). Not `readonly` in TypeScript, because the seam installs one accessor pair
+     * per declared property and the row itself is what writes the derived value.
+     */
+    declare textLength: number;
+
+    /** `Adw.EntryRow:max-length` — maximum number of characters, `0` = unlimited. */
+    declare maxLength: number;
+
+    /** Whether the entry accepts edits (`GtkEditable:editable`). */
+    declare editable: boolean;
+
+    /** `Adw.EntryRow:show-apply-button` — typing reveals an apply button. */
+    declare showApplyButton: boolean;
+
+    /** `Adw.EntryRow:activates-default` — read by the host on `entry-activated`. */
+    declare activatesDefault: boolean;
+
+    /**
+     * `priv->editing` — whether the embedded entry has focus. A private field and NOT a declared
+     * property, because it is not one upstream either: `text_state_flags_changed_cb` keeps it,
+     * nothing outside the widget may set it, and the focus events below are its only writers.
+     */
+    private _editing = false;
+    /** The private `adw_entry_row_set_show_indicator` hook's state — see {@link setShowIndicator}. */
+    private _showIndicator = false;
+    /** `priv->text_changed` — the pending-apply latch. Private upstream too. */
+    private _textChanged = false;
     /** The TextField stacked below the title in column 0. */
     protected readonly _field: TextField;
     /** The large placeholder title (`empty_title` in adw-entry-row.ui). */
@@ -94,8 +207,6 @@ export class AdwEntryRow extends AdwActionRow {
     protected readonly _applyButton: AdwImageButton;
     /** The suffix installed through the inherited single-slot {@link add_suffix}. */
     private _slotSuffix: View | null = null;
-    private _lastText = '';
-    private _lastLength = 0;
 
     constructor(props?: ConstructProps<AdwEntryRow>) {
         super();
@@ -170,81 +281,40 @@ export class AdwEntryRow extends AdwActionRow {
         super.add_suffix(suffixes);
 
         this._field.addEventListener('textChange', () => {
-            // Route through the core so max-length truncation counts CHARACTERS.
-            this._state.setText(this._field.text ?? '');
+            // Into the PROPERTY, not past it: `text`'s normalizer is what makes max-length
+            // truncation count CHARACTERS, and its equal-write rule is what stops the loop
+            // back out of the render below (the same single-funnel shape `adw-switch-row.ts`
+            // uses for `checkedChange`).
+            this.text = this._field.text ?? '';
         });
         // The focus input the whole derivation hangs off. The NS CSS subset cannot
-        // express `:focus-within`, so this headless flag is the ONLY route to focus
+        // express `:focus-within`, so this flag is the ONLY route to focus
         // feedback on this port.
-        this._field.addEventListener('focus', () => this._state.setEditing(true));
-        this._field.addEventListener('blur', () => this._state.setEditing(false));
+        this._field.addEventListener('focus', () => this._setEditing(true));
+        this._field.addEventListener('blur', () => this._setEditing(false));
         this._field.addEventListener('returnPress', () => this._activate());
 
-        this._lastText = this._state.text;
-        this._lastLength = this._state.textLength;
-        this._render(this._state.state);
-        this._state.subscribe((state) => this._onStateChanged(state));
+        // The four declared inputs of `update_empty`, each on its own notify — the property is
+        // the gate, so an equal write re-derives nothing and no setter needs its own guard.
+        this.connect(NOTIFY_TEXT, (self) => self._onTextChanged());
+        this.connect(NOTIFY_MAX_LENGTH, (self) => self._onMaxLengthChanged());
+        this.connect(NOTIFY_EDITABLE, (self) => self._update());
+        this.connect(NOTIFY_SHOW_APPLY_BUTTON, (self) => self._onShowApplyButtonChanged());
+
+        // `adw_entry_row_init`'s hidden start — the pencil showing, apply and indicator away.
+        this._update();
 
         applyConstructProps(this, props);
     }
 
-    /** The editable text. */
-    get text(): string {
-        return this._state.text;
-    }
-
-    set text(value: string) {
-        this._state.setText(value ?? '');
-    }
-
-    /** `Adw.EntryRow:text-length` — the number of CHARACTERS, not UTF-16 units. */
-    get textLength(): number {
-        return this._state.textLength;
-    }
-
-    /** `Adw.EntryRow:max-length` — maximum number of characters, `0` = unlimited. */
-    get maxLength(): number {
-        return this._state.maxLength;
-    }
-
-    set maxLength(raw: number | string) {
-        const value = xmlNumber(raw, this.maxLength);
-        this._state.setMaxLength(value);
-    }
-
-    /** Whether the entry accepts edits (`GtkEditable:editable`). */
-    get editable(): boolean {
-        return this._state.editable;
-    }
-
-    set editable(raw: boolean | string) {
-        const value = xmlBoolean(raw, this.editable);
-        this._state.setEditable(value);
-    }
-
-    /** `Adw.EntryRow:show-apply-button` — typing reveals an apply button. */
-    get showApplyButton(): boolean {
-        return this._state.showApplyButton;
-    }
-
-    set showApplyButton(raw: boolean | string) {
-        const value = xmlBoolean(raw, this.showApplyButton);
-        this._state.setShowApplyButton(value);
-    }
-
-    /** `Adw.EntryRow:activates-default` — reported on `entry-activated`, acted on by the host. */
-    get activatesDefault(): boolean {
-        return this._state.activatesDefault;
-    }
-
-    set activatesDefault(raw: boolean | string) {
-        const value = xmlBoolean(raw, this.activatesDefault);
-        this._state.setActivatesDefault(value);
-    }
-
-    /** Whether the field currently has focus. */
+    /** Whether the field currently has focus — `priv->editing`, not a property upstream. */
     get editing(): boolean {
-        return this._state.editing;
+        return this._editing;
+    }
+
+    /** The pending-apply latch — `true` exactly while the apply button shows. */
+    get textChanged(): boolean {
+        return this._textChanged;
     }
 
     /**
@@ -282,7 +352,12 @@ export class AdwEntryRow extends AdwActionRow {
      * than reaching into a private header.
      */
     setShowIndicator(show: boolean): void {
-        this._state.setShowIndicator(show);
+        // UNGUARDED on purpose: the C assigns and calls `update_empty` with no equality check
+        // (C:1281-1296), so a redundant call still re-derives. That is why it stayed a method
+        // and did not become a declared property — a property would add the guard it must not
+        // have, and upstream does not expose one either.
+        this._showIndicator = !!show;
+        this._update();
     }
 
     /** `adw_entry_row_set_indicator_icon_name`, as an Adwaita symbolic SVG. */
@@ -290,25 +365,39 @@ export class AdwEntryRow extends AdwActionRow {
         this._indicator.iconName = svg;
     }
 
-    /** Apply the pending edit — the apply button tap. */
+    /** Apply the pending edit — the apply button tap (`apply_button_clicked_cb`). */
     apply(): void {
-        this._state.apply();
-        this.notify({ eventName: SIGNAL_APPLY, object: this });
+        this._textChanged = false;
+        this._update();
+        this.emit(SIGNAL_APPLY);
     }
 
-    /** `text_activated_cb` — exactly one of the two signals. */
+    /** `text_activated_cb` — exactly one of the two signals, never both. */
     private _activate(): void {
-        const activation = this._state.activate();
+        const activation = resolveEntryRowActivation(this._textChanged, this.activatesDefault);
         if (activation.signal === 'apply') {
-            this.notify({ eventName: SIGNAL_APPLY, object: this });
+            this.apply();
             return;
         }
-        const data: EntryActivatedEventData = {
-            eventName: SIGNAL_ENTRY_ACTIVATED,
-            object: this,
-            activateDefault: activation.activateDefault,
-        };
-        this.notify(data);
+        // `activateDefault` is NOT a signal argument: upstream's `entry-activated` has none, and
+        // the host reads `activates-default` off the emitter (see the constant's doc).
+        this.emit(SIGNAL_ENTRY_ACTIVATED);
+    }
+
+    /**
+     * Re-run `update_empty` over the row's current inputs and paint the result — the one place
+     * the derivation is read, standing in for the subscription the state object used to push.
+     */
+    protected _update(): void {
+        this._render(
+            deriveEntryRowState({
+                text: this.text,
+                editing: this._editing,
+                editable: this.editable,
+                showIndicator: this._showIndicator,
+                textChanged: this._textChanged,
+            }),
+        );
     }
 
     /** Paint one render snapshot through the shared (spec-driven) painter. */
@@ -333,22 +422,42 @@ export class AdwEntryRow extends AdwActionRow {
         return NS_ENTRY_ROW_CLASS;
     }
 
-    private _onStateChanged(state: EntryRowRenderState): void {
-        this._render(state);
+    /** Feed the focus state in — `text_state_flags_changed_cb`, guarded as the C's flag is. */
+    private _setEditing(editing: boolean): void {
+        if (editing === this._editing) return;
+        this._editing = editing;
+        this._update();
+    }
 
-        if (state.text !== this._lastText) {
-            this._lastText = state.text;
-            const data: NotifyTextEventData = { eventName: NOTIFY_TEXT, object: this, text: state.text };
-            this.notify(data);
-        }
-        if (state.textLength !== this._lastLength) {
-            this._lastLength = state.textLength;
-            const data: NotifyTextLengthEventData = {
-                eventName: NOTIFY_TEXT_LENGTH,
-                object: this,
-                textLength: state.textLength,
-            };
-            this.notify(data);
-        }
+    /**
+     * `text_changed_cb` (C:166-174) plus the derived count.
+     *
+     * `text-length` SETTLES INSIDE THIS EMISSION, so a handler of `notify::text` reads the new
+     * count off the emitter — and a handler of both sees `notify::text-length` first, because a
+     * notify emitted from within another one nests. That is what deriving a property from a
+     * property costs in GObject, with no `g_object_freeze_notify` in this seam to reorder it;
+     * the old payload-carrying events had the opposite order and no emitter to read.
+     */
+    private _onTextChanged(): void {
+        if (entryRowLatches(this.showApplyButton, this._editing)) this._textChanged = true;
+        this._update();
+        // The written value is ignored — the normalizer derives it. Spelled out anyway, so the
+        // line says what it means rather than relying on a `0` being rewritten out of sight.
+        this.textLength = entryTextLength(this.text);
+    }
+
+    /** Over-long contents are truncated the moment the limit drops — `adw_entry_row_set_max_length`. */
+    private _onMaxLengthChanged(): void {
+        // Written through the PROPERTY rather than into a field, so the truncation notifies
+        // `notify::text` and re-derives like any other text change. A limit that truncates
+        // nothing produces an equal write, which the property drops.
+        this.text = clampEntryText(this.text, this.maxLength);
+    }
+
+    /** Turning the apply button OFF retracts a pending apply; turning it on derives nothing (C:989-992). */
+    private _onShowApplyButtonChanged(): void {
+        if (this.showApplyButton || !this._textChanged) return;
+        this._textChanged = false;
+        this._update();
     }
 }

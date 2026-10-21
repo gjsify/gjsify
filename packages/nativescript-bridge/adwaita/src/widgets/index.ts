@@ -35,8 +35,17 @@ export { AdwPreferencesPage } from './adw-preferences-page.js';
 export { AdwPreferencesGroup } from './adw-preferences-group.js';
 export { AdwActionRow } from './adw-action-row.js';
 export { AdwSwitchRow, NOTIFY_ACTIVE } from './adw-switch-row.js';
-export { AdwEntryRow, NOTIFY_TEXT } from './adw-entry-row.js';
-export type { NotifyTextEventData } from './adw-entry-row.js';
+export {
+    AdwEntryRow,
+    NOTIFY_TEXT,
+    NOTIFY_TEXT_LENGTH,
+    NOTIFY_MAX_LENGTH,
+    NOTIFY_EDITABLE,
+    NOTIFY_SHOW_APPLY_BUTTON,
+    NOTIFY_ACTIVATES_DEFAULT,
+    SIGNAL_APPLY,
+    SIGNAL_ENTRY_ACTIVATED,
+} from './adw-entry-row.js';
 export { AdwPasswordEntryRow } from './adw-password-entry-row.js';
 // GtkEntry is the STANDALONE entry (the row's counterpart, not its base): no
 // core state machine — only the character arithmetic (`clampEntryText` /
