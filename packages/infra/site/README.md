@@ -107,6 +107,7 @@ Lives in the root `package.json`, next to `ship` and `flatpak`.
 | `components` | `[{id, name, summary?, match?}]`: the separately installed parts of the product, in install order, see below. Optional — without it the dialog is one undivided list. |
 | `downloads` | `[{platform, format, url?, label?, available?, component?}]`: targets the release assets do not cover, e.g. browser stores or a source install. `platform` is an OS or `firefox` / `chromium`; `format` adds `store`, `xpi`, `source`. `url` is required unless `available` is `false`, which lists the target as "Not yet available" and never recommends it. `component` is a `components[].id`. |
 | `releaseAssets` | `false` ignores the GitHub release assets, so `downloads` is the whole list. Default `true`. |
+| `relatedApps` | `[url \| {url, name, summary, icon}]`: sites of other apps, listed in order under "More apps by <developer>" on the landing page, see below. Optional — without it there is no section and nothing is fetched. |
 | `support`, `legal` | `support`: `{kind, url}` links, or `{kind: "sepa", name, iban, bic?, reference?}`, a bank transfer shown as IBAN plus an EPC QR code. `legal`: `{label, url}` links. Both empty by default: nothing is invented. |
 
 A `sepa` entry carries no amount, and its IBAN is checked when the config loads — length per
@@ -139,6 +140,28 @@ unknown id fails the build with the known ids listed.
 The recommendation ("Recommended for your system") is made once per part, so each block
 highlights its own best match, and the big button at the top of the dialog offers the first
 declared component: the thing to install first.
+
+### Related apps
+
+Every build also writes `app.json` next to `index.html` — `{schema: 1, id, name, summary, icon, url,
+languages, developer}`, names and summaries per language from the metainfo, `icon` and `url`
+absolute. `relatedApps` reads those of other sites:
+
+```json
+"relatedApps": [
+  "https://example.org/notes/",
+  { "url": "https://example.org/plain/", "name": "Plain", "summary": "No app.json here", "icon": "https://example.org/plain/icon.png" }
+]
+```
+
+A string is a site address: the build fetches `<url>app.json` and renders a card (icon, name,
+summary in the page's language, else English) linking to the app's page in that language. An
+object is an inline entry for an app that publishes no `app.json`; nothing is fetched for it.
+The site's own address and app id are dropped, so all apps can share one list.
+
+The section is plain HTML rendered at build time. A site that cannot be reached, or whose
+`app.json` is invalid, is served from the last good copy in the build cache; with none, that card
+is skipped with a warning. The build never fails because of it.
 
 ### Screenshots
 

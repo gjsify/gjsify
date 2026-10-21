@@ -38,6 +38,8 @@ import {
     type RootManifest,
     type SiteConfig,
     type SiteData,
+    APP_MANIFEST_FILE,
+    buildAppManifest,
 } from './site-data/index.js';
 
 /**
@@ -234,6 +236,8 @@ export async function buildSite(options: SiteBuildOptions): Promise<SiteBuildRes
             await writeFile(join(target.out, lang, 'support', 'index.html'), renderSupportPage(ctx));
         }
     }
+    const manifest = buildAppManifest(data, iconUrl ? absolute(data, iconUrl) : undefined);
+    await writeFile(join(target.out, APP_MANIFEST_FILE), `${JSON.stringify(manifest, null, 2)}\n`);
     await writeFile(join(target.out, 'index.html'), renderRoot(data, assets, iconUrl));
     const address = (build: (data: SiteData, lang: string) => string) =>
         Object.fromEntries(data.config.languages.map((lang) => [lang, absolute(data, build(data, lang))]));

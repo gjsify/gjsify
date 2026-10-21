@@ -24,6 +24,7 @@ import { parseFlathubStats, parseFlathubSummary } from './flathub.js';
 import { fetchLatestRelease, parseLatestRelease } from './github.js';
 import { loadSiteData } from './load.js';
 import { parseMetainfo } from './metainfo.js';
+import { buildAppManifest, loadRelatedApps, parseAppManifest, relatedText, relatedUrl } from './related.js';
 import { fetchJson } from './network.js';
 import { minimumAge } from './oars.js';
 import { completeLocalized, parseCatalog, resolveLocalized } from './po.js';
@@ -549,6 +550,191 @@ export default async () => {
                     await expect(loadSiteData({ root, offline: true })).rejects.toThrow(/does not exist/);
                 },
                 fixtureSite({ metainfo: 'data/nope.xml' }),
+            );
+        });
+    });
+
+    await describe('related apps', async () => {
+        const OTHER = 'https://example.org/other/';
+        const manifestFor = (url: string, extra: Record<string, unknown> = {}) => ({
+            schema: 1,
+            id: 'org.example.Other',
+            name: { en: 'Other', de: 'Anderes' },
+            summary: { en: 'Does other things' },
+            icon: `${url}icon.svg`,
+            url,
+            languages: ['en', 'de'],
+            developer: { name: 'Example Developer' },
+            ...extra,
+        });
+        const serve = (files: Record<string, unknown>) => async (url: string) => {
+            if (!(url in files)) return { ok: false, status: 404, json: async () => ({}) };
+            return { ok: true, status: 200, json: async () => files[url] };
+        };
+        const site = (relatedApps: unknown[]) => fixtureSite({ relatedApps });
+
+        await it('parses site addresses and inline entries, in order', async () => {
+            const config = parseSiteConfig(
+                manifest({
+                    relatedApps: [
+                        'https://example.org/a',
+                        { url: 'https://example.org/b/', name: 'B', summary: 'Bee', icon: 'https://example.org/b.png' },
+                    ],
+                }),
+            );
+            expect(config.relatedApps[0]).toStrictEqual({ url: 'https://example.org/a/' });
+            expect(config.relatedApps[1]!.name).toBe('B');
+            expect(parseSiteConfig(manifest({})).relatedApps).toStrictEqual([]);
+            expect(() => parseSiteConfig(manifest({ relatedApps: 'x' }))).toThrow(/relatedApps must be a list/);
+            expect(() => parseSiteConfig(manifest({ relatedApps: ['ftp://x'] }))).toThrow(/relatedApps\[0\]/);
+            expect(() => parseSiteConfig(manifest({ relatedApps: [{ url: 'https://x/', summary: 's' }] }))).toThrow(
+                /needs "name"/,
+            );
+        });
+
+        await it('emits an app.json shape from the metainfo, translations included', async () => {
+            await withFixture(async (root) => {
+                const data = await loadSiteData({ root, offline: true });
+                const json = buildAppManifest(data, 'https://example.org/notes/icon.svg');
+                expect(json.schema).toBe(1);
+                expect(json.id).toBe('org.example.Notes');
+                expect(json.name).toStrictEqual({ en: 'Notes', de: 'Notizen' });
+                expect(json.summary.de).toBe('Dinge aufschreiben');
+                expect(json.icon).toBe('https://example.org/notes/icon.svg');
+                expect(json.url).toBe('https://example.org/notes/');
+                expect(json.developer).toStrictEqual({ id: 'org.example', name: 'Example Developer' });
+                expect(typeof parseAppManifest(JSON.parse(JSON.stringify(json)))).toBe('object');
+            });
+        });
+
+        await it('rejects an unknown schema or a broken body', async () => {
+            expect(typeof parseAppManifest(manifestFor(OTHER, { schema: 2 }))).toBe('string');
+            expect(typeof parseAppManifest(manifestFor(OTHER, { name: {} }))).toBe('string');
+            expect(typeof parseAppManifest('x')).toBe('string');
+        });
+
+        await it('fetches app.json in configured order and drops the site itself', async () => {
+            await withFixture(
+                async (root) => {
+                    const data = await loadSiteData({
+                        root,
+                        network: {
+                            fetch: serve({
+                                [`${OTHER}app.json`]: manifestFor(OTHER),
+                                'https://example.org/second/app.json': manifestFor('https://example.org/second/', {
+                                    id: 'org.example.Second',
+                                    name: { en: 'Second' },
+                                }),
+                            }),
+                        },
+                        offline: false,
+                    });
+                    expect(data.relatedApps.map((app) => app.id)).toStrictEqual([
+                        'org.example.Other',
+                        'org.example.Second',
+                    ]);
+                    expect(relatedText(data.relatedApps[0]!.name, 'de')).toBe('Anderes');
+                    expect(relatedText(data.relatedApps[0]!.summary, 'de')).toBe('Does other things');
+                    expect(relatedUrl(data.relatedApps[0]!, 'de')).toBe(`${OTHER}de/`);
+                    expect(relatedUrl(data.relatedApps[0]!, 'fr')).toBe(`${OTHER}en/`);
+                },
+                site([OTHER, 'https://example.org/notes', 'https://example.org/second']),
+            );
+        });
+
+        await it('matches the site itself regardless of letter case', async () => {
+            await withFixture(
+                async (root) => {
+                    const data = await loadSiteData({ root, network: { fetch: serve({}) } });
+                    expect(data.relatedApps).toStrictEqual([]);
+                },
+                site(['https://Example.org/NOTES']),
+            );
+        });
+
+        await it("drops an entry that carries the site's own app id", async () => {
+            await withFixture(
+                async (root) => {
+                    const data = await loadSiteData({
+                        root,
+                        network: {
+                            fetch: serve({
+                                [`${OTHER}app.json`]: manifestFor(OTHER, { id: 'org.example.Notes' }),
+                            }),
+                        },
+                    });
+                    expect(data.relatedApps).toStrictEqual([]);
+                },
+                site([OTHER]),
+            );
+        });
+
+        await it('does not fetch anything when none is configured', async () => {
+            await withFixture(async (root) => {
+                let calls = 0;
+                const data = await loadSiteData({
+                    root,
+                    network: {
+                        fetch: async () => {
+                            calls++;
+                            return { ok: false, status: 500, json: async () => ({}) };
+                        },
+                    },
+                    offline: true,
+                });
+                expect(data.relatedApps).toStrictEqual([]);
+                expect(calls).toBe(0);
+            });
+        });
+
+        await it('falls back to the last good copy, else skips with a warning', async () => {
+            await withFixture(
+                async (root) => {
+                    const cacheDir = join(root, 'cache');
+                    const warnings: string[] = [];
+                    const warn = (message: string) => warnings.push(message);
+                    const config = parseSiteConfig({ gjsify: { site: site([OTHER]) } });
+                    const ok = await loadRelatedApps(config, 'x', {
+                        warn,
+                        network: { cacheDir, fetch: serve({ [`${OTHER}app.json`]: manifestFor(OTHER) }) },
+                    });
+                    expect(ok.length).toBe(1);
+                    const down = await loadRelatedApps(config, 'x', {
+                        warn,
+                        network: { cacheDir, fetch: async () => Promise.reject(new Error('down')) },
+                    });
+                    expect(down.map((app) => app.id)).toStrictEqual(['org.example.Other']);
+                    expect(warnings).toStrictEqual([]);
+                    const none = await loadRelatedApps(config, 'x', {
+                        warn,
+                        network: {
+                            cacheDir: join(root, 'empty'),
+                            fetch: async () => Promise.reject(new Error('down')),
+                        },
+                    });
+                    expect(none).toStrictEqual([]);
+                    expect(warnings.length).toBe(1);
+                    expect(warnings[0]).toMatch(/app\.json.*skipping/);
+                    const offline = await loadRelatedApps(config, 'x', { warn, offline: true, network: { cacheDir } });
+                    expect(offline.length).toBe(1);
+                },
+                site([OTHER]),
+            );
+        });
+
+        await it('lists an inline entry without fetching', async () => {
+            await withFixture(
+                async (root) => {
+                    const data = await loadSiteData({
+                        root,
+                        network: { fetch: async () => Promise.reject(new Error('no network')) },
+                        offline: true,
+                    });
+                    expect(data.relatedApps.length).toBe(1);
+                    expect(data.relatedApps[0]!.name.en).toBe('Plain');
+                    expect(relatedUrl(data.relatedApps[0]!, 'de')).toBe('https://example.org/plain/');
+                },
+                site([{ url: 'https://example.org/plain/', name: 'Plain', summary: 'No app.json' }]),
             );
         });
     });

@@ -167,6 +167,12 @@ msgstr ""
 msgid "Links"
 msgstr ""
 
+msgid "More apps by {developer}"
+msgstr ""
+
+msgid "More apps"
+msgstr ""
+
 msgid "Copied"
 msgstr ""
 

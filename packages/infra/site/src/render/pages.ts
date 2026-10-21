@@ -4,9 +4,12 @@ import {
     isBrowserPlatform,
     PLATFORM_ORDER,
     pickByLanguage,
+    relatedText,
+    relatedUrl,
     type DescriptionBlock,
     type DownloadTarget,
     type Localized,
+    type RelatedApp,
     type Release,
     type Screenshot,
     type SiteData,
@@ -593,6 +596,33 @@ ${items.join('\n')}
 </section>`;
 }
 
+function relatedCard(app: RelatedApp, lang: string): string {
+    const summary = relatedText(app.summary, lang);
+    const mark = app.icon
+        ? `<img class="related-icon" src="${esc(app.icon)}" alt="" width="48" height="48" loading="lazy">`
+        : `<span class="related-icon related-icon-blank">${icon('package')}</span>`;
+    return `<li>
+<a href="${esc(relatedUrl(app, lang))}">
+${mark}
+<span class="related-text"><span class="related-name">${esc(relatedText(app.name, lang))}</span>${summary ? `<span class="related-summary">${esc(summary)}</span>` : ''}</span>
+</a>
+</li>`;
+}
+
+/** Other apps of the same developer, resolved at build time so the page needs no script. */
+export function relatedSection(ctx: Pick<RenderContext, 'data' | 'lang' | 't'>): string {
+    const { data, lang, t } = ctx;
+    if (data.relatedApps.length === 0) return '';
+    const developer = data.app.developer.name;
+    const heading = developer ? fmt(t('More apps by {developer}'), { developer }) : esc(t('More apps'));
+    return `<section class="related">
+<h2>${heading}</h2>
+<ul class="related-list">
+${data.relatedApps.map((app) => relatedCard(app, lang)).join('\n')}
+</ul>
+</section>`;
+}
+
 /** A bank transfer as a card: the details to read or copy, and an EPC QR code that fills them into a banking app. */
 export function sepaCard(entry: SiteSupportSepa, t: Translate): string {
     const grouped = formatIban(entry.iban);
@@ -859,6 +889,7 @@ ${blocks(data.app.description, lang)}
 ${releases(ctx)}
 ${support(ctx)}
 ${links(ctx)}
+${relatedSection(ctx)}
 ${tags(ctx)}
 </div>
 </main>

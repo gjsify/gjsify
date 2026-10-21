@@ -93,6 +93,47 @@ export interface SiteDownloadConfig {
     component?: string;
 }
 
+/**
+ * One entry of `gjsify.site.relatedApps`: the site of another app, whose `app.json` is fetched at
+ * build time. With `name` set it is an inline entry instead — for an app that publishes no
+ * `app.json` (not built with gjsify) — and nothing is fetched.
+ */
+export interface SiteRelatedAppConfig {
+    url: string;
+    name?: string;
+    summary?: string;
+    icon?: string;
+}
+
+/**
+ * `app.json`, published next to every site's `index.html` so other sites can list the app. Bump
+ * `schema` on a breaking change; a reader ignores a schema it does not know.
+ */
+export interface AppManifest {
+    schema: 1;
+    id: string;
+    /** Keyed by language, the metainfo's source text under `sourceLanguage`. */
+    name: Record<string, string>;
+    summary: Record<string, string>;
+    /** Absolute URL of the app icon. */
+    icon?: string;
+    /** The site's own address. */
+    url: string;
+    /** Languages the site has pages for: `<url><lang>/` exists. */
+    languages: string[];
+    developer: { id?: string; name: string };
+}
+
+/** A related app as the page shows it: an `app.json` or an inline entry, validated. */
+export interface RelatedApp {
+    id?: string;
+    name: Record<string, string>;
+    summary: Record<string, string>;
+    icon?: string;
+    url: string;
+    languages: string[];
+}
+
 /** The `gjsify.site` block of the root package.json, with defaults applied. */
 export interface SiteConfig {
     metainfo: string;
@@ -127,6 +168,8 @@ export interface SiteConfig {
     releaseAssets: boolean;
     support: SiteSupportEntry[];
     legal: SiteLegalLink[];
+    /** Sites of other apps to list under "More apps by <developer>", in order. Empty: no section. */
+    relatedApps: SiteRelatedAppConfig[];
 }
 
 /**
@@ -266,6 +309,8 @@ export interface SiteData {
         hasReleases: boolean;
     };
     stats: Stats;
+    /** Resolved `gjsify.site.relatedApps`, in configured order, without this site's own app. */
+    relatedApps: RelatedApp[];
     /** Non-fatal problems met while collecting data, already logged. */
     warnings: string[];
 }
