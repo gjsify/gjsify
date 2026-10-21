@@ -161,8 +161,8 @@ legs, while `ENTRY_MAX_LENGTH_VECTORS` pins `notifications: 0` because C:1329-13
 notifies regardless, so upstream's omission only affects its direct C setter, and the vectors
 still describe that setter. The pin was left alone.
 
-1746 tests / 4764 assertions (node and gjs), 859 / 2368 trees; device: emulator API 36, 194
-real-gio and 100 pure-JS cases, `specs/rows.ts`. No Galaxy S9 was attached — that run is pending.
+1746 tests / 4764 assertions (node and gjs), 859 / 2368 trees; device: emulator API 36 and a
+Galaxy S9, 194 real-gio and 100 pure-JS cases each, `specs/rows.ts`.
 
 MIGRATE NEXT: `widgets/adw-expander-row.ts`, which `extends AdwActionRow` plainly today with an
 `expanded` get/set and an `add_row(child)` list. The QUESTION it raises is the first one about a
