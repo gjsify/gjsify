@@ -1,9 +1,12 @@
 // _link.scss — `link` and `button.link`, libadwaita's link treatment.
 //
-// UNSCOPED, because upstream's rule is on the node and the class together
-// (`_links.scss:1-2`) and both spellings have a reader: a `Gtk.Label` that is a link is
-// the `link` node, and a `Gtk.LinkButton` is `button.link`. `<gtk-link-button>` renders an
-// inner `<button class="adw-button link">`, so the class is what the selector needs.
+// ONLY `button.link`, not a bare `.link`. Upstream's rule names the `link` NODE and
+// `button.link` (`_links.scss:1-2`); the `link` node is the inner node of a `Gtk.Label`'s
+// `<a>` markup, which no element here renders. The `.link` style CLASS on anything but a
+// button is unstyled upstream: `AdwLinkRow` adds it to its row (adw-link-row.c:377), and
+// no rule matches `row.link`, so its title stays in the row's own colour. A bare `.link`
+// here painted the About dialog's link rows blue and underlined. `<gtk-link-button>`
+// renders an inner `<button class="adw-button link">`, which the selector below reads.
 //
 // THE TWO COLOURS ARE THE PALETTE'S, not new tokens: `$link_color: var(--accent-color)`
 // and `$link_visited_color: color-mix(in srgb, var(--accent-color) 80%, var(--view-fg-color))`
@@ -23,6 +26,7 @@
 //
 // Reference: refs/libadwaita/src/stylesheet/widgets/_links.scss:1-49
 // Reference: refs/libadwaita/src/stylesheet/_colors.scss:265-266
+// Reference: refs/libadwaita/src/adw-link-row.c:377 (the row's `.link` class)
 // Reference: refs/gtk/gtk/gtklinkbutton.c:380 (the `.link` style class), :646-672 (the
 //   URI tooltip), :742-749 (the VISITED state flag)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
@@ -33,7 +37,6 @@ $link-color: var(--accent-color);
 $link-visited-color: color-mix(in srgb, var(--accent-color) 80%, var(--view-fg-color));
 $osd-link-color: color-mix(in srgb, var(--accent-bg-color) 50%, white);
 
-.link,
 .adw-button.link {
   color: $link-color;
   text-decoration: underline;
