@@ -25,7 +25,7 @@ import { PURE_JS_ENGINE, registerGObjectEngine, resetRegisteredEngine } from '@g
 import type { ClassLike, ForeignClassMeta, GObjectEngine } from '@gjsify/adwaita-core';
 import type { Observable } from '@nativescript/core';
 
-import { withSignals } from './widgets/signals.js';
+import { readDeclaredValue, withSignals } from './widgets/signals.js';
 import type { DeclaredClassMeta } from './widgets/signals.js';
 import type { GObjectNotify } from './widgets/signals.js';
 import { ObservableShape } from './signals.spec.js';
@@ -444,6 +444,95 @@ async function coercionVectors(leg: string, engineSetup: () => void): Promise<vo
     });
 }
 
+/**
+ * A normalizer that reads its SIBLINGS off the instance — what `AdwEntryRow` needed to stop
+ * holding a second store beside its properties (ADR 0105 § 2).
+ *
+ * Two shapes, and they are the two a port keeps reaching for. `derived` IGNORES what was
+ * written and recomputes from `source`, which is how a `G_PARAM_READABLE` property is spelled
+ * in a seam that has no read-only flag: the write resolves to the value already held and the
+ * equal-write rule drops it. `limit` runs {@link readDeclaredValue} FIRST and then clamps, so
+ * an XML attribute still parses exactly as it would on a property with no normalizer at all —
+ * the bug being pinned is a normalizer that clamps `'5'` and stores a string.
+ */
+const DERIVED: DeclaredClassMeta = {
+    GTypeName: 'SpecDerived',
+    Properties: {
+        source: { kind: 'string', default: '' },
+        derived: { kind: 'uint', default: 0, normalize: (_value, self) => (self as { source: string }).source.length },
+        limit: {
+            kind: 'int',
+            default: 0,
+            normalize: (value) => Math.max(readDeclaredValue('limit', 'int', value) as number, 0),
+        },
+    },
+};
+
+function derivedClass() {
+    return class SpecDerived extends withSignals(Base, DERIVED) {
+        declare source: string;
+        declare derived: number;
+        declare limit: number;
+        declare notify: GObjectNotify;
+    };
+}
+
+/**
+ * The sibling-reading normalizer, run once per leg. The pure leg calls it on its way into the
+ * seam's own store and the real one on its way into node-gi, so a normalizer that only saw its
+ * value on one of them would be the per-leg difference these vectors exist to forbid.
+ */
+async function derivedVectors(leg: string, engineSetup: () => void): Promise<void> {
+    await describe(`withSignals(Base, meta) — a normalizer reading the instance (${leg})`, async () => {
+        const widgetWith = (): InstanceType<ReturnType<typeof derivedClass>> => {
+            resetRegisteredEngine();
+            engineSetup();
+            return new (derivedClass())();
+        };
+
+        await it('recomputes from a sibling and ignores the written value', () => {
+            const widget = widgetWith();
+            widget.source = 'Ada';
+            widget.derived = 99;
+            expect(widget.derived).toBe(3);
+        });
+
+        await it('drops the write that resolves to the value already held', () => {
+            const widget = widgetWith();
+            const seen: number[] = [];
+            widget.source = 'Ada';
+            widget.derived = 0;
+            widget.connect('notify::derived', (self) => seen.push(self.derived));
+            widget.derived = 0;
+            widget.derived = 99;
+            expect(seen).toStrictEqual([]);
+            expect(widget.derived).toBe(3);
+        });
+
+        await it('moves only when the SIBLING moves — the owner re-asserting it', () => {
+            const widget = widgetWith();
+            const seen: number[] = [];
+            widget.connect('notify::derived', (self) => seen.push(self.derived));
+            widget.source = 'Ada';
+            // What a widget does from its own `notify::source` handler: re-assert the derived
+            // property so the normalizer runs against the new sibling value.
+            widget.derived = 0;
+            expect(seen).toStrictEqual([3]);
+        });
+
+        await it('parses the XML string BEFORE clamping, so an attribute reads as a typed write', () => {
+            const widget = widgetWith();
+            (widget as unknown as Record<string, unknown>).limit = ' 5 ';
+            expect(widget.limit).toBe(5);
+            widget.limit = -1;
+            expect(widget.limit).toBe(0);
+            // The parse is the declared one: garbage is refused rather than clamped to the floor.
+            expect(() => ((widget as unknown as Record<string, unknown>).limit = 'five')).toThrow();
+            expect(widget.limit).toBe(0);
+        });
+    });
+}
+
 export default async () => {
     await describe('withSignals(Base, meta) — the pure-JS leg', async () => {
         await it('answers a declared property in all three spellings, at its default', () => {
@@ -657,6 +746,8 @@ export default async () => {
 
     await coercionVectors('pure-JS leg', () => {});
     await coercionVectors('route D', () => registerGObjectEngine(stubEngine([])));
+    await derivedVectors('pure-JS leg', () => {});
+    await derivedVectors('route D', () => registerGObjectEngine(stubEngine([])));
     await oneDoorVectors('pure-JS leg', () => {});
     await oneDoorVectors('route D', () => registerGObjectEngine(stubEngine([])));
 };

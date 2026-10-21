@@ -674,6 +674,12 @@ const NS_PROPERTY_ALIGNMENT = {
     'gtk-drop-down.selectedValue': {
         own: 'The same read-only counterpart as `adw-combo-row.selectedValue`: `Gtk.DropDown:selected-item` is not writable, so GtkDropDownProps has no key for it. The port derives the string from its own options array (gtk-drop-down.ts:145-147).',
     },
+    'adw-entry-row.text-length': {
+        own: "`Adw.EntryRow:text-length` is readable and not writable upstream, so generated/props.ts emits no key for it under any spelling — the same read-only-counterpart shape as `adw-carousel.position` above. The difference is where the read-only-ness lives: route D's seam has no read-only flag, so this port spells it BY DERIVATION. The declared property's `normalize` ignores whatever was written and recomputes `entryTextLength(self.text)`, so a write settles to the value the row already holds and is dropped as an equal write (adw-entry-row.ts, the `text-length` block). Declared and left, with the asymmetry stated rather than hidden: GTK REFUSES the write, this port absorbs it. Both spellings appear because the seam installs every declared property under all three.",
+    },
+    'adw-entry-row.textLength': {
+        own: 'The camel spelling of the derived property above, installed by the same seam for the same declaration: `Adw.EntryRow:text-length` is read-only upstream, AdwEntryRowProps therefore has no key under either name, and the value here is recomputed from the sibling `text` on every write instead of stored.',
+    },
     'gtk-drop-down.chooserTitle': {
         own: 'A declared SUBSTITUTION rather than a port: the file says so itself — "GTK\'s popover has no title, but a bare native sheet gives no clue what is being chosen" (gtk-drop-down.ts:163). There is no popover-title property anywhere in GtkDropDownProps to converge towards.',
     },

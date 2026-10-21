@@ -49,8 +49,13 @@ export interface NotifyRevealedEventData extends EventData {
 export class AdwPasswordEntryRow extends AdwEntryRow {
     static readonly GTypeName: string = 'AdwPasswordEntryRow';
 
-    /** The headless peek + caps-lock derivation, composing the parent row's state. */
-    private readonly _password = new PasswordEntryRowState(this._state);
+    /**
+     * The headless peek + caps-lock derivation, composing the parent ROW — since the entry row
+     * became a real GObject (ADR 0105 § 2) there is no `EntryRowState` beside it to hand over,
+     * and the composition never wanted one: all it reaches the parent through is the private
+     * `setShowIndicator` hook, which the row itself answers.
+     */
+    private readonly _password = new PasswordEntryRowState(this);
     /** The trailing peek (reveal/conceal) toggle button. */
     protected readonly _peekButton: AdwImageButton;
 

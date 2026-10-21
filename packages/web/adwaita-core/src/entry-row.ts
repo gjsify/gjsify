@@ -99,6 +99,17 @@ export function clampEntryText(text: string, maxLength: number): string {
 }
 
 /**
+ * Clamp a `max-length` into `[0, ENTRY_ROW_MAX_LENGTH_LIMIT]`, with a non-finite input settling
+ * to `0` (unlimited) — the range `Adw.EntryRow:max-length` declares. Split out of
+ * {@link EntryRowState} for the same reason {@link clampEntryText} is: a renderer that holds the
+ * limit itself still has to land on the same number.
+ */
+export function clampEntryMaxLength(maxLength: number): number {
+    if (!Number.isFinite(maxLength)) return 0;
+    return Math.min(ENTRY_ROW_MAX_LENGTH_LIMIT, Math.max(0, Math.trunc(maxLength)));
+}
+
+/**
  * The complete render snapshot of an entry row: the five outputs of
  * `update_empty`, the animation endpoint it drives
  *, and the inputs a renderer echoes into CSS classes.
@@ -152,6 +163,76 @@ export type EntryRowStateListener = (state: EntryRowRenderState) => void;
 export type EntryRowActivation = { signal: 'apply' } | { signal: 'entry-activated'; activateDefault: boolean };
 
 /**
+ * What `update_empty` READS. Not every input of the widget: `max_length` reaches the table only
+ * through `text`, and `show_apply_button` / `activates_default` only through the latch and the
+ * <kbd>Enter</kbd> dispatch, so neither belongs in a function that derives the five outputs.
+ */
+export interface EntryRowInputs {
+    /** The entry contents, already truncated to the row's `max-length`. */
+    readonly text: string;
+    /** Whether the embedded entry has focus — `priv->editing`. */
+    readonly editing: boolean;
+    /** Whether the embedded entry accepts edits (`GtkEditable:editable`). */
+    readonly editable: boolean;
+    /** The private `adw_entry_row_set_show_indicator` hook's state. */
+    readonly showIndicator: boolean;
+    /** The pending-apply latch — `priv->text_changed`. */
+    readonly textChanged: boolean;
+}
+
+// THE RULES AS FUNCTIONS, BESIDE THE STATE OBJECT THAT USES THEM. `EntryRowState` is the shape a
+// renderer wants when the renderer owns the storage — `@gjsify/adwaita-web` holds its values in
+// one, and the conformance vectors drive it. `@gjsify/adwaita-nativescript` cannot: since ADR
+// 0105 § 2 its `AdwEntryRow` is a REAL GObject on Android, and a GObject property lives in the
+// GObject's own store, which `NodeGiGetProperty` reads and a JS field is not. Keeping an
+// `EntryRowState` beside it would be the defect `adw-switch-row.ts` names — two stores and one of
+// them stale — so that port holds the six properties itself and asks these functions for the
+// rules. They are the SAME functions `EntryRowState` delegates to below, which is the point:
+// the alternative was a second copy of `update_empty` in the widget, against ADR 0004.
+
+/** `update_empty` (adw-entry-row.c:147-161) — the five outputs, as data. */
+export function deriveEntryRowState(inputs: EntryRowInputs): EntryRowRenderState {
+    const { text, editing, editable, showIndicator, textChanged } = inputs;
+    const textLength = entryTextLength(text);
+    // The C's `focused` term is `is_text_focused()`, the same source `priv->editing` is
+    // assigned from, so the two are one input here.
+    const empty = textLength === 0 && !(editing && editable) && !textChanged;
+    return {
+        text,
+        textLength,
+        empty,
+        editing,
+        editable,
+        textChanged,
+        editIconVisible: !textChanged && (!editing || !editable),
+        editIconSensitive: editable,
+        indicatorVisible: editing && showIndicator,
+        applyButtonVisible: textChanged,
+        emptyTarget: empty ? 0 : 1,
+    };
+}
+
+/**
+ * Whether a text change ARMS the pending-apply latch — `text_changed_cb` (C:166-174).
+ *
+ * Keyed off `show_apply_button && editing` and never off the change's ORIGIN, which is why a
+ * programmatic set while the entry is focused latches exactly like a keystroke (module header).
+ */
+export function entryRowLatches(showApplyButton: boolean, editing: boolean): boolean {
+    return showApplyButton && editing;
+}
+
+/**
+ * What <kbd>Enter</kbd> resolves to — `text_activated_cb`. Pure: clearing the latch on the apply
+ * path is the CALLER's, because that half is a state change and this is the decision.
+ */
+export function resolveEntryRowActivation(textChanged: boolean, activatesDefault: boolean): EntryRowActivation {
+    // The C branches on the apply button's child-visibility, i.e. `text_changed`.
+    if (textChanged) return { signal: 'apply' };
+    return { signal: 'entry-activated', activateDefault: activatesDefault };
+}
+
+/**
  * `Adw.EntryRow`'s derivation, headless: the `update_empty` truth table, the
  * `text_changed` latch with both of its reset paths, character-counted
  * max-length truncation, and the two-way <kbd>Enter</kbd> dispatch.
@@ -192,23 +273,13 @@ export class EntryRowState {
 
     /** The current render snapshot — `update_empty`'s outputs, freshly derived. */
     get state(): EntryRowRenderState {
-        const textLength = entryTextLength(this._text);
-        // The C's `focused` term is `is_text_focused()`, the same source `priv->editing` is
-        // assigned from, so the two are one input here.
-        const empty = textLength === 0 && !(this._editing && this._editable) && !this._textChanged;
-        return {
+        return deriveEntryRowState({
             text: this._text,
-            textLength,
-            empty,
             editing: this._editing,
             editable: this._editable,
+            showIndicator: this._showIndicator,
             textChanged: this._textChanged,
-            editIconVisible: !this._textChanged && (!this._editing || !this._editable),
-            editIconSensitive: this._editable,
-            indicatorVisible: this._editing && this._showIndicator,
-            applyButtonVisible: this._textChanged,
-            emptyTarget: empty ? 0 : 1,
-        };
+        });
     }
 
     /** The entry contents. */
@@ -236,7 +307,7 @@ export class EntryRowState {
 
     /** `text_changed_cb` — latch iff the apply button is armed AND we are editing, then re-derive. */
     private _latchAndUpdate(): void {
-        if (this._showApplyButton && this._editing) this._textChanged = true;
+        if (entryRowLatches(this._showApplyButton, this._editing)) this._textChanged = true;
         this._update();
     }
 
@@ -260,9 +331,7 @@ export class EntryRowState {
      * "helpfully" add one.
      */
     setMaxLength(maxLength: number): boolean {
-        const next = Number.isFinite(maxLength)
-            ? Math.min(ENTRY_ROW_MAX_LENGTH_LIMIT, Math.max(0, Math.trunc(maxLength)))
-            : 0;
+        const next = clampEntryMaxLength(maxLength);
         if (next === this._maxLength) return false;
         this._maxLength = next;
         const clamped = clampEntryText(this._text, next);
@@ -377,12 +446,9 @@ export class EntryRowState {
      * equivalent and stays with the renderer.
      */
     activate(): EntryRowActivation {
-        // The C branches on the apply button's child-visibility, i.e. `text_changed`.
-        if (this._textChanged) {
-            this.apply();
-            return { signal: 'apply' };
-        }
-        return { signal: 'entry-activated', activateDefault: this._activatesDefault };
+        const activation = resolveEntryRowActivation(this._textChanged, this._activatesDefault);
+        if (activation.signal === 'apply') this.apply();
+        return activation;
     }
 }
 
@@ -413,13 +479,26 @@ export interface PasswordEntryRowRenderState {
 export type PasswordEntryRowStateListener = (state: PasswordEntryRowRenderState) => void;
 
 /**
+ * All {@link PasswordEntryRowState} needs of the row beneath it: the private
+ * `adw_entry_row_set_show_indicator` hook, which is the only thing the C subclass reaches its
+ * parent through. STRUCTURAL rather than `EntryRowState`, because a renderer that holds the
+ * entry row's values itself — `@gjsify/adwaita-nativescript`'s `AdwEntryRow`, which holds them
+ * as real GObject properties — has the hook as a method on the widget and no state object to
+ * hand over. `EntryRowState` satisfies it unchanged.
+ */
+export interface EntryRowIndicatorSink {
+    setShowIndicator(show: boolean): void;
+}
+
+/**
  * `Adw.PasswordEntryRow`'s extra behaviour, headless: the reveal/conceal pair
  * and the caps-lock warning with BOTH of its suppression rules.
  *
- * COMPOSES an {@link EntryRowState} rather than extending it, mirroring the C:
+ * COMPOSES an {@link EntryRowIndicatorSink} rather than extending the entry row, mirroring the C:
  * `AdwPasswordEntryRow` is a subclass but reaches its parent through the private
  * `adw_entry_row_set_show_indicator` hook, not a protected field. Composition
- * also keeps `EntryRowState` usable on its own for a plain entry row.
+ * also keeps `EntryRowState` usable on its own for a plain entry row — and the hook being the
+ * WHOLE dependency is what lets a renderer hand over the row itself instead of a state object.
  *
  * Every reveal/caps-lock change recomputes `!revealed && capsLockOn` and pushes it into the
  * entry — which is why peeking makes the caps-lock warning disappear. The second suppression
@@ -428,12 +507,12 @@ export type PasswordEntryRowStateListener = (state: PasswordEntryRowRenderState)
  * which is what `notify_has_focus_cb` achieves by re-running `update_caps_lock`.
  */
 export class PasswordEntryRowState {
-    private readonly _entry: EntryRowState;
+    private readonly _entry: EntryRowIndicatorSink;
     private _revealed = false;
     private _capsLockOn = false;
     private readonly _listeners = new Set<PasswordEntryRowStateListener>();
 
-    constructor(entry: EntryRowState) {
+    constructor(entry: EntryRowIndicatorSink) {
         this._entry = entry;
         // `adw_password_entry_row_init` starts masked and calls `notify_visibility_cb` once to
         // seed the icon — but that callback only touches caps lock `if (self->keyboard)`, and

@@ -34,7 +34,6 @@ import {
     NOTIFY_VALUE,
     type NotifySelectedEventData,
     type NotifySliderValueEventData,
-    type NotifyTextEventData,
     type NotifyValueEventData,
 } from '@gjsify/adwaita-nativescript';
 import type { View } from '@nativescript/core';
@@ -59,7 +58,8 @@ const ADWAITA_NS_FACTORY: ControlWidgetFactory<View> = {
         const row = new Adw.EntryRow();
         row.title = label;
         let cb: (v: string) => void = () => {};
-        row.addEventListener(NOTIFY_TEXT, (e) => cb((e as NotifyTextEventData).text));
+        // Declared property, so `connect` and the emitter — same as `boolean` below.
+        row.connect(NOTIFY_TEXT, (self) => cb(self.text));
         return {
             node: row,
             get: () => row.text ?? '',
@@ -80,7 +80,7 @@ const ADWAITA_NS_FACTORY: ControlWidgetFactory<View> = {
         row.title = `${label} (hex)`;
         if (desc) row.subtitle = desc;
         let cb: (v: string) => void = () => {};
-        row.addEventListener(NOTIFY_TEXT, (e) => cb((e as NotifyTextEventData).text));
+        row.connect(NOTIFY_TEXT, (self) => cb(self.text));
         return {
             node: row,
             get: () => row.text ?? '',

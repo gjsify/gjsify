@@ -125,15 +125,58 @@ handler still runs, the assignment returns and the property keeps its value) and
 behaviour via `SurfacePendingException`. 16 both-legs vectors in `signals-gobject.spec.ts`, 5 on
 the device in `specs/rows.ts`.
 
-MIGRATE NEXT: `widgets/adw-entry-row.ts`, the first derived widget whose own vocabulary is not
-just properties — `apply` and `entry-activated`, the second with a payload, both
-`this.notify({ eventName })` today. The signal QUESTION is answered by the rule above: declare
-them in the seam's `Signals` block and move this repo's callers to `connect`, rather than hold two
-doors for one member. `packages/nativescript-bridge/storybook/src/controls.ts` is the caller to
-fix with it (`addEventListener(NOTIFY_TEXT, …)` on the entry row). What is genuinely open is the
-DELEGATE CHILD: the row owns a `TextField` and its text has to be the declared property's single
-store. Not `adw-button-content.ts` yet: its `hostButton` is a `View`, an object-typed property
-with no ParamSpec kind.
+`widgets/adw-entry-row.ts` is the FIFTH, the second derived registration, and the first whose
+properties are not independent of one another: six declared (`text`, `text-length`, `max-length`,
+`editable`, `show-apply-button`, `activates-default`) and two declared signals (`apply`,
+`entry-activated`, both parameterless as upstream declares them).
+
+THE DELEGATE CHILD, answered: the owned `TextField` is a VIEW, never a store. One funnel each way
+— the renderer writes the field from the property, and the field's `textChange` writes back
+through `this.text` rather than past it, so typing and a programmatic write take the same
+normalizer and the equal-write rule ends the loop. `EntryRowState` is gone from the widget (it
+stays in `@gjsify/adwaita-core` for adwaita-web and the conformance vectors); what the widget kept
+of it is a handful of additive pure functions there — `clampEntryText`, `entryTextLength`,
+`clampEntryMaxLength`, `deriveEntryRowState`, `resolveEntryRowActivation`.
+
+A PROPERTY DERIVED FROM A PROPERTY is the new seam shape. `text-length` is read-only upstream and
+read-only here BY DERIVATION: its `normalize` ignores what was written and recomputes from its
+SIBLING `text`, which needed `normalize(value, self)` — the seam now hands the instance to the
+normalizer on both legs, and `wrapRouteDAccessors` passes it through node-gi's `set_property` too.
+A normalizer that must parse an XML string BEFORE its own rule calls the exported
+`readDeclaredValue(name, kind, value)` first; `max-length` does, so `maxLength="five"` throws
+where `maxLength="5"` clamps. The cost, written down rather than hidden: `notify::text-length`
+is emitted from INSIDE the `notify::text` emission.
+
+`setShowIndicator` stayed a METHOD and did not become a property — C:1281-1296 re-derives with no
+equality guard, and a declared property would add exactly the guard it must not have.
+
+CONSUMER-VISIBLE: `apply` and `entry-activated` are GSignals reached through `connect`, not
+NativeScript events; `NotifyTextEventData`, `NotifyTextLengthEventData` and
+`EntryActivatedEventData` are deleted (read the value off the emitter);
+`maxLength="five"` throws. `storybook/src/controls.ts` is moved over in the same PR.
+
+An UPSTREAM WRINKLE to keep in view: declaring `max-length` makes it notify on change on both
+legs, while `ENTRY_MAX_LENGTH_VECTORS` pins `notifications: 0` because C:1329-1343 has no
+`g_object_notify_by_pspec` for `PROP_MAX_LENGTH`. Both are right — `g_object_set_property`
+notifies regardless, so upstream's omission only affects its direct C setter, and the vectors
+still describe that setter. The pin was left alone.
+
+1746 tests / 4764 assertions (node and gjs), 859 / 2368 trees; device: emulator API 36 and a
+Galaxy S9, 194 real-gio and 100 pure-JS cases each, `specs/rows.ts`.
+
+MIGRATE NEXT: `widgets/adw-expander-row.ts`, which `extends AdwActionRow` plainly today with an
+`expanded` get/set and an `add_row(child)` list. The QUESTION it raises is the first one about a
+property that owns a SUBTREE rather than a view's attribute: `expanded` reveals and collapses
+child rows, and upstream pairs it with `enable-expansion` and `show-enable-switch`, where one
+property gates another's effect. Not `adw-button-content.ts` or `adw-combo-row.ts` yet: both want
+an OBJECT-typed property (`hostButton` is a `View`, `model`/`selected-item` are objects) and the
+seam has no ParamSpec kind for one.
+
+ALSO OPEN, from the device run: `emit('<undeclared>')` does NOT throw. The seam's `emit` is also
+this port's NativeScript dispatch door, so a name no class declared goes to the observable
+instead, where GJS would throw. The refusal `addEventListener` gained in #2325 has no counterpart
+on `emit`, and giving it one would make a consumer's own invented event name throw — a decision
+with a trade-off, left for the owner.
 
 CARRY THESE: `vfunc_*` does not work on a foreign-parent class, so a widget that needs one stays
 on the twin. A REFUSAL MAY NOT LIVE IN A `notify::` HANDLER: an exception thrown there is logged

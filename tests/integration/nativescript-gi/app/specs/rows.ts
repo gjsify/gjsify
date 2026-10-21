@@ -17,7 +17,8 @@
 // engine disagrees. The SECOND is real-GObject only — a GType chain, `type_parent`, inherited
 // `get_property` and `bind_property` across the inheritance are what route D buys here.
 import { Adw } from '@gjsify/adwaita-nativescript';
-import { GridLayout, Label, Switch, View, ViewBase } from '@nativescript/core';
+import { GestureTypes, GridLayout, Label, Switch, TextField, View, ViewBase } from '@nativescript/core';
+import type { Image } from '@nativescript/core';
 
 import { describe, expect, info, it } from '../reporter.js';
 import { requireGi } from '../opt-in.js';
@@ -34,10 +35,38 @@ interface Internals {
 
 const inner = (widget: Adw.ActionRow | Adw.SwitchRow): Internals => widget as unknown as Internals;
 
+/** The views an entry row composes; like {@link Internals}, only its own renderer writes them. */
+interface EntryInternals extends Internals {
+    _field: TextField;
+    _emptyTitle: Label;
+    _editIcon: Image;
+    _indicator: Image;
+    _applyButton: View;
+}
+
+const entryInner = (widget: Adw.EntryRow): EntryInternals => widget as unknown as EntryInternals;
+
+/** How many tap GESTURE observers a view carries — `on('tap')` lands here, not in the observer map. */
+const tapObservers = (view: View): number => ((view as Any).getGestureObservers(GestureTypes.tap) ?? []).length;
+
+/**
+ * The focus / return-key inputs, as the platform delivers them.
+ *
+ * A device cannot type: `focus`, `blur` and `returnPress` reach the row only from a real
+ * keyboard. `Observable.notify` is the same door NativeScript's own view code posts them
+ * through, so the row's handlers run exactly as they would — while `text` is written onto the
+ * field directly, because NativeScript's `textProperty` fires `textChange` for a programmatic
+ * write too and that IS the typing path.
+ */
+const emitOn = (view: View, eventName: string): void => {
+    view.notify({ eventName, object: view });
+};
+
 export const rowsSpec = (engine: 'real-gio' | 'pure-js') => async (): Promise<void> => {
     // The MIXIN classes are where the seam registers, so they are where the two GTypes land.
     const rowMixin = Object.getPrototypeOf(Adw.ActionRow) as Any;
     const switchMixin = Object.getPrototypeOf(Adw.SwitchRow) as Any;
+    const entryMixin = Object.getPrototypeOf(Adw.EntryRow) as Any;
 
     await describe(`Adw.ActionRow on '${engine}' (ADR 0105 § 2, route D)`, async () => {
         await it('constructs as a real NativeScript GridLayout with two labels', () => {
@@ -249,6 +278,233 @@ export const rowsSpec = (engine: 'real-gio' | 'pure-js') => async (): Promise<vo
         });
     });
 
+    // THE SECOND DERIVED REGISTRATION, and the first one whose properties are not independent of
+    // each other (ADR 0105 § 2, route D). `AdwEntryRow` used to hold an `EntryRowState` beside
+    // itself and expose it through plain getters; its six values are now declared properties, so
+    // on 'real-gio' every one of them is a real pspec and every write lands in node-gi.
+    //
+    // What that moves onto the device, beyond "six more properties work":
+    //   · `text-length` is derived by a NORMALIZER that reads its SIBLING `text` off the
+    //     instance. node-gi's `set_property` has to hand the instance to the seam's wrapper, or
+    //     the derivation reads `undefined` on the real leg while passing off-device.
+    //   · `notify::text-length` is emitted from INSIDE the `notify::text` emission, which on this
+    //     leg is a `g_object_notify_by_pspec` re-entered during another one.
+    //   · `apply` and `entry-activated` are real GSignals here, reached through `connect` and
+    //     `emit` rather than through the NativeScript event table they used before.
+    await describe(`Adw.EntryRow on '${engine}' (six declared properties, two signals)`, async () => {
+        await it('is an action row over a GridLayout, with a real TextField in its title column', () => {
+            const row = new Adw.EntryRow();
+            info(
+                `ctor=${row.constructor?.name} gtypeName=${entryMixin.$gtypeName ?? 'none'} ` +
+                    `skipped=[${(entryMixin.$foreignSkipped ?? []).join(',')}]`,
+            );
+            expect(row instanceof Adw.ActionRow).toBe(true);
+            expect(row instanceof GridLayout).toBe(true);
+            expect(entryInner(row)._field instanceof TextField).toBe(true);
+            expect(entryInner(row)._applyButton instanceof View).toBe(true);
+        });
+
+        await it("starts at adw_entry_row_init's defaults", () => {
+            const row = new Adw.EntryRow();
+            info(
+                `text='${row.text}' length=${row.textLength} max=${row.maxLength} ` +
+                    `editable=${row.editable} apply=${row.showApplyButton} activates=${row.activatesDefault}`,
+            );
+            expect(row.text).toBe('');
+            expect(row.textLength).toBe(0);
+            expect(row.maxLength).toBe(0);
+            expect(row.editable).toBe(true);
+            expect(row.showApplyButton).toBe(false);
+            expect(row.activatesDefault).toBe(false);
+        });
+
+        await it('carries the field both ways — property to view, typing back to property', () => {
+            const row = new Adw.EntryRow();
+            const seen: string[] = [];
+            row.connect('notify::text', (self: Adw.EntryRow) => seen.push(self.text));
+            row.text = 'Ada';
+            row.text = 'Ada';
+            expect(entryInner(row)._field.text).toBe('Ada');
+            // What a keystroke produces: NativeScript posts `textChange` for this write too.
+            entryInner(row)._field.text = 'Ada L';
+            info(`seen=[${seen.join('|')}] field='${entryInner(row)._field.text}'`);
+            expect(row.text).toBe('Ada L');
+            expect(seen.join('|')).toBe('Ada|Ada L');
+        });
+
+        await it('derives text-length from its SIBLING, and settles it before either notify', () => {
+            // The normalizer ignores what was written and recomputes from `text`, which is how a
+            // G_PARAM_READABLE property is spelled in a seam with no read-only flag.
+            const row = new Adw.EntryRow();
+            const seen: string[] = [];
+            row.connect('notify::text-length', (self: Adw.EntryRow) =>
+                seen.push(`len:${self.textLength}:${self.text}`),
+            );
+            row.connect('notify::text', (self: Adw.EntryRow) => seen.push(`text:${self.text}:${self.textLength}`));
+            row.text = 'Ada';
+            (row as Any).textLength = 99;
+            info(`seen=[${seen.join(' ')}] length=${row.textLength}`);
+            // The derived notify nests INSIDE the text one; the direct write resolves to the
+            // value already held, so the equal-write rule drops it.
+            expect(seen.join(' ')).toBe('len:3:Ada text:Ada:3');
+            expect(row.textLength).toBe(3);
+        });
+
+        await it('counts CHARACTERS, not UTF-16 units — on this runtime too', () => {
+            const row = new Adw.EntryRow({ text: '👩‍💻' });
+            info(`length=${row.textLength} units=${row.text.length}`);
+            // One grapheme, three code points, five UTF-16 units: the C counts with
+            // g_utf8_strlen, so the only wrong answer a JS port gives for free is 5.
+            expect(row.textLength).toBe(3);
+        });
+
+        await it('truncates to max-length inside the normalizer, in both write directions', () => {
+            const row = new Adw.EntryRow({ text: 'Ada Lovelace', maxLength: 5 });
+            expect(row.text).toBe('Ada L');
+            expect(entryInner(row)._field.text).toBe('Ada L');
+            entryInner(row)._field.text = 'Grace Hopper';
+            info(`typed-then-clamped='${row.text}' field='${entryInner(row)._field.text}'`);
+            expect(row.text).toBe('Grace');
+            expect(entryInner(row)._field.text).toBe('Grace');
+        });
+
+        await it('truncates what it already holds when the limit DROPS, as an ordinary change', () => {
+            const row = new Adw.EntryRow({ text: 'Ada Lovelace' });
+            const seen: string[] = [];
+            row.connect('notify::text', (self: Adw.EntryRow) => seen.push(self.text));
+            row.maxLength = 5;
+            info(`seen=[${seen.join('|')}] text='${row.text}'`);
+            expect(row.text).toBe('Ada L');
+            expect(seen.join('|')).toBe('Ada L');
+            // A limit that truncates nothing produces an equal write, which the property drops.
+            row.maxLength = 4000;
+            expect(seen.join('|')).toBe('Ada L');
+        });
+
+        await it('paints the five outputs of update_empty through one derivation', () => {
+            const row = new Adw.EntryRow({ title: 'Name', showApplyButton: true });
+            const views = entryInner(row);
+            expect(views._emptyTitle.visibility).toBe('visible');
+            expect(views._editIcon.visibility).toBe('visible');
+            expect(views._applyButton.visibility).toBe('collapse');
+
+            emitOn(views._field, 'focus');
+            views._field.text = 'Ada';
+            info(
+                `editing=${row.editing} changed=${row.textChanged} empty=${views._emptyTitle.visibility} ` +
+                    `pencil=${views._editIcon.visibility} apply=${views._applyButton.visibility} ` +
+                    `class='${row.className}'`,
+            );
+            expect(row.editing).toBe(true);
+            expect(row.textChanged).toBe(true);
+            // text_changed hides the pencil and shows the apply button; the filled title takes over.
+            expect(views._emptyTitle.visibility).toBe('collapse');
+            expect(views._titleLabel.visibility).toBe('visible');
+            expect(views._editIcon.visibility).toBe('collapse');
+            expect(views._applyButton.visibility).toBe('visible');
+            expect(row.className.indexOf('focused') >= 0).toBe(true);
+        });
+
+        await it('goes insensitive-but-visible on a read-only row, and locks the field', () => {
+            const row = new Adw.EntryRow();
+            row.editable = false;
+            info(`opacity=${entryInner(row)._editIcon.opacity} field.editable=${entryInner(row)._field.editable}`);
+            // No insensitive widget state in NativeScript — the C's set_sensitive is an opacity,
+            // and the pencil STAYS shown.
+            expect(entryInner(row)._editIcon.visibility).toBe('visible');
+            expect(entryInner(row)._editIcon.opacity < 1).toBe(true);
+            expect(entryInner(row)._field.editable).toBe(false);
+        });
+
+        await it('re-derives on EVERY setShowIndicator, which is why it stayed a method', () => {
+            // C:1281-1296 has no equality guard; a declared property would add the one it must
+            // not have, so the indicator input is the one that did NOT become a property.
+            const row = new Adw.EntryRow();
+            emitOn(entryInner(row)._field, 'focus');
+            row.setShowIndicator(true);
+            expect(entryInner(row)._indicator.visibility).toBe('visible');
+            entryInner(row)._indicator.visibility = 'collapse';
+            row.setShowIndicator(true);
+            info(`after redundant call: ${entryInner(row)._indicator.visibility}`);
+            expect(entryInner(row)._indicator.visibility).toBe('visible');
+        });
+
+        await it('emits apply from the button and from the return key, and clears the latch', () => {
+            const row = new Adw.EntryRow({ showApplyButton: true });
+            const seen: string[] = [];
+            row.connect('apply', (self: Adw.EntryRow) => seen.push(`apply:${self.text}`));
+            row.connect('entry-activated', () => seen.push('entry-activated'));
+
+            emitOn(entryInner(row)._field, 'focus');
+            entryInner(row)._field.text = 'Ada';
+            // The button's `tap` is a GESTURE on this platform: `addEventListener('tap')` builds
+            // a `GesturesObserver` that attaches its detector on `loaded`, so a tap exists
+            // neither in the observable's table nor at all on an unmounted row (measured in
+            // `specs/foreign-parent.ts`, which mounts one and drives a real `MotionEvent` pair).
+            // What belongs HERE is that the row wired the handler and that the handler's work is
+            // the same work the return key does — so: one observer, then the method it calls.
+            expect(tapObservers(entryInner(row)._applyButton)).toBe(1);
+            row.apply();
+            expect(row.textChanged).toBe(false);
+            expect(entryInner(row)._applyButton.visibility).toBe('collapse');
+
+            entryInner(row)._field.text = 'Grace';
+            emitOn(entryInner(row)._field, 'returnPress');
+            info(`seen=[${seen.join('|')}] changed=${row.textChanged}`);
+            // C:248-249 — with something to apply the return key emits `apply`, never both.
+            expect(seen.join('|')).toBe('apply:Ada|apply:Grace');
+            expect(row.textChanged).toBe(false);
+        });
+
+        await it('emits entry-activated when there is nothing to apply', () => {
+            const row = new Adw.EntryRow({ text: 'Ada' });
+            const seen: string[] = [];
+            row.connect('apply', () => seen.push('apply'));
+            // The signal carries NO parameter, as upstream declares it: what the host needs is
+            // the row's own `activates-default`, read off the emitter.
+            row.connect('entry-activated', (self: Adw.EntryRow) => seen.push(`activated:${self.activatesDefault}`));
+            emitOn(entryInner(row)._field, 'returnPress');
+            row.activatesDefault = true;
+            emitOn(entryInner(row)._field, 'returnPress');
+            info(`seen=[${seen.join('|')}]`);
+            expect(seen.join('|')).toBe('activated:false|activated:true');
+        });
+
+        await it('retracts a pending apply when show-apply-button is turned OFF', () => {
+            const row = new Adw.EntryRow({ showApplyButton: true });
+            emitOn(entryInner(row)._field, 'focus');
+            entryInner(row)._field.text = 'Ada';
+            expect(row.textChanged).toBe(true);
+            row.showApplyButton = false;
+            info(`changed=${row.textChanged} apply=${entryInner(row)._applyButton.visibility}`);
+            expect(row.textChanged).toBe(false);
+            expect(entryInner(row)._applyButton.visibility).toBe('collapse');
+        });
+
+        await it('takes inherited and own construct props together, XML strings included', () => {
+            const row = new Adw.EntryRow({ title: 'Name', text: 'Ada', maxLength: 5 });
+            expect(`${row.title}/${row.text}/${row.textLength}`).toBe('Name/Ada/3');
+            const fromXml = new Adw.EntryRow({ maxLength: '5', editable: 'false' } as Any);
+            info(`fromXml max=${fromXml.maxLength} (${typeof fromXml.maxLength}) editable=${fromXml.editable}`);
+            expect(fromXml.maxLength).toBe(5);
+            expect(fromXml.editable).toBe(false);
+            expect(() => new Adw.EntryRow({ maxLength: 'five' } as Any)).toThrow();
+        });
+
+        await it('gives the password row its indicator with no state object in between', () => {
+            const row = new Adw.PasswordEntryRow();
+            const views = entryInner(row as unknown as Adw.EntryRow);
+            emitOn(views._field, 'focus');
+            row.setCapsLockOn(true);
+            expect(views._indicator.visibility).toBe('visible');
+            row.setCapsLockOn(false);
+            info(`after caps off: ${views._indicator.visibility}`);
+            expect(views._indicator.visibility).toBe('collapse');
+            // …and it answers the six it inherits.
+            expect(new Adw.PasswordEntryRow({ text: 'hunter2', maxLength: 5 }).text).toBe('hunte');
+        });
+    });
+
     // ONE DOOR PER DECLARED MEMBER, on the device and in both legs. This is the suite that can
     // see what the off-device specs cannot: before it, `addEventListener('notify::active')` added
     // a listener nothing ever called on 'real-gio' — the emission belongs to the GObject — while
@@ -275,6 +531,15 @@ export const rowsSpec = (engine: 'real-gio' | 'pure-js') => async (): Promise<vo
         await it('refuses an inherited declared property under every spelling', () => {
             const row = new Adw.SwitchRow() as Any;
             for (const name of ['notify::icon-name', 'notify::icon_name', 'notify::iconName']) {
+                expect(() => row.addEventListener(name, () => {})).toThrow();
+            }
+        });
+
+        await it('refuses a declared SIGNAL too, not just a notify', () => {
+            // `apply` and `entry-activated` were NativeScript events before route D reached this
+            // widget, so this is the line a caller of the old API writes.
+            const row = new Adw.EntryRow() as Any;
+            for (const name of ['apply', 'entry-activated', 'notify::text', 'notify::text-length']) {
                 expect(() => row.addEventListener(name, () => {})).toThrow();
             }
         });
@@ -413,6 +678,97 @@ export const rowsSpec = (engine: 'real-gio' | 'pure-js') => async (): Promise<vo
             expect(back === row).toBe(true);
             expect(back.active).toBe(true);
             expect(back.title).toBe('Dark style');
+            expect(back instanceof GridLayout).toBe(true);
+        });
+    });
+
+    await describe('the entry row is a GObject with six pspecs and two GSignals', async () => {
+        await it('registers over the action row, like the switch row beside it', () => {
+            const parent = GObject.type_name(GObject.type_parent(entryMixin.$gtype));
+            info(`AdwEntryRow -> ${parent}`);
+            expect(GObject.type_name(entryMixin.$gtype)).toBe('AdwEntryRow');
+            expect(parent).toBe('AdwActionRow');
+            expect(new Adw.EntryRow() instanceof GObject.Object).toBe(true);
+        });
+
+        await it('lists its six properties as real pspecs, each with the declared type', () => {
+            // `list_properties` is STATIC on the constructor and reads the class it is CALLED on,
+            // so the mixin — where the registration landed — is the receiver.
+            const found: Record<string, string> = {};
+            for (const pspec of GObject.Object.list_properties.call(entryMixin) as Any[]) {
+                found[pspec.get_name()] = GObject.type_name(pspec.value_type);
+            }
+            info(`pspecs=${JSON.stringify(found)}`);
+            expect(found['text']).toBe('gchararray');
+            expect(found['text-length']).toBe('guint');
+            expect(found['max-length']).toBe('gint');
+            expect(found['editable']).toBe('gboolean');
+            expect(found['show-apply-button']).toBe('gboolean');
+            expect(found['activates-default']).toBe('gboolean');
+            // …beside the four it inherits from the action row, on the same class.
+            expect(found['title']).toBe('gchararray');
+        });
+
+        await it('normalizes on the GObject path too — set_property truncates and re-derives', () => {
+            // The direct C entry point into a property. If node-gi reached the stored value
+            // without the seam's wrapper, this is where the truncation and the sibling-read
+            // would both disappear while the JS accessors kept passing.
+            const row = new Adw.EntryRow() as Any;
+            row.set_property('max-length', 5);
+            row.set_property('text', 'Ada Lovelace');
+            info(`text='${row.get_property('text')}' length=${row.get_property('text-length')}`);
+            expect(row.get_property('text')).toBe('Ada L');
+            expect(row.get_property('text-length')).toBe(5);
+            expect(entryInner(row as Adw.EntryRow)._field.text).toBe('Ada L');
+            // …and the inherited one still resolves to the action row's store.
+            row.set_property('title', 'Name');
+            expect(row.get_property('title')).toBe('Name');
+        });
+
+        await it('binds text across the inheritance like any other property', () => {
+            const row = new Adw.EntryRow();
+            const plain = new Plain();
+            const binding = (row as Any).bind_property('text', plain, 'title', GObject.BindingFlags.BIDIRECTIONAL);
+            row.text = 'Ada';
+            expect(plain.title).toBe('Ada');
+            plain.title = 'Grace';
+            info(`after plain write: text='${row.text}' field='${entryInner(row)._field.text}'`);
+            expect(row.text).toBe('Grace');
+            expect(entryInner(row)._field.text).toBe('Grace');
+            binding.unbind();
+        });
+
+        await it('emits apply and entry-activated as GSignals, through emit', () => {
+            const row = new Adw.EntryRow();
+            const seen: string[] = [];
+            const id = row.connect('apply', () => seen.push('apply'));
+            row.connect('entry-activated', () => seen.push('entry-activated'));
+            (row as Any).emit('apply');
+            (row as Any).emit('entry-activated');
+            row.disconnect(id);
+            (row as Any).emit('apply');
+            info(`seen=[${seen.join('|')}]`);
+            expect(seen.join('|')).toBe('apply|entry-activated');
+
+            // A name no class DECLARED does not reach `g_signal_emit_by_name` at all: `emit` is
+            // also this port's NativeScript dispatch door, so it goes to the observable instead.
+            // GJS would throw on it. That difference is the seam's, not this widget's — the
+            // refusal `addEventListener` gained in #2325 has no counterpart on `emit` yet, and
+            // it is the open question recorded beside the next widget in the todo.
+            const heard: string[] = [];
+            (row as Any).on('custom-host-event', () => heard.push('host'));
+            (row as Any).emit('custom-host-event');
+            info(`undeclared emit reached the observable: [${heard.join('|')}]`);
+            expect(heard.join('|')).toBe('host');
+        });
+
+        await it('hands the same widget back out of a Gio.ListStore, text intact', () => {
+            const store = new Gio.ListStore({ item_type: GObject.Object.$gtype });
+            const row = new Adw.EntryRow({ title: 'Name', text: 'Ada', maxLength: 5 });
+            store.append(row);
+            const back = store.get_item(0);
+            expect(back === row).toBe(true);
+            expect(`${back.text}/${back.textLength}/${back.maxLength}`).toBe('Ada/3/5');
             expect(back instanceof GridLayout).toBe(true);
         });
     });

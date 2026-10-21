@@ -583,11 +583,17 @@ export {
     PASSWORD_REVEAL_ICON_NAME,
     PASSWORD_REVEAL_LABEL,
     PasswordEntryRowState,
+    clampEntryMaxLength,
     clampEntryText,
+    deriveEntryRowState,
+    entryRowLatches,
     entryTextLength,
+    resolveEntryRowActivation,
 } from './entry-row.js';
 export type {
     EntryRowActivation,
+    EntryRowIndicatorSink,
+    EntryRowInputs,
     EntryRowRenderState,
     EntryRowStateListener,
     PasswordEntryRowRenderState,
