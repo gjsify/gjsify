@@ -10,7 +10,7 @@
 // napi_*/node_api_* references always resolve — reaching past the
 // implemented surface fails loud with napi_generic_failure + last_error
 // (plan section 2 posture), never with an unresolved-symbol load failure and
-// never with a crash. 10 stubs.
+// never with a crash. 9 stubs.
 
 #include "common.h"
 
@@ -49,12 +49,6 @@ napi_status NAPI_CDECL napi_create_external_arraybuffer(napi_env env, void* exte
     (void)finalize_cb;
     (void)finalize_hint;
     (void)result;
-    GJSIFY_NAPI_STUB(env);
-}
-
-napi_status NAPI_CDECL napi_adjust_external_memory(node_api_basic_env env, int64_t change_in_bytes, int64_t* adjusted_value) {
-    (void)change_in_bytes;
-    (void)adjusted_value;
     GJSIFY_NAPI_STUB(env);
 }
 

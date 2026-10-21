@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
-// @gjsify/napi — env lifecycle, handle arena, GC tracer, handle scopes.
+// @gjsify/napi — env lifecycle, handle arena, GC tracer, handle scopes,
+// external-memory accounting.
 //
 // Reference: refs/node/src/js_native_api_v8.{h,cc} (Node.js contributors,
 // MIT) for the napi_env/handle-scope semantics; tracer pattern adapted from
@@ -162,6 +163,20 @@ void napi_env__::teardown() {
     //    context, refs/gjs/gjs/context.cpp:457.)
     JS_RemoveExtraGCRootsTracer(cx, gjsify_napi::trace_env, this);
     exports.reset();
+    // Hand back whatever external memory is still booked against the global
+    // BEFORE that root goes: an Add without its Remove leaves the zone's
+    // malloc-bytes counter inflated for the rest of the process. Finalizers
+    // ran in steps 2-4, so everything they returned is already subtracted;
+    // what is left is what the addon never gave back.
+    if (external_memory > 0 && global.get() != nullptr) {
+        g_debug("gjsify-napi: returning %" G_GINT64_FORMAT
+                " bytes of external memory at env teardown (%s)",
+                external_memory, filename.c_str());
+        JS::RemoveAssociatedMemory(global.get(),
+                                   static_cast<size_t>(external_memory),
+                                   JS::MemoryUse::Embedding1);
+    }
+    external_memory = 0;
     global.reset();
     wrap_map.reset();
     arena.clearAll();
@@ -258,5 +273,77 @@ napi_status NAPI_CDECL napi_escape_handle(napi_env env,
     *rec.escape_slot = gjsify_napi::napi_value_to_js(escapee);
     rec.escape_called = true;
     *result = reinterpret_cast<napi_value>(rec.escape_slot);
+    return gjsify_napi::clear_last_error(env);
+}
+
+// ---- external memory (js_native_api_v8.cc:3043-3052 semantics) ----
+
+// Node hands the delta straight to V8's
+// AdjustAmountOfExternalAllocatedMemory, which feeds the GC's allocation-
+// pressure heuristic and returns the new total. mozjs's equivalent pair,
+// JS::Add/RemoveAssociatedMemory, books the amount against an OBJECT — and
+// this Node signature carries none. The realm global is the one object
+// guaranteed to outlive every allocation the addon reports (it dies with the
+// context, and teardown hands the balance back), so the env's whole external
+// total hangs off it under MemoryUse::Embedding1. GJS itself never uses that
+// enumerator (it books Cairo, GObjectInstanceStruct and GdkPixbuf), so the
+// slot is ours alone and a mismatched Remove cannot corrupt GJS's own
+// accounting.
+//
+// The clamp at zero is OURS, and the reason is mozjs, not Node parity:
+// RemoveAssociatedMemory must never give back more than was booked for a
+// given (object, use) pair — that asserts in a debug mozjs and silently
+// wrecks the zone's malloc-bytes accounting in a release one. So the running
+// balance lives in the env and every delta is applied to it, never passed
+// through raw.
+//
+// Node does NOT tolerate an over-subtract either, it just fails harder:
+// V8's Heap::UpdateExternalMemory keeps the total in a uint64_t and guards it
+// with CHECK_GE(total_before, -delta) (refs/node/deps/v8/src/heap/heap.cc),
+// a release-mode check — an addon that returns more than it booked ABORTS
+// node. Node's total is therefore never negative, which is why a single
+// non-negative balance is the Node-faithful shape; reporting a clamped zero
+// instead of aborting is the deliberate, strictly softer deviation.
+//
+// The INT64_MAX saturation is likewise ours and likewise softer: V8 CHECKs
+// that a single delta is under --external-memory-max-reasonable-size (32 GB
+// by default, api.cc AdjustAmountOfExternalAllocatedMemoryImpl) and aborts
+// past it. Saturating keeps a nonsensical delta from wrapping the counter.
+//
+// Basic env: callable from a synchronous finalizer, i.e. during GC. No JS
+// runs and no exception state is touched, so CHECK_ENV is the whole gate, as
+// in Node. After teardown the global root is gone and only the counter moves,
+// so a late call still answers instead of touching a dropped root.
+napi_status NAPI_CDECL napi_adjust_external_memory(node_api_basic_env basic_env,
+                                                   int64_t change_in_bytes,
+                                                   int64_t* adjusted_value) {
+    napi_env env = const_cast<napi_env>(basic_env);
+    GJSIFY_NAPI_CHECK_ENV(env);
+    GJSIFY_NAPI_CHECK_ARG(env, adjusted_value);
+
+    const int64_t booked = env->external_memory;
+    int64_t target;
+    if (change_in_bytes > 0 && booked > INT64_MAX - change_in_bytes) {
+        target = INT64_MAX;
+    } else {
+        target = booked + change_in_bytes;
+        if (target < 0) {
+            target = 0;
+        }
+    }
+
+    JSObject* owner = env->global.get();
+    if (owner != nullptr && target != booked) {
+        if (target > booked) {
+            JS::AddAssociatedMemory(owner, static_cast<size_t>(target - booked),
+                                    JS::MemoryUse::Embedding1);
+        } else {
+            JS::RemoveAssociatedMemory(owner,
+                                       static_cast<size_t>(booked - target),
+                                       JS::MemoryUse::Embedding1);
+        }
+    }
+    env->external_memory = target;
+    *adjusted_value = target;
     return gjsify_napi::clear_last_error(env);
 }

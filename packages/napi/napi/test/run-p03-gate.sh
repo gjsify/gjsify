@@ -39,4 +39,13 @@ done
 printf '%s\n' "$OUT" | grep -q "2 env(s) torn down before JS_DestroyContext" \
     || fail "env teardown line missing"
 
+# External memory: the in-script finalizer returned its 8 MiB with status ok
+# and left the balance at 0; the 3000000 the addon never gave back is drained
+# at teardown, exactly once and only for the env that booked it.
+[ "$(count 'EXTMEM FINALIZE 0 0')" = "1" ] \
+    || fail "external-memory finalizer did not return its bytes (status 0, total 0)"
+# g_debug carries a GLib log prefix, so this one cannot be line-anchored.
+[ "$(printf '%s\n' "$OUT" | grep -c 'returning 3000000 bytes of external memory at env teardown' || true)" = "1" ] \
+    || fail "teardown did not drain the leftover external-memory balance"
+
 echo "RUN-P03-GATE: PASS (in-process + teardown ordering)"
