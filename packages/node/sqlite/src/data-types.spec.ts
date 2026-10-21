@@ -103,6 +103,10 @@ export default async () => {
             expect(r2.changes).toBe(1);
             expect(r2.lastInsertRowid).toBe(2);
 
+            const r3 = stmt.run(3, 99, 0xf, '', new Uint8Array());
+            expect(r3.changes).toBe(1);
+            expect(r3.lastInsertRowid).toBe(3);
+
             const query = db.prepare('SELECT * FROM types WHERE key = ?');
 
             const row1 = query.get(1) as Record<string, unknown>;
@@ -110,6 +114,8 @@ export default async () => {
             expect(row1.int).toBe(42);
             expect(row1.double).toBe(3.14159);
             expect(row1.text).toBe('foo');
+            expect(row1.buf).toBeInstanceOf(Uint8Array);
+            expect(row1.buf).toStrictEqual(u8a);
 
             const row2 = query.get(2) as Record<string, unknown>;
             expect(row2.key).toBe(2);
@@ -117,6 +123,11 @@ export default async () => {
             expect(row2.double).toBeNull();
             expect(row2.text).toBeNull();
             expect(row2.buf).toBeNull();
+
+            const row3 = query.get(3) as Record<string, unknown>;
+            expect(row3.text).toBe('');
+            expect(row3.buf).toBeInstanceOf(Uint8Array);
+            expect(row3.buf).toStrictEqual(new Uint8Array());
 
             db.close();
         });
@@ -214,6 +225,69 @@ export default async () => {
             expect(rows[0].key).toBe(1);
             expect(rows[0].val).toBe(5);
             expect(rows[1].val).toBeNull();
+            db.close();
+        });
+    });
+
+    // libgda hands a BLOB over as a `GdaBinary`, whose only byte accessor —
+    // `gda_binary_get_data()` — is annotated `gpointer` and so answers `null` through GI.
+    // `data-model-reader.ts` reads the bytes off `gda_binary_to_string()` instead; these
+    // hold that decoding against the alphabet it has to survive.
+    await describe('BLOB round trip', async () => {
+        await it('reads a BLOB back as the bytes it was given', async () => {
+            // Two little-endian doubles: every byte class at once — NUL, a printable
+            // character (0x3f `?`) and two above 0x7f.
+            const bytes = new Uint8Array([0, 0, 0xc0, 0x3f, 0, 0, 0x10, 0xc0]);
+            const db = new DatabaseSync(nextDb());
+            db.exec('CREATE TABLE b(id INTEGER PRIMARY KEY, data BLOB) STRICT');
+            db.prepare('INSERT INTO b (id, data) VALUES (?, ?)').run(1, bytes);
+
+            const row = db.prepare('SELECT data FROM b WHERE id = ?').get(1) as { data: unknown };
+            expect(row.data).toBeInstanceOf(Uint8Array);
+            expect(row.data).toStrictEqual(bytes);
+            db.close();
+        });
+
+        await it('reads every one of the 256 byte values back unchanged', async () => {
+            // The decoder's whole alphabet in one value: `g_ascii_isprint()` leaves 0x20–0x7e
+            // alone, `\` (0x5c) doubles, newline (0x0a) stays raw, and the other 160 bytes
+            // become a backslash and three octal digits. Any of the four handled wrongly
+            // shifts the rest of the output, so a single byte off fails the whole row.
+            const bytes = Uint8Array.from({ length: 256 }, (_, i) => i);
+            const db = new DatabaseSync(nextDb());
+            db.exec('CREATE TABLE b(id INTEGER PRIMARY KEY, data BLOB) STRICT');
+            db.prepare('INSERT INTO b (id, data) VALUES (?, ?)').run(1, bytes);
+
+            const row = db.prepare('SELECT data FROM b WHERE id = ?').get(1) as { data: unknown };
+            expect(row.data).toBeInstanceOf(Uint8Array);
+            expect(row.data).toStrictEqual(bytes);
+            db.close();
+        });
+
+        await it('reads an empty BLOB as an empty Uint8Array and NULL as null', async () => {
+            const db = new DatabaseSync(nextDb());
+            db.exec('CREATE TABLE b(id INTEGER PRIMARY KEY, data BLOB)');
+            db.prepare('INSERT INTO b (id, data) VALUES (?, ?)').run(1, new Uint8Array());
+            db.prepare('INSERT INTO b (id, data) VALUES (?, ?)').run(2, null);
+
+            const rows = db.prepare('SELECT data FROM b ORDER BY id').all() as { data: unknown }[];
+            expect(rows.length).toBe(2);
+            expect(rows[0].data).toBeInstanceOf(Uint8Array);
+            expect(rows[0].data).toStrictEqual(new Uint8Array());
+            expect(rows[1].data).toBeNull();
+            db.close();
+        });
+
+        await it('reads a BLOB that is not a stored column value', async () => {
+            // A literal and a CAST reach the reader without a declared column type, which
+            // is what decides whether libgda types the column at all.
+            const db = new DatabaseSync(':memory:');
+            const row = db.prepare(`SELECT x'00ff' AS lit, CAST('hi' AS BLOB) AS cast`).get() as Record<
+                string,
+                unknown
+            >;
+            expect(row.lit).toStrictEqual(new Uint8Array([0x00, 0xff]));
+            expect(row.cast).toStrictEqual(new TextEncoder().encode('hi'));
             db.close();
         });
     });
