@@ -1,5 +1,51 @@
 # Changelog
 
+## [0.64.3](https://github.com/gjsify/gjsify/compare/v0.64.2...v0.64.3) (2026-10-22)
+
+### Features
+
+* `GLib.Variant` subset on browser + NativeScript (ADR 0118) ([#2297](https://github.com/gjsify/gjsify/issues/2297)) ([73f99ab](https://github.com/gjsify/gjsify/commit/73f99ab93f1925e8ec65637347db16a71df7f2b1))
+* **adwaita-core:** add get_language_names ([#2319](https://github.com/gjsify/gjsify/issues/2319)) ([fbba749](https://github.com/gjsify/gjsify/commit/fbba7493362aa62bf241463a9bb058481effd971))
+* **adwaita-nativescript:** real GObject for spinner ([#2314](https://github.com/gjsify/gjsify/issues/2314)) ([0a5714d](https://github.com/gjsify/gjsify/commit/0a5714de17dafb90434825be256189bf6996eb56))
+* **adwaita-nativescript:** real GObject for window title ([#2312](https://github.com/gjsify/gjsify/issues/2312)) ([f418d11](https://github.com/gjsify/gjsify/commit/f418d1159b1537ce646965d1d719648530db5c75))
+* **adwaita-ns:** entry row as a real GObject ([#2328](https://github.com/gjsify/gjsify/issues/2328)) ([287d442](https://github.com/gjsify/gjsify/commit/287d442dedbd4ec63428961edba9f2d22adb2d88))
+* **adwaita-ns:** real GObjects for two rows ([#2318](https://github.com/gjsify/gjsify/issues/2318)) ([3315ad7](https://github.com/gjsify/gjsify/commit/3315ad76d8eeb5b734a6b8d311d2f8531757112d)), closes [#2314](https://github.com/gjsify/gjsify/issues/2314)
+* **adwaita:** about dialog credits and legal ([#2315](https://github.com/gjsify/gjsify/issues/2315)) ([6f30b14](https://github.com/gjsify/gjsify/commit/6f30b14658b7035e4fd50aafab9e7e012fbec1d8))
+* **cli:** copy an html entry's linked icons ([#2330](https://github.com/gjsify/gjsify/issues/2330)) ([696926f](https://github.com/gjsify/gjsify/commit/696926ff9190dad2bc7195a217b12745fc4cb91f))
+* inject the self global on gjs builds ([#2323](https://github.com/gjsify/gjsify/issues/2323)) ([af63b8b](https://github.com/gjsify/gjsify/commit/af63b8b5bc0d910030a48c21150d1c6b72d41a88))
+* **node-gi:** register over a foreign parent class ([#2299](https://github.com/gjsify/gjsify/issues/2299)) ([7ff7987](https://github.com/gjsify/gjsify/commit/7ff798749009962ff703c794e2e7c337294b2e54))
+* **ship:** add per-format typelibs and files ([#2322](https://github.com/gjsify/gjsify/issues/2322)) ([84f8ece](https://github.com/gjsify/gjsify/commit/84f8ece003be30456a8ace70115e480bf3220d47))
+* **site:** list more apps by the same developer ([#2327](https://github.com/gjsify/gjsify/issues/2327)) ([4e9f008](https://github.com/gjsify/gjsify/commit/4e9f008b0fc9c5c07a925a720d07af4a96b5a420))
+
+### Bug Fixes
+
+* **adwaita-core:** table g_unichar_isalpha for NS ([#2302](https://github.com/gjsify/gjsify/issues/2302)) ([ddc1159](https://github.com/gjsify/gjsify/commit/ddc11593f60693607c7f1b23470101fb6af8545a))
+* **adwaita-core:** table g_unichar_isprint for NS ([#2304](https://github.com/gjsify/gjsify/issues/2304)) ([8fc8112](https://github.com/gjsify/gjsify/commit/8fc81129a43dd45ca9c693fd454993861ecaf509)), closes [#2302](https://github.com/gjsify/gjsify/issues/2302) [#2302](https://github.com/gjsify/gjsify/issues/2302) [#2297](https://github.com/gjsify/gjsify/issues/2297)
+* **adwaita-nativescript:** attach the system lazily ([#2310](https://github.com/gjsify/gjsify/issues/2310)) ([aad6b40](https://github.com/gjsify/gjsify/commit/aad6b4002649e2b13d2ff99e97aada66f72dd041)), closes [#2309](https://github.com/gjsify/gjsify/issues/2309) [#2307](https://github.com/gjsify/gjsify/issues/2307) [#2307](https://github.com/gjsify/gjsify/issues/2307)
+* **adwaita-nativescript:** base preferences on dialog ([#2305](https://github.com/gjsify/gjsify/issues/2305)) ([56787b1](https://github.com/gjsify/gjsify/commit/56787b1c1c21e5699ade7175b3c9178ca432d090))
+* **adwaita-nativescript:** check buttons in prefs ([#2308](https://github.com/gjsify/gjsify/issues/2308)) ([64f1fd8](https://github.com/gjsify/gjsify/commit/64f1fd8430f766ab1224d03ac47376d0ee982c43)), closes [#2307](https://github.com/gjsify/gjsify/issues/2307)
+* **adwaita-nativescript:** follow the system scheme ([#2309](https://github.com/gjsify/gjsify/issues/2309)) ([eaf8034](https://github.com/gjsify/gjsify/commit/eaf8034e548d85ba65100a595301a6ab4a70bfc7)), closes [#2307](https://github.com/gjsify/gjsify/issues/2307)
+* **adwaita-nativescript:** style classes on prefs ([#2307](https://github.com/gjsify/gjsify/issues/2307)) ([6d2fc43](https://github.com/gjsify/gjsify/commit/6d2fc430ffaa180a765c59d33c8fa1d5b410b364))
+* **adwaita-ns:** about dialog icon and links ([#2316](https://github.com/gjsify/gjsify/issues/2316)) ([f05c9c3](https://github.com/gjsify/gjsify/commit/f05c9c3b7cd8bf8d406eb381dc4755d335007efa))
+* **adwaita-ns:** one door per declared member ([#2325](https://github.com/gjsify/gjsify/issues/2325)) ([886de21](https://github.com/gjsify/gjsify/commit/886de21be840429ce043cdbf8195172530e230d4))
+* **adwaita-web:** about link rows like AdwLinkRow ([#2317](https://github.com/gjsify/gjsify/issues/2317)) ([bc9edf4](https://github.com/gjsify/gjsify/commit/bc9edf43296b64ad16c9fe53bd0da87c17b19195))
+* **adwaita-web:** style button.link, not any .link ([#2329](https://github.com/gjsify/gjsify/issues/2329)) ([cc20d5f](https://github.com/gjsify/gjsify/commit/cc20d5f6679c51d513af49218593a42d8403b0ad))
+* **ci:** pin deltachat to the locked 2.53.0 ([#2320](https://github.com/gjsify/gjsify/issues/2320)) ([0c433f9](https://github.com/gjsify/gjsify/commit/0c433f99961e583747eef0a39baba715b1b5e0a6))
+* **napi:** implement napi_adjust_external_memory ([#2331](https://github.com/gjsify/gjsify/issues/2331)) ([cfa2175](https://github.com/gjsify/gjsify/commit/cfa21753dea7e2a31771ad6c034a9a62186b845a))
+* **node-gi:** collect self-referential signal handlers ([#2306](https://github.com/gjsify/gjsify/issues/2306)) ([d0b7863](https://github.com/gjsify/gjsify/commit/d0b7863776d7525f373f8511fc396d5964a91844))
+* **site:** round a download button without split ([#2324](https://github.com/gjsify/gjsify/issues/2324)) ([a76ec49](https://github.com/gjsify/gjsify/commit/a76ec49df98fb504e62aa30f20691d04c71b36e5))
+* **sqlite:** read BLOB columns as Uint8Array ([#2332](https://github.com/gjsify/gjsify/issues/2332)) ([0f5ca82](https://github.com/gjsify/gjsify/commit/0f5ca82aab25bf9df8d1e790d28483b1f90fe3a9))
+* **vite-plugin-gjsify:** carry ?schema imports ([#2311](https://github.com/gjsify/gjsify/issues/2311)) ([beb8935](https://github.com/gjsify/gjsify/commit/beb89356b4985a0eee19d217bb67557e62f85d7b))
+
+### Documentation
+
+* **adr:** record the iOS assessment in 0105 ([#2303](https://github.com/gjsify/gjsify/issues/2303)) ([128c11b](https://github.com/gjsify/gjsify/commit/128c11b8ee816f3ff6ce774b31000f417edcc75f)), closes [#2299](https://github.com/gjsify/gjsify/issues/2299)
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([f364c2f](https://github.com/gjsify/gjsify/commit/f364c2fbb5febe42e8a915a2361b62ca9eebfe7d))
+* update native prebuilds [skip ci] ([43991cf](https://github.com/gjsify/gjsify/commit/43991cf5d021c89781b4b4f3c69c155341d78a7c))
+
 ## [0.64.2](https://github.com/gjsify/gjsify/compare/v0.64.1...v0.64.2) (2026-10-19)
 
 ### ⚠ BREAKING CHANGES
