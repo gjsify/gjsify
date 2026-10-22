@@ -596,5 +596,51 @@ export default async () => {
             expect(darwin.includes('`lib/`')).toBe(true);
             expect(darwin.includes('`bin/`')).toBe(false);
         });
+
+        await it('stages a closure the ship run FETCHED, whole and tree-preserved, and names where it came from', async () => {
+            const cwd = scratch('fetched-cwd');
+            const pkg = scratch('fetched-pkg');
+            writeClosure(join(pkg, 'gtk'));
+            try {
+                const staged = stageAppRuntime({
+                    layout: LAYOUTS.darwin,
+                    identity: IDENTITY,
+                    target: 'darwin-arm64',
+                    cwd,
+                    env: {},
+                    interpreter: null,
+                    fetchedGtkRuntimeDir: pkg,
+                });
+                expect(staged.found.some((line) => line.includes('fetched for this ship run'))).toBe(true);
+                expect(staged.missing.some((line) => line.includes('GTK closure'))).toBe(false);
+                // The depth is the claim: a fetched closure is staged exactly like an installed one.
+                expect(
+                    staged.files.some((file) => file.path.endsWith('loaders/libpixbufloader-svg.so')),
+                ).toBe(true);
+            } finally {
+                rmSync(cwd, { recursive: true, force: true });
+                rmSync(pkg, { recursive: true, force: true });
+            }
+        });
+
+        await it('puts the CAUSE of a failed fetch in the missing line, beside the way past it', async () => {
+            const cwd = scratch('failed-fetch');
+            try {
+                const staged = stageAppRuntime({
+                    layout: LAYOUTS.darwin,
+                    identity: IDENTITY,
+                    target: 'darwin-arm64',
+                    cwd,
+                    env: {},
+                    interpreter: null,
+                    gtkFetchFailure: 'getaddrinfo ENOTFOUND registry.npmjs.org',
+                });
+                const line = staged.missing.find((entry) => entry.includes('GTK closure')) ?? '';
+                expect(line).toContain('fetching it failed: getaddrinfo ENOTFOUND registry.npmjs.org');
+                expect(line).toContain('GJSIFY_GTK_RUNTIME');
+            } finally {
+                rmSync(cwd, { recursive: true, force: true });
+            }
+        });
     });
 };

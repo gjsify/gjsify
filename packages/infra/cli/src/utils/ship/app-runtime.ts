@@ -148,6 +148,13 @@ export interface ResolveRuntimeOptions {
      * is Bun's global-cache behaviour, which is otherwise unreachable from Node.
      */
     resolve?: ResolveInstalledPackageOptions['resolve'];
+    /**
+     * The directory of a `@gjsify/gtk-runtime-<target>` package that
+     * {@link acquireGtkRuntime} fetched for THIS run — the last candidate, after
+     * everything the author installed or pointed at. See `gtk-runtime-acquire.ts`
+     * for why it is fetched rather than installed.
+     */
+    fetchedGtkRuntimeDir?: string;
 }
 
 /**
@@ -168,7 +175,11 @@ export interface ResolveRuntimeOptions {
  *     for a ship run.
  *  3. the sibling monorepo directory `../gtk-runtime-<target>/gtk`, which is what
  *     an in-repo `npm run build:bundle` writes.
- *  4. the published `@gjsify/gtk-runtime-<target>` package's `gtk/`.
+ *  4. the published `@gjsify/gtk-runtime-<target>` package's `gtk/`, when the
+ *     author installed it.
+ *  5. the same package fetched for this run (`fetchedGtkRuntimeDir`) — NOT in
+ *     node-gi's probe, because node-gi never fetches: it finds the closure inside
+ *     the `.app` this function put it in, and the layout there is the same.
  *
  * A candidate counts only when it holds BOTH the loadable-code directory and the
  * typelib directory — node-gi's own probe, restated here rather than weakened,
@@ -204,6 +215,13 @@ export function resolveGtkRuntime(
     const packageName = gtkRuntimePackageName(target);
     const entry = resolveStagedPackage(packageName, options);
     if (entry !== null) candidates.push({ source: packageName, dir: join(dirname(entry), 'gtk') });
+
+    if (options.fetchedGtkRuntimeDir !== undefined) {
+        candidates.push({
+            source: `${packageName} (fetched for this ship run)`,
+            dir: join(options.fetchedGtkRuntimeDir, 'gtk'),
+        });
+    }
 
     for (const candidate of candidates) {
         const libDir = join(candidate.dir, nativeSubdir);
@@ -415,6 +433,10 @@ export interface StageAppRuntimeInput {
     resolve?: ResolveRuntimeOptions['resolve'];
     /** The interpreter, already resolved — see `node-runtime.ts`. `null` when absent. */
     interpreter: { source: string; nodePath: string; licensePath: string } | null;
+    /** See {@link ResolveRuntimeOptions.fetchedGtkRuntimeDir}. */
+    fetchedGtkRuntimeDir?: string;
+    /** Why the fetch produced nothing — named in the `missing` line, so the cause is not guessed at. */
+    gtkFetchFailure?: string;
 }
 
 /**
@@ -484,9 +506,11 @@ export function stageAppRuntime(input: StageAppRuntimeInput): StagedAppRuntime {
         // resolver then refuses -- a hint that is wrong is worse than none,
         // because it costs the reader the time to follow it first.
         const nativeSubdir = input.target.startsWith('win32-') ? 'bin' : 'lib';
+        const why = input.gtkFetchFailure === undefined ? '' : ` — fetching it failed: ${input.gtkFetchFailure}`;
         missing.push(
-            `no GTK closure — install \`${gtkRuntimePackageName(input.target)}\` (or point ` +
-                `\`GJSIFY_GTK_RUNTIME\` at a bundle directory holding \`${nativeSubdir}/\` and \`girepository-1.0/\`)`,
+            `no GTK closure${why} — point \`GJSIFY_GTK_RUNTIME\` at a bundle directory holding ` +
+                `\`${nativeSubdir}/\` and \`girepository-1.0/\`, or install \`${gtkRuntimePackageName(input.target)}\` ` +
+                'where the build can reach it',
         );
     }
 
@@ -543,6 +567,7 @@ function discoveryOptions(input: StageAppRuntimeInput): ResolveRuntimeOptions {
     if (input.cwd !== undefined) options.cwd = input.cwd;
     if (input.env !== undefined) options.env = input.env;
     if (input.resolve !== undefined) options.resolve = input.resolve;
+    if (input.fetchedGtkRuntimeDir !== undefined) options.fetchedGtkRuntimeDir = input.fetchedGtkRuntimeDir;
     return options;
 }
 
