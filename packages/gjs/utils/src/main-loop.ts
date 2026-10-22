@@ -16,6 +16,24 @@ let _created = false;
  */
 let _armed = false;
 
+/**
+ * Live holds opened by {@link acquireMainLoop} — Node's active-handle count.
+ * Only this count reaches {@link releaseMainLoop}'s quit decision; the
+ * uncounted {@link ensureMainLoop} / {@link holdMainLoop} callers park
+ * forever by contract and leave it untouched. Reset with the loop it
+ * describes.
+ */
+let _holds = 0;
+
+/**
+ * Whether the live holds alone own the loop: {@link acquireMainLoop} created it
+ * and no uncounted {@link ensureMainLoop} / {@link holdMainLoop} caller has
+ * joined since. Only then may the last release end the process; a loop someone
+ * else created or also depends on (a listening server, a GTK application) must
+ * outlive the holds, as it does on Node.
+ */
+let _ownsLoop = false;
+
 /** GJS runtime bootstrap shape we read here. Pre-dates `@girs/*` resolution. */
 interface _GjsImports {
     imports?: { gi?: { GLib?: typeof GLib } };
@@ -79,6 +97,11 @@ function arm(loop: GLib.MainLoop): void {
  * (`tests/e2e/process-exit-terminates`).
  */
 export function ensureMainLoop(): GLib.MainLoop | undefined {
+    _ownsLoop = false; // an uncounted caller now depends on this loop too
+    return createLoop();
+}
+
+function createLoop(): GLib.MainLoop | undefined {
     const GLibModule = glib();
     if (!GLibModule) return undefined; // Not GJS
     if (_created) return _loop!;
@@ -127,6 +150,76 @@ export function holdMainLoop(): GLib.MainLoop | undefined {
 }
 
 /**
+ * Acquire a Node-style counted hold on the running loop — the drain half of
+ * Node's event-loop liveness. Acquired again for every handle that must keep
+ * the process alive (`worker_threads` spawn, later child/IO migrations); the
+ * process is no longer held once the next {@link releaseMainLoop} drops the
+ * count to 0.
+ *
+ * Separate from the uncounted primitives for the same reason they exist:
+ * {@link ensureMainLoop} / {@link holdMainLoop} callers park FOREVER and exit
+ * via `process.exit()` — a consumer with a drain lifecycle must not be one of
+ * them, because releasing has to be reversible here without defeating those
+ * callers' expectations. GLib's `loop.run()` blocks until `quit()` — there is
+ * no "run until no sources remain" — so a drain cannot be observed by the loop
+ * itself; it has to be counted.
+ *
+ * Known limit, counted holds are only the `worker_threads` consumer today:
+ * `net`/`http`/`dgram`/`ws`/`child_process` park via {@link ensureMainLoop}
+ * forever (their close paths don't release yet), so an app holding BOTH a
+ * live server and a worker stays parked when the worker drains — same as on
+ * those packages' pre-existent behavior, and the slot for their migration is
+ * exactly this pair. Also inherits the {@link ensureMainLoop} depth note: a
+ * hold acquired inside a top-level-await continuation at `main_depth() !== 0`
+ * is counted but not armed, and the entry's spin ends at settle like it
+ * always did.
+ */
+export function acquireMainLoop(): GLib.MainLoop | undefined {
+    const wasCreated = _created;
+    const loop = createLoop();
+    if (!loop) return undefined; // not GJS — Node keeps handles natively
+    if (_holds === 0) _ownsLoop = !wasCreated;
+    _holds += 1;
+    return loop;
+}
+
+/**
+ * Release one hold acquired with {@link acquireMainLoop}. Idempotent beyond
+ * the count (calls at 0 are a no-op), no-op on Node.js. At 0 the loop created
+ * by this module is quit, which returns from the blocking `run()` that gjs's
+ * `eval_module` parked in — the Node "refs drained, process exits" moment.
+ */
+export function releaseMainLoop(): void {
+    if (_holds === 0 || !_loop) return;
+    _holds -= 1;
+    if (_holds === 0 && _ownsLoop) {
+        const parked = _armed;
+        quitMainLoop();
+        // gjs's eval_module hook drives loop.run() and quit() does not lift
+        // it (measured). Exit through process.exit(), which schedules the
+        // syscall on an idle source and drives the default context until it
+        // fires — the only reliable teardown from inside a parked hook.
+        // Only a loop WE parked needs it; an unarmed one is already driven
+        // by its owner.
+        const proc = (globalThis as { process?: { exit?: (code?: number) => void; exitCode?: number } }).process;
+        if (parked && typeof proc?.exit === 'function') {
+            const code = proc.exitCode ?? 0;
+            // Deferred so unref() returns to its caller (which may still
+            // have code to run, e.g. console.log) before the process exits.
+            const GLibModule = glib();
+            if (GLibModule) {
+                GLibModule.timeout_add(GLibModule.PRIORITY_DEFAULT, 0, () => {
+                    proc.exit!(code);
+                    return GLibModule.SOURCE_REMOVE;
+                });
+            } else {
+                proc.exit(code);
+            }
+        }
+    }
+}
+
+/**
  * Quit the MainLoop created by `ensureMainLoop()`. Idempotent, no-op on Node.js.
  *
  * Calling `quit()` on a loop that hasn't started yet pre-quits it — when the
@@ -139,5 +232,7 @@ export function quitMainLoop(): void {
         _created = false;
         _armed = false;
         _loop = null;
+        _holds = 0;
+        _ownsLoop = false;
     }
 }
