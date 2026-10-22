@@ -484,6 +484,31 @@ export function maybeWireGtkWindowingEnv() {
         }
     }
 
+    // The catalogs the bundle ships for its own libraries. GTK/libadwaita/GLib/GtkSourceView
+    // look for them under paths compiled into the build host, so without this binding every
+    // one of their strings stays in English on a German (or any non-English) locale. The
+    // binding is done through node-gi's gettext module, which calls the addon's
+    // bindtextdomain (libintl) — the same mechanism GJS uses. It is lazy and guarded,
+    // because an addon predating the binders (or a bundle without catalogs) must not take
+    // the env-wiring path down with it.
+    const localeDir = join(bundle.dir, 'share', 'locale');
+    if (existsSync(localeDir)) {
+        try {
+            const req = createRequire(import.meta.url);
+            const gettext = req('./gettext.js');
+            for (const domain of ['gtk40', 'libadwaita', 'glib20', 'gtksourceview-5']) {
+                try {
+                    gettext.bindtextdomain(domain, localeDir);
+                } catch {
+                    /* addon predates the binders — leave the domain on its compiled-in path */
+                }
+            }
+        } catch {
+            /* gettext module unavailable in this context */
+        }
+        write('GJSIFY_GTK_LOCALE_DIR', localeDir);
+    }
+
     const fontsConf = join(bundle.dir, 'etc', 'fonts', 'fonts.conf');
     if (existsSync(fontsConf)) {
         setIfUnset('FONTCONFIG_PATH', join(bundle.dir, 'etc', 'fonts'));
