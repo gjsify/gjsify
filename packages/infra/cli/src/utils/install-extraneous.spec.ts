@@ -12,11 +12,18 @@
 // `isAlreadyExtracted` short-circuits every fetch.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { installPackagesNative } from './install-backend-native.js';
-import { EXTRANEOUS_REPORT_LIMIT, findExtraneous, formatExtraneousError } from './install-extraneous.js';
+import {
+    droppedInstallPaths,
+    EXTRANEOUS_REPORT_LIMIT,
+    findExtraneous,
+    formatExtraneousError,
+} from './install-extraneous.js';
 import { type InstalledPackage, scanPrefix } from './prune-prefix.js';
 import { makeProgressReporter } from './install-progress.js';
 
@@ -315,6 +322,126 @@ export default async () => {
                 });
                 expect(out.length).toBe(1);
                 expect(out[0]!.name).toBe('pkg-a');
+            } finally {
+                rmSync(prefix, { recursive: true, force: true });
+            }
+        });
+    });
+
+    await describe('droppedInstallPaths', async () => {
+        const at = (...paths: string[]) => paths.map((installPath) => ({ installPath }));
+
+        await it('names what the previous lockfile placed and the new one does not', async () => {
+            expect(
+                droppedInstallPaths(
+                    ['node_modules/a', 'node_modules/@s/gone', 'node_modules/b'],
+                    at('node_modules/a', 'node_modules/b'),
+                ),
+            ).toStrictEqual(['node_modules/@s/gone']);
+        });
+
+        await it('collapses a dropped subtree into its root', async () => {
+            expect(
+                droppedInstallPaths(['node_modules/x', 'node_modules/x/node_modules/y'], at('node_modules/a')),
+            ).toStrictEqual(['node_modules/x']);
+        });
+
+        await it('never removes a directory that still holds a kept placement', async () => {
+            // Not a shape a resolve produces, but the cost of being wrong is deleting a
+            // package the new lockfile names, so the planner refuses it on its own.
+            expect(
+                droppedInstallPaths(
+                    ['node_modules/p', 'node_modules/p/node_modules/kept', 'node_modules/p/node_modules/gone'],
+                    at('node_modules/p/node_modules/kept'),
+                ),
+            ).toStrictEqual(['node_modules/p/node_modules/gone']);
+        });
+
+        await it('ignores keys outside node_modules (the prefix itself, a workspace)', async () => {
+            expect(droppedInstallPaths(['', 'packages/ws'], at())).toStrictEqual([]);
+        });
+    });
+
+    // The incident row: a dependency REMOVED from package.json stayed in node_modules
+    // after a plain install. Offline: a loopback registry answers the one packument,
+    // and `pkg-a@1.0.0` is already extracted, so nothing is downloaded and the only
+    // work left is the removal under test.
+    await describe('a plain install removes what its resolve dropped', async () => {
+        await it('removes a dropped package and keeps what it never placed', async () => {
+            const server = createServer((req, res) => {
+                if (!req.url?.endsWith('/pkg-a')) {
+                    res.writeHead(404).end();
+                    return;
+                }
+                res.writeHead(200, { 'content-type': 'application/json' }).end(
+                    JSON.stringify({
+                        name: 'pkg-a',
+                        'dist-tags': { latest: '1.0.0' },
+                        versions: {
+                            '1.0.0': {
+                                name: 'pkg-a',
+                                version: '1.0.0',
+                                dist: { tarball: 'https://example.invalid/a.tgz' },
+                            },
+                        },
+                    }),
+                );
+            });
+            await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+            const port = (server.address() as AddressInfo).port;
+            const prefix = mkdtempSync(join(tmpdir(), 'gjsify-install-dropped-'));
+            const source = mkdtempSync(join(tmpdir(), 'gjsify-install-dropped-src-'));
+            try {
+                writeLock(prefix, {
+                    'node_modules/pkg-a': { version: '1.0.0', resolved: 'https://example.invalid/a.tgz' },
+                    'node_modules/pkg-gone': { version: '1.0.0', resolved: 'https://example.invalid/g.tgz' },
+                    'node_modules/linked': { version: '1.0.0', resolved: 'https://example.invalid/l.tgz' },
+                });
+                writePackage(prefix, 'node_modules/pkg-a', 'pkg-a');
+                writePackage(prefix, 'node_modules/pkg-gone', 'pkg-gone');
+                // Laid down after an install and kept out of the lockfile on purpose, like
+                // the GJS bundler engine `ensureProjectGjsEngine` installs.
+                writePackage(prefix, 'node_modules/engine', 'engine');
+                writePackage(source, '.', 'linked');
+                symlinkSync(source, join(prefix, 'node_modules', 'linked'));
+
+                await installPackagesNative({
+                    prefix,
+                    specs: ['pkg-a@1.0.0'],
+                    lockfile: true,
+                    registry: `http://127.0.0.1:${port}/`,
+                    progress: QUIET,
+                });
+
+                expect(existsSync(join(prefix, 'node_modules', 'pkg-gone'))).toBe(false);
+                expect(existsSync(join(prefix, 'node_modules', 'pkg-a', 'package.json'))).toBe(true);
+                expect(existsSync(join(prefix, 'node_modules', 'engine', 'package.json'))).toBe(true);
+                // A symlink is the user's own checkout: never removed, and never followed.
+                expect(existsSync(join(prefix, 'node_modules', 'linked'))).toBe(true);
+                expect(existsSync(join(source, 'package.json'))).toBe(true);
+            } finally {
+                server.close();
+                rmSync(prefix, { recursive: true, force: true });
+                rmSync(source, { recursive: true, force: true });
+            }
+        });
+
+        await it('removes nothing on a frozen install, even with a dropped placement on disk', async () => {
+            // The control: `--immutable` promises not to mutate, and it never resolves.
+            const prefix = mkdtempSync(join(tmpdir(), 'gjsify-install-dropped-frozen-'));
+            try {
+                writeLock(prefix, {
+                    'node_modules/pkg-a': { version: '1.0.0', resolved: 'https://example.invalid/a.tgz' },
+                });
+                writePackage(prefix, 'node_modules/pkg-a', 'pkg-a');
+                await installPackagesNative({
+                    prefix,
+                    specs: ['pkg-a@1.0.0'],
+                    frozen: true,
+                    lockfile: false,
+                    progress: QUIET,
+                });
+                expect(existsSync(join(prefix, 'node_modules', 'pkg-a'))).toBe(true);
             } finally {
                 rmSync(prefix, { recursive: true, force: true });
             }

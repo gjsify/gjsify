@@ -101,7 +101,7 @@ import {
     pickBinMap,
 } from './bin-shim.js';
 import { detectNativePackages } from './detect-native-packages.js';
-import { findExtraneous, formatExtraneousError } from './install-extraneous.js';
+import { droppedInstallPaths, findExtraneous, formatExtraneousError } from './install-extraneous.js';
 import { devLinkPath, devLinkRoot } from './dev-link.js';
 import { scanPrefix } from './prune-prefix.js';
 import {
@@ -554,6 +554,17 @@ async function installPackagesNativeLocked(
     await downloadAndExtractAll(installable, opts.prefix, npmrc, log, opts.signal, progress);
     await linkBins(installable, opts.prefix, log);
     warnMissingNativeBuilds(installable, opts.prefix, log);
+    // Only after a resolve that rewrote the lockfile: that is when a placement can
+    // be dropped, and the previous lockfile is the record of what this installer
+    // put there. After the extract, so a failed download leaves the tree as it was.
+    if (resolved && opts.lockfile && existingLock) {
+        removeDroppedPackages(
+            opts.prefix,
+            droppedInstallPaths(Object.keys(existingLock.packages), nodes),
+            new Set([...(opts.workspaceNames ?? []), ...(opts.linkedNames ?? [])]),
+            log,
+        );
+    }
     log('install: done');
 
     // Top-level requested packages only, so callers can write the resolved version
@@ -561,6 +572,40 @@ async function installPackagesNativeLocked(
     // `fetchable`: "what is installed at node_modules/<name>" is not "what was
     // downloaded", and a provided package is installed.
     return topLevelResolutions(opts.specs, nodes);
+}
+
+/**
+ * Remove what {@link droppedInstallPaths} planned, and say so in one line.
+ *
+ * A symlink is never removed (a workspace or `gjsify link` checkout, i.e. the user's
+ * sources), and neither is a name a workspace or a dev link provides, whatever its
+ * path: the same two guards `extractOne` applies before it overwrites anything.
+ */
+function removeDroppedPackages(
+    prefix: string,
+    installPaths: readonly string[],
+    providedNames: ReadonlySet<string>,
+    log: Logger,
+): void {
+    const removed: string[] = [];
+    for (const installPath of installPaths) {
+        if (providedNames.has(nameFromInstallPath(installPath))) continue;
+        const dir = path.join(prefix, ...installPath.split('/'));
+        let stat: fs.Stats;
+        try {
+            stat = fs.lstatSync(dir);
+        } catch {
+            continue;
+        }
+        if (!stat.isDirectory()) continue;
+        fs.rmSync(dir, { recursive: true, force: true });
+        removed.push(installPath);
+    }
+    if (removed.length === 0) return;
+    log('install: removed %d dropped placement(s): %s', removed.length, removed.join(', '));
+    const names = removed.map(nameFromInstallPath);
+    const shown = names.slice(0, 5).join(', ') + (names.length > 5 ? `, … ${names.length - 5} more` : '');
+    console.log(`gjsify: removed ${removed.length} package(s) the lockfile no longer names (${shown})`);
 }
 
 /**
