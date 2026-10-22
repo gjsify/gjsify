@@ -105,7 +105,7 @@ Here: the rule and what enforces it.
 
 ## Package convention
 
-`packages/<pillar>/<name>/` → `@gjsify/<name>`, ONE workspace version (release train, ADR 0008 — compatibility guaranteed only within a release), `"type":"module"` | exports `./lib/esm/index.js` (+ `./lib/esm/register.js` if globals) | `sideEffects` pinned register-only | scripts `build:gjsify|build:types|build:test:{gjs,node}|test|test:{gjs,node}` | deps `@girs/*`, devDep `@gjsify/unit`, workspace deps `workspace:^`. Layout: `src/index.ts` (pure named exports) | `src/register.ts` | `src/*.spec.ts` | `src/test.mts`. Full register rules: § Tree-shakeable globals.
+`packages/<pillar>/<name>/` → `@gjsify/<name>`, ONE workspace version (release train, ADR 0008 — compatibility guaranteed only within a release), `"type":"module"` | exports `./lib/esm/index.js` (+ `./lib/esm/register.js` if globals) | `sideEffects` pinned register-only (a package with no `/register` pins the one module that mutates the realm) | scripts `build:gjsify|build:types|build:test:{gjs,node}|test|test:{gjs,node}` | deps `@girs/*`, devDep `@gjsify/unit`, workspace deps `workspace:^`. Layout: `src/index.ts` (pure named exports) | `src/register.ts` | `src/*.spec.ts` | `src/test.mts`. Full register rules: § Tree-shakeable globals.
 
 Shared utils: `@gjsify/utils` — check before duplicating; extract only when a 2nd package needs it; `/core` vs barrel split in § Runtime & platform model. `@gjsify/stream` direct imports allowed in internal modules/tests needing non-standard exports; all public code uses `node:stream`.
 

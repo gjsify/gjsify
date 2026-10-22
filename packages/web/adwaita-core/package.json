@@ -25,10 +25,17 @@
         "./markup": {
             "types": "./lib/types/markup.d.ts",
             "default": "./lib/esm/markup.js"
+        },
+        "./accent": {
+            "types": "./lib/types/accent.d.ts",
+            "default": "./lib/esm/accent.js"
         }
     },
     "files": [
         "lib"
+    ],
+    "sideEffects": [
+        "./lib/esm/gio-resource.js"
     ],
     "scripts": {
         "clear": "gjsify clear lib tmp dist tsconfig.tsbuildinfo test.gjs.mjs test.node.mjs",
