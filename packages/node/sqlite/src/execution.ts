@@ -132,7 +132,8 @@ export function releaseStatement(connection: Gda.Connection, stmt: Gda.Statement
  * A `StatementSync` asks for retention and is then collected without telling anyone, so
  * the connection's own lifecycle is the only seam that can give its entries back — and it
  * must: a parked connection is handed to the NEXT consumer, who can recreate a table a
- * retained statement was compiled against.
+ * retained statement was compiled against. A never-closed `DatabaseSync` pins its
+ * connection plus at most `MAX_RETAINED` compiled statements — bounded, by design.
  */
 export function releaseRetained(connection: Gda.Connection): void {
     // `releaseStatement` deletes the entry it was handed — the one the iterator is on,

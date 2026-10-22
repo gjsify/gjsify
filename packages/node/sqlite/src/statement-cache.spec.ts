@@ -301,8 +301,8 @@ export default async () => {
             const before = rss();
             for (let i = 0; i < 1500; i++) db.prepare('INSERT INTO t (v) VALUES (?)').run(`${i}${base}`);
             const grown = (rss() - before) / (1024 * 1024);
-            // 1500 × 64 KiB is ~94 MiB; unreleased holders showed up as most of it.
-            expect(grown < 60).toBe(true);
+            // 1500 × 64 KiB is ~94 MiB; measured ~59 MiB released vs ~150 MiB held, bound midway.
+            expect(grown).toBeLessThan(105);
             db.close();
         });
     });
