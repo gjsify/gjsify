@@ -122,6 +122,61 @@ function drainSabFds(count) {
   }
 }
 
+// Tagged JSON codec for structured-clone types (mirrors structured-clone-wire.ts).
+const __TYPED_ARRAYS = ['Int8Array','Uint8Array','Uint8ClampedArray','Int16Array','Uint16Array','Int32Array','Uint32Array','Float32Array','Float64Array','BigInt64Array','BigUint64Array'];
+function __toB64(buf){const b=new Uint8Array(buf);let s='';for(let i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s);}
+function __fromB64(s){const bin=atob(s);const out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out;}
+function encodeWire(value, seen){
+  if(value===null||value===undefined) return value;
+  if(typeof value==='bigint') return {__gjsify:'BigInt', value:value.toString()};
+  if(value===Infinity) return {__gjsify:'Infinity'};
+  if(value===-Infinity) return {__gjsify:'NegInfinity'};
+  if(typeof value==='number' && isNaN(value)) return {__gjsify:'NaN'};
+  if(typeof value!=='object') return value;
+  if(value instanceof Date) return {__gjsify:'Date', value:value.getTime()};
+  if(value instanceof RegExp) return {__gjsify:'RegExp', source:value.source, flags:value.flags};
+  if(value instanceof Error) return {__gjsify:'Error', name:value.name, message:value.message, stack:value.stack};
+  if(value instanceof Map){const e=[];for(const [k,v] of value) e.push([encodeWire(k,seen),encodeWire(v,seen)]);return {__gjsify:'Map', entries:e};}
+  if(value instanceof Set){const v=[];for(const x of value) v.push(encodeWire(x,seen));return {__gjsify:'Set', values:v};}
+  const tag=Object.prototype.toString.call(value).slice(8,-1);
+  if(tag==='ArrayBuffer') return {__gjsify:'ArrayBuffer', data:__toB64(value)};
+  if(__TYPED_ARRAYS.indexOf(tag)!==-1){const ta=value;return {__gjsify:tag, data:__toB64(ta.buffer.slice(ta.byteOffset, ta.byteOffset+ta.byteLength))};}
+  if(Array.isArray(value)) return value.map(function(x){return encodeWire(x,seen);});
+  if(tag==='Object'){const out={};for(const k of Object.keys(value)) out[k]=encodeWire(value[k],seen);return out;}
+  throw new Error('DataCloneError: value could not be cloned');
+}
+function decodeWire(value){
+  if(value===null||value===undefined) return value;
+  if(typeof value!=='object') return value;
+  if(Array.isArray(value)) return value.map(decodeWire);
+  const obj=value;
+  if(typeof obj.__gjsify==='string'){
+    switch(obj.__gjsify){
+      case 'BigInt': return BigInt(obj.value);
+      case 'Infinity': return Infinity;
+      case 'NegInfinity': return -Infinity;
+      case 'NaN': return NaN;
+      case 'Date': return new Date(obj.value);
+      case 'RegExp': return new RegExp(obj.source, obj.flags);
+      case 'Error': {const e=new Error(obj.message); e.name=obj.name; if(obj.stack) e.stack=obj.stack; return e;}
+      case 'Map': {const m=new Map(); for(const [k,v] of obj.entries) m.set(decodeWire(k),decodeWire(v)); return m;}
+      case 'Set': {const s=new Set(); for(const v of obj.values) s.add(decodeWire(v)); return s;}
+      case 'ArrayBuffer': return __fromB64(obj.data).buffer;
+      default: {
+        if(__TYPED_ARRAYS.indexOf(obj.__gjsify)!==-1){
+          const bytes=__fromB64(obj.data);
+          const Ctor=globalThis[obj.__gjsify];
+          return new Ctor(bytes.buffer);
+        }
+        return value;
+      }
+    }
+  }
+  const tag=Object.prototype.toString.call(value).slice(8,-1);
+  if(tag==='Object'){const out={};for(const k of Object.keys(obj)) out[k]=decodeWire(obj[k]);return out;}
+  return value;
+}
+
 function materialise(value) {
   if (value === null || typeof value !== 'object') return value;
   if (typeof value.__sab === 'number' && typeof value.size === 'number') {
@@ -207,7 +262,7 @@ function makeChildSidePort(portId) {
      *  semantics. */
     _receive(data) {
       if (closed) return;
-      Promise.resolve().then(() => { if (!closed) emit('message', data); });
+      Promise.resolve().then(() => { if (!closed) emit('message', decodeWire(data)); });
     },
     /** @internal Called by the dispatcher when the parent sends
      *  {__msgport: portId, op: 'close'}. Fires the local 'close' event
@@ -240,7 +295,7 @@ function makeChildSidePort(portId) {
     },
     postMessage(data) {
       if (closed) return;
-      send({ __msgport: portId, op: 'send', data });
+      send({ __msgport: portId, op: 'send', data: encodeWire(data) });
     },
     close() {
       if (closed) return;
@@ -294,7 +349,7 @@ const parentPort = {
     return this;
   },
   emit(ev, ...a) { (_listeners.get(ev) || []).forEach(fn => fn(...a)); },
-  postMessage(data) { send({ type: 'message', data }); },
+  postMessage(data) { send({ type: 'message', data: encodeWire(data) }); },
   close() { send({ type: 'exit', code: 0 }); requestShutdown(); },
   removeAllListeners(ev) {
     if (ev) _listeners.delete(ev); else _listeners.clear();
@@ -306,7 +361,7 @@ const parentPort = {
 globalThis.__gjsify_worker_context = {
   isMainThread: false,
   parentPort,
-  workerData: materialise(init.workerData ?? null),
+  workerData: materialise(decodeWire(init.workerData ?? null)),
   threadId: init.threadId ?? 0,
 };
 
@@ -346,7 +401,7 @@ function readNext() {
         // messages before writing this stdin line, so they're already
         // buffered.
         if (init.sabSocketFd === 3) drainSabFds(countSabPlaceholders(msg.data));
-        parentPort.emit('message', materialise(msg.data));
+        parentPort.emit('message', materialise(decodeWire(msg.data)));
       }
       else if (msg.type === 'terminate') { send({ type: 'exit', code: 1 }); requestShutdown(); return; }
       readNext();
