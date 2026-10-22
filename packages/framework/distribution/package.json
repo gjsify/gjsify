@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/distribution",
-    "version": "0.64.4",
+    "version": "0.64.5",
     "description": "The build-time distribution channel (flathub, web, microsoft-store, apple-app-store) and the capabilities it gates, such as donation UI",
     "type": "module",
     "module": "lib/esm/index.js",

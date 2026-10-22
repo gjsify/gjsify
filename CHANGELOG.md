@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.64.5](https://github.com/gjsify/gjsify/compare/v0.64.4...v0.64.5) (2026-10-22)
+
+### Features
+
+* **node-gi:** ship fontconfig + locale catalogs in darwin runtime ([#2350](https://github.com/gjsify/gjsify/issues/2350)) ([bce12eb](https://github.com/gjsify/gjsify/commit/bce12eb429b02dc42040e7b5667a29d9ec7993e6))
+
+### Bug Fixes
+
+* **cli:** fetch the GTK closure at ship time ([#2345](https://github.com/gjsify/gjsify/issues/2345)) ([e2ba6b6](https://github.com/gjsify/gjsify/commit/e2ba6b61e678621fe2352503c28fbcd738c8460f))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([237b904](https://github.com/gjsify/gjsify/commit/237b9042d5af83412f26f54ce61519179f3f0cde))
+
 ## [0.64.4](https://github.com/gjsify/gjsify/compare/v0.64.3...v0.64.4) (2026-10-22)
 
 ### Bug Fixes
