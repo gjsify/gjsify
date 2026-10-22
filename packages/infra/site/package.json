@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/site",
-    "version": "0.64.3",
+    "version": "0.64.4",
     "description": "Static landing page generator for a GNOME-style app, rendered from its AppStream metainfo — downloads, screenshots, release notes, support links, no JavaScript required.",
     "type": "module",
     "main": "lib/index.js",

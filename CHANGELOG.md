@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.64.4](https://github.com/gjsify/gjsify/compare/v0.64.3...v0.64.4) (2026-10-22)
+
+### Bug Fixes
+
+* **cli:** retry npm publish, fail on held packages ([#2334](https://github.com/gjsify/gjsify/issues/2334)) ([b06ddb6](https://github.com/gjsify/gjsify/commit/b06ddb6f7be8496c148e0a4a3e02606a3539a3f7))
+* **dns:** add resolveTxt to dns.promises ([#2326](https://github.com/gjsify/gjsify/issues/2326)) ([e94406e](https://github.com/gjsify/gjsify/commit/e94406ef55b63eeb3a33064a16bd29033ef5a16b))
+
+### Performance Improvements
+
+* **sqlite:** cache statements and release bound strings ([#2333](https://github.com/gjsify/gjsify/issues/2333)) ([46fd77f](https://github.com/gjsify/gjsify/commit/46fd77f7828fe0e15aa51c620978e5554f98ec06))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([fc87b9d](https://github.com/gjsify/gjsify/commit/fc87b9d45b0698a03d2928d0892e31790542241a))
+
+### Tests
+
+* **adwaita-core:** add gtk css vectors against gjs ([#2301](https://github.com/gjsify/gjsify/issues/2301)) ([d8121dc](https://github.com/gjsify/gjsify/commit/d8121dc9dd3a8f574a7f6285743248b4a0a3c034))
+
 ## [0.64.3](https://github.com/gjsify/gjsify/compare/v0.64.2...v0.64.3) (2026-10-22)
 
 ### Features

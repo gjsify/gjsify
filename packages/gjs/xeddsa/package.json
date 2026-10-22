@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/xeddsa",
-    "version": "0.64.3",
+    "version": "0.64.4",
     "description": "XEdDSA signatures over Curve25519 (Signal specification) and the Curve25519 ⇄ Ed25519 key mapping. Pure TypeScript on @noble/curves.",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
