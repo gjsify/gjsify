@@ -14,6 +14,8 @@
 // Reference: refs/npm-cli/lib/utils/oidc.js
 // Original: Copyright (c) npm contributors. Artistic-2.0.
 
+import { isTransientStatus, retryDelayMs } from './transient-retry.js';
+
 interface OidcExchangeOptions {
     /** Full package name including scope, e.g. `@gjsify/cli`. */
     packageName: string;
@@ -30,12 +32,9 @@ interface OidcExchangeOptions {
      * `--tolerate-untrusted-new` and the misconfig hints still fire on the first response.
      */
     maxRetries?: number;
-    /** Base backoff in ms for transient retries; doubles each attempt (capped 8s). Default 1000. Tests pass 0. */
+    /** Base backoff in ms for transient retries; doubles each attempt (capped 30s, `Retry-After` honored). Default 1000. Tests pass 0. */
     retryBaseMs?: number;
 }
-
-/** HTTP statuses worth retrying — npm-side transient/overload conditions. */
-const TRANSIENT_EXCHANGE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
@@ -192,7 +191,7 @@ export async function exchangeOidcForNpmToken(args: OidcExchangeOptions & { idTo
         } catch (netErr) {
             // Network-level failure (DNS, connection reset, TLS): transient.
             if (attempt < maxRetries) {
-                const delay = Math.min(retryBaseMs * 2 ** attempt, 8000);
+                const delay = retryDelayMs(attempt, retryBaseMs);
                 log?.(
                     `gjsify oidc: network error for ${packageName} (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms`,
                 );
@@ -212,8 +211,9 @@ export async function exchangeOidcForNpmToken(args: OidcExchangeOptions & { idTo
 
         if (!res.ok) {
             // Only TRANSIENT npm-side failures retry — see `maxRetries`.
-            if (TRANSIENT_EXCHANGE_STATUSES.has(res.status) && attempt < maxRetries) {
-                const delay = Math.min(retryBaseMs * 2 ** attempt, 8000);
+            if (isTransientStatus(res.status) && attempt < maxRetries) {
+                // `Retry-After` wins over the backoff when npm sends one (429/503 during an incident).
+                const delay = retryDelayMs(attempt, retryBaseMs, res.headers.get('retry-after'));
                 log?.(
                     `gjsify oidc: transient ${res.status} ${res.statusText} for ${packageName} (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms`,
                 );

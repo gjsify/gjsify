@@ -14,6 +14,9 @@ import {
     readLedger,
     appendLedger,
     renderLedgerSummary,
+    pendingEntries,
+    markHeldPublished,
+    settleUnserved,
     type LedgerEntry,
 } from './utils/publish-hold.js';
 import type { WorkspacePin } from './utils/publish-pins.js';
@@ -392,6 +395,100 @@ export default async () => {
                 ),
             ).toBe(true);
             expect(md.includes('spent number')).toBe(true);
+        });
+    });
+
+    await describe('second pass', async () => {
+        const held = (name: string): LedgerEntry => ({ ev: 'held', name, version: '1.0.0', reasons: [] });
+        const unserved = (name: string): LedgerEntry => ({
+            ev: 'unserved',
+            name,
+            version: '1.0.0',
+            cls: 'validating',
+            detail: 'd',
+        });
+
+        await it('a later served entry supersedes held and unserved', async () => {
+            const p = pendingEntries([held('a'), unserved('b'), { ev: 'served', name: 'a', version: '1.0.0' }]);
+            expect(p.held.length).toBe(0);
+            expect(p.unserved.length).toBe(1);
+        });
+
+        await it('markHeldPublished clears a held name, ignores others', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'ledger-'));
+            const path = join(dir, 'l.jsonl');
+            try {
+                appendLedger(path, held('a'));
+                markHeldPublished(path, 'a', '1.0.0');
+                markHeldPublished(path, 'never-held', '1.0.0');
+                const p = pendingEntries(readLedger(path));
+                expect(p.held.length).toBe(0);
+                expect(readLedger(path).length).toBe(2);
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        });
+
+        await it('held then served: the dependent no longer holds on it', async () => {
+            const reg = fakeRegistry({});
+            const ledger: LedgerEntry[] = [held('@gjsify/a'), { ev: 'served', name: '@gjsify/a', version: '1.0.0' }];
+            const reasons = await findUnavailablePins({
+                registry: REGISTRY,
+                pins: [pin('@gjsify/a', '^1.0.0')],
+                ledger,
+                waitBudgetMs: 0,
+                fetchImpl: reg.fetchImpl,
+                ...clock(),
+            });
+            expect(reasons.length).toBe(0);
+        });
+
+        await it('settleUnserved confirms a version that appears and records served', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'ledger-'));
+            const path = join(dir, 'l.jsonl');
+            try {
+                const entries = [unserved('@gjsify/a')];
+                for (const e of entries) appendLedger(path, e);
+                const reg = fakeRegistry({ servedAfter: { key: '@gjsify/a@1.0.0', afterRequests: 2 } });
+                const done = await settleUnserved({
+                    entries,
+                    ledgerPath: path,
+                    registryFor: () => REGISTRY,
+                    budgetMs: 600_000,
+                    fetchImpl: reg.fetchImpl,
+                    ...clock(),
+                });
+                expect(done.length).toBe(1);
+                const p = pendingEntries(readLedger(path));
+                expect(p.unserved.length).toBe(0);
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        });
+
+        await it('settleUnserved leaves a never-served and a terminal entry pending', async () => {
+            const dir = mkdtempSync(join(tmpdir(), 'ledger-'));
+            const path = join(dir, 'l.jsonl');
+            try {
+                const terminal: LedgerEntry = { ...unserved('@gjsify/t'), cls: 'blocked' } as LedgerEntry;
+                const entries = [unserved('@gjsify/a'), terminal, held('@gjsify/h')];
+                for (const e of entries) appendLedger(path, e);
+                const reg = fakeRegistry({});
+                const done = await settleUnserved({
+                    entries,
+                    ledgerPath: path,
+                    registryFor: () => REGISTRY,
+                    budgetMs: 1000,
+                    fetchImpl: reg.fetchImpl,
+                    ...clock(),
+                });
+                expect(done.length).toBe(0);
+                const p = pendingEntries(readLedger(path));
+                expect(p.unserved.length).toBe(2);
+                expect(p.held.length).toBe(1);
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
         });
     });
 };
