@@ -63,9 +63,12 @@ import {
     DEFAULT_HOLD_WAIT_MS,
     findUnavailablePins,
     holdsPublish,
+    markHeldPublished,
+    pendingEntries,
     readLedger,
     recordUnserved,
     renderLedgerSummary,
+    settleUnserved,
     summariseReasons,
     type HoldReason,
 } from '../utils/publish-hold.js';
@@ -73,6 +76,7 @@ import { describeClass, statusTokenFromEnv, type Classification } from '../utils
 import { loadNpmrc } from '../utils/load-npmrc.js';
 import { OtpProvider, withOtpRetry, isOtpChallenge } from '../utils/npm-otp.js';
 import { promptLine } from '../utils/prompt.js';
+import { fetchWithTransientRetry, type TransientRetryOptions } from '../utils/transient-retry.js';
 
 interface PublishOptions {
     path?: string;
@@ -85,6 +89,10 @@ interface PublishOptions {
     'verify-defer'?: boolean;
     'hold-timeout'?: number;
     'report-ledger'?: boolean;
+    'fail-on-unsettled'?: boolean;
+    'held-names'?: boolean;
+    'settle-ledger'?: boolean;
+    'settle-timeout'?: number;
     ref?: string;
     provenance?: boolean;
     'dry-run'?: boolean;
@@ -151,6 +159,30 @@ export const publishCommand: Command<unknown, PublishOptions> = {
                 type: 'boolean',
                 default: false,
             })
+            .option('fail-on-unsettled', {
+                description:
+                    'With --report-ledger: exit 1 when any package is still HELD or any accepted version is still unserved, naming them and the recovery command. The end-of-sweep gate: a sweep that left something behind must be red, not a warning.',
+                type: 'boolean',
+                default: false,
+            })
+            .option('held-names', {
+                description:
+                    'Print, one per line, the packages the ledger shows HELD and not yet published, and exit. Feeds the held-package second pass (.github/scripts/retry-held-publish.sh).',
+                type: 'boolean',
+                default: false,
+            })
+            .option('settle-ledger', {
+                description:
+                    'Wait up to --settle-timeout for every version the ledger records as accepted-but-unserved to be served (the longer read-back the sweep defers), record each as served, and exit.',
+                type: 'boolean',
+                default: false,
+            })
+            .option('settle-timeout', {
+                description:
+                    'With --settle-ledger: seconds to wait. Versions poll concurrently, so this is the longest lag tolerated, not a sum. Default 600 (the fatal read-back default; measured lags reach 368 s).',
+                type: 'number',
+                default: DEFAULT_VERIFY_BUDGET_MS / 1000,
+            })
             .option('ref', {
                 description: 'With --report-ledger: the git ref to put in the printed recovery command.',
                 type: 'string',
@@ -212,9 +244,50 @@ export const publishCommand: Command<unknown, PublishOptions> = {
         const trustedFlag = args.trusted;
         const verbose = Boolean(process.env.GJSIFY_PUBLISH_DEBUG);
 
+        const ledgerPath = process.env.GJSIFY_PUBLISH_LEDGER;
+        if (args['held-names'] === true) {
+            for (const e of pendingEntries(readLedger(ledgerPath)).held) process.stdout.write(`${e.name}\n`);
+            return;
+        }
+        if (args['settle-ledger'] === true) {
+            const settleSeconds = args['settle-timeout'] ?? DEFAULT_VERIFY_BUDGET_MS / 1000;
+            if (!Number.isFinite(settleSeconds) || settleSeconds < 0) {
+                console.error(
+                    `gjsify publish: --settle-timeout must be a non-negative number of seconds, got ${JSON.stringify(args['settle-timeout'])}`,
+                );
+                return process.exit(2);
+            }
+            const npmrc = await loadNpmrc(process.cwd());
+            const served = await settleUnserved({
+                entries: readLedger(ledgerPath),
+                ledgerPath,
+                registryFor: (name) =>
+                    (process.env.npm_config_registry ?? registryFor(name, npmrc) ?? DEFAULT_REGISTRY).replace(
+                        /\/$/,
+                        '',
+                    ),
+                budgetMs: Math.max(1, Math.round(settleSeconds * 1000)),
+                log: verbose ? (m) => console.error(m) : undefined,
+            });
+            for (const key of served) process.stdout.write(`served after settling: ${key}\n`);
+            return;
+        }
         if (args['report-ledger'] === true) {
-            const summary = renderLedgerSummary(readLedger(process.env.GJSIFY_PUBLISH_LEDGER), args.ref ?? '<tag>');
+            const entries = readLedger(ledgerPath);
+            const summary = renderLedgerSummary(entries, args.ref ?? '<tag>');
             if (summary) process.stdout.write(`${summary}\n`);
+            if (args['fail-on-unsettled'] === true) {
+                const { unserved, held } = pendingEntries(entries);
+                const names = [...new Set([...held, ...unserved].map((e) => e.name))];
+                if (names.length > 0) {
+                    const ref = args.ref ?? '<tag>';
+                    console.error(
+                        `gjsify publish: ${held.length} package(s) still HELD and ${unserved.length} version(s) still unserved after the second pass: ${names.join(' ')}\n` +
+                            `  recover: re-run THIS run (\`gh run rerun <run-id>\` — keeps the version; never a new dispatch on the next channel, which mints a new one), or for a release: gh workflow run release.yml --ref ${ref} -f skip_publish=false -f only='${names.join(' ')}'`,
+                    );
+                    return process.exit(1);
+                }
+            }
             return;
         }
 
@@ -341,11 +414,31 @@ export const publishCommand: Command<unknown, PublishOptions> = {
             otpProvider,
             seedOtpFirst: otp !== undefined,
             verifyBudgetMs,
-            holdWaitMs: Math.round(holdSeconds * 1000),
+            holdWaitMs: Math.min(Math.round(holdSeconds * 1000), remainingHoldDeadlineMs()),
         });
         reportPublishOutcome(outcome, args.json === true, deferUnconfirmed);
     },
 };
+
+/**
+ * Milliseconds left until `GJSIFY_HOLD_DEADLINE` (epoch ms), or Infinity when unset. The
+ * held-package second pass is one `gjsify publish` PROCESS per package, so each would otherwise
+ * pay the full `--hold-timeout` on the same blocker; a shared deadline bounds the whole pass.
+ */
+function remainingHoldDeadlineMs(): number {
+    const until = Number(process.env.GJSIFY_HOLD_DEADLINE);
+    return Number.isFinite(until) && until > 0 ? Math.max(0, until - Date.now()) : Infinity;
+}
+
+/**
+ * Whether a 409 / 403 "previously published" answer counts as success. `--tolerate-republish`
+ * says yes; so does a PUT that was retried after a 5xx, since the first attempt may have landed
+ * and the retry then finds its own version.
+ */
+export function acceptsRepublish(status: number, text: string, tolerate: boolean, retriedPut: boolean): boolean {
+    const conflict = status === 409 || (status === 403 && /previously published/i.test(text));
+    return conflict && (tolerate || retriedPut);
+}
 
 /** Input to {@link publishWorkspace} — the token-auth-aware, OTP-shareable publish flow. */
 export interface PublishWorkspaceInput {
@@ -393,6 +486,8 @@ export interface PublishWorkspaceInput {
      * holding this package. Default {@link DEFAULT_HOLD_WAIT_MS}.
      */
     holdWaitMs?: number;
+    /** Retry policy for 5xx/429/network errors on the PUT. Tests pass `{ baseMs: 0 }`. */
+    putRetry?: TransientRetryOptions;
 }
 
 /** Discriminated result of {@link publishWorkspace}; the caller owns presentation. */
@@ -724,13 +819,26 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
     const bodyStr = JSON.stringify(payload);
     // Each attempt clones the base headers and adds `npm-otp` (+ legacy
     // auth-type, matching buildPublishHeaders) when a code is supplied.
-    const doPut = (code?: string): Promise<Response> => {
+    //
+    // A transient 5xx/429/network error is retried here, inside the OTP loop (a 401 challenge is
+    // not transient and passes straight through). The first attempt may have LANDED despite its
+    // 5xx, so `retriedPut` makes a later 409 / "previously published" count as success below.
+    let retriedPut = false;
+    const doPut = async (code?: string): Promise<Response> => {
         const reqHeaders = { ...headers };
         if (code) {
             reqHeaders['npm-otp'] = code;
             reqHeaders['npm-auth-type'] = 'legacy';
         }
-        return fetch(url, { method: 'PUT', headers: reqHeaders, body: bodyStr });
+        const { response, retried } = await fetchWithTransientRetry(
+            () => fetch(url, { method: 'PUT', headers: reqHeaders, body: bodyStr }),
+            {
+                log: (m) => console.error(`gjsify publish: PUT ${packed.name}@${packed.version}: ${m}`),
+                ...input.putRetry,
+            },
+        );
+        if (retried > 0) retriedPut = true;
+        return response;
     };
 
     const res = await withOtpRetry(doPut, otpProvider, { seedFirstAttempt: input.seedOtpFirst });
@@ -866,6 +974,7 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
                 }),
             };
         }
+        markHeldPublished(ledgerPath, packed.name, packed.version);
         return {
             ok: true,
             action: 'published',
@@ -896,8 +1005,7 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
     // this is the path a `publish-unconfirmed` re-run always lands on: exempting
     // it would leave the documented remediation reporting a success nothing
     // checked. Cost is one GET, on a path that only runs on a re-publish.
-    const isRepublishConflict = res.status === 409 || (res.status === 403 && /previously published/i.test(text));
-    if (isRepublishConflict && tolerate) {
+    if (acceptsRepublish(res.status, text, tolerate, retriedPut)) {
         const readback = await readBack();
         if (readback && !readback.confirmed) {
             return {
@@ -922,6 +1030,7 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
                 }),
             };
         }
+        markHeldPublished(ledgerPath, packed.name, packed.version);
         return {
             ok: true,
             action: 'republish-tolerated',

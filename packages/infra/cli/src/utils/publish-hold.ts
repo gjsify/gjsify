@@ -60,7 +60,10 @@ export type LedgerEntry =
       }
     /** This run did NOT publish the package, because of the listed dependencies. */
     | { ev: 'held'; name: string; version: string; reasons: HoldReason[] }
-    /** A later probe found a version an earlier `unserved` entry recorded now served; it supersedes that entry. */
+    /**
+     * The version is now served; it supersedes an earlier `unserved` OR `held` entry (last entry
+     * wins) — a later probe found it, or the held-package second pass published it.
+     */
     | { ev: 'served'; name: string; version: string };
 
 export function appendLedger(path: string | undefined, entry: LedgerEntry): void {
@@ -253,13 +256,74 @@ export async function recordUnserved(input: {
  * and why, and the exact command that publishes the held set once their
  * dependencies are installable. `undefined` when nothing needs saying.
  */
-export function renderLedgerSummary(entries: readonly LedgerEntry[], ref: string): string | undefined {
-    const served = new Set(entries.filter((e) => e.ev === 'served').map((e) => `${e.name}@${e.version}`));
-    const unserved = entries.filter(
-        (e): e is Extract<LedgerEntry, { ev: 'unserved' }> =>
-            e.ev === 'unserved' && !served.has(`${e.name}@${e.version}`),
+type UnservedEntry = Extract<LedgerEntry, { ev: 'unserved' }>;
+type HeldEntry = Extract<LedgerEntry, { ev: 'held' }>;
+
+/** One entry per `name@version` — the LAST one — keeping only those still not served. */
+export function pendingEntries(entries: readonly LedgerEntry[]): { unserved: UnservedEntry[]; held: HeldEntry[] } {
+    const last = new Map<string, LedgerEntry>();
+    for (const e of entries) last.set(`${e.name}@${e.version}`, e);
+    const pending = [...last.values()];
+    return {
+        unserved: pending.filter((e): e is UnservedEntry => e.ev === 'unserved'),
+        held: pending.filter((e): e is HeldEntry => e.ev === 'held'),
+    };
+}
+
+/**
+ * Record that a package this run once HELD has now been published, so its dependents stop
+ * holding on it (`judgePin` reads the last entry) and the end-of-job check stops naming it.
+ */
+export function markHeldPublished(path: string | undefined, name: string, version: string): void {
+    const last = [...readLedger(path)].reverse().find((e) => e.name === name && e.version === version);
+    if (last?.ev === 'held') appendLedger(path, { ev: 'served', name, version });
+}
+
+export interface SettleUnservedInput {
+    entries: readonly LedgerEntry[];
+    ledgerPath: string | undefined;
+    /** Registry for a package name (scoped registries differ). */
+    registryFor: (name: string) => string;
+    /** One shared deadline: the entries poll concurrently, so the cost is the longest lag, not the sum. */
+    budgetMs: number;
+    authorization?: string;
+    fetchImpl?: typeof fetch;
+    sleep?: (ms: number) => Promise<void>;
+    now?: () => number;
+    log?: (msg: string) => void;
+}
+
+/**
+ * Wait for versions npm ACCEPTED but did not serve inside the sweep's 5 s read-back, and append
+ * `served` for each one that shows up. This is the longer read-back the sweep deliberately defers
+ * (publishing.md: lags reach 252–368 s). A TERMINAL class (blocked/deleted/staged/missing) is a
+ * spent number — waiting cannot help, so it is skipped. Returns the names confirmed.
+ */
+export async function settleUnserved(input: SettleUnservedInput): Promise<string[]> {
+    const waiting = pendingEntries(input.entries).unserved.filter((e) => !isTerminalClass(e.cls));
+    const confirmed = await Promise.all(
+        waiting.map(async (e) => {
+            const readback = await verifyPublishedVersion({
+                registry: input.registryFor(e.name),
+                name: e.name,
+                version: e.version,
+                budgetMs: input.budgetMs,
+                authorization: input.authorization,
+                fetchImpl: input.fetchImpl,
+                sleep: input.sleep,
+                now: input.now,
+                log: input.log,
+            });
+            if (!readback.confirmed) return undefined;
+            appendLedger(input.ledgerPath, { ev: 'served', name: e.name, version: e.version });
+            return `${e.name}@${e.version}`;
+        }),
     );
-    const held = entries.filter((e): e is Extract<LedgerEntry, { ev: 'held' }> => e.ev === 'held');
+    return confirmed.filter((x): x is string => x !== undefined);
+}
+
+export function renderLedgerSummary(entries: readonly LedgerEntry[], ref: string): string | undefined {
+    const { unserved, held } = pendingEntries(entries);
     if (unserved.length === 0 && held.length === 0) return undefined;
     const lines: string[] = ['### npm versions that were accepted but are not installable', ''];
     if (unserved.length > 0) {
@@ -287,7 +351,7 @@ export function renderLedgerSummary(entries: readonly LedgerEntry[], ref: string
             `gh workflow run release.yml --ref ${ref} -f skip_publish=false -f only='${[...new Set(held.map((e) => e.name))].join(' ')}'`,
             '```',
         );
-        if (entries.some((e) => e.ev === 'unserved' && (e.cls === 'blocked' || e.cls === 'deleted'))) {
+        if (unserved.some((e) => e.cls === 'blocked' || e.cls === 'deleted')) {
             lines.push(
                 '',
                 'A `blocked` or `deleted` version is a spent number: re-running the release cannot serve it, the package needs a version bump.',
