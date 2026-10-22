@@ -614,9 +614,7 @@ export default async () => {
                 expect(staged.found.some((line) => line.includes('fetched for this ship run'))).toBe(true);
                 expect(staged.missing.some((line) => line.includes('GTK closure'))).toBe(false);
                 // The depth is the claim: a fetched closure is staged exactly like an installed one.
-                expect(
-                    staged.files.some((file) => file.path.endsWith('loaders/libpixbufloader-svg.so')),
-                ).toBe(true);
+                expect(staged.files.some((file) => file.path.endsWith('loaders/libpixbufloader-svg.so'))).toBe(true);
             } finally {
                 rmSync(cwd, { recursive: true, force: true });
                 rmSync(pkg, { recursive: true, force: true });
