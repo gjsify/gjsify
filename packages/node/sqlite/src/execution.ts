@@ -79,6 +79,83 @@ export function integerColumns(count: number): ColumnTypes {
 }
 
 /**
+ * Statements whose prepared-statement cache entry on the connection is deliberately KEPT,
+ * youngest last.
+ *
+ * Re-executing a `Gda.Statement` whose cache entry still exists is where the measured win
+ * of a reused prepared statement is: libgda then hands the SQLite provider back the same
+ * `sqlite3_stmt` instead of compiling the SQL again. Reusing only the PARSED statement
+ * while still deleting the cache entry is no faster (and slower on a file database).
+ *
+ * The entry cannot simply be kept forever. Every `GdaSqlitePStmt` holds a GWeakRef on the
+ * process-wide SQLite provider, GLib caps those at 65535 (see the note below), and a
+ * `StatementSync` the garbage collector reaps never tells anyone to let go. So retention
+ * is bounded here: past `MAX_RETAINED`, the least recently used entry is deleted, which
+ * costs its next execution one compile and nothing else.
+ */
+const retained = new Map<Gda.Statement, Gda.Connection>();
+const MAX_RETAINED = 512;
+
+function retainPrepared(connection: Gda.Connection, stmt: Gda.Statement): void {
+    // Delete-then-set moves the entry to the end: Map iterates in insertion order, which
+    // makes the first entry the least recently used one.
+    retained.delete(stmt);
+    retained.set(stmt, connection);
+    while (retained.size > MAX_RETAINED) {
+        const [oldest, owner] = retained.entries().next().value!;
+        retained.delete(oldest);
+        owner.del_prepared_statement(oldest);
+    }
+}
+
+/**
+ * Drop the connection's prepared-statement cache entry for `stmt`.
+ *
+ * Call this when a statement is discarded rather than executed again — a reused one is
+ * retained by `executeStatement` instead. It is also the remedy for a stale entry: a
+ * retained `SELECT *` keeps the column count it was prepared with across an
+ * `ALTER TABLE … ADD COLUMN`, and deleting the entry is what makes the next execution see
+ * the new one (no reparse needed). `matches()` below is what notices.
+ *
+ * `del_prepared_statement()` does not check for a missing cache, which libgda creates on
+ * the first successful prepare. open()'s first PRAGMA is always one, so every connection
+ * this package hands out already has it.
+ */
+export function releaseStatement(connection: Gda.Connection, stmt: Gda.Statement): void {
+    retained.delete(stmt);
+    connection.del_prepared_statement(stmt);
+}
+
+/**
+ * Give back every cache entry retained on `connection`.
+ *
+ * A `StatementSync` asks for retention and is then collected without telling anyone, so
+ * the connection's own lifecycle is the only seam that can give its entries back — and it
+ * must: a parked connection is handed to the NEXT consumer, who can recreate a table a
+ * retained statement was compiled against. A never-closed `DatabaseSync` pins its
+ * connection plus at most `MAX_RETAINED` compiled statements — bounded, by design.
+ */
+export function releaseRetained(connection: Gda.Connection): void {
+    // `releaseStatement` deletes the entry it was handed — the one the iterator is on,
+    // which a Map iterator tolerates.
+    for (const [stmt, owner] of retained) {
+        if (owner === connection) releaseStatement(connection, stmt);
+    }
+}
+
+export interface ExecuteOptions {
+    /** How to read the result columns. Pass only when `read` reads rows. */
+    columns?: ColumnTypes;
+    /**
+     * Keep the connection's prepared-statement cache entry when the execution leaves the
+     * statement drained, so the next execution of the SAME `Gda.Statement` reuses the
+     * compiled `sqlite3_stmt` (see `retained`). Only a caller that HOLDS its statement for
+     * reuse asks for this; a one-shot statement would just occupy the bound.
+     */
+    retain?: boolean;
+}
+
+/**
  * Execute `stmt`, hand its result to `read`, and leave NOTHING behind on the connection.
  *
  * libgda keeps state per execution that only the connection's close() or the garbage
@@ -102,9 +179,10 @@ export function integerColumns(count: number): ColumnTypes {
  *   connection cached as above, where no caller can reach it to release it.
  *
  * So: non-SELECTs go through `batch_execute()`, which passes `last_insert_row` as NULL;
- * the connection's cache entry is deleted after every execution; and the data model lets
- * go of its prepared statement as soon as `read` returns. Every object an execution
- * creates is then released before this function does.
+ * the connection's cache entry is deleted after every execution unless the caller asks to
+ * keep it for a statement it will run again (`ExecuteOptions.retain`, bounded by
+ * `retained`); and the data model lets go of its prepared statement as soon as `read`
+ * returns. Every object an execution creates is then released before this function does.
  *
  * Do NOT use `GObject.Object.run_dispose()` on the model instead: `GdaSqliteRecordset`'s
  * dispose clears a GWeakRef without re-initialising it, so the second dispose the
@@ -115,20 +193,36 @@ export function executeStatement<T>(
     stmt: Gda.Statement,
     params: Gda.Set | null,
     read: (model: Gda.DataModel | null, textColumns: boolean[]) => T,
-    columns?: ColumnTypes,
+    options: ExecuteOptions = {},
 ): T {
+    const columns = options.columns;
     let model: Gda.DataModel | null = null;
+    let retainable = false;
     try {
         model = execute(connection, stmt, params, columns);
         if (model) assertTyped(model);
-        return read(model, columns?.textColumns ?? []);
+        const result = read(model, columns?.textColumns ?? []);
+        // Only a DRAINED statement may keep its cache entry, and a forward cursor — the
+        // one execution mode here that nothing reads to its end — cannot be proven to be
+        // one: retaining it leaves the sqlite3_stmt mid-step, and the next DROP TABLE or
+        // VACUUM on that connection fails with "database table is locked". Reached only
+        // through an error that `read` itself raised, hence after it rather than before.
+        retainable = !isForwardCursor(stmt, model, columns);
+        return result;
     } finally {
-        if (model) releasePreparedStatement(model);
-        // `del_prepared_statement()` does not check for a missing cache, which libgda
-        // creates on the first successful prepare. open()'s first PRAGMA is always one,
-        // so every connection this package hands out already has it.
-        connection.del_prepared_statement(stmt);
+        if (model) {
+            // What drains a random-access model: libgda reads it to its end to answer.
+            // `read` normally asks already, but it does not have to.
+            if (retainable && options.retain) model.get_n_rows();
+            releasePreparedStatement(model);
+        }
+        if (retainable && options.retain) retainPrepared(connection, stmt);
+        else releaseStatement(connection, stmt);
     }
+}
+
+function isForwardCursor(stmt: Gda.Statement, model: Gda.DataModel | null, columns: ColumnTypes | undefined): boolean {
+    return model !== null && columns === undefined && stmt.get_statement_type() === Gda.SqlStatementType.SELECT;
 }
 
 function execute(
@@ -173,7 +267,7 @@ function executeTyped(
     const model = selectWith(connection, stmt, params, columns.types!);
     if (matches(model, columns.types!)) return model;
     releasePreparedStatement(model);
-    connection.del_prepared_statement(stmt);
+    releaseStatement(connection, stmt);
     if (freshlyProbed) throw new SqliteError('the result columns changed between two executions');
     columns.types = probeColumns(connection, stmt, params);
     const retried = selectWith(connection, stmt, params, columns.types);
@@ -232,7 +326,7 @@ function probeColumns(connection: Gda.Connection, stmt: Gda.Statement, params: G
         return types;
     } finally {
         releasePreparedStatement(model);
-        connection.del_prepared_statement(stmt);
+        releaseStatement(connection, stmt);
     }
 }
 

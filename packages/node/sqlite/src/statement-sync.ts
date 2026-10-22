@@ -13,8 +13,8 @@ import {
 } from './errors.ts';
 import { readAllRows, readFirstRow, type ReadOptions } from './data-model-reader.ts';
 import { rewriteExistsSubqueries } from './exists-subquery.ts';
-import { ColumnTypes, executeStatement, integerColumns } from './execution.ts';
-import { bindStringHolders } from './param-binding.ts';
+import { ColumnTypes, executeStatement, integerColumns, releaseStatement } from './execution.ts';
+import { bindHolders, type HolderBinding, releaseHolders } from './param-binding.ts';
 import { convertParameterSyntax, type ParamInfo } from './parameter-syntax.ts';
 import { parseSql } from './parse-sql.ts';
 import type { RunResult, StatementSyncOptions } from './types.ts';
@@ -24,6 +24,44 @@ const MIN_INT64 = -9223372036854775808n;
 
 // Sentinel to prevent direct construction
 const INTERNAL = Symbol('StatementSync.internal');
+
+/**
+ * How many rendered SQL texts of ONE prepared statement keep their parsed statement.
+ *
+ * Every execution whose parameters are all bound renders the same text, so a statement
+ * used the ordinary way needs one entry. More are only reached through the values that
+ * stay literals (see `sqlLiteral`), and a BLOB puts its whole hex into the text — so an
+ * unbounded map would grow with the DATA. Past this the least recently used statement is
+ * dropped, which costs its next execution one parse.
+ */
+const MAX_CACHED_STATEMENTS = 8;
+
+const COUNTER_SQL = 'SELECT changes(), last_insert_rowid()';
+
+/**
+ * Both counters are read as text: a rowid is a 64-bit integer, and libgda would type the
+ * column gint and refuse any rowid past 2^31 - 1. The shape is fixed, so one description
+ * answers for every connection and nothing ever has to probe it.
+ */
+const COUNTER_COLUMNS = integerColumns(2);
+
+/**
+ * `SELECT changes(), last_insert_rowid()` parsed once per connection.
+ *
+ * `run()` asks after every execution, so parsing it per call put a second parse — and a
+ * second compile — on the hot path of every INSERT. Shared across the statements of one
+ * connection rather than held per `StatementSync`: they would all be the same query, and
+ * each copy would occupy one of the connection's bounded retained entries.
+ */
+const counterStatements = new WeakMap<Gda.Connection, Gda.Statement>();
+
+function counterStatement(connection: Gda.Connection): Gda.Statement {
+    const cached = counterStatements.get(connection);
+    if (cached) return cached;
+    const [stmt] = parseSql(connection, COUNTER_SQL);
+    counterStatements.set(connection, stmt);
+    return stmt;
+}
 
 /** node:sqlite reads a leading plain object as the named-parameter bag. */
 function isNamedArgObject(arg: unknown): boolean {
@@ -50,12 +88,40 @@ function validateBindValue(value: unknown, paramIndex: number): void {
 }
 
 /**
- * Render a NON-STRING value as a SQL literal.
+ * How a value reaches SQLite, or null for one that has to stay in the SQL text.
  *
- * Every branch emits characters from a closed alphabet — digits, `-`, `.`, `e`, hex, or
- * the bare words `NULL` / `X'…'` — so the result cannot end a quoted region or begin a
- * second statement, whatever the caller passed. Strings are the one type that can, and
- * they never reach here: `#buildStatement` binds them to a Gda holder instead.
+ * Everything bindable goes through a holder, because that is what keeps the SQL TEXT
+ * identical across executions — and the text is what the parsed statement, and the
+ * compiled `sqlite3_stmt` behind it, are cached under (`#statementFor`). Before this,
+ * every non-string value was written into the SQL, so `run(1)` and `run(2)` were two
+ * different statements and neither could reuse anything.
+ *
+ * The storage classes are the ones the literals produced, verified by reading the stored
+ * value back as text: see `HolderType` in param-binding.ts.
+ */
+function holderBinding(value: unknown): HolderBinding | null {
+    if (typeof value === 'string') return { type: 'gchararray', value };
+    if (typeof value === 'number') return { type: 'gdouble', value };
+    if (typeof value === 'bigint') {
+        if (value > MAX_INT64 || value < MIN_INT64) {
+            throw new InvalidArgValueError('BigInt value is too large to bind.');
+        }
+        return { type: 'gint64', value };
+    }
+    // A superset of node:sqlite, which REJECTS booleans outright ("Provided value cannot
+    // be bound to SQLite parameter N"). Kept because consumers rely on it; that is also
+    // why no test asserts it — the Node half of the suite would throw.
+    if (typeof value === 'boolean') return { type: 'gint64', value: value ? 1 : 0 };
+    return null;
+}
+
+/**
+ * Render the values a holder cannot carry — NULL and a BLOB — as a SQL literal.
+ *
+ * libgda refuses NULL through a holder by every spelling, and a `Uint8Array` is "Could
+ * not guess unspecified GValue type" (see param-binding.ts). Both emit characters from a
+ * closed alphabet — the bare word `NULL`, or `X'…'` over hex — so neither can end a
+ * quoted region or begin a second statement, whatever the caller passed.
  *
  * Do not add a string branch back. libgda's parser treats `\` as an escape inside `'…'`
  * and SQLite does not, so a value ending in a backslash — or carrying `\'` — made the
@@ -63,34 +129,6 @@ function validateBindValue(value: unknown, paramIndex: number): void {
  * its `remain` out-parameter, and GJS aborted the process freeing it (see parse-sql.ts).
  */
 function sqlLiteral(value: unknown): string {
-    if (value === null || value === undefined) return 'NULL';
-    if (typeof value === 'number') {
-        // SQLite stores NaN as NULL and has no infinity literal; 9e999 overflows to one,
-        // which is what sqlite3_bind_double leaves behind. Matches node:sqlite.
-        if (Number.isNaN(value)) return 'NULL';
-        if (value === Infinity) return '9e999';
-        if (value === -Infinity) return '-9e999';
-        const text = String(value);
-        // A JS number is a double, and node:sqlite binds it with sqlite3_bind_double — so
-        // `42` lands in a typeless column as REAL, not INTEGER. Give an integral value a
-        // decimal point so the storage class agrees; affinity still converts it back where
-        // the column asks for an integer. Not for exponent form, where a trailing `.0`
-        // would be invalid SQL — and where SQLite reads REAL anyway.
-        if (Number.isInteger(value) && !text.includes('e') && !text.includes('E')) {
-            return `${text}.0`;
-        }
-        return text;
-    }
-    // A superset of node:sqlite, which REJECTS booleans outright ("Provided value cannot
-    // be bound to SQLite parameter N"). Kept because consumers rely on it; that is also
-    // why no test asserts it — the Node half of the suite would throw.
-    if (typeof value === 'boolean') return value ? '1' : '0';
-    if (typeof value === 'bigint') {
-        if (value > MAX_INT64 || value < MIN_INT64) {
-            throw new InvalidArgValueError('BigInt value is too large to bind.');
-        }
-        return String(value);
-    }
     if (value instanceof Uint8Array) {
         // SQLite BLOB literal: X'hex'
         let hex = '';
@@ -115,6 +153,15 @@ export class StatementSync {
     #allowUnknownNamedParameters: boolean;
     /** How this statement's result columns are read; learned on the first get()/all(). */
     #columns = new ColumnTypes();
+    /**
+     * Rendered SQL → what libgda parsed it into, youngest last.
+     *
+     * Keeping this is the point of the class: `parse_sql_string()` builds a statement
+     * tree per call, and the connection then compiles a `sqlite3_stmt` for every tree it
+     * has not seen — so a `StatementSync` executed in a loop paid for both on every
+     * execution. The holder set belongs to the parse and is rebound per execution.
+     */
+    #parsed = new Map<string, [Gda.Statement, Gda.Set | null]>();
 
     constructor(
         sentinel: symbol,
@@ -179,20 +226,24 @@ export class StatementSync {
      * Resolve `args` against this statement's parameters and render the SQL for ONE
      * execution.
      *
-     * A string value becomes a `##id::string` placeholder and is returned for binding, so
-     * its text never enters the SQL. Every other type becomes a literal from a closed
-     * alphabet (see `sqlLiteral`). The rendering happens per execution rather than once at
-     * prepare() because the choice depends on the value: the same prepared statement can
-     * be run with a string one time and a number the next.
+     * Every value libgda can carry through a holder becomes a `##id::<type>` placeholder
+     * and is returned for binding, so the rendered TEXT depends only on WHICH parameters
+     * are NULL or a BLOB — not on the values — and `#statementFor` can hand the same
+     * parsed statement back for the next execution. NULL and a BLOB are the two that
+     * cannot be bound and stay literals from a closed alphabet (see `sqlLiteral`).
+     *
+     * The rendering happens per execution rather than once at prepare() because the
+     * choice depends on the value: the same prepared statement can be run with a string
+     * one time and a NULL the next.
      */
-    #buildStatement(args: unknown[]): { sql: string; strings: Map<string, string> } {
-        const strings = new Map<string, string>();
+    #buildStatement(args: unknown[]): { sql: string; bindings: Map<string, HolderBinding> } {
+        const bindings = new Map<string, HolderBinding>();
 
         if (this.#paramMap.length === 0) {
             if (args.length > 0 && !isNamedArgObject(args[0])) {
                 throw new SqliteError('column index out of range', 25, 'column index out of range');
             }
-            return { sql: this.#sql, strings };
+            return { sql: this.#sql, bindings };
         }
 
         // Determine if first arg is a named params object
@@ -293,14 +344,40 @@ export class StatementSync {
 
         const [sql] = convertParameterSyntax(this.#sql, (param) => {
             const value = values.get(param.gdaId);
-            if (typeof value === 'string') {
-                strings.set(param.gdaId, value);
-                return `##${param.gdaId}::string`;
-            }
-            return sqlLiteral(value);
+            const binding = holderBinding(value);
+            if (!binding) return sqlLiteral(value);
+            bindings.set(param.gdaId, binding);
+            return `##${param.gdaId}::${binding.type}`;
         });
 
-        return { sql, strings };
+        return { sql, bindings };
+    }
+
+    /**
+     * The parsed statement for one rendered SQL text, parsing it only the first time.
+     *
+     * The statement IDENTITY is what matters, not just the saved parse: the connection
+     * caches its compiled `sqlite3_stmt` per `Gda.Statement`, and `executeStatement` is
+     * asked to keep that entry — so handing the same object back is what lets SQLite skip
+     * the compile. A dropped entry gives its cache entry back here, where it is still
+     * known which connection holds it.
+     */
+    #statementFor(sql: string): [Gda.Statement, Gda.Set | null] {
+        const cached = this.#parsed.get(sql);
+        if (cached) {
+            // Delete-then-set moves the entry to the end; Map iterates insertion order.
+            this.#parsed.delete(sql);
+            this.#parsed.set(sql, cached);
+            return cached;
+        }
+        const parsed = parseSql(this.#connection, rewriteExistsSubqueries(sql));
+        this.#parsed.set(sql, parsed);
+        while (this.#parsed.size > MAX_CACHED_STATEMENTS) {
+            const [oldestSql, [oldestStmt]] = this.#parsed.entries().next().value!;
+            this.#parsed.delete(oldestSql);
+            releaseStatement(this.#connection, oldestStmt);
+        }
+        return parsed;
     }
 
     /**
@@ -321,11 +398,13 @@ export class StatementSync {
         read: (model: Gda.DataModel | null, textColumns: boolean[]) => T,
         columns?: ColumnTypes,
     ): T {
-        const { sql, strings } = this.#buildStatement(args);
+        const { sql, bindings } = this.#buildStatement(args);
+        let params: Gda.Set | null = null;
         try {
-            const [stmt, params] = parseSql(this.#connection, rewriteExistsSubqueries(sql));
-            bindStringHolders(params, strings);
-            return executeStatement(this.#connection, stmt, params, read, columns);
+            let stmt: Gda.Statement;
+            [stmt, params] = this.#statementFor(sql);
+            bindHolders(params, bindings);
+            return executeStatement(this.#connection, stmt, params, read, { columns, retain: true });
         } catch (e: unknown) {
             // libgda reports through GLib.Error, whose `code` is a numeric GError enum,
             // while a consumer written against node:sqlite branches on
@@ -333,33 +412,32 @@ export class StatementSync {
             // validation errors already carry that shape and pass through unchanged.
             if (isNodeSqliteError(e)) throw e;
             throw new SqliteError(sqliteErrorMessage(e));
+        } finally {
+            releaseHolders(params, bindings);
         }
     }
 
     run(...args: unknown[]): RunResult {
         this.#execute(args, () => undefined);
 
-        // One query for both counters, released like any other execution. SQLite's own
-        // functions answer for the connection as node:sqlite's sqlite3_changes64() and
-        // sqlite3_last_insert_rowid() do — including their values surviving a statement
-        // that changes nothing.
-        const [stmt] = parseSql(this.#connection, 'SELECT changes(), last_insert_rowid()');
-        // Both are read as text: a rowid is a 64-bit integer, and libgda would type the
-        // column gint and refuse any rowid past 2^31 - 1.
+        // One query for both counters, parsed once per connection and kept compiled like
+        // this statement itself. SQLite's own functions answer for the connection as
+        // node:sqlite's sqlite3_changes64() and sqlite3_last_insert_rowid() do — including
+        // their values surviving a statement that changes nothing.
         const [changes, lastInsertRowid] = executeStatement(
             this.#connection,
-            stmt,
+            counterStatement(this.#connection),
             null,
             (model) => {
                 if (!model || model.get_n_rows() === 0) {
-                    throw new SqliteError('SELECT changes(), last_insert_rowid() returned no row');
+                    throw new SqliteError(`${COUNTER_SQL} returned no row`);
                 }
                 return [
                     BigInt(model.get_value_at(0, 0) as unknown as string),
                     BigInt(model.get_value_at(1, 0) as unknown as string),
                 ];
             },
-            integerColumns(2),
+            { columns: COUNTER_COLUMNS, retain: true },
         );
 
         // node:sqlite: BigInt with readBigInts, otherwise a Number even where that rounds —

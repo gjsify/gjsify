@@ -39,6 +39,7 @@ import testSuiteDatabaseSync from './database-sync.spec.js';
 import testSuiteErrors from './errors.spec.js';
 import testSuiteStatementSync from './statement-sync.spec.js';
 import testSuiteDataTypes from './data-types.spec.js';
+import testSuiteStatementCache from './statement-cache.spec.js';
 
 // Bare GJS ambient global — the node-gi-source signal (see header). Seeded by
 // the auto-injected `@gjsify/node-gi/globals` shim.
@@ -58,4 +59,4 @@ print('sqlite suite on @gjsify/node-gi (Gda SQLite on Node)');
 // a name that is neither a method nor a field now yields `undefined`, matching
 // GJS. The distinct byte-array GValue marshalling (GByteArray ↔ Uint8Array) was
 // also brought to GJS parity in the same change. No @gjsify/sqlite change needed.
-run({ testSuiteDatabaseSync, testSuiteErrors, testSuiteStatementSync, testSuiteDataTypes });
+run({ testSuiteDatabaseSync, testSuiteErrors, testSuiteStatementSync, testSuiteDataTypes, testSuiteStatementCache });
