@@ -29,6 +29,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { Command } from '../types/index.js';
+import { resolveProjectPackage } from '../utils/resolve-project-package.js';
 
 interface DevtoolsCliOptions {
     /** Positional 1: the control-plane operation, e.g. `shot`. */
@@ -92,7 +93,11 @@ system.exit(await runDevtoolsCli(system.programArgs));
  * `instances` — so anything a rig does by hand over `gdbus` has a scriptable spelling.
  */
 export const devtoolsCommand: Command<unknown, DevtoolsCliOptions> = {
-    command: 'devtools',
+    // The positionals below only PARSE as positionals when the command string names
+    // them — a bare `'devtools'` makes yargs treat `shot /tmp/x.png` as unrecognised
+    // extra arguments under `.strict()` ("Unbekannte Argumente: shot, /tmp/x.png"),
+    // even though `.positional('operation', …)` is declared in the builder.
+    command: 'devtools <operation> [operands..]',
     description:
         'Drive a running devtools-enabled app from a script: capture a screenshot to a file, find a widget, ' +
         'activate it, send a key. Peer of `gjsify debug`, which speaks MCP for an AI agent.',
@@ -144,6 +149,22 @@ export const devtoolsCommand: Command<unknown, DevtoolsCliOptions> = {
         const cwd = process.cwd();
         const pkg = readPackage(cwd);
         const config = pkg.gjsify?.devtools ?? {};
+
+        // Checked BEFORE anything else: the generated entry imports `@gjsify/devtools-mcp`
+        // from the CONSUMER's node_modules (see the header comment), and `@gjsify/cli`
+        // (tier 1) may not hard-depend on it (tier 2, ADR 0003 rule 1). Without this check a
+        // consumer with only `@gjsify/cli` installed hit `rolldown-plugin-gjsify`'s
+        // unresolved-workspace-import error two steps later, inside a build it did not ask
+        // for, naming the package but not the remedy.
+        if (!resolveProjectPackage(cwd, '@gjsify/devtools-mcp')) {
+            console.error(
+                'gjsify devtools: @gjsify/devtools-mcp is not installed in this project.\n\n' +
+                    "  The client this command builds imports it from this project's node_modules, so\n" +
+                    '  @gjsify/cli itself stays free of it. Add it, then run this again:\n\n' +
+                    '      npm install --save-dev @gjsify/devtools-mcp',
+            );
+            return process.exit(1);
+        }
 
         const busNameBase =
             args.busName ??

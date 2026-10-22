@@ -152,6 +152,8 @@ import platformResolveSuite from './platform-resolve.spec.js';
 import reactNativeAliasSuite from './react-native-alias.spec.js';
 import reactNativeGateSuite from './react-native-gate.spec.js';
 import doubleDashArgsSuite from './utils/double-dash-args.spec.js';
+import devtoolsCommandSuite from './commands/devtools.spec.js';
+import resolveProjectPackageSuite from './utils/resolve-project-package.spec.js';
 
 // ---------------------------------------------------------------------------
 // Capability-gated skips
@@ -417,6 +419,8 @@ run(
         reactNativeAliasSuite,
         reactNativeGateSuite,
         metainfoQualitySuite,
+        devtoolsCommandSuite,
+        resolveProjectPackageSuite,
     },
     { skip },
 );

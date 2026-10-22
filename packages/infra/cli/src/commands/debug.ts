@@ -14,6 +14,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { Command } from '../types/index.js';
+import { resolveProjectPackage } from '../utils/resolve-project-package.js';
 
 interface DebugCliOptions {
     busName?: string;
@@ -154,6 +155,22 @@ export const debugCommand: Command<unknown, DebugCliOptions> = {
         const cwd = process.cwd();
         const pkg = readPackage(cwd);
         const config = pkg.gjsify?.devtools ?? {};
+
+        // Checked BEFORE anything else: the generated entry imports `@gjsify/devtools-mcp`
+        // from the CONSUMER's node_modules (see the header comment), and `@gjsify/cli`
+        // (tier 1) may not hard-depend on it (tier 2, ADR 0003 rule 1). Without this check a
+        // consumer with only `@gjsify/cli` installed hit `rolldown-plugin-gjsify`'s
+        // unresolved-workspace-import error two steps later, inside a build it did not ask
+        // for, naming the package but not the remedy.
+        if (!resolveProjectPackage(cwd, '@gjsify/devtools-mcp')) {
+            console.error(
+                'gjsify debug: @gjsify/devtools-mcp is not installed in this project.\n\n' +
+                    "  The MCP bridge this command builds imports it from this project's node_modules, so\n" +
+                    '  @gjsify/cli itself stays free of it. Add it, then run this again:\n\n' +
+                    '      npm install --save-dev @gjsify/devtools-mcp',
+            );
+            return process.exit(1);
+        }
 
         const profile =
             args.profile ??
