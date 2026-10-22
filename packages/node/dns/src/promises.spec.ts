@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@gjsify/unit';
-import dnsPromises, { lookup, resolve4, resolve6, reverse, resolve } from 'node:dns/promises';
+import dnsPromises, { lookup, resolve4, resolve6, resolveTxt, reverse, resolve } from 'node:dns/promises';
 
 export default async () => {
     await describe('dns/promises', async () => {
@@ -109,6 +109,24 @@ export default async () => {
             await it('should resolve with explicit A rrtype', async () => {
                 const records = await resolve('localhost', 'A');
                 expect(Array.isArray(records)).toBe(true);
+            });
+        });
+
+        await describe('resolveTxt', async () => {
+            await it('should be exported on named and default exports', async () => {
+                expect(typeof resolveTxt).toBe('function');
+                expect(typeof dnsPromises.resolveTxt).toBe('function');
+            });
+
+            await it('should reject with an error code for a non-existent name', async () => {
+                let threw = false;
+                try {
+                    await resolveTxt('this.hostname.does.not.exist.invalid');
+                } catch (err) {
+                    threw = true;
+                    expect(typeof (err as NodeJS.ErrnoException).code).toBe('string');
+                }
+                expect(threw).toBe(true);
             });
         });
 

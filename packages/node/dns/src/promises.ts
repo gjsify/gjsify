@@ -7,6 +7,7 @@ import {
     resolve6 as _resolve6,
     reverse as _reverse,
     resolve as _resolve,
+    resolveTxt as _resolveTxt,
 } from './callback.js';
 import type { LookupOptions, LookupAddress } from './callback.js';
 
@@ -72,4 +73,13 @@ export function resolve(hostname: string, rrtype?: string): Promise<string[] | u
     });
 }
 
-export default { lookup, resolve, resolve4, resolve6, reverse };
+export function resolveTxt(hostname: string): Promise<string[][]> {
+    return new Promise((resolve, reject) => {
+        _resolveTxt(hostname, (err, records) => {
+            if (err) return reject(err);
+            resolve(records);
+        });
+    });
+}
+
+export default { lookup, resolve, resolve4, resolve6, resolveTxt, reverse };
