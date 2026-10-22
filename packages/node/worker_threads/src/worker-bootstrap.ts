@@ -358,23 +358,35 @@ function readNext() {
     }
   });
 }
-readNext();
-
-// Execute worker code
-try {
-  if (init.eval) {
-    const AsyncFn = Object.getPrototypeOf(async function(){}).constructor;
-    await new AsyncFn('parentPort', 'workerData', 'threadId', init.code)(
-      parentPort, globalThis.__gjsify_worker_context.workerData, init.threadId
-    );
-  } else {
-    await import(init.filename);
-  }
-} catch (error) {
-  send({ type: 'error', message: error.message, stack: error.stack || '' });
+// Start the main loop first so await import() has a running loop to resolve
+// against. Register readNext and run the worker code from an idle callback:
+// idle_add fires as soon as the loop is running (even with pending I/O in
+// the stdin buffer), whereas timeout_add(0) can be starved by a pending
+// async read that never completes because import() hung.
+// Register readNext only AFTER await import() completes, so a pending message
+// in the stdin buffer cannot fire the parentPort message handler while the
+// dynamic import is still running (which would hang await import() because
+// GJS needs a quiet main loop to resolve the import). Messages that arrived
+// during import stay buffered and are drained once readNext() is registered.
+if (!shuttingDown) {
+  GLib.idle_add(GLib.PRIORITY_DEFAULT, function() {
+    (async function() {
+      try {
+        if (init.eval) {
+          const AsyncFn = Object.getPrototypeOf(async function(){}).constructor;
+          await new AsyncFn('parentPort', 'workerData', 'threadId', init.code)(
+            parentPort, globalThis.__gjsify_worker_context.workerData, init.threadId
+          );
+        } else {
+          await import(init.filename);
+        }
+        readNext();
+      } catch (error) {
+        try { send({ type: 'error', message: error.message, stack: error.stack || '' }); } catch (_) {}
+      }
+    })();
+    return GLib.SOURCE_REMOVE;
+  });
+  loop.run();
 }
-
-// Skip the loop entirely when shutdown was requested while the script above
-// was still running — otherwise that lost quit() strands the child forever.
-if (!shuttingDown) loop.run();
 `;
