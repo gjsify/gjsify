@@ -590,7 +590,7 @@ function removeDroppedPackages(
     const removed: string[] = [];
     for (const installPath of installPaths) {
         if (providedNames.has(nameFromInstallPath(installPath))) continue;
-        const dir = path.join(prefix, ...installPath.split('/'));
+        const dir = path.join(prefix, installPath);
         let stat: fs.Stats;
         try {
             stat = fs.lstatSync(dir);
