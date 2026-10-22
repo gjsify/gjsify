@@ -47,7 +47,7 @@ export const DARWIN_FONTS_CONF_PATH = 'etc/fonts/fonts.conf';
  * Kept minimal on purpose: every `<match>` rule here is a claim about how text must look, and
  * a stock `conf.d` tree (35 files on the build host) would be a second, drifting copy of
  * fontconfig's own defaults. Families are resolved by name against the `<dir>` entries; the
- * three generic aliases below are the only ones GTK itself asks for.
+ * generic aliases below, and the spellings that reach them, are the only ones GTK and pango ask for.
  */
 export function renderDarwinFontsConf() {
     return `<?xml version="1.0"?>
@@ -68,6 +68,23 @@ export function renderDarwinFontsConf() {
   <!-- Per-user cache, never inside the bundle: a .app in /Applications is not writable by
        the user, and a cache written at build time would name files that only existed there. -->
   <cachedir prefix="xdg">fontconfig</cachedir>
+
+  <!-- The spellings toolkits use for the generic families (pango's default is "Sans"), and
+       fontconfig's 49-sansserif.conf: a family with no generic behind it falls back to
+       sans-serif. Without them an unknown family matched whatever face scored best among the
+       system dirs above — on the macOS Intel runner one with Tamil glyphs, which the
+       font-script-coverage oracle caught. Before the generic aliases, which expand them. -->
+  <alias binding="same"><family>Sans</family><prefer><family>sans-serif</family></prefer></alias>
+  <alias binding="same"><family>Sans Serif</family><prefer><family>sans-serif</family></prefer></alias>
+  <alias binding="same"><family>Serif</family><prefer><family>serif</family></prefer></alias>
+  <alias binding="same"><family>Monospace</family><prefer><family>monospace</family></prefer></alias>
+  <alias binding="same"><family>Mono</family><prefer><family>monospace</family></prefer></alias>
+  <match target="pattern">
+    <test qual="all" name="family" compare="not_eq"><string>sans-serif</string></test>
+    <test qual="all" name="family" compare="not_eq"><string>serif</string></test>
+    <test qual="all" name="family" compare="not_eq"><string>monospace</string></test>
+    <edit name="family" mode="append_last"><string>sans-serif</string></edit>
+  </match>
 
   <alias><family>sans-serif</family><prefer><family>Adwaita Sans</family><family>Helvetica</family></prefer></alias>
   <alias><family>monospace</family><prefer><family>Adwaita Mono</family><family>Menlo</family></prefer></alias>

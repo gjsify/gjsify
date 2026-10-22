@@ -45,6 +45,15 @@ describe('renderDarwinFontsConf', () => {
         assert.match(xml, /<edit name="family" mode="assign" binding="strong"><string>Adwaita Sans<\/string><\/edit>/);
     });
 
+    it('sends "Sans" and unknown families to sans-serif before the generics expand', () => {
+        // Measured without these: pango's default "Sans" and any unknown family resolved to
+        // Adwaita Mono on Apple silicon and to a Tamil-capable face on the Intel runner.
+        assert.match(xml, /<family>Sans<\/family><prefer><family>sans-serif<\/family>/);
+        assert.match(xml, /<family>Monospace<\/family><prefer><family>monospace<\/family>/);
+        assert.match(xml, /<edit name="family" mode="append_last"><string>sans-serif<\/string><\/edit>/);
+        assert.ok(xml.indexOf('<family>Sans</family>') < xml.indexOf('<family>sans-serif</family><prefer>'));
+    });
+
     it('prefers Adwaita Sans / Adwaita Mono for the generic families', () => {
         assert.match(xml, /<family>sans-serif<\/family><prefer><family>Adwaita Sans<\/family>/);
         assert.match(xml, /<family>monospace<\/family><prefer><family>Adwaita Mono<\/family>/);
