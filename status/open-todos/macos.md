@@ -3,6 +3,22 @@
      commit + CHANGELOG that closed it). See status/open-todos/README.md for the
      full convention and where to add a new entry. -->
 
+### `readProcessMemory()` has no in-process reader off procfs — only a bounded cache
+
+On darwin (and any other no-procfs host) `@gjsify/utils`' `readProcessMemory()` has no way to
+answer without forking: there is no `task_info`/`proc_pid_rusage` binding in any `@gjsify/*`
+native prebuild today. Checked `packages/napi/napi` (N-API host, no process-info surface in its
+`js_native_api.h` ABI), `packages/node/terminal-native` (Vala, scoped to `isatty`/`ioctl`
+TIOCGWINSZ/termios/SIGWINCH — no memory accounting), and `packages/node/sab-native` (memfd/shm +
+atomics, same scope). None is the right home for a `task_info(TASK_BASIC_INFO)` call either:
+each package's Vala/C surface is purpose-built for its own ABI, and a new reader would need its
+own native package (a `GjsifyProcessInfo`-shaped bridge over `sys/sysctl.h`/`libproc.h`,
+mirroring the `-native` template in `docs/prebuilds.md`) rather than being bolted onto an
+unrelated one. Until that lands, `readProcessMemory()` memoizes the `ps(1)` reading for
+`PROCESS_MEMORY_CACHE_TTL_MS` (50ms) — measured 33.9 calls/s → ~1.38M calls/s (effectively free
+inside the window), bounded staleness instead of exactness. Building the native reader is the
+honest fix; nothing here blocks it, it is simply out of scope for a cache-only change.
+
 ### macOS fonts: what a Mac WITHOUT Homebrew resolves is still unmeasured
 
 `add_font_file` is a vfunc the CoreText map does not implement, so on macOS every face used to

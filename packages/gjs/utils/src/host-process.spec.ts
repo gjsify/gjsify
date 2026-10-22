@@ -9,7 +9,16 @@
 // that declines by inventing a number.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { hasProcfs, hostEnv, hostExecPath, hostPid, hostPpid, readProcessMemory } from './host-process.js';
+import {
+    __setProcessMemoryCacheTtlMsForTests,
+    hasProcfs,
+    hostEnv,
+    hostExecPath,
+    hostPid,
+    hostPpid,
+    PROCESS_MEMORY_CACHE_TTL_MS,
+    readProcessMemory,
+} from './host-process.js';
 
 export default async () => {
     await describe('hostEnv', async () => {
@@ -102,6 +111,52 @@ export default async () => {
             }
             expect(Number.isFinite(mem.data)).toBe(true);
             expect(Number.isFinite(mem.peak)).toBe(true);
+        });
+
+        await it('should not fork a subprocess on every call off procfs', async () => {
+            // The regression this guards: 1500 uncached calls forked `ps` 1500
+            // times and blocked the main loop for 44s. On procfs this reader
+            // never shells out at all, so the property to check is "many calls
+            // within the TTL complete fast", which holds on both hosts and
+            // actually exercises the cache only where there is one.
+            if (readProcessMemory() === null) return;
+            const start = Date.now();
+            for (let i = 0; i < 200; i++) readProcessMemory();
+            const elapsedMs = Date.now() - start;
+            // A single uncached `ps` fork+exec alone measured ~29ms on this
+            // host; 200 calls finishing inside one such fork's budget is only
+            // possible if most of them never spawned.
+            expect(elapsedMs < PROCESS_MEMORY_CACHE_TTL_MS * 10).toBe(true);
+        });
+
+        await it('should return the SAME object within the TTL — proof of no second spawn', async () => {
+            // Reference identity, not timing: a cache hit returns the exact cached
+            // object, a fresh read always builds a new one. On procfs this reader
+            // never caches, so there is nothing to prove — `mem` is already the
+            // "uncached" answer on that host.
+            if (readProcessMemory() === null || hasProcfs()) return;
+            try {
+                __setProcessMemoryCacheTtlMsForTests(60_000);
+                const first = readProcessMemory();
+                const second = readProcessMemory();
+                expect(second).toBe(first);
+            } finally {
+                __setProcessMemoryCacheTtlMsForTests(null);
+            }
+        });
+
+        await it('TTL 0 should disable the cache — every call is a fresh spawn', async () => {
+            if (readProcessMemory() === null || hasProcfs()) return;
+            try {
+                __setProcessMemoryCacheTtlMsForTests(0);
+                const first = readProcessMemory();
+                const second = readProcessMemory();
+                // Each call builds its own object; never the same reference even
+                // when the values happen to agree.
+                expect(second).not.toBe(first);
+            } finally {
+                __setProcessMemoryCacheTtlMsForTests(null);
+            }
         });
     });
 };

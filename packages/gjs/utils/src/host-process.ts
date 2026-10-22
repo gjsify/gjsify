@@ -31,6 +31,7 @@ interface GjsGlibImports {
                 file_test(path: string, test: number): boolean;
                 file_read_link(path: string): string;
                 find_program_in_path(program: string): string | null;
+                get_monotonic_time(): number;
                 get_prgname(): string | null;
                 getenv(variable: string): string | null;
                 spawn_command_line_sync(commandLine: string): [boolean, Uint8Array, Uint8Array, number];
@@ -238,6 +239,31 @@ export interface ProcessMemory {
 }
 
 /**
+ * How long a non-procfs {@link readProcessMemory} reading is served from cache
+ * before the next call pays for a fresh `ps(1)` fork+exec. See
+ * {@link readProcessMemory} for why the default is non-zero at all. A `const`,
+ * not a knob — nothing reassigns an ESM binding from outside the module, so a
+ * caller cannot override it; {@link __setProcessMemoryCacheTtlMsForTests} is the
+ * test-only escape hatch, same shape as `next-tick.ts`'s
+ * `__resetBurstStateForTests`.
+ */
+export const PROCESS_MEMORY_CACHE_TTL_MS = 50;
+
+let ttlOverrideMs: number | null = null;
+
+/** @internal Test helper: override the TTL (`null` restores the default). */
+export function __setProcessMemoryCacheTtlMsForTests(ms: number | null): void {
+    ttlOverrideMs = ms;
+}
+
+function effectiveTtlMs(): number {
+    return ttlOverrideMs ?? PROCESS_MEMORY_CACHE_TTL_MS;
+}
+
+let cachedMemoryAt = -Infinity;
+let cachedMemory: ProcessMemory | null = null;
+
+/**
  * This process's memory figures, or `null` when no reader applies.
  *
  * Degraded off procfs: `ps(1)` reports only `rss` and `vsz`, so `data` and `peak`
@@ -246,6 +272,21 @@ export interface ProcessMemory {
  *
  * Both `ps` columns are in KiB on Linux and on macOS (POSIX mandates KiB for
  * `rss`; BSD `vsz` follows), so one multiply serves both.
+ *
+ * **Non-procfs hosts (darwin) are served from a {@link PROCESS_MEMORY_CACHE_TTL_MS}
+ * cache.** There is no in-process reader for RSS on GJS off Linux — no
+ * `task_info`/`proc_pid_rusage` binding exists in any `@gjsify/*` native
+ * prebuild today (checked `napi`, `terminal-native`, `sab-native`; written up
+ * in `status/open-todos/macos.md`) — so every uncached call forks a shell to
+ * run `ps`. A consumer polling `process.memoryUsage()` once per progress event
+ * (1500× measured) turned that into 1500 synchronous fork+execs and blocked
+ * the main loop for 44s, past `@gjsify/unit`'s hang guard. The cache trades
+ * exactness for a bounded staleness that is still an order of magnitude
+ * tighter than a typical polling interval, and is honest about the trade: a
+ * caller observing a value up to {@link PROCESS_MEMORY_CACHE_TTL_MS} old is the
+ * documented contract, not a bug. The procfs path is uncached — one file read
+ * is already cheap enough that memoizing it would only risk staleness for no
+ * measured gain.
  */
 export function readProcessMemory(): ProcessMemory | null {
     const GLib = hostGlib();
@@ -268,6 +309,22 @@ export function readProcessMemory(): ProcessMemory | null {
         }
     }
 
+    const ttlMs = effectiveTtlMs();
+    if (ttlMs > 0) {
+        const now = GLib.get_monotonic_time() / 1000;
+        if (now - cachedMemoryAt < ttlMs) return cachedMemory;
+        cachedMemory = readUncachedProcessMemory(GLib);
+        cachedMemoryAt = now;
+        return cachedMemory;
+    }
+    return readUncachedProcessMemory(GLib);
+}
+
+/**
+ * The `ps(1)` fork+exec {@link readProcessMemory} wraps in a cache. Split out
+ * so the cache logic above never touches the read itself.
+ */
+function readUncachedProcessMemory(GLib: HostGlib): ProcessMemory | null {
     // One subprocess, not two: `$PPID` inside the shell is this process, so the
     // reading needs no prior `hostPid()` call (and stays correct even if that
     // one could not answer).
