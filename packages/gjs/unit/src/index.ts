@@ -41,6 +41,10 @@ interface _RuntimeGlobals {
         failed: number;
         /** A suite body threw, so later suites never started: `passed`/`total` describe a partial run. */
         incomplete: boolean;
+        /** Inverse of `incomplete` — true iff every registered suite ran. */
+        complete: boolean;
+        /** The raw flag behind `incomplete` — a suite body threw. */
+        suiteBodyThrew: boolean;
         /** Tests that ran — NOT assertions, which is what this field used to carry (#1557). */
         total: number;
         /** Assertions executed, kept beside the total rather than instead of it. */
@@ -1613,6 +1617,8 @@ export const browserResultsFor = (tally: {
     passed: tally.run - tally.failed,
     failed: tally.failed + tally.outside + (tally.bodyThrew ? 1 : 0),
     incomplete: tally.bodyThrew,
+    complete: !tally.bodyThrew,
+    suiteBodyThrew: tally.bodyThrew,
     total: tally.run,
     assertions: tally.assertions,
     errors: tally.bodyThrew
