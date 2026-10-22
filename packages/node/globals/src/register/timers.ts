@@ -98,6 +98,14 @@ class GjsifyTimeout {
                 // for the rest of the process, which burned a core and starved
                 // every lower-priority source (idles never ran again).
                 reportTimerThrow(GLib, err);
+                // In a worker child the crash contract applies on top of the
+                // stderr log: the parent's Worker gets `error`, then this
+                // process exits 1 the way Node's worker threads do. On the
+                // main thread no such context exists and reporting stays the
+                // log above (GJS has no uncaughtException to extend).
+                (
+                    globalThis as { __gjsify_worker_context?: { crash?(error: unknown): void } }
+                ).__gjsify_worker_context?.crash(err);
             }
             if (this._repeat) return GLib.SOURCE_CONTINUE;
             this._id = null;

@@ -50,89 +50,58 @@ Status detail + test counts: `status/status.json` (`npm run status:generate` for
 | util | — | Full | inspect, format, promisify, types |
 | v8 | — | Stub | getHeapStatistics, serialize/deserialize (JSON) |
 | vm | — | Partial | runInThisContext (eval), runInNewContext (Function+sandbox), Script, compileFunction. No realm isolation |
+# AGENTS.md — `packages/node/*` (Node.js pillar)
+
+> Scope: this directory tree. Repo-wide rules live in the [root AGENTS.md](../../AGENTS.md) — read that first.
+> The runtime-axis model these packages declare against is in the root's § Runtime & platform model.
+
+## Node.js Packages — `packages/node/*` → `@gjsify/<name>`
+
+Status detail + test counts: `status/status.json` (`npm run status:generate` for the tables). Below: backing libs + the load-bearing specifics. **browser:`partial` blockers** per § Slot routing.
+
+| Pkg | Libs | Status | Notes |
+|-----|------|--------|-------|
+| assert | — | Full | AssertionError, deepEqual, throws, strict |
+| async_hooks | — | Full | AsyncLocalStorage, AsyncResource, createHook |
+| buffer | — | Full | Buffer via Blob/File/atob/btoa |
+| child_process | Gio | Full | exec/execSync, spawn/spawnSync via Gio.Subprocess |
+| cluster | — | Stub | isPrimary, isWorker |
+| console | — | Full | Console with stream support |
+| constants | — | Full | flattened re-export of os/fs/legacy-crypto constants; deprecated Node alias |
+| crypto | GLib | Full | Hash(GLib.Checksum), Hmac(GLib.Hmac), randomBytes/UUID (entropy via `@gjsify/webcrypto/random` — see webcrypto row), PBKDF2/HKDF/scrypt, AES, DH/ECDH, Sign/Verify, Ed25519/X25519 (arithmetic `@noble/curves`; Ed25519 verify is OpenSSL's cofactorless rule, in `curve25519.ts` — noble's own verify is cofactored and disagrees on the WPT small-order vectors), KeyObject PEM/DER/JWK, X509Certificate. browser:`partial` — `Hash.digest()` throws `ENOTSUP_SYNC_DIGEST` (WebCrypto digest is async-only); DH/publicEncrypt/X509 have no WebCrypto pendant |
+| dgram | Gio | Full | UDP via Gio.Socket |
+| diagnostics_channel | — | Full | Channel, TracingChannel |
+| dns | Gio | Full | lookup/resolve*/reverse via Gio.Resolver. browser:`partial` — `resolve*`/`reverse` ENOTSUP (no browser DNS resolver; IP literals + `localhost` via `lookup`) |
+| domain | — | Stub | deprecated |
+| events | — | Full | EventEmitter — prototype methods made enumerable (socket.io v4 compat), once/on/listenerCount, `makeCallable` (util.inherits CJS compat) |
+| fs | Gio | Full | sync + callback + promises + streams + FSWatcher; URL path args everywhere. `watch(…, {recursive:true})` is BUILT over one monitor per directory (`watch-tree.ts`) — GIO's are flat; filename is relative to the watched dir, symlinked dirs are reported but never descended (Node's Linux fallback, both ways). On darwin a dir monitor reports create/delete but NOT a write to a child, so each file gets one too — bounded, loud when spent. browser:`partial` — FSWatcher never fires (no browser API), `Volume` entry 34 value exports short of root |
+| globals | GLib | Full | process, Buffer, structuredClone, TextEncoder/Decoder, atob/btoa, URL, setImmediate, queueMicrotask |
+| http | Soup 3.0 | Partial | Server(Soup.Server, chunked+upgrade), ClientRequest, IncomingMessage (close-only-via-destroy per Node semantics), Agent. browser:`partial` — `createServer`/`Server`/`ServerResponse` ENOTSUP (no inbound TCP); client half rides native `fetch()` |
+| http2 | Soup 3.0 | Partial | createServer/createSecureServer/connect + compat layer + session API. createServer()=HTTP/1.1 only (no h2c); createSecureServer()=h2 via ALPN. pushStream/stream-IDs/flow-control = Phase 2 (Vala/nghttp2) |
+| https | Soup 3.0 | Partial | Agent stub, request/get; createServer terminates TLS on the bridge's Soup.Server (PEM key/cert, requestCert+ca). browser:`partial` — root re-exports `TLSSocket`+`createSecureContext` from `@gjsify/tls` (`browser:"none"`): a user agent terminates TLS below JS |
+| inspector | — | Stub | Session stub |
+| module | Gio, GLib | Full | builtinModules, isBuiltin, createRequire. browser:`partial` — `createRequire` returns an always-throwing require (no sync CJS loader in a browser ESM bundle) |
+| net | Gio | Full | Socket(Gio.SocketClient), Server(Gio.SocketService). Never close an fd a Gio op still polls (darwin GLib `select(2)` fails the whole iteration with EBADF): `destroy()` waits for in-flight ops; why in `socket.ts`/`server.ts` |
+| os | GLib | Full | homedir, hostname, cpus. `constants.signals` per-OS since #2001; `errno`/`dlopen` still glibc's — [doc](../../docs/node-os-constants.md) |
+| path | — | Full | POSIX + Win32 |
+| perf_hooks | — | Full | performance (Web API / GLib fallback) |
+| polyfills | — | Meta | `@gjsify/node-polyfills` — dep-only umbrella pulling every Node polyfill (create-app templates + CLI scaffolds). No runtime code |
+| process | GLib, GjsifyTerminal | Full | extends EventEmitter; nextTick = batched GLib-idle delivery (keeps GTK input responsive); stdin/stdout/stderr as Process{Read,Write}Stream (isTTY/setRawMode/columns via `@gjsify/terminal-native` when installed, env/GLib fallback); SIGWINCH→'resize'. **Raw mode is a debt paid at exit**: `setRawMode(true)` claims the fd, `Process`'s `exit` restores it — and it must do so on BOTH paths, because the native branch used to claim nothing while the `stty` fallback claimed, so every host with the prebuild installed (the normal case) handed the next process `ECHO/ICANON/ISIG` off; measured on a pty. SIGKILL admits no handler |
+| querystring | — | Full | parse/stringify |
+| readline | — | Full | Interface, question/prompt, async iterator, `Interface[Symbol.dispose]`=close() |
+| sqlite | Gda 6.0 | Partial | node:sqlite via `gi://Gda?version=6.0` (libgda SQLite provider). URL + Uint8Array paths, param binding, typed readers, error codes. **Parse ONLY through `parseSql()` — `Gda.SqlParser.parse_string()` aborts the PROCESS** (its `remain` out-param is an interior pointer the GIR declares `transfer full`, so GJS `g_free()`s it); string params are BOUND to holders, never spliced into SQL — libgda reads `\` as an escape inside `'…'` and SQLite does not. Both incidents documented in `sqlite/src/parse-sql.ts`. **Execute ONLY through `executeStatement()`** — it releases the model's pstmt per call, and the connection's prepared-statement cache entry with it unless the caller asked to RETAIN a statement it executes again (reuse of the compiled `sqlite3_stmt` is where the speed is) and the execution left it drained: an unread cursor kept that way locks the table. Retention is a bounded LRU given back by `releaseRetained()` at connection release — anything unbounded, and anything bypassing this module, leaks a GWeakRef on the process-wide SQLite provider (cap 65535, past it reads go typeless with only a CRITICAL). Why + the `run_dispose()` SIGSEGV: `sqlite/src/execution.ts`. **A BLOB's bytes are reachable only through `gda_binary_to_string()`** — `get_data()` is annotated `gpointer`, so GJS answers `null`, and every other GI route ends in that same printable form; `sqlite/src/data-model-reader.ts` decodes it back and holds the result against `get_size()`. **NEVER close a connection** — `gda_sqlite_free_cnc_data()` frees the cdata without clearing its GWeakRef on the session-wide provider, so the SECOND connection aborts the process; `close()` parks it in the process-wide pool (`sqlite/src/connection-pool.ts`), which owns every connection from creation — the GC finalizer frees it too — and re-hands a parked one out only on proof it equals a fresh one. browser:`partial` — `DatabaseSync` throws from ctor (no engine without shipping a WASM SQLite; `node:sqlite` is sync while OPFS sync handles are worker-only; honest future shape = `./browser-worker` subpath `polyfill`, `./browser` stays `partial`) |
+| stream | — | Full | `destroy()` dispatches the prototype `_destroy` on Readable/Duplex too (Node). Readable (protected `_autoClose` hook), Writable, Duplex, Transform, PassThrough, pipeline/finished; FIFO write-ordering across drain re-entry; serialized concurrent I/O; `[Symbol.asyncDispose]`. **`addListener` IS `on` on Readable, `off` IS `removeListener`** — prototype aliases, never delegates: npm subscribes through whichever name it knows, and `@xmpp/events`' `onoff()` resolves `addEventListener ?? addListener`, so only an alias makes `addListener('data')` enter flowing mode (without it XMPP over direct TLS stalled on GJS, the peer's bytes unread in the buffer). Same alias on the browser `Readable` + http browser `IncomingMessage`; fs browser `EventBus` gained both |
+| string_decoder | — | Full | UTF-8, Base64, hex, streaming |
+| sys | — | Full | deprecated alias for util |
+| timers | — | Full | setTimeout/Interval/Immediate + promises — GLib-source-safe: uses `GLib.timeout_add` to avoid the SpiderMonkey-GC race on GLib.Source BoxedInstances. Handles carry the full `NodeJS.Timeout` surface; `unref()` is delegated on Node, RECORDED only on GJS, gated on a positive probe — incident + detail: [docs/node-timers-handles.md](../../docs/node-timers-handles.md) |
+| tls | Gio, @gjsify/tls-native | Partial | TLSSocket via Gio.TlsClientConnection (ALPN, mTLS, custom CA, RFC 6125 hostname matching, custom `checkServerIdentity`, STARTTLS via `tls.connect({socket})`; peers verified AFTER the handshake in `verify.ts` with Gio validation off — an `accept-certificate` JS handler can fire on glib-networking's handshake thread, where GJS refuses it and a valid `ca` fails; implicit session resumption off, since a resumed session skips verification). Gaps: server-side SNI (`addContext`/`SNICallback`) fails the handshake (ClientHello-peek stream not pollable); `{socket}` must be a `@gjsify/net` Socket, not any Duplex; no server-side `new TLSSocket(socket, {isServer})`. SNI + Duplex gaps: `status/open-todos/README.md`. Optional native Phase 1 = OCSP parsing (`parseOcspResponse`/`hasOcspSupport()`), Phase 2 = session access (`getFinished`/`getPeerFinished`/`get`/`setSession`/`isSessionReused` + `'session'` event + `{session}` option + channel binding, auto `tls-unique` (≤1.2) vs `tls-exporter` (1.3)) — real GnuTLS calls via the C shim; `hasTlsSessionAccess()` true on glib-networking GnuTLS backends, non-GnuTLS degrades to Node's no-session contract (`undefined`/`false`/no-op) |
+| tls-native | GjsifyTls (Vala+C) | Partial | **Optional native prebuild.** OCSP DER parser (`gnutls_ocsp_resp_*`; Vala 0.56's vapi gap filled by sibling `gnutls-ocsp.vapi`) + `SessionAccess` wrapping `Gio.TlsConnection`. The C shim extracts `gnutls_session_t` from `GTlsConnectionGnutls`'s private struct via public `g_type_instance_get_private` + runtime `g_type_from_name` — struct layout vendored from `refs/glib-networking` (4-pointer, stable 2.74–2.84 = Fedora 43+44); force-loads the GIO TLS module via `g_tls_backend_get_client_connection_type()` so the type registers before any connection exists. Loaded via `imports.gi.GjsifyTls` in try/catch — safe when typelib absent. Prebuild targets: `gjsify.platforms` (derived; `audit-runtimes --platforms` renders the matrix) — a literal list here went stale the day macOS was added |
+| terminal-native | GjsifyTerminal (Vala) | Full | **Optional native prebuild.** `is_tty`/`get_size` (ioctl TIOCGWINSZ)/`set_raw_mode` (termios) + SIGWINCH `ResizeWatcher`. try/catch-loaded, safe when absent. Consumed by tty + process. **`ResizeWatcher` OWNS its SIGWINCH source** (`stop()` + `dispose()` release it): the source's user_data is the watcher, so dropping the source id left a started watcher immortal — unfinalizable and still signalled, released only by the host's shutdown |
+| tty | GjsifyTerminal | Full | ReadStream/WriteStream, ANSI; native via terminal-native, env/GLib fallback. **setRawMode claims the debt it owes the terminal** like process does, and only where the transition happened (`set_raw_mode` returns false for a pipe) — the ledger is `noteRawMode` in @gjsify/terminal-native, the one package both already depend on, and `Process`'s `exit` pays it — so a bundle reaching `node:tty` without the process polyfill has a claim and no payer (`status/open-todos/runtime-apis.md`) |
+| url | GLib | Full | URL (static create/revokeObjectURL over `Blob._tmpPath` + `file://`), URLSearchParams via GLib.Uri. **All ten WHATWG setters** — nine of them were absent until 2026-09 and threw `setting getter-only property` while the same line worked on Node, so the row said `Full` of a class only `search` could write to. The shape is forced: `GLib.Uri` is IMMUTABLE, so the URL record lives in mutable fields and no setter re-parses — GLib normalises percent-encoding (`%c3%89`→`%C3%89`, `%2e`→`.`) where the spec requires "bytes already percent-encoded are left as-is", so a re-parse rewrites components nobody assigned to. Host parsing has NO IDNA and no IPv4 number forms: both belong to the parser `new URL()` SHARES with the setters, so adding them on one side alone would make `new URL("http://0x7F000001/")` and `u.hostname = "0x7F000001"` disagree — two `it.failing` plus one host-selected case in `url/src/index.spec.ts`, not a silent gap |
+| util | — | Full | inspect, format, promisify, types |
+| v8 | — | Stub | getHeapStatistics, serialize/deserialize (JSON) |
+| vm | — | Partial | runInThisContext (eval), runInNewContext (Function+sandbox), Script, compileFunction. No realm isolation |
+
 | worker_threads | @gjsify/sab-native, @gjsify/message-channel | Partial | MessagePort W3C surface composed OVER `@gjsify/message-channel` (single source of truth for listener/queue semantics; wrapper extends EventEmitter for `@types/node` compat); Worker via Gio.Subprocess — a spawned worker holds the process (`@gjsify/utils/main-loop` `acquireMainLoop`, release on exit/`unref()` so a referenced worker outlives the settled entry and its drain exits like Node, #2339); transferList: ArrayBuffer (zero-copy SM140 transfer), MessagePort (in-process hand-off + cross-process `SubprocessPortTransport` over worker stdin/stdout), SharedBuffer (memfd + SCM_RIGHTS over fd 3). `SharedArrayBuffer` ctor still gated by upstream GJS opt-in — use `@gjsify/sab-native` `SharedBuffer`. browser:`partial` — `receiveMessageOnPort` returns `undefined` (no sync drain), `workerData` first-macrotask only |
-| sab-native | Linux libc / macOS 14.4+ libSystem | Native | **Optional Vala bridge**: `SharedBuffer` (memfd_create [darwin: shm_open+shm_unlink] + mmap MAP_SHARED, typed accessors, `viewBytes()`/`toBuffer<T>()` duck-type for `Buffer.from`, SEQ_CST atomics + futex [darwin: os_sync_wait_on_address _SHARED]), `FdChannel` (SOCK_SEQPACKET [darwin: SOCK_STREAM, 4-byte frames] + SCM_RIGHTS). Lazy `imports.gi.GjsifySabNative`, `hasNativeSab()`. Prebuilds linux-* + darwin-{arm64,x64} (ADR 0013) |
-| ws (npm) | Soup 3.0 | Partial | `ws`-compat client + WebSocketServer over `@gjsify/websocket` + Soup.Server; aliases `ws`+`isomorphic-ws`. Server: `{server}` shared-port, `{noServer}`+`handleUpgrade()`, verifyClient (sync+async), handleProtocols, 'headers', client tracking, `createWebSocketStream`. Missing: custom perMessageDeflate, ping/pong events (Soup handles control frames internally — no GI API). browser:`partial` — `WebSocketServer` ENOTSUP; client IS `globalThis.WebSocket`. Only one of the ten partials with no `src/test.browser.mts` |
-| zlib | — | Full | one-shot via Web Compression API, Gio.Zlib* fallback; streaming classes are REAL `@gjsify/stream` Transform subclasses (genuine constructors so `inherits(Sub, zlib.Inflate)` works at module init — sync-inflate/pngjs/qrcode); `Unzip` auto-detects by magic byte. `maxOutputLength` bounds one-shot/callback decoding mid-inflate (`ERR_BUFFER_TOO_LARGE`, zip-bomb guard); streams validate it but don't enforce — same as Node. Brotli/Zstd throw (no GLib codec). browser:`partial` — every `*Sync` ENOTSUP (CompressionStream is Promise-only); brotli/zstd outside the WHATWG spec |
 
-## CJS-ESM Interop (GJS)
-
-Three SEPARATE mechanisms share the word `require`; conflating them is how a latent `ReferenceError` hides for months. (1) is a rule about OUR source; (2)/(3) are interop for FOREIGN code — inbound and outbound. Neither (2) nor (3) is a general `require` polyfill, and neither makes (1) safe.
-
-### 1. Our source is ESM — never a bare `require`
-
-`"type": "module"`, no ambient `require` binding. **A bare `require(...)` in our own source is a latent `ReferenceError`.**
-|**THE TRAP — bundled code is shimmed, published `lib/` is not.** Inside a `--app gjs|node` bundle a bare `require('node:fs')` WORKS: rolldown resolves the (aliased) specifier and rewrites the CALL to `__toCommonJS(<bundled module>)` at build time — mechanism (2) catching our mistake as a side effect. The unbundled ESM `lib/` — what we PUBLISH, what every `node lib/index.js` path loads — has no `require` and throws. A site whose only production caller runs a committed `dist/*.gjs.mjs` can sit broken indefinitely and go red the first time anything reaches it through `lib/`.
-|**a swallowing `catch` turns it into a silent wrong answer.** `try { require('node:x') } catch { return <fallback> }` converts the ReferenceError into an unverified result: `oxc-resolve.ts` left `libc` pinned to `'gnu'` and told musl hosts to install the wrong binding; `app/gjs.ts` returned an unverified shim path — and since bare `require` only resolves INSIDE a bundle, the `createRequire` fallback written FOR the bundled case was the one branch bare `require` could reach, while the unbundled case it was meant to rescue returned early every time. Catch only around an operation with a real failure mode, and say which.
-|**write instead:** a static `import` (the default — `node:*` is aliased per target), or `createRequire(import.meta.url)` as a NAMED import from `node:module` when you specifically need an exports-map-aware RESOLVER (`@gjsify/module`'s polyfill rejects synchronous BUILTIN loads through it — resolve paths, don't load modules). `await import(...)` is ordinary ESM, not a `require`.
-|**enforced, not merely documented:** `.oxlintrc.json` sets `typescript/no-require-imports: "error"` — it is NOT in the `correctness` category, so it must be listed explicitly; until it was, the rule NEVER RAN and the `eslint-disable-next-line @typescript-eslint/no-require-imports` comments at some offending sites were pure decoration. Unused-disable reporting is also an error (§ Lint) so that decoration cannot sit next to a live bug again. An `overrides` entry turns the rule OFF for `**/*.cjs`/`**/*.cts` (CJS files — `require` is their module syntax: the `cjs-compat.cjs` shims, CJS fixtures).
-|**a per-site disable needs a STATED REASON + tracked TODO — never bare.** All three spellings suppress (`@typescript-eslint/…`, `typescript/…`, `oxlint-…`). Only sanctioned sites today: the two lazy native-dispatcher loads in `@gjsify/http2` (static import would drag the optional typelib-backed `http2-native` into every consumer; the ESM fix needs async `connect()`/`listen()`) — latent ReferenceErrors on the unbundled path, tracked in `status/open-todos/runtime-apis.md`.
-|`require` TEXT that is not a binding stays legal (generated fixture source, `node -e` one-liners, worker templates, comments) — the rule sees bindings.
-
-### 2. Inbound — third-party CJS is resolved at BUILD time
-
-A bundled npm dep's `require('stream')` is resolved by rolldown (`__commonJSMin` wrap, internal `__require`). Nothing is injected at runtime, and **`app/node.ts` deliberately sets NO `createRequire` banner** — one collided with yargs' own (`Identifier 'require' has already been declared`).
-
-### 3. Outbound — `cjs-compat.cjs` is a PUBLISHING concern
-
-`@gjsify/{stream,events,assert}` ship a `cjs-compat.cjs` via `exports['.'].require`, for an EXTERNAL CJS consumer whose `require('stream')` must get the constructor (so `util.inherits(Child, Stream)` works). `alias.ts` forwards `extraOptions.kind` to `this.resolve()` so the `require` condition can match the original call site (regression: `tests/e2e/cjs-require-stream`). **Where the condition is SELECTED is the subtlety:** `--app node`'s esm `conditionNames` include `'require'` → picks `cjs-compat.cjs`; `--app gjs`'s are `['browser','import']` (comment in `setupForGjs` explains why) → under GJS the constructor comes from the `"module.exports"` string-export below; `cjs-compat.cjs` is dead weight there. Forwarding `kind` is necessary, not sufficient.
-
-### The namespace-vs-constructor fix
-
-Bundling wraps ESM with `__toCommonJS` → a namespace object, not a constructor; a bundled CJS `require('stream')` (pngjs, mute-stream, readable-stream, …) then dies at load with `Stream is not a constructor` / `superCtor.prototype … undefined`.
-|**Fix (active): the `"module.exports"` string-export** — for a pkg whose CJS `module.exports` must be a single callable (Node's dual shape — `stream`, `events`), add after `export default _default;`: `export { _default as 'module.exports' };` (ES2022 arbitrary-string export). Rolldown's `__toCommonJS` special-cases an OWN `"module.exports"` property on the namespace and returns it verbatim → a bundled `require('<name>')` yields the callable, normal ESM imports untouched. Engine-agnostic. Regression fixture: `packages/node/stream/src/cjs-interop.fixture.cjs` + `inheritance.spec.ts`.
-|Historical note: the esbuild-era "Fix 1" (output unwrap in `onEnd`) was NOT ported to Rolldown; "Fix 2" (`cjs-compat.cjs`) still ships but is only selected on `--app node` (above).
-
-## The OS axis — this pillar is what the macOS and Windows legs run
-
-`main.yml` is Linux-only. `macos-suites.yml` runs these on `test:node` AND `test:gjs`,
-`windows-suites.yml` on `test:node` ALONE (no GJS host there: green checks the SPEC, not
-the port) — on `main`, the nightly and **since 2026-08-16 your PR too** (ADR 0018 § 5
-re-measured: a change here kept being green everywhere its author could see and reddening
-`main`). ADVISORY, nothing stops the merge: READ them.
-
-|**A POSIX literal cannot fail on Linux.** `O_CREAT` is 0o100 on Linux, 0x200 on
-darwin, 0x100 on win32; `O_APPEND` is 0o2000 vs 0x8; `EEXIST` is errno -17 vs
-libuv -4075. Take flags from `fs.constants`, assert an errno's `code`.
-`scripts/check-spec-posix-literals.mjs` gates the spellings it can see
-statically — it is a floor, not a proof. A Node constant TABLE is the same trap
-one level up: `os.constants.signals` is built from `#ifdef SIGxxx` (33 names on
-Linux, 31 on darwin, 7 on win32; `SIGUSR1` is 10 on one host and 30 on the
-next), so one table for all three gives each a plausible WRONG number and nothing
-reports it (#2001): [docs/node-os-constants.md](../../docs/node-os-constants.md).
-|**Before merging a change to a semantics spec here, ASK the OS legs** — they
-have `workflow_dispatch`: `gh workflow run "macOS suites" --ref <branch>` and
-the same for `"Windows suites"`. Two dispatches beat eight hours of red `main`.
-|**Gate a host difference with `it.failing(…, reason, { when })`, never an
-`if`** — it keeps the assertion whole and fails the run the day the host can
-satisfy it. `packages/node/fs/src/capabilities.spec.ts` is the worked example,
-including when to MEASURE a capability and when keying on the platform is the
-honest choice (a probe running under `test.gjs.mjs` asks the implementation
-under test whether the implementation is right).
-|**`it.failing` fails a run for SUCCEEDING, so a `when` that is too broad is
-itself a red build.** Two ways to get it too broad, both paid for in #1039:
-|— *reasoning about the mechanism instead of measuring it.* The
-descriptor-identity rules were gated on `/proc/self/fd` because that is how GJS
-reaches a descriptor — but on darwin, which has none, the GJS leg passes them
-anyway. A gate is a claim about a host; if you have not run it there, you have
-not checked it.
-|— *forgetting that a `when` may need the LEG.* Where the divergence is OURS the
-marker must carry `IS_GJS`, or it fires on a Node leg that passes. Where the
-REFERENCE diverges from the standard — darwin's `pwrite` ignoring POSIX's
-`O_APPEND` clause, which `@gjsify/fs` implements correctly everywhere — it must
-carry `!IS_GJS` instead, and the GJS leg must pass.
-
-Incident: #1039 merged ~100 POSIX-semantics rules with a green Linux pipeline
-and put 45 failures on `main` across the two legs — 9 on darwin, 36 on win32.
-
-**The leg axis has the same shape, and `GLib.Error` is where it bites.** Under GJS — and now
-under `@gjsify/node-gi`, the bridge that runs these very suites on Node — a `GLib.Error` is a
-boxed GError: `Error.isError()` is true while `instanceof Error` is FALSE. A leg that raises its
-own `Error` instead answers both true, so a catch that discriminates on `instanceof Error` wraps
-the error on one host and passes the raw GError through on the other. Measured while fixing
-`@gjsify/sqlite`: the gjs leg stayed 84/84 green while three tests went red under node-gi, which
-back then had an `Error` subclass of its own with a quark NAME in `.domain`. That second shape is
-gone (`docs/node-gi-gjs-surface.md` § GError identity); the leg hazard is not. Discriminate on
-your own error classes (`sqlite/src/errors.ts#isNodeSqliteError`), and read `.message` rather than
-stringifying — `String(e)` on a GError yields
-`"GLib.Error gda_server_provider_error: no such table: t"` where Node reports `"no such table: t"`.
