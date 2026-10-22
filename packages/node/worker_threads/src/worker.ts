@@ -35,6 +35,7 @@ import { fdChannel } from '@gjsify/sab-native';
 // its own import of this pair runs the same single-file, Node-safe surface.
 import { acquireMainLoop, releaseMainLoop } from '@gjsify/utils/main-loop';
 import { extractSharedBuffers } from './sab-transfer.js';
+import { encode as encodeWire, decode as decodeWire } from './structured-clone-wire.js';
 import { MessagePort } from './message-port.js';
 import {
     SubprocessPortTransport,
@@ -143,8 +144,18 @@ export class Worker extends EventEmitter {
             }
         }
 
+        // Spawn the SAME gjs binary as the parent (issue #2338.3): never
+        // rely on PATH, which may resolve a different GJS (or none, e.g.
+        // inside an AppImage/Flatpak).
+        let gjsBin = 'gjs';
         try {
-            this._subprocess = launcher.spawnv(['gjs', '-m', bootstrapPath]);
+            const exe = GLib.file_read_link('/proc/self/exe');
+            if (exe) gjsBin = exe;
+        } catch {
+            /* fall back to PATH lookup */
+        }
+        try {
+            this._subprocess = launcher.spawnv([gjsBin, '-m', bootstrapPath]);
         } catch (err) {
             this._cleanup();
             throw new Error(`Failed to spawn worker: ${err instanceof Error ? err.message : err}`);
@@ -191,7 +202,7 @@ export class Worker extends EventEmitter {
         const initData =
             JSON.stringify({
                 threadId: this.threadId,
-                workerData: initWorkerData,
+                workerData: encodeWire(initWorkerData),
                 eval: isEval,
                 filename: isEval ? undefined : resolvedFilename,
                 code: isEval ? resolvedFilename : undefined,
@@ -246,7 +257,8 @@ export class Worker extends EventEmitter {
             // within each fd (stdin, side-channel) but the two fds are
             // independent.
             const serialised = this._serializeWithSabTransfer(processed);
-            const line = JSON.stringify({ type: 'message', data: serialised }) + '\n';
+            const encoded = encodeWire(serialised);
+            const line = JSON.stringify({ type: 'message', data: encoded }) + '\n';
             this._stdinPipe.write_all(_encoder.encode(line), null);
         } catch {
             // Worker stdin closed
@@ -474,7 +486,9 @@ export class Worker extends EventEmitter {
                     const keptPort = this._portRegistry.get(msg.__msgport);
                     if (keptPort) {
                         if (msg.op === 'send') {
-                            (keptPort as unknown as { _receiveMessage(m: unknown): void })._receiveMessage(msg.data);
+                            (keptPort as unknown as { _receiveMessage(m: unknown): void })._receiveMessage(
+                                decodeWire(msg.data),
+                            );
                         } else if (msg.op === 'close') {
                             this._portRegistry.delete(msg.__msgport);
                             // _inner.close() flips the W3C-side state; close() on the
@@ -491,7 +505,7 @@ export class Worker extends EventEmitter {
                         this.emit('online');
                         break;
                     case 'message':
-                        this.emit('message', msg.data);
+                        this.emit('message', decodeWire(msg.data));
                         break;
                     case 'error': {
                         const err = new Error(msg.message);
