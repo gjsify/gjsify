@@ -17,6 +17,7 @@ import { ColumnTypes, executeStatement, integerColumns, releaseStatement } from 
 import { bindHolders, type HolderBinding, releaseHolders } from './param-binding.ts';
 import { convertParameterSyntax, type ParamInfo } from './parameter-syntax.ts';
 import { parseSql } from './parse-sql.ts';
+import { providerSql, statementKind, type StatementKind } from './statement-kind.ts';
 import type { RunResult, StatementSyncOptions } from './types.ts';
 
 const MAX_INT64 = 9223372036854775807n;
@@ -154,6 +155,17 @@ export class StatementSync {
     /** How this statement's result columns are read; learned on the first get()/all(). */
     #columns = new ColumnTypes();
     /**
+     * What the statement does, decided once from its SQL.
+     *
+     * A statement with a CTE reaches libgda as UNKNOWN whatever it does, so the
+     * row-vs-rows decision needs this answer (see `statement-kind.ts`). It cannot change
+     * between executions: the parameters move, the statement does not. The rendered text
+     * of an execution differs from the SQL it was decided from in the parameter
+     * placeholders alone — `?` becomes `##id::type` — and a placeholder is no keyword,
+     * so the verb is the same in both.
+     */
+    #kind: StatementKind;
+    /**
      * Rendered SQL → what libgda parsed it into, youngest last.
      *
      * Keeping this is the point of the class: `parse_sql_string()` builds a statement
@@ -176,6 +188,7 @@ export class StatementSync {
         this.#connection = connection;
         this.#sql = sql;
         this.#paramMap = paramMap;
+        this.#kind = statementKind(sql);
         this.#readBigInts = options.readBigInts ?? false;
         this.#returnArrays = options.returnArrays ?? false;
         this.#allowBareNamedParameters = options.allowBareNamedParameters ?? true;
@@ -361,6 +374,10 @@ export class StatementSync {
      * asked to keep that entry — so handing the same object back is what lets SQLite skip
      * the compile. A dropped entry gives its cache entry back here, where it is still
      * known which connection holds it.
+     *
+     * The text handed to libgda is not necessarily the caller's: a statement with a CTE
+     * is stated as `SELECT * FROM ( … )`, because the provider dispatches on the first
+     * word of the text and would otherwise run it as a command (see `statement-kind.ts`).
      */
     #statementFor(sql: string): [Gda.Statement, Gda.Set | null] {
         const cached = this.#parsed.get(sql);
@@ -370,7 +387,7 @@ export class StatementSync {
             this.#parsed.set(sql, cached);
             return cached;
         }
-        const parsed = parseSql(this.#connection, rewriteExistsSubqueries(sql));
+        const parsed = parseSql(this.#connection, providerSql(rewriteExistsSubqueries(sql), this.#kind));
         this.#parsed.set(sql, parsed);
         while (this.#parsed.size > MAX_CACHED_STATEMENTS) {
             const [oldestSql, [oldestStmt]] = this.#parsed.entries().next().value!;
@@ -404,7 +421,11 @@ export class StatementSync {
             let stmt: Gda.Statement;
             [stmt, params] = this.#statementFor(sql);
             bindHolders(params, bindings);
-            return executeStatement(this.#connection, stmt, params, read, { columns, retain: true });
+            return executeStatement(this.#connection, stmt, params, read, {
+                columns,
+                retain: true,
+                kind: this.#kind,
+            });
         } catch (e: unknown) {
             // libgda reports through GLib.Error, whose `code` is a numeric GError enum,
             // while a consumer written against node:sqlite branches on

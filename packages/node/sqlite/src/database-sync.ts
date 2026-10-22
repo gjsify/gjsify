@@ -20,6 +20,7 @@ import { convertParameterSyntax } from './parameter-syntax.ts';
 import { parseSql } from './parse-sql.ts';
 import { rewriteExistsSubqueries } from './exists-subquery.ts';
 import { sqlRegions } from './sql-regions.ts';
+import { providerSql, statementKind } from './statement-kind.ts';
 import { StatementSync } from './statement-sync.ts';
 import type { DatabaseSyncOptions, StatementSyncOptions } from './types.ts';
 
@@ -262,8 +263,12 @@ export class DatabaseSync {
             // than Statements — and it carries the same `remain` hazard (see #parseSql).
             const statements = this.#splitStatements(sql);
             for (const stmtSql of statements) {
-                const [stmt] = this.#parseSql(rewriteExistsSubqueries(stmtSql));
-                executeStatement(this.#connection!, stmt, null, () => undefined);
+                // The kind comes from the text: a statement with a CTE reaches libgda as
+                // UNKNOWN whatever it does, and the provider dispatches on the first word
+                // of the text it renders (see statement-kind.ts).
+                const kind = statementKind(stmtSql);
+                const [stmt] = this.#parseSql(providerSql(rewriteExistsSubqueries(stmtSql), kind));
+                executeStatement(this.#connection!, stmt, null, () => undefined, { kind });
             }
         } catch (e: unknown) {
             if (isNodeSqliteError(e)) {
@@ -287,8 +292,12 @@ export class DatabaseSync {
         // rather than from the first run(). Parameters become string holders — the value
         // types are not known yet, and libgda only needs the SHAPE to parse.
         const [probeSql, paramMap] = convertParameterSyntax(sql);
+        // The probe parses the text the execution will parse — a statement with a CTE is
+        // stated as `SELECT * FROM ( … )` for the provider (see statement-kind.ts) — so a
+        // syntax error surfaces here and not at the first run().
+        const kind = statementKind(probeSql);
         try {
-            this.#parseSql(rewriteExistsSubqueries(probeSql));
+            this.#parseSql(providerSql(rewriteExistsSubqueries(probeSql), kind));
         } catch (e: unknown) {
             if (isNodeSqliteError(e)) {
                 throw e;

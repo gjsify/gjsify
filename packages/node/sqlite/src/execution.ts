@@ -5,6 +5,7 @@
 import Gda from '@girs/gda-6.0';
 import GObject from '@girs/gobject-2.0';
 import { SqliteError } from './errors.ts';
+import type { StatementKind } from './statement-kind.ts';
 
 /**
  * GType names libgda gives a result column that it then reads through a C type narrower
@@ -153,6 +154,16 @@ export interface ExecuteOptions {
      * reuse asks for this; a one-shot statement would just occupy the bound.
      */
     retain?: boolean;
+    /**
+     * What the statement does, for the statements libgda cannot classify.
+     *
+     * A statement with a CTE reaches libgda as UNKNOWN whatever it does (see
+     * `statement-kind.ts`), so the row-vs-rows decision cannot be left to
+     * `get_statement_type()` alone — the answer comes from the SQL text instead. A
+     * caller that does not know the statement leaves it out, and an UNKNOWN statement
+     * then keeps the path it had.
+     */
+    kind?: StatementKind;
 }
 
 /**
@@ -199,7 +210,7 @@ export function executeStatement<T>(
     let model: Gda.DataModel | null = null;
     let retainable = false;
     try {
-        model = execute(connection, stmt, params, columns);
+        model = execute(connection, stmt, params, columns, options.kind);
         if (model) assertTyped(model);
         const result = read(model, columns?.textColumns ?? []);
         // Only a DRAINED statement may keep its cache entry, and a forward cursor — the
@@ -207,7 +218,7 @@ export function executeStatement<T>(
         // one: retaining it leaves the sqlite3_stmt mid-step, and the next DROP TABLE or
         // VACUUM on that connection fails with "database table is locked". Reached only
         // through an error that `read` itself raised, hence after it rather than before.
-        retainable = !isForwardCursor(stmt, model, columns);
+        retainable = !isForwardCursor(stmt, model, columns, options.kind);
         return result;
     } finally {
         if (model) {
@@ -221,8 +232,33 @@ export function executeStatement<T>(
     }
 }
 
-function isForwardCursor(stmt: Gda.Statement, model: Gda.DataModel | null, columns: ColumnTypes | undefined): boolean {
-    return model !== null && columns === undefined && stmt.get_statement_type() === Gda.SqlStatementType.SELECT;
+/**
+ * Does this statement return rows?
+ *
+ * libgda's own answer decides it wherever it CAN: a statement it parsed as a SELECT
+ * returns rows, and one it parsed as anything else does not — a PRAGMA included, which
+ * libgda also calls UNKNOWN but which the provider runs as a query and answers with a
+ * data model (see `database-sync.ts`).
+ *
+ * The UNKNOWN bucket is where the answer comes from the SQL text: a statement with a
+ * CTE is UNKNOWN to libgda whatever it does (see `statement-kind.ts`), and a `WITH …
+ * SELECT …` returns rows while a `WITH … INSERT …` writes. A statement whose kind is
+ * unknown keeps the path it had.
+ */
+function returnsRows(stmt: Gda.Statement, kind: StatementKind | undefined): boolean {
+    const type = stmt.get_statement_type();
+    if (type === Gda.SqlStatementType.SELECT) return true;
+    if (type !== Gda.SqlStatementType.UNKNOWN) return false;
+    return kind === 'rows';
+}
+
+function isForwardCursor(
+    stmt: Gda.Statement,
+    model: Gda.DataModel | null,
+    columns: ColumnTypes | undefined,
+    kind: StatementKind | undefined,
+): boolean {
+    return model !== null && columns === undefined && returnsRows(stmt, kind);
 }
 
 function execute(
@@ -230,8 +266,9 @@ function execute(
     stmt: Gda.Statement,
     params: Gda.Set | null,
     columns: ColumnTypes | undefined,
+    kind: StatementKind | undefined,
 ): Gda.DataModel | null {
-    if (stmt.get_statement_type() === Gda.SqlStatementType.SELECT) {
+    if (returnsRows(stmt, kind)) {
         // Without `columns` nobody reads the rows, so none are converted: a forward
         // cursor types the columns from the first row and never fails on a value.
         if (!columns) {
