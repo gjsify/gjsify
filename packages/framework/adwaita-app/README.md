@@ -67,7 +67,13 @@ promise-job queue under `run()`).
   `flags`, `css`, `about` (`AboutInfo`) or `aboutAppdata`
   (`CreateAboutDialogOptions`, see below), `quitAction` (default on, `<primary>q`),
   `devtools` (`true` | `InstallDevtoolsOptions` | omitted = env-gated),
-  `bundledIcons` (default on — see below), `onStartup`.
+  `bundledIcons` (default on — see below), `iconDir`, `onStartup`.
+  `iconDir` is the app's own `data/icons` root. An app run from its build tree
+  has no launcher exporting `XDG_DATA_DIRS`, so GTK cannot find the app icon
+  (the About dialog shows an empty square). On `startup`, when the icon theme
+  lacks the app icon, the dir is added: `iconDir`, else `GJSIFY_ICON_DIR`, else
+  the nearest `data/icons` within six levels above the bundle. No-op when the
+  icon already resolves.
 - `AdwaitaApp` — the configured `Adw.Application` subclass, if you need the
   instance instead of `runAdwaitaApp`.
 
