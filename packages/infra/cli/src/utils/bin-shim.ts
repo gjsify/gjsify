@@ -514,11 +514,10 @@ export function buildNativeEnvPreamble(
  * cannot go stale the way baking `systemGiLibraryDirs()` in would (a launcher is
  * routinely written before `brew install gtk4`), and it re-derives nothing —
  * four literals from `dyld(1)`, shared with {@link dyldDefaultFallbackDirs}.
- * An inherited value stays AHEAD of it; the export only ADDS BACK what dyld
- * would have searched on its own.
+ * An inherited value stays AHEAD of it.
  *
- * PLUS THE `lib/` BESIDE THE `gjs` THIS SHIM EXECS, because "set to the
- * documented default" is NOT "unset". Measured on macOS 27 / arm64 with Homebrew
+ * NOT SUFFICIENT ON ITS OWN, so the `lib/` beside the `gjs` this shim execs is
+ * appended: "set to the documented default" is NOT "unset". Measured on macOS 27 / arm64 with Homebrew
  * gjs 1.88.1 and a fresh glib keg: `gjs -c "imports.gi.Gio"` loads with the
  * variable unset and dies with the documented default exported —
  * `Failed to load shared library 'libgjs.0.dylib' referenced by the typelib`,
