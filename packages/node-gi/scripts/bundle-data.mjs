@@ -124,9 +124,14 @@ export function formatSymlinkProblems(links, { root }) {
  * required (read off the finished bundle's typelib dir, so a set cannot be required for a
  * namespace the bundle does not ship — and cannot be skipped for one it does).
  *
- * Only sets whose absence is SILENT belong here. `etc/fonts` deliberately does not: a gvsbuild
- * prefix without it means pango uses the win32/DirectWrite backend, which is the normal
- * configuration rather than a defect, and the builder logs "skipping" not a warning.
+ * Only sets whose absence is SILENT belong here. `etc/fonts` deliberately does not, and the
+ * reason is platform-specific: on win32 a gvsbuild prefix without it means pango uses the
+ * win32/DirectWrite backend, which is the normal configuration rather than a defect, and the
+ * builder logs "skipping" not a warning. On darwin the builder now ALWAYS emits its own
+ * `etc/fonts/fonts.conf` (see fontconfig-darwin.mjs), because the darwin bundle forces
+ * PANGOCAIRO_BACKEND=fc and without a config libfontconfig falls back to the build host's
+ * `/opt/homebrew/etc/fonts`, which does not exist on a user's Mac. A missing file there is
+ * therefore a build failure, not a silent skip, and is asserted by the builder itself.
  *
  * ONE list, BOTH builders, no platform exception: the gdk-pixbuf loaders lived in a win32-only
  * sibling array while the darwin builder shipped none, which is how a bundle with a 22 MB icon

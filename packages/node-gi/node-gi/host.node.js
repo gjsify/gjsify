@@ -18,6 +18,7 @@ import {
     maybeReexecForGtkRuntime,
     maybeWireGtkWindowingEnv,
     windowingEnvWrites,
+    bundledLocaleDir,
 } from './gtk-runtime.js';
 import { activateNativePrebuilds } from './native-prebuilds.js';
 // From node:timers, not the globals, for two reasons: setImmediate is a Node/Bun global
@@ -31,7 +32,7 @@ import { setImmediate, setInterval, clearInterval } from 'node:timers';
 // loop-liveness hooks in gi.js would silently never fire.
 import runtimeProcess from 'node:process';
 
-export { setImmediate, setInterval, clearInterval, runtimeProcess, windowingEnvWrites };
+export { setImmediate, setInterval, clearInterval, runtimeProcess, windowingEnvWrites, bundledLocaleDir };
 
 const require = createRequire(import.meta.url);
 const here = packageRoot;

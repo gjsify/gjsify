@@ -2134,6 +2134,14 @@ jobs:
           NODE_GI_NATIVE: prebuild
         run: node --test test/font-script-coverage.test.mjs
 
+      # gtk_init / adw_init re-bind their gettext domains to the BUILD host's prefix, so the
+      # bundle's own catalogs only count if node-gi re-binds them after `startup`.
+      - name: Bundled catalogs survive GTK/libadwaita init
+        working-directory: packages/node-gi/node-gi
+        env:
+          NODE_GI_NATIVE: prebuild
+        run: node --test test/bundled-text-domains.test.mjs
+
       # Composite templates — the proof that was missing on BOTH displayless
       # platforms. All four gtk-template tests gated on DISPLAY/WAYLAND_DISPLAY,
       # variables GdkWin32 and GdkQuartz never set, so they had never run off
