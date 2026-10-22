@@ -517,9 +517,21 @@ export function buildNativeEnvPreamble(
  * An inherited value stays AHEAD of it; the export only ADDS BACK what dyld
  * would have searched on its own.
  *
- * NOT the host's GI libdirs: `/opt/homebrew/lib` was never in dyld's default
- * either, so an ARM Mac has that gap with or without gjsify —
- * `status/open-todos/README.md`.
+ * PLUS THE `lib/` BESIDE THE `gjs` THIS SHIM EXECS, because "set to the
+ * documented default" is NOT "unset". Measured on macOS 27 / arm64 with Homebrew
+ * gjs 1.88.1 and a fresh glib keg: `gjs -c "imports.gi.Gio"` loads with the
+ * variable unset and dies with the documented default exported —
+ * `Failed to load shared library 'libgjs.0.dylib' referenced by the typelib`,
+ * then `Unsupported type void` from Gio's override `_init`. `GjsPrivate-1.0`
+ * names GJS's own library by bare leaf, and once the variable is SET dyld only
+ * finds it in a listed directory; `gjs`'s rpath names GLib's keg, not its own.
+ * That broke every `gjsify` command on an Apple-silicon Mac, `--version`
+ * included, until a symlink was planted in GLib's keg by hand (the CI step
+ * `Make libgjs resolvable without a DYLD_ variable`) — and a `brew upgrade glib`
+ * silently removes it again. `<dir of gjs>/../lib` is where every prefix
+ * (Homebrew on either arch, MacPorts) links `libgjs`, resolved at LAUNCH from
+ * the same `PATH` lookup the `exec` uses, so it cannot go stale either. It goes
+ * LAST: it only has to catch what the defaults miss.
  */
 export function dyldFallbackPreamble(platform: string): string {
     if (platform !== 'darwin') return '';
@@ -527,7 +539,10 @@ export function dyldFallbackPreamble(platform: string): string {
     // the writing machine's home directory into every launcher.
     const dirs = dyldDefaultFallbackDirs({ HOME: '$HOME' }).join(':');
     return (
-        `DYLD_FALLBACK_LIBRARY_PATH="\${DYLD_FALLBACK_LIBRARY_PATH:+$DYLD_FALLBACK_LIBRARY_PATH:}${dirs}"\n` +
+        `gjsify_gjs=$(command -v gjs 2>/dev/null)\n` +
+        `DYLD_FALLBACK_LIBRARY_PATH="\${DYLD_FALLBACK_LIBRARY_PATH:+$DYLD_FALLBACK_LIBRARY_PATH:}${dirs}` +
+        `\${gjsify_gjs:+:\${gjsify_gjs%/*}/../lib}"\n` +
+        `unset gjsify_gjs\n` +
         `export DYLD_FALLBACK_LIBRARY_PATH\n`
     );
 }
