@@ -46,6 +46,14 @@ let windowingEnvWritesMade = [];
  * Empty off win32 (POSIX `setenv()` has one environment) and empty when the wiring no-opped.
  * @returns {Array<[string, string]>}
  */
+/** Where the windowing bundle's own catalogs live, or `undefined` (see `armBundledTextDomains` in gi.js). */
+let bundleLocaleDir;
+
+/** @returns {string | undefined} */
+export function bundledLocaleDir() {
+    return bundleLocaleDir;
+}
+
 export function windowingEnvWrites() {
     return process.platform === 'win32' ? windowingEnvWritesMade.slice() : [];
 }
@@ -484,30 +492,13 @@ export function maybeWireGtkWindowingEnv() {
         }
     }
 
-    // The catalogs the bundle ships for its own libraries. GTK/libadwaita/GLib/GtkSourceView
-    // look for them under paths compiled into the build host, so without this binding every
-    // one of their strings stays in English on a German (or any non-English) locale. The
-    // binding is done through node-gi's gettext module, which calls the addon's
-    // bindtextdomain (libintl) — the same mechanism GJS uses. It is lazy and guarded,
-    // because an addon predating the binders (or a bundle without catalogs) must not take
-    // the env-wiring path down with it.
+    // The catalogs the bundle ships for its own libraries. Binding them HERE would be undone:
+    // gtk_init, adw_init and GLib's first translated message each call
+    // bindtextdomain(<domain>, <path compiled into the build host>) themselves, and that path
+    // does not exist on a Mac without Homebrew. So only the directory is recorded here;
+    // gi.js re-binds the domains once those inits have run (armBundledTextDomains).
     const localeDir = join(bundle.dir, 'share', 'locale');
-    if (existsSync(localeDir)) {
-        try {
-            const req = createRequire(import.meta.url);
-            const gettext = req('./gettext.js');
-            for (const domain of ['gtk40', 'libadwaita', 'glib20', 'gtksourceview-5']) {
-                try {
-                    gettext.bindtextdomain(domain, localeDir);
-                } catch {
-                    /* addon predates the binders — leave the domain on its compiled-in path */
-                }
-            }
-        } catch {
-            /* gettext module unavailable in this context */
-        }
-        write('GJSIFY_GTK_LOCALE_DIR', localeDir);
-    }
+    bundleLocaleDir = existsSync(localeDir) ? localeDir : undefined;
 
     const fontsConf = join(bundle.dir, 'etc', 'fonts', 'fonts.conf');
     if (existsSync(fontsConf)) {

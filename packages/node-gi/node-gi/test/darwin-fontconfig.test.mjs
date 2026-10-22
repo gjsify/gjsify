@@ -11,7 +11,11 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { DARWIN_FONTS_CONF_PATH, renderDarwinFontsConf, stageDarwinFontconfig } from '../../scripts/fontconfig-darwin.mjs';
+import {
+    DARWIN_FONTS_CONF_PATH,
+    renderDarwinFontsConf,
+    stageDarwinFontconfig,
+} from '../../scripts/fontconfig-darwin.mjs';
 
 describe('renderDarwinFontsConf', () => {
     const xml = renderDarwinFontsConf();
