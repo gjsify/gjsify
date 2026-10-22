@@ -1636,6 +1636,31 @@ export default async () => {
             expect(result.type === 'error' || (result.type === 'exit' && result.code !== 0)).toBe(true);
         });
 
+        await it('should report a throw in a timer callback as error, then exit 1', async () => {
+            // The crash contract runs the timer through whichever setTimeout
+            // provider the child has: the bootstrap fallback shim on GJS
+            // (a spawned child resolves no timers), Node's own underneath.
+            // Both must report `error`, then `exit` 1 — never a silent
+            // child that keeps running (#2336).
+            const worker = new Worker('setTimeout(() => { throw new Error("boom-eval"); }, 5);', { eval: true });
+            try {
+                const err = await new Promise<Error>((resolve) => {
+                    worker.once('error', (e: Error) => resolve(e));
+                });
+                const code = await new Promise<number>((resolve) => {
+                    worker.once('exit', (c: number) => resolve(c));
+                });
+                expect((err as Error).message).toContain('boom-eval');
+                expect(code).toBe(1);
+            } finally {
+                try {
+                    await worker.terminate();
+                } catch {
+                    /* already gone — the crash path delivered faster */
+                }
+            }
+        });
+
         await it('should emit exit event with code after terminate', async () => {
             const worker = new Worker(
                 '(globalThis.__gjsify_worker_context ? globalThis.__gjsify_worker_context.parentPort : require("node:worker_threads").parentPort).postMessage("started"); await new Promise(r => setTimeout(r, 5000));',

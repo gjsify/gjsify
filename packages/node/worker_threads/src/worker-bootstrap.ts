@@ -357,13 +357,85 @@ const parentPort = {
   },
 };
 
+// Worker-crash contract and the fallback timers behind it.
+//
+// GJS exposes no global error surface a bootstrap could catch into: measured
+// on gjs 1.88.1, \`globalThis.addEventListener\` does not exist, an uncaught
+// throw inside a GLib callback only prints a Gjs-CRITICAL while the loop keeps
+// running, and \`System\` has no uncaughtException/unhandledRejection hook. So a
+// worker that crashes outside a message handler is a silent orphan — the
+// parent waits on \`error\`/\`exit\` and never gets either (issue #2336). Every
+// crash path below funnels through \`crash()\`: one \`error\` line to the parent,
+// then exit 1, which is Node's \`error\` then \`exit\` 1.
+function crash(error) {
+  try {
+    send({ type: 'error', message: (error && error.message) ? error.message : String(error), stack: (error && error.stack) || '' });
+  } catch (_) { /* parent's stdout is gone — the exit below is what it still sees */ }
+  requestShutdown();
+  System.exit(1);
+}
+
 // Set worker context globals (read by @gjsify/worker_threads when imported by user script)
 globalThis.__gjsify_worker_context = {
   isMainThread: false,
   parentPort,
   workerData: materialise(decodeWire(init.workerData ?? null)),
   threadId: init.threadId ?? 0,
+  // The crash contract. Called by the fallback shim below for a raw .mjs
+  // child and by the timers provider in a bundled one (globals register).
+  // Only ever referenced inside a worker child — the main thread has no
+  // worker context, so its stderr-only reporting stays untouched.
+  crash,
 };
+
+// Child-local timers for every spawned child.
+//
+// Bare gjs ships its own setTimeout from its ESM modules
+// (\`resource:///org/gnome/gjs/modules/esm/_timers.js\`, measured on
+// gjs 1.88.1), but a throw inside one of its
+// callbacks only prints a Gjs-CRITICAL while the loop keeps running, so a
+// crashing worker sits invisible. The shim OVERWRITES the built-in: its
+// callbacks report through the crash contract and then the child dies the
+// Node way. A richer provider (the timers register of a bundled child) still
+// wins — it replaces these globals on import, and its dispatch carries the
+// same contract (reportTimerThrow + context.crash).
+{
+  const timers = { nextId: 0, byId: new Map() };
+  function clearById(id) {
+    const gid = timers.byId.get(id);
+    if (gid === undefined) return;
+    timers.byId.delete(id);
+    // g_source_remove has no throw path: a stale id logs a GLib CRITICAL and
+    // returns false, it never raises (same contract the globals register
+    // states for its own _cancel()).
+    GLib.source_remove(gid);
+  }
+  globalThis.setTimeout = function (fn, delay) {
+    if (typeof fn !== 'function') throw new TypeError('Callback must be a function. Received ' + typeof fn);
+    const id = ++timers.nextId;
+    const args = Array.prototype.slice.call(arguments, 2);
+    const gid = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.max(0, Number(delay) || 0), () => {
+      timers.byId.delete(id);
+      try { fn.apply(null, args); } catch (error) { crash(error); }
+      return GLib.SOURCE_REMOVE;
+    });
+    timers.byId.set(id, gid);
+    return id;
+  };
+  globalThis.setInterval = function (fn, delay) {
+    if (typeof fn !== 'function') throw new TypeError('Callback must be a function. Received ' + typeof fn);
+    const id = ++timers.nextId;
+    const args = Array.prototype.slice.call(arguments, 2);
+    const gid = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.max(0, Number(delay) || 0), () => {
+      try { fn.apply(null, args); } catch (error) { crash(error); return GLib.SOURCE_REMOVE; }
+      return GLib.SOURCE_CONTINUE;
+    });
+    timers.byId.set(id, gid);
+    return id;
+  };
+  globalThis.clearTimeout = clearById;
+  globalThis.clearInterval = clearById;
+}
 
 send({ type: 'online' });
 
@@ -437,11 +509,16 @@ if (!shuttingDown) {
         }
         readNext();
       } catch (error) {
+        // A crashed script limps no further: reporting the error and then
+        // keeping the loop alive strands the parent on `exit` the same way the
+        // silent orphan does. Node emits `error` and then `exit` 1 (the exit
+        // reaches the parent through wait_async, not through a line).
         try { send({ type: 'error', message: error.message, stack: error.stack || '' }); } catch (_) {}
+        requestShutdown();
+        System.exit(1);
       }
     })();
     return GLib.SOURCE_REMOVE;
   });
   loop.run();
 }
-`;
