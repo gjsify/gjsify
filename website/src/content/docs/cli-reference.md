@@ -658,6 +658,8 @@ gjsify install -D vitest        # add to devDependencies
 gjsify install -g @gjsify/cli   # global install under ~/.local/share/gjsify/global/
 ```
 
+A dependency you remove from `package.json` leaves `node_modules` on the next `gjsify install`: whatever the previous `gjsify-lock.json` placed and the rewritten one no longer does is deleted. Packages no lockfile ever named, such as the GJS bundler engine `gjsify install` adds on its own, and symlinked workspaces or `gjsify link` checkouts stay. `--immutable` removes nothing; it refuses a tree that holds packages its lockfile does not describe.
+
 | Option | Default | Description |
 |---|---|---|
 | `[packages..]` | `[]` | Package specs. Omit for a full project install. |
