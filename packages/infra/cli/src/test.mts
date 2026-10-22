@@ -36,6 +36,7 @@ import shipDependsSuite from './utils/ship/depends.spec.js';
 import shipGiSelectionSuite from './utils/ship/gi-selection.spec.js';
 import shipNodeRuntimeSuite from './utils/ship/node-runtime.spec.js';
 import shipAppRuntimeSuite from './utils/ship/app-runtime.spec.js';
+import shipGtkRuntimeAcquireSuite from './utils/ship/gtk-runtime-acquire.spec.js';
 import shipFlatpakSuite from './utils/ship/flatpak.spec.js';
 import shipDmgSuite from './utils/ship/dmg.spec.js';
 import shipAppImageSuite from './utils/ship/appimage.spec.js';
@@ -307,6 +308,7 @@ run(
         shipGiSelectionSuite,
         shipNodeRuntimeSuite,
         shipAppRuntimeSuite,
+        shipGtkRuntimeAcquireSuite,
         shipFlatpakSuite,
         shipDmgSuite,
         shipAppImageSuite,

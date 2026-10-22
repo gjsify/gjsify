@@ -39,14 +39,26 @@ Homebrew's GJS exists on a developer's Mac, not in a `.app` a stranger
 downloads, and there is no relocatable GJS to put inside a bundle. Set
 `gjsify.ship.app.darwin` to `"node"`, as
 [Ship your app](/gjsify/ship/#what-macos-and-windows-carry) shows, and install
-the pair for each architecture you ship, plus `@gjsify/node-gi`:
+the interpreter for each architecture you ship, plus `@gjsify/node-gi`:
 
-- `@gjsify/node-runtime-darwin-arm64` and `@gjsify/gtk-runtime-darwin-arm64`
-- `@gjsify/node-runtime-darwin-x64` and `@gjsify/gtk-runtime-darwin-x64`
+- `@gjsify/node-runtime-darwin-arm64`
+- `@gjsify/node-runtime-darwin-x64`
 
-`--arch arm64` looks for the `darwin-arm64` pair and nothing else. Install only
+`--arch arm64` looks for the `darwin-arm64` one and nothing else. Install only
 what you ship: the arm64 interpreter unpacks to 122 MB and the x64 one to
 124 MB, because each is a whole Node build.
+
+**Do not install `@gjsify/gtk-runtime-darwin-<arch>`.** `gjsify ship` fetches it
+for you, at the CLI's own version, into its cache (about 100 MB, once) the first
+time a ship run finds none. Installed into your project it would sit in
+`node_modules` on every Mac, and every gjsify native module there prefers it over
+Homebrew's GLib. A Homebrew `gjs` has already loaded that GLib, so the process
+ends up with two GObject type registries: builds stop with
+`No signal 'context_response' on object 'GVolumeMonitor'` or crash outright, and
+the app logs `GNotificationCenterDelegate is implemented in both …`. A project
+that still lists it ships as before and keeps that exposure until it drops the
+dependency. `GJSIFY_GTK_RUNTIME` points at a directory of your own instead, which
+also skips the fetch (an offline build, or a patched closure).
 
 `gjsify ship` names what it staged and what it did not, one line each:
 
@@ -166,9 +178,9 @@ A project on any operating system, producing a signed arm64 bundle, a zip and a
 Mac that holds the Developer ID.
 
 ```bash
-# 1. Declare the runtime, on the packaging host.
-npm install --save-dev @gjsify/node-runtime-darwin-arm64 \
-                       @gjsify/gtk-runtime-darwin-arm64
+# 1. Declare the interpreter, on the packaging host. The GTK closure is
+#    fetched by `ship` and is deliberately not installed.
+npm install --save-dev @gjsify/node-runtime-darwin-arm64
 npm install --save @gjsify/node-gi
 
 # 2. Assemble every darwin format you intend to pack.

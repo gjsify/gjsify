@@ -31,8 +31,9 @@ directory that cannot start.
 There is no GJS on Windows, so nothing there can run a `gjs` payload, and ship
 says so before it packs anything. Set `gjsify.ship.app.win32` to `"node"`, as
 [Ship your app](/gjsify/ship/#what-macos-and-windows-carry) shows, and install
-`@gjsify/node-runtime-win32-x64`, `@gjsify/gtk-runtime-win32-x64` and
-`@gjsify/node-gi`.
+`@gjsify/node-runtime-win32-x64` and `@gjsify/node-gi`. The GTK closure,
+`@gjsify/gtk-runtime-win32-x64`, is fetched by `gjsify ship` into its cache when
+nothing provides one; you do not install it.
 
 The key is `win32`, the `process.platform` spelling, not `windows`, which is what
 the command positional takes. A key nothing reads would leave the target on the
@@ -186,8 +187,9 @@ A project on any operating system, producing all three Windows artifacts. The
 `.msi` step needs `msitools` on Linux, so it can run in the same place.
 
 ```bash
-# 1. Declare the runtime, on the packaging host.
-npm install --save-dev @gjsify/node-runtime-win32-x64 @gjsify/gtk-runtime-win32-x64
+# 1. Declare the interpreter, on the packaging host. The GTK closure is
+#    fetched by `ship` into its cache and is not installed.
+npm install --save-dev @gjsify/node-runtime-win32-x64
 npm install --save @gjsify/node-gi
 
 # 2. Install the MSI compiler.
