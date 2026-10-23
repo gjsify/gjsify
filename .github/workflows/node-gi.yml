@@ -2757,7 +2757,7 @@ jobs:
       - name: Build the GTK runtime bundle (collect DLL closure + typelibs)
         shell: pwsh
         run: |
-          node packages/node-gi/gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs `
+          node packages/node-gi/scripts/build-gtk-runtime-win32.mjs `
             --out packages/node-gi/gtk-runtime-win32-x64/gtk `
             --prefix $env:GTK_PREFIX
 
@@ -3200,7 +3200,7 @@ jobs:
       - name: Build the FULL-windowing GTK runtime bundle (--windowing)
         shell: pwsh
         run: |
-          node packages/node-gi/gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs `
+          node packages/node-gi/scripts/build-gtk-runtime-win32.mjs `
             --windowing `
             --out packages/node-gi/gtk-runtime-win32-x64/gtk `
             --prefix $env:GTK_PREFIX `

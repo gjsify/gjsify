@@ -5,7 +5,7 @@
 
 ### What these three are
 
-`@gjsify/node-runtime-{darwin-arm64,darwin-x64,win32-x64}` each ship **one Node binary and Node's `LICENSE`**, nothing else, so a `gjsify ship` artifact for macOS or Windows can carry its own interpreter. **Linux gets no package on purpose**: a `.deb`/`.rpm` declares a dependency on the distribution's Node (`utils/ship/depends.ts` → `NODE_PACKAGE`), the way a `--app gjs` package declares `gjs`.
+`@gjsify/node-runtime-{darwin-arm64,darwin-x64,win32-x64,win32-arm64}` each ship **one Node binary and Node's `LICENSE`**, nothing else, so a `gjsify ship` artifact for macOS or Windows can carry its own interpreter. **Linux gets no package on purpose**: a `.deb`/`.rpm` declares a dependency on the distribution's Node (`utils/ship/depends.ts` → `NODE_PACKAGE`), the way a `--app gjs` package declares `gjs`. `win32-arm64` (ADR 0089, #1117) uses the SAME fetcher and the SAME `TARGETS` shape — `distTag: 'win-arm64'`, `node-${v}-win-arm64.zip` — and its `LICENSE` is byte-identical in size to win32-x64's (160,555 B CRLF), so `EXPECTED_LICENSE_BYTES` needed no change.
 
 Shape is `@gjsify/gtk-runtime-*`'s (hand-written manifest, gitignored payload, `files:` overriding `.gitignore` at pack time), NOT `packages/node/tls-native-*`'s: that one commits its artifacts and machine-generates its manifest from `scripts/generate-platform-packages.mjs`, and a 120 MB binary must not be committed. The one place we diverge from gtk-runtime is the publish topology — its payload is BUILT on the OS it targets and needs a runner per OS; ours is a verified DOWNLOAD, so all three ride one ubuntu job and nothing here reads `process.platform`.
 

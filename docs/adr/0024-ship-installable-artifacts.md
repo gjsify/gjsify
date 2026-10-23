@@ -539,10 +539,11 @@ the same shape as stage 4 and the differences are all the OS's:
   over a launcher running `gjs` under `gjsify.app: "node"`. And `readBinaryArch` recognised `MZ` and
   stopped, which made `assertPayloadMatchesArch` vacuous on the one layout whose native format IS
   PE. Both are measured in `tests/e2e/ship-windows`, red before green.
-- **`win32-x64` only, and the blocker is upstream.** `wingtk/gvsbuild` hardcodes
-  `self.platform = "x64"`; there is no arm64 GTK to build `@gjsify/gtk-runtime-win32-arm64` out of,
-  and on Windows that bundle is the only GTK there is (#1117). `Layout.arches` carries the refusal
-  and names it. `--stage` warns rather than refusing, because assembling a foreign-arch layout is
+- **`win32-x64` and `win32-arm64` now, and the arm64 route is ours (ADR 0089).** `wingtk/gvsbuild`
+  still hardcodes `self.platform = "x64"`, but the arm64 GTK prefix is built in our own CI from the
+  `gjsify/gvsbuild` fork rather than downloaded, and `@gjsify/gtk-runtime-win32-arm64` +
+  `@gjsify/node-runtime-win32-arm64` ship against it (#1117). `Layout.arches` allows both.
+  `--stage` warns rather than refusing on a third arch, because assembling a foreign-arch layout is
   what `tests/e2e/ship-layout` does on purpose.
 - **One measurement no leg can make, and M3 does not pretend otherwise.** `node.exe` is a
   CONSOLE-subsystem image (Subsystem=3 at offset 0xD4; measured on v24.20.0's, and the issue records
@@ -1974,3 +1975,28 @@ SHA, on GitHub's `windows-11-arm` runners, and #2003 added that CI leg and put `
 `@gjsify/gtk-runtime-win32-arm64`, the closure those rows would label. It is ordered in
 `status/open-todos/windows.md` § win32-arm64 and tracked in #1117. The refusal does not lift — its
 stated cause moves from "upstream will never" to "ours, and named".
+
+## Amendment, 2026-10-23 — `gjsify ship win32 --arch arm64` lifts the refusal
+
+**Closes the previous amendment's remaining item.** `@gjsify/gtk-runtime-win32-arm64` and
+`@gjsify/node-runtime-win32-arm64` now exist, built by the shared
+`packages/node-gi/scripts/build-gtk-runtime-win32.mjs` (one script for both win32 arches —
+the DLL closure walk, typelib set, `--windowing` superset and license corpus are arch-agnostic;
+only `--prefix` and the MSVC toolset differ) and `fetch-node-runtime.mjs --target win32-arm64`
+respectively. `WINDOWS_ARCH` carries both rows, `Layout.arches` for `windows` is
+`['x64', 'arm64']`, and `release.yml` gained `publish-gtk-runtime-win32-arm64` (reusing
+`.github/actions/gvsbuild-arm64-prefix`, the same composite action `node-gi.yml`'s existing
+`windows-arm64` job uses) plus a `win32-arm64` leg on the `publish-node-runtime` matrix.
+
+**A real gap closed in the same PR, not deferred.** `wixl`'s own `Arch` enum
+(`tools/wixl/builder.vala`) sets the MSI `msidbComponentAttributes64bit` bit automatically only
+for `Arch.X64`/`Arch.IA64`, never for `Arch.ARM64` — an unmodified `wixl -a arm64` build would
+have shipped every Component as 32-bit. `msi.ts` now writes `Win64="yes"` explicitly for every
+non-x86 architecture on both backends, rather than trusting either compiler's inference.
+
+**Still out of scope, named rather than silently absent:** the two-pass gst-plugins-good build
+for `gstsoup.dll`/`souphttpsrc` on arm64 (so an arm64 bundle has no http(s) media source yet),
+webgl (`gwebgl.dll`), gamepad and WebView2 on arm64 — `status/open-todos/windows.md` § win32-arm64
+carries the ordered list. `pe-launcher.ts`'s stub stays x64-only on purpose: it runs under
+Windows' Prism x86-64 emulator on arm64 and `exec`s the native arm64 `node.exe` beside it, so a
+second native arm64 stub would duplicate a ~550-byte PE for no behavioural difference.

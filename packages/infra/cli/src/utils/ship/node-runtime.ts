@@ -48,7 +48,7 @@ import { dirname, join } from 'node:path';
 import { resolveInstalledPackage } from '../resolve-npm-package.js';
 
 /** The targets a bundled interpreter is published for. */
-export const NODE_RUNTIME_TARGETS = ['darwin-arm64', 'darwin-x64', 'win32-x64'] as const;
+export const NODE_RUNTIME_TARGETS = ['darwin-arm64', 'darwin-x64', 'win32-x64', 'win32-arm64'] as const;
 
 export type NodeRuntimeTarget = (typeof NODE_RUNTIME_TARGETS)[number];
 

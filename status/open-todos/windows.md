@@ -51,7 +51,7 @@ GI-free metainfo parse (a port of the `ministream` selection rules the first rou
 names), so ONE call is correct on all three operating systems. The gap declaration stays:
 the symbol is still absent from the win32 typelib, and that is what the ratchet holds.
 
-### `win32-arm64` is no longer blocked upstream — the route is our MSVC gvsbuild fork
+### `win32-arm64` is shippable — `gjsify ship win32 --arch arm64` works
 
 The 2026-08-11 measurement still holds: `wingtk/gvsbuild` hardcodes `self.platform = "x64"` and
 publishes no arm64 ZIP (#1117). What changed is that we stopped waiting. Route and reasons:
@@ -63,39 +63,40 @@ Measured 2026-10-02: the fork's `Build GTK4 Binaries (ARM64)` is green on `windo
 (MSVC 14.51, 1 h 32 min cold), and `@gjsify/node-gi` builds natively against that prefix and
 passes node-gi's Windows CI set.
 
-**Do NOT add the token early.** `win32-arm64` enters `gjsify.platforms` only in the PR that adds
-the CI leg producing it; otherwise `audit-runtimes --check` fails, correctly. Remaining work, in
-order:
-
 1. ~~Merge gjsify/gvsbuild#1 and pin its commit SHA~~ — done: pinned at `e6d37672568a` (the
    merge commit on the fork's `main`), then moved to the fork fix that installs gettext from
    nmake's real output directory (VS 2026 had silently dropped `intl.dll`, so glib built against
    proxy-libintl and `bindtextdomain` answered `/dummy`).
-2. ~~A `windows-11-arm` leg~~ — **done in the PR that adds `win32-arm64` to node-gi's
-   `gjsify.platforms`** (refs #1117). `node-gi.yml` `windows-arm64` builds the prefix through
+2. ~~A `windows-11-arm` leg~~ — **done**: `node-gi.yml` `windows-arm64` builds the prefix through
    `.github/actions/gvsbuild-arm64-prefix` (the one SHA pin + cache key), builds the addon with
    `vcvarsarm64` and runs the x64 leg's tests plus the windowing proof against the prefix;
    `release.yml` `node-gi-prebuild-win32-arm64` ships the prebuild. `napi.yml` is unchanged: its
    only Windows job is the manual-dispatch experimental gjs attempt, which is no platform CI
    produces.
-3. `@gjsify/gtk-runtime-win32-arm64`, a new package. Touch points:
-   `packages/node-gi/gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs` (hard-fails unless
-   win32/x64, `:127`), the `publish-gtk-runtime-win32-x64` job in `release.yml` (`:532`),
-   `GTK_RUNTIME_TARGETS` (`packages/infra/cli/src/utils/ship/app-runtime.ts:100`),
-   `NODE_RUNTIME_TARGETS` (`ship/node-runtime.ts:49`), `Layout.arches` in `ship/layout.ts`
-   (`:658-670`, the refusal — its REASON was corrected on 2026-10-03 to name the unbuilt runtime
-   package instead of an upstream gap, so what is left there is `only: ['x64']` itself),
-   `commands/showcase.ts:311`,
-   `RUNNER_DEFAULT_ARCH` (`scripts/manifest-conformance/rules/platforms-ci.mjs:47`),
-   `scripts/check-shipped-runtime-packages.mjs`, the `GVSBUILD_VERSION` pin-agreement test
-   (`packages/node-gi/node-gi/test/gtk-runtime-bundle-gates.test.mjs:1036` — arm64 pins a SHA,
-   not a version), and the gvsbuild catalogue the gap checks read
-   (`packages/node-gi/scripts/gvsbuild-catalogue.mjs`). The "blocked upstream" wording in
-   `docs/ship-formats.md`, ADR 0024 `:539` and `docs/adr/0035-web-view-on-win32.md` went on
-   2026-10-03 (#2016: `docs/ship-formats.md` and the live sources rewritten, ADR 0024 and ADR 0035
-   amended in place) — what ships with this step is the arm64 rows themselves.
-4. The two-pass gst-plugins-good build for `gstsoup.dll` / `souphttpsrc` on arm64 (ADR 0037).
-5. Later: webgl (`gwebgl.dll` against the arm64 prefix), gamepad, webview2.
+3. ~~`@gjsify/gtk-runtime-win32-arm64` + `@gjsify/node-runtime-win32-arm64`~~ — **done**. The win32
+   builder moved to `packages/node-gi/scripts/build-gtk-runtime-win32.mjs`, ONE script for both
+   arches (only `--prefix` and the MSVC toolset differ) — `gtk-runtime-win32-x64`'s own
+   `scripts/build-gtk-runtime.mjs` is retired. `GTK_RUNTIME_TARGETS` and `NODE_RUNTIME_TARGETS`
+   (`packages/infra/cli/src/utils/ship/{app-runtime,node-runtime}.ts`) carry `win32-arm64`;
+   `Layout.arches` for `windows` is `['x64', 'arm64']`; `WINDOWS_ARCH` (`ship/formats.ts`) and
+   `commands/showcase.ts`'s `shipped` list carry both. `release.yml` gained
+   `publish-gtk-runtime-win32-arm64` (reusing `.github/actions/gvsbuild-arm64-prefix`) and a
+   `win32-arm64` leg on the `publish-node-runtime` matrix. `scripts/release-only-plan.mjs`'s
+   `JOBS` map and `status/pending-npm-bootstrap.json` both carry the two new names — **neither is
+   bootstrapped on npm yet**; a maintainer runs `gjsify onboard` + `gjsify trust` for both,
+   targeting `release.yml`, before the release that ships them.
+   A real wixl gap surfaced and was fixed in the same PR: `tools/wixl/builder.vala` sets the MSI
+   64-bit Component attribute automatically only for `Arch.X64`/`Arch.IA64`, never `Arch.ARM64` —
+   `msi.ts` now writes `Win64="yes"` explicitly for every non-x86 arch on both backends.
+   `pe-launcher.ts`'s GUI-launcher stub stays x86-64-only on purpose (documented at
+   `MACHINE_AMD64`): it only `exec`s the sibling `.cmd`, which hands off to the native arm64
+   `node.exe`, and Windows-on-ARM runs x64 code through Prism for exactly that handoff — so
+   `layout.ts` now emits that stub on every windows arch (it used to skip arm64 silently) and
+   `assertPayloadMatchesArch` carries one named exemption for it.
+4. The two-pass gst-plugins-good build for `gstsoup.dll` / `souphttpsrc` on arm64 (ADR 0037) —
+   **still open**: an arm64 bundle has no http(s) media source yet.
+5. **Still open**: webgl (`gwebgl.dll` against the arm64 prefix), gamepad, webview2 on arm64.
+   `@gjsify/gl-runtime-win32-arm64` does not exist.
 
 Exit: when upstream gvsbuild ships arm64, switch arm64 to the version pin and retire the fork.
 

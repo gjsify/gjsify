@@ -148,23 +148,19 @@ function macosArch(arch: string, _archIndependent: boolean): string {
 /**
  * `process.arch` → the name Windows and everything that targets it use.
  *
- * ONE ROW, and it is not caution: there is no arm64 GTK CLOSURE to put on it yet.
- * `wingtk/gvsbuild` publishes no arm64 assets, which is why ADR 0089 builds that
- * prefix from our `gjsify/gvsbuild` fork in CI instead — but what a Windows
- * artifact stages is `@gjsify/gtk-runtime-*`, and the arm64 one is not built, so
- * there is nothing for a Windows/ARM artifact to load (#1117). `Layout.arches`
- * refuses the same value one phase earlier, at stage time, with that reason spelled
- * out; this table is the second half — the one that stops a stage assembled by an
- * older gjsify from acquiring a label here.
+ * TWO ROWS now. `wingtk/gvsbuild` still publishes x64 assets only, but ADR 0089
+ * builds the arm64 GTK prefix from our `gjsify/gvsbuild` fork in CI, and
+ * `@gjsify/gtk-runtime-win32-arm64` + `@gjsify/node-runtime-win32-arm64` exist —
+ * the two packages a Windows/ARM artifact stages (#1117, closed by this row).
  *
- * `x64` maps to itself, and unlike the macOS table that is not a coincidence to be
- * caught later: `x64` is the spelling Node's own release archives use
- * (`node-v24.20.0-win-x64.zip`), the spelling gvsbuild's assets use
- * (`GTK4_Gvsbuild_<v>_x64.zip`), and the spelling a `windows-latest x64` runner
- * label uses. `%PROCESSOR_ARCHITECTURE%` says `AMD64` and nothing a user downloads
- * is named after it.
+ * `x64` and `arm64` map to themselves, and unlike the macOS table that is not a
+ * coincidence to be caught later: both are the spelling Node's own release
+ * archives use (`node-v24.20.0-win-{x64,arm64}.zip`), the spelling a
+ * `windows-11-arm` runner's architecture is, and the spelling `--arch` already
+ * accepts everywhere else in this command. `%PROCESSOR_ARCHITECTURE%` says
+ * `AMD64`/`ARM64` and nothing a user downloads is named after that spelling.
  */
-const WINDOWS_ARCH: Record<string, string> = { x64: 'x64' };
+const WINDOWS_ARCH: Record<string, string> = { x64: 'x64', arm64: 'arm64' };
 
 function windowsArch(arch: string, _archIndependent: boolean): string {
     return lookupArch(WINDOWS_ARCH, arch, 'Windows');

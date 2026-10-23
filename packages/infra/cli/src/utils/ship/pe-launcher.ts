@@ -80,7 +80,17 @@ export const PE_SUBSYSTEM_GUI = 2;
 /** Where `Subsystem` lands in the emitted image: `e_lfanew` + 4 + 20 + 68. */
 export const PE_SUBSYSTEM_OFFSET = 0x80 + 4 + 20 + 68;
 
-/** `IMAGE_FILE_HEADER.Machine` for x86-64. The only architecture the windows layout has. */
+/**
+ * `IMAGE_FILE_HEADER.Machine` for x86-64 — ALWAYS, even when `windows-dir` is staged for
+ * `--arch arm64` (ADR 0089). This stub does nothing an arm64 build needs a native image for: it
+ * `exec`s the sibling `.cmd`, which Windows resolves to the NATIVE `cmd.exe` either way (no path
+ * is given, so it comes off `System32`, and win32-on-arm64 keeps a native `cmd.exe` beside the
+ * emulated one), and that `.cmd` starts the staged `node.exe` — the arm64 build's OWN interpreter,
+ * never this stub's architecture. So the one thing a second, ARM64-native stub would buy is
+ * skipping Prism's x86-64 emulation for the ~550 bytes THIS image executes before handing off —
+ * a second machine-code emitter, a second `.rsrc` builder and a second `pei-aarch64` reader in
+ * `pe-launcher.spec.ts`, to save microseconds on a path that ends in a process handoff anyway.
+ */
 const MACHINE_AMD64 = 0x8664;
 
 /** Where the PE signature starts. MSVC emits 0x78; nothing reads the value except through `e_lfanew`. */

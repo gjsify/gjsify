@@ -97,7 +97,7 @@ import type { StagedFile } from './types.js';
  * deriving one from the other would make a future Linux GTK bundle silently imply
  * a bundled Linux interpreter (which `node-runtime.ts` refuses on purpose).
  */
-export const GTK_RUNTIME_TARGETS = ['darwin-arm64', 'darwin-x64', 'win32-x64'] as const;
+export const GTK_RUNTIME_TARGETS = ['darwin-arm64', 'darwin-x64', 'win32-x64', 'win32-arm64'] as const;
 
 export type GtkRuntimeTarget = (typeof GTK_RUNTIME_TARGETS)[number];
 

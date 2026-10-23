@@ -116,6 +116,18 @@ export const TARGETS = {
         os: 'win32',
         cpu: 'x64',
     },
+    'win32-arm64': {
+        target: 'win32-arm64',
+        distTag: 'win-arm64',
+        archive: (v) => `node-${v}-win-arm64.zip`,
+        kind: 'zip',
+        member: 'node.exe',
+        binaryName: 'node.exe',
+        /** PE/COFF — `MZ`, same header shape regardless of the target architecture. */
+        magic: [0x4d, 0x5a],
+        os: 'win32',
+        cpu: 'arm64',
+    },
 };
 
 /** The npm package name for a target. One spelling, derived, never typed twice. */
