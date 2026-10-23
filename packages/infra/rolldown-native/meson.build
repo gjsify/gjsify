@@ -29,7 +29,12 @@ host_system = host_machine.system()
 # json-glib is used by BundlerSession to peek at the hook name + request id
 # from the Rust-emitted JSON envelope before routing to the matching GObject
 # signal. The full payload is forwarded to JS unparsed.
-host_provided = ['glib-2.0', 'gobject-2.0', 'json-glib-1.0']
+#
+# GLib alone is left to `dynamic_lookup`: gjs always loads it. json-glib is not
+# loaded by the host, so unrecorded it leaves `json_*` unbound; it is linked by
+# path instead, which records ITS load command while GLib stays out of the link
+# line.
+host_provided = ['glib-2.0', 'gobject-2.0']
 
 vala_deps = []
 foreach pkg : host_provided
@@ -38,6 +43,15 @@ foreach pkg : host_provided
         ? dep.partial_dependency(compile_args: true, includes: true) \
         : dep
 endforeach
+
+json_dep = dependency('json-glib-1.0')
+if host_system == 'darwin'
+    vala_deps += json_dep.partial_dependency(compile_args: true, includes: true)
+    vala_deps += cc.find_library('json-glib-1.0',
+        dirs: json_dep.get_variable(pkgconfig: 'libdir'))
+else
+    vala_deps += json_dep
+endif
 
 host_provided_link_args = host_system == 'darwin' ? ['-Wl,-undefined,dynamic_lookup'] : []
 

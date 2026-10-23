@@ -369,7 +369,7 @@ describe('darwin prebuilds bind GLib to the host process', () => {
         for (const file of mesonFiles(join(ROOT, 'packages'))) {
             if (file.includes('webview2-native')) continue;
             const src = readFileSync(file, 'utf8');
-            if (!/'(libsoup-3\.0|gtk4|gstreamer[\w.-]*)'/.test(src)) continue;
+            if (!/'(libsoup-3\.0|gtk4|json-glib-1\.0|gstreamer[\w.-]*)'/.test(src)) continue;
             checked++;
             if (!src.includes('find_library')) offenders.push(file);
         }
