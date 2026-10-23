@@ -13,7 +13,11 @@
  * different question from "does this declaration have a body", which is the
  * `prebuild-artifacts` rule.
  *
- * Usage: node scripts/check-prebuild-loader-path.mjs <dir> [<dir> …]
+ * `--host-glib` also fails a Mach-O that records a GLib load command (docs/prebuilds.md
+ * § One GLib). The release cut passes it over the committed darwin prebuilds, so a fix
+ * that CI has not yet rebuilt into them cannot ride a tag out to npm (#2368).
+ *
+ * Usage: node scripts/check-prebuild-loader-path.mjs [--host-glib] <dir> [<dir> …]
  *        node scripts/check-prebuild-loader-path.mjs packages/infra/oxfmt-native-darwin-arm64/prebuilds/darwin-arm64
  */
 
@@ -28,16 +32,17 @@ import {
 export { checkPrebuildDir, readLibrary, readTypelibSharedLibraries };
 
 function main() {
+    const hostGlib = process.argv.includes('--host-glib');
     const dirs = process.argv.slice(2).filter((a) => !a.startsWith('--'));
     if (dirs.length === 0) {
-        console.error('usage: node scripts/check-prebuild-loader-path.mjs <prebuild-dir> [<prebuild-dir> …]');
+        console.error('usage: node scripts/check-prebuild-loader-path.mjs [--host-glib] <prebuild-dir> [<prebuild-dir> …]');
         process.exit(2);
     }
     /** @type {string[]} */ const problems = [];
     for (const d of dirs) {
         const dir = resolve(d);
         console.log(`[check-prebuild-loader-path] ${d}`);
-        problems.push(...checkPrebuildDir(dir));
+        problems.push(...checkPrebuildDir(dir, { hostGlib }));
     }
     if (problems.length > 0) {
         console.error('\n[check-prebuild-loader-path] FAILED:');

@@ -80,6 +80,9 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
+/** The GLib-family dylibs a darwin prebuild must not record (§ One GLib). */
+const GLIB_FAMILY_DYLIB = /^lib(glib|gobject|gio|gmodule|gthread)-2\.0[.\d]*\.dylib$/;
+
 /** Leaf-name prefix of the libraries this repo ships. */
 const OWN_LIB_PREFIX = 'libgjsify';
 
@@ -872,7 +875,7 @@ function hasSelfRelativeSearchPath(info) {
  *   wants only the problems.
  * @returns {string[]} problems, empty when the directory is sound
  */
-export function checkPrebuildDir(dir, { verbose = true } = {}) {
+export function checkPrebuildDir(dir, { verbose = true, hostGlib = false } = {}) {
     /** @type {string[]} */ const problems = [];
     const note = verbose ? console.log : () => {};
     if (!existsSync(dir) || !statSync(dir).isDirectory()) return [`${dir}: not a directory`];
@@ -960,6 +963,20 @@ export function checkPrebuildDir(dir, { verbose = true } = {}) {
                         '    command, so the leak propagates to the consumer. Set the id to\n' +
                         `    \`@rpath/${basename(path)}\` (install_name_tool -id).`,
                 );
+            }
+            // Opt-in: a committed artifact is only replaced by CI AFTER the fix that
+            // changes it merges, so an always-on rule would fail the PR carrying it.
+            // The release cut turns it on, where a stale binary must stop the tag.
+            if (hostGlib) {
+                for (const dep of info.needed.filter((n) => GLIB_FAMILY_DYLIB.test(basename(n)))) {
+                    problems.push(
+                        `${path}: records its own GLib load command — \`${dep}\`.\n` +
+                            '    A darwin prebuild must bind GLib to the host process (docs/prebuilds.md § One GLib):\n' +
+                            '    a second copy beside gjs\'s own is two GType registries, then SIGSEGV. Link with\n' +
+                            '    `-Wl,-undefined,dynamic_lookup` and reduce GNOME deps to `partial_dependency`; a\n' +
+                            '    binary that still names GLib was built before that fix — rebuild it (prebuilds.yml).',
+                    );
+                }
             }
             const hostRpaths = info.searchPaths.filter(isBuildHostAbsolutePath);
             if (hostRpaths.length > 0) {

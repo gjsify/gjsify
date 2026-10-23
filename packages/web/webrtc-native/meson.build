@@ -43,6 +43,7 @@ sources = files(
 
 libGjsifyWebrtc = library('gjsifywebrtc', sources,
     dependencies: dependencies,
+    link_args: host_provided_link_args,
     vala_gir: meson.project_name() + '-0.1.gir',
     install: true,
     install_dir: [true, true, true, true],

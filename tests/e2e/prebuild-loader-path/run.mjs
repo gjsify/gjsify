@@ -345,9 +345,55 @@ describe('darwin prebuilds bind GLib to the host process', () => {
             if (!/dependency\('glib-2\.0'\)|'glib-2\.0'/.test(src)) continue;
             checked++;
             if (!src.includes('dynamic_lookup') || !src.includes('partial_dependency')) offenders.push(file);
+            // Declared is not applied: webrtc-native defined `host_provided_link_args`, never
+            // passed it to `library()`, and the darwin link failed on every `prebuilds.yml`
+            // run from 9285791bbe on — so no darwin prebuild was rebuilt (#2368).
+            else if (/\bhost_provided_link_args *=/.test(src) && (src.match(/\bhost_provided_link_args\b/g) ?? []).length < 2) offenders.push(file);
         }
         assert.ok(checked > 0, 'expected at least one meson.build that links GLib');
         assert.deepEqual(offenders, [], 'a darwin prebuild must not record its own GLib load command');
+    });
+});
+
+describe('the release cut refuses a darwin prebuild that still records GLib (#2368)', () => {
+    const stage = (commands) => {
+        const dir = mkdtempSync(join(tmpdir(), 'gjsify-host-glib-'));
+        writeFileSync(join(dir, 'libgjsifyfoo.dylib'), machO(commands));
+        return dir;
+    };
+    const ID = { cmd: LC_ID_DYLIB, str: '@rpath/libgjsifyfoo.dylib' };
+
+    it('FAILS @rpath GLib and GObject, naming the fix', () => {
+        const dir = stage([
+            ID,
+            { cmd: LC_LOAD_DYLIB, str: '@rpath/libglib-2.0.0.dylib' },
+            { cmd: LC_LOAD_DYLIB, str: '@rpath/libgobject-2.0.0.dylib' },
+            SYSTEM_DYLIB,
+        ]);
+        try {
+            const problems = checkPrebuildDir(dir, { verbose: false, hostGlib: true });
+            assert.equal(problems.length, 2);
+            assert.match(problems.join('\n'), /dynamic_lookup/);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('PASSES an image with no GLib load command, and is off by default', () => {
+        const clean = stage([ID, SYSTEM_DYLIB]);
+        const stale = stage([ID, { cmd: LC_LOAD_DYLIB, str: '@rpath/libglib-2.0.0.dylib' }, SYSTEM_DYLIB]);
+        try {
+            assert.deepEqual(checkPrebuildDir(clean, { verbose: false, hostGlib: true }), []);
+            assert.deepEqual(checkPrebuildDir(stale, { verbose: false }), []);
+        } finally {
+            rmSync(clean, { recursive: true, force: true });
+            rmSync(stale, { recursive: true, force: true });
+        }
+    });
+
+    it('is wired into the release-it after:bump hook', () => {
+        const hook = JSON.parse(readFileSync(join(MONOREPO_ROOT, '.release-it.json'), 'utf8')).hooks['after:bump'];
+        assert.match(hook, /check-prebuild-loader-path\.mjs --host-glib /);
     });
 });
 
