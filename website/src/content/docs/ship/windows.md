@@ -41,6 +41,21 @@ the command positional takes. A key nothing reads would leave the target on the
 project default with nothing to say so, so `gjsify ship` and the manifest audit
 both refuse it by name.
 
+
+`@gjsify/gtk-runtime-win32-arm64` and `@gjsify/node-runtime-win32-arm64`
+(not yet published) are the Windows/ARM siblings of the x64 bundles above;
+`gjsify ship win32 --arch arm64` resolves them by name, so an outside author
+following these docs before the first publish hits a 404 on npm. Bootstrap
+them with `gjsify onboard --include '@gjsify/*-win32-arm64'` before the
+release that ships them.
+
+```json
+{
+  "@gjsify/gtk-runtime-win32-arm64": "0.64.6",
+  "@gjsify/node-runtime-win32-arm64": "0.64.6"
+}
+```
+
 `GJSIFY_GTK_RUNTIME`, when set, names a directory holding `bin/` and
 `girepository-1.0/`.
 
