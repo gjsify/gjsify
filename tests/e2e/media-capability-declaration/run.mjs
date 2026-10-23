@@ -42,6 +42,7 @@ const BUNDLE_PACKAGES = [
     '@gjsify/gtk-runtime-darwin-arm64',
     '@gjsify/gtk-runtime-darwin-x64',
     '@gjsify/gtk-runtime-win32-x64',
+    '@gjsify/gtk-runtime-win32-arm64',
 ];
 
 /** Where a bundle keeps its plugins, in every one of the three. */
@@ -382,7 +383,9 @@ describe('media-capabilities — the three published bundles, in this tree', () 
         assert.equal(decoderFor('@gjsify/gtk-runtime-darwin-arm64', 'MP3'), 'mpg123audiodec');
         assert.equal(decoderFor('@gjsify/gtk-runtime-darwin-x64', 'MP3'), 'mpg123audiodec');
         assert.equal(decoderFor('@gjsify/gtk-runtime-win32-x64', 'MP3'), 'mfmp3dec');
+        assert.equal(decoderFor('@gjsify/gtk-runtime-win32-arm64', 'MP3'), 'mfmp3dec');
         const winGaps = byName.get('@gjsify/gtk-runtime-win32-x64').capabilities.gaps;
+        const armGaps = byName.get('@gjsify/gtk-runtime-win32-arm64').capabilities.gaps;
         const mpg123 = winGaps.find((gap) => gap.plugin === 'mpg123');
         assert.ok(mpg123, 'win32 no longer declares the absent mpg123 plugin');
         assert.equal(mpg123.format, undefined, "win32's mpg123 gap names a format the bundle now decodes");
@@ -406,7 +409,7 @@ describe('media-capabilities — the three published bundles, in this tree', () 
         // AAC decoder of any kind and gaps both, with no `plugin` on either: nothing was ever
         // going to be copied, so no file's arrival can retire them, and `faad`/`avdec_aac`
         // remain excluded on licence grounds either way.
-        const darwinBundles = BUNDLE_PACKAGES.filter((name) => name !== '@gjsify/gtk-runtime-win32-x64');
+        const darwinBundles = BUNDLE_PACKAGES.filter((name) => name !== '@gjsify/gtk-runtime-win32-x64' && name !== '@gjsify/gtk-runtime-win32-arm64');
         for (const name of darwinBundles) {
             for (const format of ['AAC (M4A)', 'AAC (ADTS)']) {
                 const aac = byName.get(name).capabilities.gaps.find((gap) => gap.format === format);
@@ -415,11 +418,17 @@ describe('media-capabilities — the three published bundles, in this tree', () 
             }
         }
         assert.ok(formats('@gjsify/gtk-runtime-win32-x64').includes('AAC (M4A)'), 'win32 no longer claims AAC (M4A)');
+        assert.ok(formats('@gjsify/gtk-runtime-win32-arm64').includes('AAC (M4A)'), 'win32-arm64 no longer claims AAC (M4A)');
         assert.ok(
             !gapFormats('@gjsify/gtk-runtime-win32-x64').includes('AAC (M4A)'),
             'win32 still gaps AAC (M4A) as well as claiming it',
         );
+        assert.ok(
+            !gapFormats('@gjsify/gtk-runtime-win32-arm64').includes('AAC (M4A)'),
+            'win32-arm64 still gaps AAC (M4A) as well as claiming it',
+        );
         assert.equal(decoderFor('@gjsify/gtk-runtime-win32-x64', 'AAC (M4A)'), 'mfaacdec');
+        assert.equal(decoderFor('@gjsify/gtk-runtime-win32-arm64', 'AAC (M4A)'), 'mfaacdec');
         assert.ok(
             gapFormats('@gjsify/gtk-runtime-win32-x64').includes('AAC (ADTS)'),
             'win32 claims AAC (ADTS), which CI measured mfaacdec failing to decode',
