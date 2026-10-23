@@ -5,6 +5,7 @@ export * from './github.js';
 export * from './load.js';
 export * from './metainfo.js';
 export * from './network.js';
+export * from './legal-notice.js';
 export * from './oars.js';
 export * from './po.js';
 export * from './privacy.js';

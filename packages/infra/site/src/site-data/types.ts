@@ -76,6 +76,19 @@ export interface SitePrivacyConfig {
 }
 
 /**
+ * `gjsify.site.legalNotice`: a consumer-authored "Legal Notice" / Impressum statement — one file per
+ * configured language, like `privacy`. Unlike `privacy`, the content is typically IDENTICAL across a
+ * publisher's apps (same legal entity, same address), but this package never assumes that: it reads
+ * whatever each consumer's own file says, the same way `privacy` does. No built-in paragraph is added
+ * — unlike the hosting disclosure on the privacy page, there is nothing this package itself can say
+ * about who is legally responsible for a site's content.
+ */
+export interface SiteLegalNoticeConfig {
+    /** `<lang>` (from `gjsify.site.languages`) → repo-relative path of that language's statement. */
+    statements: Record<string, string>;
+}
+
+/**
  * One part of the product a person installs separately — a desktop app, the browser extension it
  * pairs with, a command line build. Declared in `gjsify.site.components`, in the order they are
  * installed, which is the order the download dialog explains them in.
@@ -186,6 +199,8 @@ export interface SiteConfig {
     legal: SiteLegalLink[];
     /** A privacy/data-practices page at `/<lang>/privacy/`. `undefined`: no such page is built. */
     privacy?: SitePrivacyConfig;
+    /** A Legal Notice / Impressum page at `/<lang>/legal-notice/`. `undefined`: no such page is built. */
+    legalNotice?: SiteLegalNoticeConfig;
     /** Sites of other apps to list under "More apps by <developer>", in order. Empty: no section. */
     relatedApps: SiteRelatedAppConfig[];
 }

@@ -229,3 +229,37 @@ Those sections answer "what does THIS WEBSITE do with a visitor's data", which i
 `@gjsify/site`'s own hosting, already covered by paragraph 1 — forcing an app's "nothing leaves the
 device" into that shape would invent a controller relationship that does not exist, for data this
 package never sees.
+
+## Amendment (2026-10-23) — a Legal Notice / Impressum page, same shape, different question
+
+German law raises a second, separate requirement for any site tied to a business: § 5 DDG (the
+Digitale-Dienste-Gesetz, formerly § 5 TMG) requires an "Impressum" — name, address, contact —
+reachable directly from the site itself, not merely linked from another domain. This is NOT the
+privacy page's question. Privacy asks "what does the software do with data"; a Legal Notice asks
+"who is legally responsible for this page", and the two have different authors in general (the
+privacy statement is about the APP's code; the Legal Notice is about the PUBLISHER) even though
+for a single-developer publisher like this project's own consumers they name the same person.
+
+**Decision.** `gjsify.site.legalNotice` adds `/<lang>/legal-notice/`, structurally identical to
+`privacy` — one statement file per configured language, read verbatim, rendered through the same
+Markdown subset, linked from the footer automatically. The one deliberate difference: **no
+built-in paragraph is prepended.** Privacy's hosting paragraph exists because this package can
+truthfully say something about ITS OWN behaviour (no cookie, no analytics); for a Legal Notice
+there is no equivalent fact this package can derive — who is legally responsible for a site is
+entirely the consumer's to state, so the whole page is the consumer's own text.
+
+**Alternative rejected: one combined "Legal" page for both privacy and the Legal Notice.** They
+answer unrelated legal questions under unrelated statutes (data protection vs. telemedia
+operator disclosure), are typically authored by different reasoning (code audit vs. publisher
+identity) and — per the actual rollout this amendment was written for — are not even always
+authored by the same amount of care at the same time: a publisher may have a verified Legal
+Notice ready before a fully audited privacy statement exists for every app. Separate pages let
+each ship on its own schedule.
+
+**Alternative rejected: derive the Legal Notice content once, centrally, and inject it into every
+consumer.** Tempting because the content is usually byte-identical across one publisher's apps —
+same legal entity, same address. Rejected for the same reason `privacy` never generates its
+statement: identical-across-apps is a fact about THIS publisher, not a guarantee `@gjsify/site` can
+make for every consumer (a publisher could legitimately run several legal entities, one per app).
+The package stays ignorant of that question; a consumer that wants one canonical text copies the
+same file into each app's `legalNotice.statements`, same as any other cross-repo content it owns.

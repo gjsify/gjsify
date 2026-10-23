@@ -210,6 +210,9 @@ msgstr "Architekturen"
 msgid "by {developer}"
 msgstr "von {developer}"
 
+msgid "Legal Notice"
+msgstr "Impressum"
+
 msgid "Privacy"
 msgstr "Datenschutz"
 
@@ -227,6 +230,9 @@ msgstr "{app} ist freie Software. Unterstütze die Entwicklung per Überweisung 
 
 msgid "What {app} does with data."
 msgstr "Was {app} mit Daten tut."
+
+msgid "Who publishes {app}, and how to reach them."
+msgstr "Wer {app} veröffentlicht, und wie man diese Person erreicht."
 
 msgid "Back to {app}"
 msgstr "Zurück zu {app}"

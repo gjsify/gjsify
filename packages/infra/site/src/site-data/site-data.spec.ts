@@ -24,6 +24,7 @@ import { parseFlathubStats, parseFlathubSummary } from './flathub.js';
 import { fetchLatestRelease, parseLatestRelease } from './github.js';
 import { loadSiteData } from './load.js';
 import { parseMetainfo } from './metainfo.js';
+import { loadLegalNoticeStatements } from './legal-notice.js';
 import { loadPrivacyStatements } from './privacy.js';
 import { buildAppManifest, loadRelatedApps, parseAppManifest, relatedText, relatedUrl } from './related.js';
 import { fetchJson } from './network.js';
@@ -510,6 +511,24 @@ export default async () => {
             ).toBe('https://host.example/');
         });
 
+        await it('requires one legal-notice statement per configured language, and nothing more', async () => {
+            expect(
+                parseSiteConfig(
+                    manifest({
+                        languages: ['en', 'de'],
+                        legalNotice: { statements: { en: 'l.en.md', de: 'l.de.md' } },
+                    }),
+                ).legalNotice,
+            ).toStrictEqual({ statements: { en: 'l.en.md', de: 'l.de.md' } });
+            expect(parseSiteConfig(manifest({})).legalNotice).toBeUndefined();
+            expect(() =>
+                parseSiteConfig(manifest({ languages: ['en', 'de'], legalNotice: { statements: { en: 'l.en.md' } } })),
+            ).toThrow(/legalNotice\.statements\.de/);
+            expect(() => parseSiteConfig(manifest({ legalNotice: { statements: 'x' } }))).toThrow(
+                /legalNotice\.statements must be an object/,
+            );
+        });
+
         await it('accepts a consumer-owned page catalogue directory', async () => {
             expect(parseSiteConfig(manifest({ pageTranslations: 'site-po' })).pageTranslations).toBe('site-po');
             expect(parseSiteConfig(manifest({})).pageTranslations).toBeUndefined();
@@ -599,6 +618,19 @@ export default async () => {
             await withFixture(async (root) => {
                 await expect(loadPrivacyStatements({ statements: { en: 'privacy.en.md' } }, root)).rejects.toThrow(
                     /privacy\.statements\.en points to "privacy\.en\.md"/,
+                );
+            }, fixtureSite());
+        });
+
+        await it('reads every language\u2019s legal-notice statement, verbatim, and names a missing file', async () => {
+            await withFixture(async (root) => {
+                writeFileSync(join(root, 'legal.en.md'), '# Legal Notice\n\nJane Doe, 1 Example St.');
+                const statements = await loadLegalNoticeStatements({ statements: { en: 'legal.en.md' } }, root);
+                expect(statements.en).toBe('# Legal Notice\n\nJane Doe, 1 Example St.');
+            }, fixtureSite());
+            await withFixture(async (root) => {
+                await expect(loadLegalNoticeStatements({ statements: { en: 'legal.en.md' } }, root)).rejects.toThrow(
+                    /legalNotice\.statements\.en points to "legal\.en\.md"/,
                 );
             }, fixtureSite());
         });

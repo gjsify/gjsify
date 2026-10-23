@@ -209,6 +209,9 @@ msgstr ""
 msgid "by {developer}"
 msgstr ""
 
+msgid "Legal Notice"
+msgstr ""
+
 msgid "Privacy"
 msgstr ""
 
@@ -225,6 +228,9 @@ msgid "{app} is free software. Support its development with a transfer or a serv
 msgstr ""
 
 msgid "What {app} does with data."
+msgstr ""
+
+msgid "Who publishes {app}, and how to reach them."
 msgstr ""
 
 msgid "Back to {app}"
