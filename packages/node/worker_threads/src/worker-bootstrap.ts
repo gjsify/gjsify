@@ -464,7 +464,55 @@ globalThis.__gjsify_worker_context = {
 
 send({ type: 'online' });
 
-// Async stdin reader for messages from parent
+// Lines arriving on stdin before the worker script settles. The dynamic
+// import below needs a quiet main loop to resolve (GJS quirk), so a line
+// read while it is still pending is queued instead of dispatched into
+// parentPort's message handler — drained once the script is done.
+const pendingLines = [];
+
+// Dispatch one parsed-as-JSON-eligible stdin line. Returns false for
+// 'terminate', which requests shutdown and must not be followed by
+// another read — the process is on its way out.
+function dispatchLine(line) {
+  const msg = JSON.parse(line);
+  if (typeof msg.__msgport === 'number') {
+    // Cross-process MessagePort traffic — route to the local child-
+    // side port from childPortRegistry by portId. Both 'send' and
+    // 'close' dispatch on a microtask inside the port's helpers, so
+    // user listeners fire after the current stdin-callback unwinds.
+    const cpPort = childPortRegistry.get(msg.__msgport);
+    if (cpPort) {
+      if (msg.op === 'send') cpPort._receive(msg.data);
+      else if (msg.op === 'close') cpPort._internalClose();
+    }
+    // Unknown portId or op silently dropped — could happen mid-close
+    // race where the parent sends a final message after the child has
+    // already torn down the local port.
+  }
+  else if (msg.type === 'message') {
+    // Drain fds for any SharedBuffer placeholders BEFORE materialise.
+    // recv_fd is synchronous but the sender always wrote the SCM_RIGHTS
+    // messages before writing this stdin line, so they're already
+    // buffered.
+    if (init.sabSocketFd === 3) drainSabFds(countSabPlaceholders(msg.data));
+    parentPort.emit('message', materialise(decodeWire(msg.data)));
+  }
+  else if (msg.type === 'terminate') { send({ type: 'exit', code: 1 }); requestShutdown(); return false; }
+  return true;
+}
+
+// Async stdin reader for messages from parent. Runs from the start rather
+// than only once the worker script settles: EOF on stdin means the spawner
+// is gone, and that can arrive while the script's own top-level await never
+// settles on its own, so EOF has to be caught independently of dispatch.
+//
+// macOS's poll() never reports POLLHUP for a pipe whose write end closed —
+// only POLLIN, backed by a zero-length read (measured on darwin; Linux sets
+// both), so a HUP-only watch armed before the script settles never fires
+// there and the orphan outlives its spawner. Reading the stream the normal
+// way sees that same zero-length read as EOF on either OS, which is why
+// this one reader replaces the separate HUP watch this bootstrap used to
+// run alongside it.
 function readNext() {
   dataIn.read_line_async(GLib.PRIORITY_DEFAULT, null, (source, result) => {
     try {
@@ -477,31 +525,12 @@ function readNext() {
         System.exit(0);
         return;
       }
-      const msg = JSON.parse(line);
-      if (typeof msg.__msgport === 'number') {
-        // Cross-process MessagePort traffic — route to the local child-
-        // side port from childPortRegistry by portId. Both 'send' and
-        // 'close' dispatch on a microtask inside the port's helpers, so
-        // user listeners fire after the current stdin-callback unwinds.
-        const cpPort = childPortRegistry.get(msg.__msgport);
-        if (cpPort) {
-          if (msg.op === 'send') cpPort._receive(msg.data);
-          else if (msg.op === 'close') cpPort._internalClose();
-        }
-        // Unknown portId or op silently dropped — could happen mid-close
-        // race where the parent sends a final message after the child has
-        // already torn down the local port.
+      if (!scriptDone) {
+        pendingLines.push(line);
+        readNext();
+        return;
       }
-      else if (msg.type === 'message') {
-        // Drain fds for any SharedBuffer placeholders BEFORE materialise.
-        // recv_fd is synchronous but the sender always wrote the SCM_RIGHTS
-        // messages before writing this stdin line, so they're already
-        // buffered.
-        if (init.sabSocketFd === 3) drainSabFds(countSabPlaceholders(msg.data));
-        parentPort.emit('message', materialise(decodeWire(msg.data)));
-      }
-      else if (msg.type === 'terminate') { send({ type: 'exit', code: 1 }); requestShutdown(); return; }
-      readNext();
+      if (dispatchLine(line)) readNext();
     } catch (err) {
       try {
         send({ type: 'error', message: 'bootstrap message error: ' + (err && err.message ? err.message : err), stack: err && err.stack || '' });
@@ -510,26 +539,13 @@ function readNext() {
     }
   });
 }
-// Start the main loop first so await import() has a running loop to resolve
-// against. Register readNext and run the worker code from an idle callback:
-// idle_add fires as soon as the loop is running (even with pending I/O in
-// the stdin buffer), whereas timeout_add(0) can be starved by a pending
-// async read that never completes because import() hung.
-// Register readNext only AFTER await import() completes, so a pending message
-// in the stdin buffer cannot fire the parentPort message handler while the
-// dynamic import is still running (which would hang await import() because
-// GJS needs a quiet main loop to resolve the import). Messages that arrived
-// during import stay buffered and are drained once readNext() is registered.
-// readNext() only starts after the script settles, so a script parked in a
-// never-settling top-level await would never see the spawner's EOF. Watch
-// the stdin fd for HUP meanwhile: that is the same "spawner is gone" signal.
-let hupWatch = 0;
+// Start the main loop so await import() has a running loop to resolve
+// against, and run the worker code from an idle callback: idle_add fires
+// as soon as the loop is running (even with pending I/O in the stdin
+// buffer), whereas timeout_add(0) can be starved by a pending async read
+// that never completes because import() hung.
 if (!shuttingDown) {
-  hupWatch = GLib.unix_fd_add_full(GLib.PRIORITY_DEFAULT, 0, GLib.IOCondition.HUP | GLib.IOCondition.ERR, () => {
-    requestShutdown();
-    System.exit(0);
-    return GLib.SOURCE_REMOVE;
-  });
+  readNext();
   GLib.idle_add(GLib.PRIORITY_DEFAULT, function() {
     (async function() {
       try {
@@ -541,9 +557,13 @@ if (!shuttingDown) {
         } else {
           await import(init.filename);
         }
-        if (hupWatch) { GLib.source_remove(hupWatch); hupWatch = 0; }
-        readNext();
         scriptDone = true;
+        // Drain whatever arrived on stdin while the import above was still
+        // settling — queued instead of dispatched, see pendingLines above.
+        for (const queued of pendingLines) {
+          if (!dispatchLine(queued)) break;
+        }
+        pendingLines.length = 0;
         maybeExit();
       } catch (error) {
         // A crashed script limps no further: reporting the error and then
