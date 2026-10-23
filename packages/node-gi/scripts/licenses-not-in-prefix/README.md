@@ -2,10 +2,14 @@
 
 These are **not** this package's own terms (it is MIT) and **not** a licence claim written
 here. Each file is a verbatim copy of an upstream project's own licence text, used by
-`scripts/build-gtk-runtime.mjs` only for a project the build prefix ships a **binary** for
+`build-gtk-runtime-win32.mjs` only for a project the build prefix ships a **binary** for
 and **no text** for. A project the prefix documents is always taken from the prefix; this
 directory never overrides it, and nothing here is shipped for a library the bundle does
 not carry.
+
+SHARED between both win32 targets (`gtk-runtime-win32-x64`, `gtk-runtime-win32-arm64`):
+the builder is one script for both arches, and these gaps in the prefix's own license
+corpus are a fact about gvsbuild's install step, not about one CPU architecture.
 
 ## Why it exists
 

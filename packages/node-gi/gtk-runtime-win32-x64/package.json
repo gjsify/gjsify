@@ -112,7 +112,7 @@
     }
   },
   "scripts": {
-    "build:bundle": "node scripts/build-gtk-runtime.mjs"
+    "build:bundle": "node ../scripts/build-gtk-runtime-win32.mjs"
   },
   "repository": {
     "type": "git",

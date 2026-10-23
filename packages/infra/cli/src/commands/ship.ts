@@ -80,7 +80,9 @@ import {
     place,
     placeStage,
     resolveLayout,
+    windowsGuiLauncherPath,
     LAYOUT_NAMES,
+    LAYOUTS,
     type Layout,
 } from '../utils/ship/layout.js';
 import { isNodeRuntimeTarget, resolveNodeRuntime } from '../utils/ship/node-runtime.js';
@@ -618,7 +620,17 @@ async function assemble(args: ShipOptions): Promise<void> {
     // `packOne` reads it again. That is the price of checking the tree that is
     // shipped rather than the bytes that happen to be in memory, and it is the
     // same reason `readStage` exists at all.
-    assertPayloadMatchesArch(readStage([stageDir], staged), settings.arch);
+    //
+    // ONE NAMED EXEMPTION: the windows GUI-launcher stub is x86-64 machine code
+    // on every windows arch by design (`pe-launcher.ts`'s `MACHINE_AMD64`
+    // comment) — it only `exec`s the sibling `.cmd`, which hands off to the
+    // arch-correct `node.exe` the stage carries, and Windows-on-ARM runs x64
+    // code through Prism for exactly this path. `layout.windows` now emits that
+    // stub unconditionally (it used to skip arm64 entirely), so an arm64 stage
+    // legitimately carries one x64 PE beside its arm64 payload.
+    assertPayloadMatchesArch(readStage([stageDir], staged), settings.arch, {
+        exempt: layout === LAYOUTS.windows ? new Set([windowsGuiLauncherPath(settings)]) : undefined,
+    });
 
     // What the map carried into a layout that has no install step for it.
     //

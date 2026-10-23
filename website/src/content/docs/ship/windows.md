@@ -21,10 +21,11 @@ The program directory is what an installer lays down and a user browses to. The
 zip is what a user downloads, so its filename carries the version and the
 architecture.
 
-`x64` is the only architecture. `gjsify`, the project that builds GTK for
-Windows, publishes no arm64 runtime bundle yet, so there is no GTK for a Windows
-on ARM artifact to load. `--arch arm64` is refused by name rather than producing a
-directory that cannot start.
+`x64` and `arm64` are both supported. `wingtk/gvsbuild`, the project that builds
+GTK for Windows, still publishes x64 assets only — but the arm64 GTK prefix is
+built from source in our own CI by the `gjsify/gvsbuild` fork (ADR 0089), and
+`@gjsify/gtk-runtime-win32-arm64` + `@gjsify/node-runtime-win32-arm64` ship
+against it.
 
 ## The runtime it carries
 
@@ -216,7 +217,6 @@ process computes about itself. The positional accepts both `windows` and
 | Message says | Fix |
 |---|---|
 | the windows layout cannot run a `gjs` app | set `gjsify.ship.app.win32` to `"node"` (or `gjsify.app`, for every target) and rebuild the bundle for Node |
-| `the windows layout is not assemblable for --arch arm64` | use `--arch x64`; there is no Windows on ARM GTK to load |
 | `packing a msi on … needs … wixl` | install `msitools`, or WiX Toolset v3.14 on Windows |
 | `is not a version an .msi can carry` | set `gjsify.ship.version` to a plain `x.y.z` |
 | `the windows layout would put this app in a directory called …` | set `gjsify.ship.name` to a name Windows can hold |

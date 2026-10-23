@@ -795,40 +795,41 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
             required: true,
         },
         metadata: (input) => {
+            // Unconditional on `input.arch` — see `pe-launcher.ts`'s `MACHINE_AMD64`
+            // comment for why: the stub is x86-64 machine code on EVERY windows arch,
+            // because all it does is `exec` the sibling `.cmd`, which hands off to the
+            // native `node.exe` the layout staged for that arch. This used to read
+            // `input.arch === 'x64'`, which silently emitted NO launcher stub — and
+            // therefore no icon and no `.exe` for the MSI shortcut to point at — on
+            // arm64, the one arch `arches.only` now admits besides x64.
             const icon = iconFor(input, 'windows');
-            return input.arch === 'x64'
-                ? [
-                      {
-                          path: windowsGuiLauncherPath(input),
-                          mode: 0o755,
-                          source: {
-                              kind: 'bytes',
-                              data: buildGuiLauncher({
-                                  logLeaf: windowsLaunchLogLeaf(input),
-                                  ...(icon === undefined ? {} : { icon: iconResources(icon) }),
-                              }),
-                          },
-                      },
-                  ]
-                : [];
+            return [
+                {
+                    path: windowsGuiLauncherPath(input),
+                    mode: 0o755,
+                    source: {
+                        kind: 'bytes',
+                        data: buildGuiLauncher({
+                            logLeaf: windowsLaunchLogLeaf(input),
+                            ...(icon === undefined ? {} : { icon: iconResources(icon) }),
+                        }),
+                    },
+                },
+            ];
         },
-        // ONE, and the blocker is OURS now. `wingtk/gvsbuild` hardcodes
-        // `self.platform = "x64"` and publishes x64 assets only — but we stopped
-        // waiting for it: ADR 0089 builds the arm64 GTK prefix from
-        // `gjsify/gvsbuild` in our own CI and `@gjsify/node-gi` declares
-        // `win32-arm64` against it (#2003). What is missing is
-        // `@gjsify/gtk-runtime-win32-arm64`, the closure this layout stages and on
-        // Windows the only GTK there is, so a Windows/ARM artifact still has
-        // nothing to load. Adding arm64 to `only` is the PR that builds that
-        // package, not this one.
+        // TWO now. `wingtk/gvsbuild` still hardcodes `self.platform = "x64"` and
+        // publishes x64 assets only, but ADR 0089 builds the arm64 GTK prefix from
+        // our `gjsify/gvsbuild` fork in CI, `@gjsify/node-gi` ships a win32-arm64
+        // prebuild against it (#2003), and `@gjsify/gtk-runtime-win32-arm64` +
+        // `@gjsify/node-runtime-win32-arm64` now exist — the two packages this
+        // layout stages. Tracked in gjsify/gjsify#1117; remaining gaps (gstsoup,
+        // webgl, gamepad, WebView2 on arm64) are `status/open-todos/windows.md`
+        // § win32-arm64, not a reason to withhold the architecture.
         arches: {
-            only: ['x64'],
+            only: ['x64', 'arm64'],
             why:
-                'the arm64 GTK closure `@gjsify/gtk-runtime-win32-arm64` does not exist yet — the prefix it ' +
-                'would be built from is no longer missing, because ADR 0089 builds it from our `gjsify/gvsbuild` ' +
-                'fork in CI and `@gjsify/node-gi` ships a win32-arm64 prebuild against it — so what is left is ' +
-                'the runtime package this layout would stage, ordered in `status/open-todos/windows.md` and ' +
-                'tracked in gjsify/gjsify#1117',
+                'win32 runs on x64 natively and on arm64 via the MSVC closure ADR 0089 builds — both have a ' +
+                '`@gjsify/gtk-runtime-win32-*` and `@gjsify/node-runtime-win32-*` to stage',
         },
     },
 };

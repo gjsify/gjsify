@@ -159,7 +159,7 @@ export default async () => {
             // Linux takes GTK from the distribution — `DEFAULT_GTK_PREFERENCE` in
             // `gtk-runtime.js` states it per OS precisely so that a future Linux
             // bundle cannot silently flip an existing platform's behaviour.
-            expect([...GTK_RUNTIME_TARGETS]).toStrictEqual(['darwin-arm64', 'darwin-x64', 'win32-x64']);
+            expect([...GTK_RUNTIME_TARGETS]).toStrictEqual(['darwin-arm64', 'darwin-x64', 'win32-x64', 'win32-arm64']);
             expect(isGtkRuntimeTarget('linux-x64')).toBe(false);
             expect(gtkRuntimePackageName('darwin-arm64')).toBe('@gjsify/gtk-runtime-darwin-arm64');
         });

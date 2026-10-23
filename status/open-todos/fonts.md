@@ -72,8 +72,8 @@ ACTIVATION is unverified on hardware, which is why `Layout.fontGap` still prints
 
 ### The win32 GTK bundle's fontconfig config — proposed for deletion, then reversed
 
-`gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs` copies `<prefix>/etc/fonts` into the
-bundle and runs `fc-cache` over it; `node-gi/gtk-runtime.js` then sets `FONTCONFIG_PATH`
+`packages/node-gi/scripts/build-gtk-runtime-win32.mjs` (shared by both win32 arches) copies
+`<prefix>/etc/fonts` into the bundle and runs `fc-cache` over it; `node-gi/gtk-runtime.js` then sets `FONTCONFIG_PATH`
 and `FONTCONFIG_FILE` at it. The sources cited in the entry above say the fc font map is
 compiled and not selected by default on Windows; that is now MEASURED (ADR 0038 § W1-W2,
 Windows 11 / GTK 4.22.4). A hand-written `FONTCONFIG_FILE` naming a face directory leaves

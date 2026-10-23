@@ -34,8 +34,15 @@
 // answer:
 //
 //   1. `wixl -a x64` sets Component `Attributes` to 256 — `msidbComponent-
-//      Attributes64bit` — on its own, so `Win64="yes"` is neither written here nor
-//      needed on either backend (`candle -arch x64` does the same).
+//      Attributes64bit` — on its own, so `Win64="yes"` was not written here at
+//      first. ADR 0089 (win32-arm64) is what reopened the question: wixl's own
+//      source sets that bit only for `Arch.X64`/`Arch.IA64`, never for
+//      `Arch.ARM64` (`tools/wixl/builder.vala`), so an unmodified `-a arm64`
+//      build would have shipped a 32-bit component tree. `Win64` is now written
+//      explicitly for every non-x86 arch, on both backends — a Component whose
+//      bitness depends on which backend's inference happens to cover it is
+//      exactly the kind of divergence this file's whole design (one `.wxs`, two
+//      readers) exists to prevent.
 //   2. An ABSOLUTE `Source=` resolves — and this file writes RELATIVE ones anyway,
 //      which is the measurement changing a decision rather than confirming it. The
 //      SAME document is compiled twice, on two machines: `wixl` here and WiX v3 on
@@ -291,6 +298,16 @@ function directoryTree(files: readonly MsiFile[]): DirNode {
  */
 export function renderWxs(input: WxsInput): string {
     const { settings, programDirName, archLabel } = input;
+    // EXPLICIT, not inferred — measured against msitools' own source
+    // (tools/wixl/builder.vala, `compileComponent`): `wixl -a <arch>` sets the
+    // `msidbComponentAttributes64bit` bit itself ONLY for `Arch.X64` and
+    // `Arch.IA64`; `Arch.ARM64` falls through and the component stays 32-bit
+    // unless `Win64="yes"` is written here. `candle -arch arm64` (WiX v3.14,
+    // the win32 backend) is not re-verified the same way, so this file no
+    // longer trusts EITHER backend's default for a non-x86 architecture — a
+    // Component silently installing into `%ProgramFiles(x86)%` is the wrong
+    // kind of thing to find out by running the artifact.
+    const win64 = archLabel !== 'x86';
     const productVersion = msiProductVersion(settings.version);
     // `Name <email>` is `PackSettings.maintainer`'s shape; ARP shows `Publisher`
     // to a human, and an address in that field reads as a mistake.
@@ -355,7 +372,7 @@ export function renderWxs(input: WxsInput): string {
             // not the authority for it — a Windows packing host would otherwise
             // split a name containing a backslash.
             const name = xmlEscape(posix.basename(file.path));
-            lines.push(`${indent}<Component Id="${componentId}" Guid="${guid}">`);
+            lines.push(`${indent}<Component Id="${componentId}" Guid="${guid}" Win64="${win64 ? 'yes' : 'no'}">`);
             // THE SHORTCUT LIVES IN THE LAUNCHER'S OWN COMPONENT, nested in its
             // `<File>` and advertised. The obvious alternative — a second component
             // under `ProgramMenuFolder` whose key path is an HKCU registry value —

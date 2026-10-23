@@ -77,7 +77,7 @@ export default async () => {
             // Linux gets NO package: a `.deb`/`.rpm` declares a dependency on the
             // distribution's Node instead (`depends.ts` → NODE_PACKAGE). Adding
             // `linux-x64` here would be adding a package that does not exist.
-            expect([...NODE_RUNTIME_TARGETS]).toStrictEqual(['darwin-arm64', 'darwin-x64', 'win32-x64']);
+            expect([...NODE_RUNTIME_TARGETS]).toStrictEqual(['darwin-arm64', 'darwin-x64', 'win32-x64', 'win32-arm64']);
             expect(isNodeRuntimeTarget('linux-x64')).toBe(false);
             expect(isNodeRuntimeTarget('darwin-arm64')).toBe(true);
         });
