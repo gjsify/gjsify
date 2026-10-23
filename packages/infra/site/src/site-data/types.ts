@@ -60,6 +60,22 @@ export interface SiteLegalLink {
 }
 
 /**
+ * `gjsify.site.privacy`: a consumer-authored statement of what the APP does with data — never
+ * generated, because that claim is about the product's own code, not about this page. One file
+ * per configured language, each checked independently rather than translated by the generator.
+ */
+export interface SitePrivacyConfig {
+    /** `<lang>` (from `gjsify.site.languages`) → repo-relative path of that language's statement. */
+    statements: Record<string, string>;
+    /**
+     * Link to the hoster's own data-processing notice, named in the page's built-in hosting
+     * paragraph. Left out, nothing about hosting beyond what this package itself guarantees is
+     * said — a provider is a per-deployment fact this package cannot derive.
+     */
+    hostingPolicyUrl?: string;
+}
+
+/**
  * One part of the product a person installs separately — a desktop app, the browser extension it
  * pairs with, a command line build. Declared in `gjsify.site.components`, in the order they are
  * installed, which is the order the download dialog explains them in.
@@ -168,6 +184,8 @@ export interface SiteConfig {
     releaseAssets: boolean;
     support: SiteSupportEntry[];
     legal: SiteLegalLink[];
+    /** A privacy/data-practices page at `/<lang>/privacy/`. `undefined`: no such page is built. */
+    privacy?: SitePrivacyConfig;
     /** Sites of other apps to list under "More apps by <developer>", in order. Empty: no section. */
     relatedApps: SiteRelatedAppConfig[];
 }

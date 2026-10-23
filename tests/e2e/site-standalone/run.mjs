@@ -38,6 +38,7 @@ describe('gjsify site build outside the workspace', { timeout: 15 * 60 * 1000, s
         projectDir = join(tmpDir, 'app');
         mkdirSync(join(projectDir, 'data'), { recursive: true });
         writeFileSync(join(projectDir, 'data', 'org.example.App.metainfo.xml'), METAINFO);
+        writeFileSync(join(projectDir, 'privacy.en.md'), '# Privacy\n\nThis app sends nothing anywhere.\n');
         setupProject(
             projectDir,
             {
@@ -53,6 +54,7 @@ describe('gjsify site build outside the workspace', { timeout: 15 * 60 * 1000, s
                         base: '/app/',
                         languages: ['en'],
                         repository: 'https://github.com/example/app',
+                        privacy: { statements: { en: 'privacy.en.md' } },
                     },
                 },
             },
@@ -72,5 +74,13 @@ describe('gjsify site build outside the workspace', { timeout: 15 * 60 * 1000, s
         assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
         assert.ok(existsSync(join(projectDir, 'dist', 'en', 'index.html')), 'dist/en/index.html missing');
         assert.match(readFileSync(join(projectDir, 'dist', 'en', 'index.html'), 'utf8'), /Example App/);
+        assert.ok(
+            existsSync(join(projectDir, 'dist', 'en', 'privacy', 'index.html')),
+            'dist/en/privacy/index.html missing',
+        );
+        assert.match(
+            readFileSync(join(projectDir, 'dist', 'en', 'privacy', 'index.html'), 'utf8'),
+            /This app sends nothing anywhere\./,
+        );
     });
 });
