@@ -139,7 +139,9 @@ unknown id fails the build with the known ids listed.
 
 The recommendation ("Recommended for your system") is made once per part, so each block
 highlights its own best match, and the big button at the top of the dialog offers the first
-declared component: the thing to install first.
+declared component: the thing to install first. On Linux the order is Flathub, the Flatpak
+bundle, the AppImage, then deb and rpm: the Flatpak runs sandboxed on the shared GNOME runtime
+and updates with it, where an AppImage trusts the host's typelibs and needs FUSE.
 
 ### Related apps
 

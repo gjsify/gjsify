@@ -24,9 +24,16 @@ export function isBrowserPlatform(platform: TargetPlatform): platform is 'firefo
     return platform === 'firefox' || platform === 'chromium';
 }
 
-/** Best format first, per OS. The first target in this order is the recommended one. */
+/**
+ * Best format first, per OS. The first target in this order is the recommended one.
+ *
+ * A Flatpak bundle outranks the AppImage on Linux: it runs sandboxed on the shared GNOME runtime
+ * and updates with that runtime through the system's Flatpak installation, while an AppImage runs
+ * against the host's typelibs and needs FUSE. Flathub stays ahead of both, as the same Flatpak
+ * with store updates.
+ */
 const FORMAT_RANK: Record<TargetPlatform, readonly TargetFormat[]> = {
-    linux: ['flathub', 'appimage', 'flatpak', 'deb', 'rpm'],
+    linux: ['flathub', 'flatpak', 'appimage', 'deb', 'rpm'],
     darwin: ['dmg', 'zip'],
     win32: ['msi', 'zip'],
     android: ['apk'],

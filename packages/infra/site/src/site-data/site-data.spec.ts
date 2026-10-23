@@ -256,6 +256,22 @@ export default async () => {
             ]);
         });
 
+        await it('prefers a Flatpak bundle over an AppImage on Linux, Flathub over both', async () => {
+            const bundled = buildDownloadTargets({ assets: [asset('a.AppImage'), asset('a.flatpak')] });
+            expect(bundled.map((target) => [target.format, target.recommended])).toStrictEqual([
+                ['flatpak', true],
+                ['appimage', false],
+            ]);
+
+            const stored = buildDownloadTargets({
+                assets: [asset('a.AppImage'), asset('a.flatpak')],
+                flathub: 'eu.example.App',
+            });
+            expect(stored.filter((target) => target.recommended).map((target) => target.format)).toStrictEqual([
+                'flathub',
+            ]);
+        });
+
         await it("sizes the store target from Flathub's own number, else the Flatpak bundle", async () => {
             const bundle = { ...asset('a.flatpak'), size: 400_000 };
             const fromSummary = buildDownloadTargets({
