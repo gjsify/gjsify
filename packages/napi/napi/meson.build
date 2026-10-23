@@ -15,13 +15,35 @@ project('GjsifyNapi', ['c', 'cpp', 'vala'],
     # exceptions — mozjs-140 has no stable C++ ABI and is built the same way.
     default_options: ['cpp_std=c++17', 'buildtype=plain'])
 
-dependencies = [
-    dependency('glib-2.0'),
-    dependency('gobject-2.0'),
-    dependency('gio-2.0'),
-    dependency('gjs-1.0'),      # gjs_context_get_current / get_native_context
-    dependency('mozjs-140'),    # JSAPI
+host_system = host_machine.system()
+
+# On darwin every GNOME library is resolved against the HOST PROCESS rather than
+# recorded as an `@rpath/` dependency: a second GLib beside the one the host
+# already loaded gives the process two GType registries, then SIGSEGV.
+# docs/prebuilds.md § One GLib. `gjs-1.0` is in the list because its own
+# `--libs` carry `-lglib-2.0 -lgobject-2.0 -lgio-2.0` — stripping only the glib
+# trio would still let ld64 record a GLib load command. It belongs there twice
+# over: this shim runs INSIDE the gjs process, so libgjs is by definition
+# already loaded.
+host_provided = [
+    'glib-2.0',
+    'gobject-2.0',
+    'gio-2.0',
+    'gjs-1.0',      # gjs_context_get_current / get_native_context
 ]
+
+dependencies = []
+foreach pkg : host_provided
+    dep = dependency(pkg)
+    dependencies += host_system == 'darwin' \
+        ? dep.partial_dependency(compile_args: true, includes: true) \
+        : dep
+endforeach
+
+# mozjs-140 (JSAPI) pulls no GLib of its own, so it stays an ordinary link dep.
+dependencies += dependency('mozjs-140')
+
+host_provided_link_args = host_system == 'darwin' ? ['-Wl,-undefined,dynamic_lookup'] : []
 
 cc = meson.get_compiler('c')
 dl_dep = cc.find_library('dl', required: false)  # dlopen/dlsym/dladdr
@@ -66,7 +88,6 @@ cc_sources = files(
 # status/open-todos/README.md "N-API host in GJS" cross-platform prebuilds + the `windows` job in
 # napi.yml) — mozjs-140 is now obtainable (servo/mozjs prebuilt
 # libmozjs-x86_64-pc-windows-msvc), the open wall is gjs-on-Windows itself.
-host_system = host_machine.system()
 if host_system == 'darwin'
     export_symbols = meson.current_source_dir() / 'src/cc/napi.exported-symbols.txt'
     export_link_args = ['-Wl,-exported_symbols_list,' + export_symbols]
@@ -108,7 +129,7 @@ libGjsifyNapi = library('gjsifynapi', vala_sources + cc_sources,
     vala_args: [
         '--vapidir=' + meson.current_source_dir() / 'src/vala',
     ],
-    link_args: export_link_args,
+    link_args: export_link_args + host_provided_link_args,
     link_depends: export_link_depends,
     vala_gir: meson.project_name() + '-1.0.gir',
     install: true,

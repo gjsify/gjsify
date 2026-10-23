@@ -8,10 +8,28 @@ project('GjsifyTerminal', ['c', 'vala'], version: '1.0',
 
 root_dir = meson.current_source_dir()
 
-dependencies = [
-    dependency('glib-2.0'),
-    dependency('gobject-2.0'),
-]
+host_system = host_machine.system()
+
+# ----------------------------------------------------------------------------
+# On darwin every GNOME library resolves against the HOST PROCESS and is NOT
+# recorded as an `@rpath/` dependency. A Mach-O keys each dependency by the
+# path that resolves it, so an `LC_RPATH` entry carrying its own copy — which
+# `@gjsify/gtk-runtime-darwin-*` does — gives the process a SECOND GLib: two
+# GType registries, then SIGSEGV. `-undefined dynamic_lookup` leaves these
+# symbols to the flat namespace, where dyld binds them to the copy the host
+# already loaded, whichever stack that is. docs/prebuilds.md § One GLib.
+# ----------------------------------------------------------------------------
+host_provided = ['glib-2.0', 'gobject-2.0']
+
+dependencies = []
+foreach pkg : host_provided
+    dep = dependency(pkg)
+    dependencies += host_system == 'darwin' \
+        ? dep.partial_dependency(compile_args: true, includes: true) \
+        : dep
+endforeach
+
+host_provided_link_args = host_system == 'darwin' ? ['-Wl,-undefined,dynamic_lookup'] : []
 
 sources = files(
     'src/vala/terminal.vala',
@@ -24,6 +42,7 @@ sources = files(
 # header comment.
 libGjsifyTerminal = library('gjsifyterminal', sources,
     dependencies: dependencies,
+    link_args: host_provided_link_args,
     vala_args: [
         '--pkg=posix',
         '--vapidir=' + meson.current_source_dir() / 'src/vala',
@@ -47,7 +66,6 @@ libGjsifyTerminal = library('gjsifyterminal', sources,
 # work, so `else` (ELF naming) is the honest fallback rather than a .dll branch
 # that would imply support which does not exist.
 # ----------------------------------------------------------------------------
-host_system = host_machine.system()
 if host_system == 'darwin'
     shared_lib_name = 'libgjsifyterminal.dylib'
 else

@@ -316,6 +316,41 @@ describe('check-prebuild-loader-path: the build-host leak', () => {
     });
 });
 
+describe('darwin prebuilds bind GLib to the host process', () => {
+    // A Mach-O keys each dependency by the path that resolves it, so a prebuild linking
+    // `@rpath/libglib` next to the bundle's `LC_RPATH` loads the bundle's GLib even when
+    // Homebrew `gjs` already loaded its own: two GType registries, SIGSEGV in
+    // `gjsify_terminal_resize_watcher_real_dispose` during GC. The fix is in the LINK
+    // (`-undefined dynamic_lookup`, GNOME deps reduced to compile args), so it cannot be
+    // read off a committed artifact until CI rebuilds one; this reads the build files
+    // instead, from any host.
+    const ROOT = join(dirname(new URL(import.meta.url).pathname), '..', '..', '..');
+
+    /** @param {string} dir @returns {string[]} */
+    const mesonFiles = (dir) =>
+        readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+            if (e.name === 'node_modules' || e.name === 'subprojects' || e.name.startsWith('.')) return [];
+            const p = join(dir, e.name);
+            if (e.isDirectory()) return mesonFiles(p);
+            return e.name === 'meson.build' ? [p] : [];
+        });
+
+    it('gives every meson.build that links GLib the dynamic_lookup link arg', () => {
+        const offenders = [];
+        let checked = 0;
+        for (const file of mesonFiles(join(ROOT, 'packages'))) {
+            // webview2-native is win32-only: no darwin build, no Mach-O.
+            if (file.includes('webview2-native')) continue;
+            const src = readFileSync(file, 'utf8');
+            if (!/dependency\('glib-2\.0'\)|'glib-2\.0'/.test(src)) continue;
+            checked++;
+            if (!src.includes('dynamic_lookup') || !src.includes('partial_dependency')) offenders.push(file);
+        }
+        assert.ok(checked > 0, 'expected at least one meson.build that links GLib');
+        assert.deepEqual(offenders, [], 'a darwin prebuild must not record its own GLib load command');
+    });
+});
+
 describe('typelib shared-library records', () => {
     const TERMINAL_LE = prebuildDir('node', 'terminal-native', 'linux-x64', 'GjsifyTerminal-1.0.typelib');
 

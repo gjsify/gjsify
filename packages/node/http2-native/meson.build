@@ -24,10 +24,24 @@ cc = meson.get_compiler('c')
 
 nghttp2_lib = cc.find_library('nghttp2', has_headers: ['nghttp2/nghttp2.h'])
 
-vala_deps = [
-    dependency('glib-2.0'),
-    dependency('gobject-2.0'),
-]
+host_system = host_machine.system()
+
+# On darwin every GNOME library is resolved against the HOST PROCESS rather than
+# recorded as an `@rpath/` dependency: a second GLib beside the one the host
+# already loaded gives the process two GType registries, then SIGSEGV.
+# docs/prebuilds.md § One GLib. nghttp2 is NOT host-provided — it reaches no
+# GLib, so it stays an ordinary link dependency.
+host_provided = ['glib-2.0', 'gobject-2.0']
+
+vala_deps = []
+foreach pkg : host_provided
+    dep = dependency(pkg)
+    vala_deps += host_system == 'darwin' \
+        ? dep.partial_dependency(compile_args: true, includes: true) \
+        : dep
+endforeach
+
+host_provided_link_args = host_system == 'darwin' ? ['-Wl,-undefined,dynamic_lookup'] : []
 
 sources = files(
     'src/vala/nghttp2-helpers.c',
@@ -42,6 +56,7 @@ inc = include_directories('src/vala')
 libGjsifyHttp2 = library('gjsifyhttp2', sources,
     dependencies: vala_deps + [nghttp2_lib],
     include_directories: inc,
+    link_args: host_provided_link_args,
     vala_gir: meson.project_name() + '-1.0.gir',
     install: true,
     install_dir: [true, true, true, true],
@@ -60,7 +75,6 @@ libGjsifyHttp2 = library('gjsifyhttp2', sources,
 # work, so `else` (ELF naming) is the honest fallback rather than a .dll branch
 # that would imply support which does not exist.
 # ----------------------------------------------------------------------------
-host_system = host_machine.system()
 if host_system == 'darwin'
     shared_lib_name = 'libgjsifyhttp2.dylib'
 else

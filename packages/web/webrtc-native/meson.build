@@ -8,13 +8,31 @@ project('GjsifyWebrtc', ['c', 'vala'], version: '0.1',
 
 root_dir = meson.current_source_dir()
 
-dependencies = [
-    dependency('glib-2.0'),
-    dependency('gobject-2.0'),
-    dependency('gstreamer-1.0'),
-    dependency('gstreamer-sdp-1.0'),
-    dependency('gstreamer-webrtc-1.0'),
+host_system = host_machine.system()
+
+# On darwin every GNOME library is resolved against the HOST PROCESS rather than
+# recorded as an `@rpath/` dependency: a second GLib beside the one the host
+# already loaded gives the process two GType registries, then SIGSEGV.
+# docs/prebuilds.md § One GLib. The gstreamer packages are in the list because
+# their own `--libs` carry `-lglib-2.0 -lgobject-2.0` — stripping only the glib
+# pair would still let ld64 record a GLib load command.
+host_provided = [
+    'glib-2.0',
+    'gobject-2.0',
+    'gstreamer-1.0',
+    'gstreamer-sdp-1.0',
+    'gstreamer-webrtc-1.0',
 ]
+
+dependencies = []
+foreach pkg : host_provided
+    dep = dependency(pkg)
+    dependencies += host_system == 'darwin' \
+        ? dep.partial_dependency(compile_args: true, includes: true) \
+        : dep
+endforeach
+
+host_provided_link_args = host_system == 'darwin' ? ['-Wl,-undefined,dynamic_lookup'] : []
 
 sources = files(
     'src/vala/promise-bridge.vala',

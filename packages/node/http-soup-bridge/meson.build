@@ -8,12 +8,30 @@ project('GjsifyHttpSoupBridge', ['c', 'vala'], version: '1.0',
 
 root_dir = meson.current_source_dir()
 
-dependencies = [
-    dependency('glib-2.0'),
-    dependency('gobject-2.0'),
-    dependency('gio-2.0'),
-    dependency('libsoup-3.0', version: '>=3.6'),
-]
+host_system = host_machine.system()
+
+# On darwin every GNOME library is resolved against the HOST PROCESS rather than
+# recorded as an `@rpath/` dependency: a second GLib beside the one the host
+# already loaded gives the process two GType registries, then SIGSEGV.
+# docs/prebuilds.md § One GLib. libsoup is in the list because its own `--libs`
+# carry `-lglib-2.0 -lgobject-2.0` — stripping only the glib trio would still
+# let ld64 record a GLib load command.
+host_provided = ['glib-2.0', 'gobject-2.0', 'gio-2.0']
+
+dependencies = []
+foreach pkg : host_provided
+    dep = dependency(pkg)
+    dependencies += host_system == 'darwin' \
+        ? dep.partial_dependency(compile_args: true, includes: true) \
+        : dep
+endforeach
+
+soup_dep = dependency('libsoup-3.0', version: '>=3.6')
+dependencies += host_system == 'darwin' \
+    ? soup_dep.partial_dependency(compile_args: true, includes: true) \
+    : soup_dep
+
+host_provided_link_args = host_system == 'darwin' ? ['-Wl,-undefined,dynamic_lookup'] : []
 
 sources = files(
     'src/vala/peer-close-watch.vala',
@@ -24,6 +42,7 @@ sources = files(
 
 libGjsifyHttpSoupBridge = library('gjsifyhttpsoupbridge', sources,
     dependencies: dependencies,
+    link_args: host_provided_link_args,
     vala_gir: meson.project_name() + '-1.0.gir',
     install: true,
     install_dir: [true, true, true, true],
@@ -42,7 +61,6 @@ libGjsifyHttpSoupBridge = library('gjsifyhttpsoupbridge', sources,
 # work, so `else` (ELF naming) is the honest fallback rather than a .dll branch
 # that would imply support which does not exist.
 # ----------------------------------------------------------------------------
-host_system = host_machine.system()
 if host_system == 'darwin'
     shared_lib_name = 'libgjsifyhttpsoupbridge.dylib'
 else
