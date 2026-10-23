@@ -88,15 +88,19 @@ export default async () => {
     });
 
     await describe('ship launcher: the runtime the bundle carries', async () => {
-        await it('execs "$here/node" instead of a name macOS cannot resolve', () => {
+        await it('execs the HELPER by the app\'s own name, not a bare "node"', () => {
             // `exec node` is true of a developer's machine and false of a `.app` a
             // stranger downloads: macOS ships no Node at all, so that launcher's
-            // first act is `exec: node: not found`. `$here` is `Contents/MacOS`,
-            // which the launcher already computes, and the interpreter is staged
-            // beside the launcher — so the whole path expression is one segment.
+            // first act is `exec: node: not found`. And a `.app` whose carried
+            // interpreter is still literally named `node` shows up as `node` in
+            // Activity Monitor and System Events — `appRuntimePaths` now stages it
+            // at `Contents/Helpers/<display name>` instead, so `beside()` computes
+            // the hop from `Contents/MacOS` across to `Contents/Helpers`.
             const node = { ...settings([]), app: 'node' } as ShipSettings;
             const rendered = renderLauncher(node, 'app.node.mjs', LAYOUTS.darwin, CARRIED);
-            expect(rendered.includes('exec "$here/node" "$contents/Resources/lib/app.node.mjs" "$@"')).toBe(true);
+            expect(rendered.includes('exec "$here/../Helpers/Hello" "$contents/Resources/lib/app.node.mjs" "$@"')).toBe(
+                true,
+            );
             // And it is still the BARE NAME when nothing was staged — the M2a tree
             // stays byte-identical rather than becoming differently broken.
             expect(renderLauncher(node, 'app.node.mjs', LAYOUTS.darwin).includes('exec node "$contents/')).toBe(true);

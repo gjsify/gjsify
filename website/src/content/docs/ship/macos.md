@@ -79,7 +79,7 @@ My App.app/
 ├── Contents/Info.plist           what makes this an application
 ├── Contents/PkgInfo
 ├── Contents/MacOS/my-app         the launcher
-├── Contents/MacOS/node           the carried interpreter
+├── Contents/Helpers/My App       the carried interpreter, named after your app
 └── Contents/Resources/
     ├── lib/                      your built bundle
     ├── native/node-gi/           the GTK closure and the node-gi addon
@@ -91,6 +91,12 @@ The carried GTK closure lives in `Contents/Resources/native`, not in Apple's
 directory there whose name ends in a version — `girepository-1.0`,
 `gdk-pixbuf-2.0`, `gstreamer-1.0`, all three of which the closure carries — is
 read as a versioned nested bundle, which makes signing the app fail.
+
+The carried interpreter lives in `Contents/Helpers` (one of Apple's own
+nested-code locations) and is named after your app's display name, not left
+as `node`: `Contents/MacOS` already holds the launcher, and macOS reads a
+running process's name off the file name of the binary that is running —
+so Activity Monitor and System Events show your app instead of `node`.
 
 `Contents/Info.plist` and `Contents/PkgInfo` are what make a directory ending in
 `.app` an application rather than a folder. Ship writes both from your

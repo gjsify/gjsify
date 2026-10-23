@@ -13,7 +13,7 @@
 // form the CI leg can read back:
 //
 //   interpreter: …  `process.execPath`. It must be INSIDE the bundle — the whole
-//                   point of `Contents/MacOS/node`, and the one thing a leg run
+//                   point of `Contents/Helpers/<display name>`, and the one thing a leg run
 //                   on a runner that also has a Node cannot otherwise tell apart.
 //   gtk-runtime: …  `GJSIFY_GTK_RUNTIME` as the LAUNCHER exported it, which is
 //                   candidate 1 of `resolveGtkRuntimeBundle()`'s four and the only

@@ -476,8 +476,11 @@ M2b). `utils/ship/app-runtime.ts` stages four things, each resolved BY NAME from
 shipped and each `null`-not-throw, so a partial bundle is a reported intermediate rather than a
 failure:
 
-- the interpreter, `@gjsify/node-runtime-darwin-<arch>` → `Contents/MacOS/node` plus Node's own
-  LICENSE. `resolveNodeRuntime` finally has the caller its header said it did not have;
+- the interpreter, `@gjsify/node-runtime-darwin-<arch>` → `Contents/Helpers/<display name>` plus
+  Node's own LICENSE. `resolveNodeRuntime` finally has the caller its header said it did not have.
+  Named after the app rather than left as `node`, because Activity Monitor and System Events read
+  a process's name off its binary's own file name, and `Contents/MacOS` already holds the launcher
+  at `binaryName` (APFS is case-insensitive, so no capitalisation of it is free);
 - the relocated GTK closure, `@gjsify/gtk-runtime-darwin-<arch>` →
   `Contents/Frameworks/node-gi/prebuilds/darwin-<arch>/gtk/**`;
 - the addon, `@gjsify/node-gi`'s `prebuilds/darwin-<arch>/node_gi.node`, SIBLING to that directory
