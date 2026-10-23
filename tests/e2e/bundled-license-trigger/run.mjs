@@ -50,9 +50,11 @@ const BUNDLING_PACKAGES = [
     '@gjsify/gtk-runtime-darwin-arm64',
     '@gjsify/gtk-runtime-darwin-x64',
     '@gjsify/gtk-runtime-win32-x64',
+    '@gjsify/gtk-runtime-win32-arm64',
     '@gjsify/node-runtime-darwin-arm64',
     '@gjsify/node-runtime-darwin-x64',
     '@gjsify/node-runtime-win32-x64',
+    '@gjsify/node-runtime-win32-arm64',
 ];
 
 /** The narrowing that measured the escape route — the payload still ships, entry by entry. */
