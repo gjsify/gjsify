@@ -826,13 +826,18 @@ describe('CLI ship macOS self-contained runtime E2E', { timeout: 10 * 60 * 1000 
         }
     });
 
-    it('stages the interpreter beside the launcher, with its licence', () => {
+    it('stages the interpreter under Contents/Helpers, named after the app, with its licence', () => {
+        // NOT `Contents/MacOS/node`: that directory already holds the launcher at
+        // `BINARY`, and APFS is case-insensitive by default, so no capitalisation
+        // of the binary name can share it. Named after the DISPLAY name — the
+        // same string Activity Monitor and System Events read back — not left as
+        // `node`.
         const staged = listPayload(stageDir);
-        assert.ok(staged.includes(`${APP_NAME}.app/Contents/MacOS/node`));
+        assert.ok(staged.includes(`${APP_NAME}.app/Contents/Helpers/${APP_NAME}`));
         // Redistribution with no terms attached is what `ResolvedNodeRuntime` makes
         // structurally hard by carrying the licence in the same result.
         assert.ok(staged.includes(`${APP_NAME}.app/Contents/Resources/share/licenses/node/LICENSE`));
-        assert.equal(statSync(join(bundle, 'Contents', 'MacOS', 'node')).mode & 0o777, 0o755);
+        assert.equal(statSync(join(bundle, 'Contents', 'Helpers', APP_NAME)).mode & 0o777, 0o755);
     });
 
     it('reads every staged Mach-O back with binary.mjs, from Linux', () => {
@@ -904,7 +909,16 @@ describe('CLI ship macOS self-contained runtime E2E', { timeout: 10 * 60 * 1000 
 
     it('writes a launcher that names what the bundle carries, and no DYLD variable', () => {
         const launcher = readFileSync(join(bundle, 'Contents', 'MacOS', BINARY), 'utf-8');
-        assert.match(launcher, /^exec "\$here\/node" "\$contents\/Resources\/lib\/app\.node\.mjs" "\$@"$/m);
+        // `../Helpers/<display name>`, not `node`: the interpreter is staged under
+        // Contents/Helpers and named after the app, not left at the MacOS-colliding,
+        // generic `node`.
+        assert.match(
+            launcher,
+            new RegExp(
+                `^exec "\\$here/\\.\\./Helpers/${APP_NAME}" "\\$contents/Resources/lib/app\\.node\\.mjs" "\\$@"$`,
+                'm',
+            ),
+        );
         assert.match(
             launcher,
             new RegExp(`^GJSIFY_GTK_RUNTIME="\\$contents/Resources/native/node-gi/prebuilds/darwin-${ARCH}/gtk"$`, 'm'),
@@ -953,11 +967,12 @@ describe('CLI ship macOS self-contained runtime E2E', { timeout: 10 * 60 * 1000 
         const zip = join(projectDir, 'ship', 'out', ZIP_NAME);
         const out = oracle('verify-app-zip.sh', [zip, bundle]);
         // SEVEN, and the number is the oracle's own count of entries whose Unix
-        // mode has an execute bit: the two under `Contents/MacOS` (the launcher and
-        // the interpreter it execs) plus the five staged images that arrive without
-        // one whenever the closure crossed an `actions/upload-artifact`.
+        // mode has an execute bit: the launcher under `Contents/MacOS`, the
+        // interpreter it execs — now under `Contents/Helpers` — plus the five
+        // staged images that arrive without one whenever the closure crossed an
+        // `actions/upload-artifact`.
         assert.match(out, /round-tripped byte for byte, 7 executable, modes read as POSIX/);
-        assert.match(out, new RegExp(`^-rwxr-xr-x .*${APP_NAME}\\.app/Contents/MacOS/node$`, 'm'));
+        assert.match(out, new RegExp(`^-rwxr-xr-x .*${APP_NAME}\\.app/Contents/Helpers/${APP_NAME}$`, 'm'));
     });
 
     it('RED: refuses an arm64 closure labelled x64, naming the file', () => {
@@ -1015,7 +1030,7 @@ describe('CLI ship macOS self-contained runtime E2E', { timeout: 10 * 60 * 1000 
         assert.match(output, /execs an interpreter off `PATH`/);
         const staged = listPayload(join(bare, 'ship', 'stage'));
         assert.ok(!staged.some((rel) => rel.includes('/native/node-gi/')));
-        assert.ok(!staged.includes(`${APP_NAME}.app/Contents/MacOS/node`));
+        assert.ok(!staged.includes(`${APP_NAME}.app/Contents/Helpers/${APP_NAME}`));
         const launcher = readFileSync(
             join(bare, 'ship', 'stage', `${APP_NAME}.app`, 'Contents', 'MacOS', BINARY),
             'utf-8',

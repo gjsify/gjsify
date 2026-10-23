@@ -2290,7 +2290,7 @@ jobs:
             echo "the launcher names a DYLD_ variable — it works unsigned and breaks at signing (ADR 0024 A4/A16)"
             exit 1
           fi
-          test -x "ship/out/Ship Window Demo.app/Contents/MacOS/node" || {
+          test -x "ship/out/Ship Window Demo.app/Contents/Helpers/Ship Window Demo" || {
             echo "the bundle carries no interpreter — the next job would exec the runner's node"; exit 1
           }
 
@@ -2398,7 +2398,7 @@ jobs:
           # being a symlink, and `/var` → `/private/var` is exactly that bet lost
           # on macOS. The claim is "the interpreter is inside THIS bundle", and
           # the suffix says it.
-          grep -q '^interpreter: .*/Ship Window Demo\.app/Contents/MacOS/node$' run.log || {
+          grep -q '^interpreter: .*/Ship Window Demo\.app/Contents/Helpers/Ship Window Demo$' run.log || {
             echo "the app did not run under the interpreter the bundle carries:"; grep '^interpreter:' run.log; exit 1
           }
           # The launcher exported the locator, and it points inside the bundle.

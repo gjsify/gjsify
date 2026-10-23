@@ -164,6 +164,15 @@ export interface LayoutDirs {
      * bundle can address it and `codesign` later refuses the bundle.
      */
     other: string;
+    /**
+     * macOS only: where a carried interpreter lives when it must NOT be named
+     * `binaryName` inside {@link LayoutDirs.launcher} — see
+     * `utils/ship/app-runtime.ts`'s `appRuntimePaths`. `''` on linux and windows,
+     * where nothing reads it: Linux takes its interpreter from the distribution,
+     * and a Windows program directory has no launcher-collision to dodge in the
+     * first place, so its interpreter stays beside the `.cmd`.
+     */
+    helpers: string;
 }
 
 /**
@@ -374,6 +383,31 @@ function appBundleDir(identity: LayoutIdentity): string {
 }
 
 /**
+ * Refuse an `identity.name` that cannot be the carried interpreter's own file
+ * name under `Contents/Helpers` (`dirs.helpers`) — `appRuntimePaths` in
+ * `utils/ship/app-runtime.ts` is the only caller.
+ *
+ * A SUPERSET of {@link BUNDLE_NAME_FORBIDDEN}, not a restatement: the bundle
+ * directory wraps the same string in `.app`, so a name of "." or ".." becomes
+ * "..app" or "....app" — both ordinary directory names — while this leaf is
+ * `identity.name` taken LITERALLY, where "." and ".." name the directory
+ * itself and its parent. An empty name and a NUL byte are refused for the same
+ * reason `windowsProgramDirName` refuses them one OS over: neither is a name a
+ * filesystem can hold.
+ */
+export function assertUsableAsHelperName(name: string): string {
+    if (name === '' || name === '.' || name === '..' || BUNDLE_NAME_FORBIDDEN.test(name) || name.includes('\u0000')) {
+        throw new Error(
+            `gjsify ship: the macOS layout would name the carried interpreter "${name}" under ` +
+                '`Contents/Helpers`, and that is not usable as a file name — empty, ".", ".." and anything ' +
+                'containing "/", ":", "\\" or a NUL byte are refused. Set `gjsify.ship.name` to the display ' +
+                'name you want.',
+        );
+    }
+    return name;
+}
+
+/**
  * The rasters a row writes its icon from, or nothing for a CLI — and a refusal
  * for an application that arrives without them.
  *
@@ -416,6 +450,7 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
             native: `lib/${identity.binaryName}/gi`,
             data: 'share',
             other: '',
+            helpers: '',
         }),
         // THE RASTERS THE BUILD-TIME READERS OF THE THEME NEED, and the one row
         // whose icon is written as ordinary payload files rather than into a
@@ -579,6 +614,14 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
                 native: `${app}/Contents/Resources/native`,
                 data: `${app}/Contents/Resources/share`,
                 other: `${app}/Contents/Resources`,
+                // Apple's own nested-code location (alongside `Frameworks`,
+                // `PlugIns`, `XPCServices` — `codesign(1)`'s bundle format), and the
+                // one place `appRuntimePaths` can put the interpreter under a name
+                // that is not `binaryName`: `Contents/MacOS` already holds the
+                // launcher, and APFS is case-insensitive by default, so a second
+                // file there named `<BinaryName>` collides with it bytewise even
+                // when the casing differs.
+                helpers: `${app}/Contents/Helpers`,
             };
         },
         // The two files that make the directory a BUNDLE. Without `Info.plist`
@@ -713,7 +756,7 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
         // LOADER: `lib/` is what the launcher prepends to `PATH`, because Windows
         // has no rpath — a DLL is found on `PATH`, in the directory of the image
         // that loaded it, or not at all.
-        dirs: () => ({ launcher: '', bundle: 'app', native: 'lib', data: 'share', other: '' }),
+        dirs: () => ({ launcher: '', bundle: 'app', native: 'lib', data: 'share', other: '', helpers: '' }),
         // NO METADATA, and one PROGRAM. A Windows installer's metadata lives in the
         // `.msi`'s own tables, not in a file inside the program directory —
         // `msi.ts` puts every such fact in the `Product`/`Package` attributes of the

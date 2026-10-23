@@ -574,16 +574,24 @@ rows below are one table read through two maps rather than two stagers:
 
 | Piece | Package | `.app` (M2b) | program directory (M3) |
 |---|---|---|---|
-| the interpreter | `@gjsify/node-runtime-<target>` | `Contents/MacOS/node` | `node.exe` at the root |
+| the interpreter | `@gjsify/node-runtime-<target>` | `Contents/Helpers/<display name>` | `node.exe` at the root |
 | its licence | " | `Contents/Resources/share/licenses/node/LICENSE` | `share\licenses\node\LICENSE` |
 | the relocated GTK closure | `@gjsify/gtk-runtime-<target>` | `Contents/Frameworks/node-gi/prebuilds/<target>/gtk/**` | `lib\node-gi\prebuilds\<target>\gtk\**` |
 | the node-gi addon | `@gjsify/node-gi` (`prebuilds/<target>/node_gi.node`) | beside that closure, as its SIBLING | same |
 | node-gi's JavaScript | `@gjsify/node-gi` | `Contents/Resources/lib/node_modules/@gjsify/node-gi/` | `app\node_modules\@gjsify\node-gi\` |
 
-The interpreter's FILENAME comes from `nodeRuntimeBinaryName(target)` — the same function that
-decided the source file's name — so `node.exe` stays `node.exe` across the copy. A stage that
+The interpreter's FILENAME comes from `nodeRuntimeBinaryName(target)` on win32 — the same function
+that decided the source file's name — so `node.exe` stays `node.exe` across the copy. A stage that
 renamed it would be a launcher execing a file nothing wrote, and nothing else in the pipeline
-compares the two.
+compares the two. **On darwin the leaf is `identity.name`, not `node`**: Activity Monitor and
+System Events read a Mach-O process's name off the FILE NAME of the binary that is running, not
+off argv or `exec -a`, so a bundle whose carried interpreter stays named `node` is listed as `node`
+everywhere a user looks for it. `Contents/MacOS` already holds the launcher at `binaryName`, and
+APFS is case-insensitive by default — `stamped` and `Stamped` are the same file there — so the
+interpreter cannot share that directory under any capitalisation; `Contents/Helpers` is one of
+Apple's own nested-code locations (`codesign(1)`'s bundle format, beside `Frameworks`, `PlugIns`,
+`XPCServices`) and is where `assertUsableAsHelperName` refuses a display name that cannot be a file
+name (empty, `.`, `..`, or containing `/`, `:`, `\` or a NUL byte).
 
 **All three `@gjsify/node-runtime-*` targets are published** — `darwin-arm64`, `darwin-x64`
 and `win32-x64` all went live at `0.44.0` on 2026-08-30 and track the train since. (The

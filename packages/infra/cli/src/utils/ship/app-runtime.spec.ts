@@ -370,7 +370,10 @@ export default async () => {
             expect(paths.addonPath).toBe(
                 'Ship Demo.app/Contents/Resources/native/node-gi/prebuilds/darwin-arm64/node_gi.node',
             );
-            expect(paths.interpreterPath).toBe('Ship Demo.app/Contents/MacOS/node');
+            // Helpers, not MacOS — that directory already holds the launcher at
+            // `binaryName`, and named after the DISPLAY name, not `binaryName`:
+            // that is the string Activity Monitor and System Events read back.
+            expect(paths.interpreterPath).toBe('Ship Demo.app/Contents/Helpers/Ship Demo');
             expect(paths.interpreterLicensePath).toBe('Ship Demo.app/Contents/Resources/share/licenses/node/LICENSE');
             // Where Node's own resolver looks FIRST from the staged bundle at
             // `Contents/Resources/lib/<bundle>.mjs`. A `--app node` bundle keeps
@@ -450,7 +453,8 @@ export default async () => {
                 // names this file `@loader_path/../../..`-relative, so three levels
                 // of directory ARE the reference.
                 expect(paths.includes(`${under}/lib/gdk-pixbuf-2.0/2.10.0/loaders/libpixbufloader-svg.so`)).toBe(true);
-                expect(paths.includes('Ship Demo.app/Contents/MacOS/node')).toBe(true);
+                // Helpers, not MacOS, and named after the display name.
+                expect(paths.includes('Ship Demo.app/Contents/Helpers/Ship Demo')).toBe(true);
                 expect(paths.includes('Ship Demo.app/Contents/Resources/share/licenses/node/LICENSE')).toBe(true);
                 // The JavaScript the staged bundle `require`s by name, where Node's
                 // own resolver looks for it.
