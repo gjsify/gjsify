@@ -409,7 +409,9 @@ describe('media-capabilities — the three published bundles, in this tree', () 
         // AAC decoder of any kind and gaps both, with no `plugin` on either: nothing was ever
         // going to be copied, so no file's arrival can retire them, and `faad`/`avdec_aac`
         // remain excluded on licence grounds either way.
-        const darwinBundles = BUNDLE_PACKAGES.filter((name) => name !== '@gjsify/gtk-runtime-win32-x64' && name !== '@gjsify/gtk-runtime-win32-arm64');
+        const darwinBundles = BUNDLE_PACKAGES.filter(
+            (name) => name !== '@gjsify/gtk-runtime-win32-x64' && name !== '@gjsify/gtk-runtime-win32-arm64',
+        );
         for (const name of darwinBundles) {
             for (const format of ['AAC (M4A)', 'AAC (ADTS)']) {
                 const aac = byName.get(name).capabilities.gaps.find((gap) => gap.format === format);
@@ -418,7 +420,10 @@ describe('media-capabilities — the three published bundles, in this tree', () 
             }
         }
         assert.ok(formats('@gjsify/gtk-runtime-win32-x64').includes('AAC (M4A)'), 'win32 no longer claims AAC (M4A)');
-        assert.ok(formats('@gjsify/gtk-runtime-win32-arm64').includes('AAC (M4A)'), 'win32-arm64 no longer claims AAC (M4A)');
+        assert.ok(
+            formats('@gjsify/gtk-runtime-win32-arm64').includes('AAC (M4A)'),
+            'win32-arm64 no longer claims AAC (M4A)',
+        );
         assert.ok(
             !gapFormats('@gjsify/gtk-runtime-win32-x64').includes('AAC (M4A)'),
             'win32 still gaps AAC (M4A) as well as claiming it',
