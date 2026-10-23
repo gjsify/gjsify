@@ -333,6 +333,7 @@ if (init.sabSocketFd === 3) {
 
 // Simplified EventEmitter for parentPort
 const _listeners = new Map();
+function _listenersChanged() { maybeExit(); }
 const parentPort = {
   on(ev, fn) {
     if (!_listeners.has(ev)) _listeners.set(ev, []);
@@ -346,6 +347,7 @@ const parentPort = {
   off(ev, fn) {
     const a = _listeners.get(ev);
     if (a) _listeners.set(ev, a.filter(f => f !== fn));
+    _listenersChanged();
     return this;
   },
   emit(ev, ...a) { (_listeners.get(ev) || []).forEach(fn => fn(...a)); },
@@ -353,6 +355,7 @@ const parentPort = {
   close() { send({ type: 'exit', code: 0 }); requestShutdown(); },
   removeAllListeners(ev) {
     if (ev) _listeners.delete(ev); else _listeners.clear();
+    _listenersChanged();
     return this;
   },
 };
@@ -367,6 +370,25 @@ const parentPort = {
 // parent waits on \`error\`/\`exit\` and never gets either (issue #2336). Every
 // crash path below funnels through \`crash()\`: one \`error\` line to the parent,
 // then exit 1, which is Node's \`error\` then \`exit\` 1.
+// Node ends a worker once its script is done and nothing keeps the event loop
+// alive: no parentPort 'message' listener, no pending timer, no open
+// MessagePort. The child is a subprocess that would otherwise park in
+// \`loop.run()\` on its stdin forever, so its parent would never see \`exit\`.
+// Only this bootstrap's own timers can be counted: a child whose timers were
+// replaced by a richer provider (the globals register) or that has other
+// handles we cannot see keeps the old parked behaviour.
+let scriptDone = false;
+const shimTimers = { nextId: 0, byId: new Map() };
+let shimSetTimeout = null;
+function maybeExit() {
+  if (!scriptDone || shuttingDown) return;
+  if (globalThis.setTimeout !== shimSetTimeout) return;
+  if (shimTimers.byId.size > 0 || childPortRegistry.size > 0) return;
+  for (const fns of _listeners.values()) if (fns.length > 0) return;
+  requestShutdown();
+  System.exit(0);
+}
+
 function crash(error) {
   try {
     send({ type: 'error', message: (error && error.message) ? error.message : String(error), stack: (error && error.stack) || '' });
@@ -400,11 +422,12 @@ globalThis.__gjsify_worker_context = {
 // wins — it replaces these globals on import, and its dispatch carries the
 // same contract (reportTimerThrow + context.crash).
 {
-  const timers = { nextId: 0, byId: new Map() };
+  const timers = shimTimers;
   function clearById(id) {
     const gid = timers.byId.get(id);
     if (gid === undefined) return;
     timers.byId.delete(id);
+    maybeExit();
     // g_source_remove has no throw path: a stale id logs a GLib CRITICAL and
     // returns false, it never raises (same contract the globals register
     // states for its own _cancel()).
@@ -417,6 +440,7 @@ globalThis.__gjsify_worker_context = {
     const gid = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.max(0, Number(delay) || 0), () => {
       timers.byId.delete(id);
       try { fn.apply(null, args); } catch (error) { crash(error); }
+      maybeExit();
       return GLib.SOURCE_REMOVE;
     });
     timers.byId.set(id, gid);
@@ -433,6 +457,7 @@ globalThis.__gjsify_worker_context = {
     timers.byId.set(id, gid);
     return id;
   };
+  shimSetTimeout = globalThis.setTimeout;
   globalThis.clearTimeout = clearById;
   globalThis.clearInterval = clearById;
 }
@@ -495,7 +520,16 @@ function readNext() {
 // dynamic import is still running (which would hang await import() because
 // GJS needs a quiet main loop to resolve the import). Messages that arrived
 // during import stay buffered and are drained once readNext() is registered.
+// readNext() only starts after the script settles, so a script parked in a
+// never-settling top-level await would never see the spawner's EOF. Watch
+// the stdin fd for HUP meanwhile: that is the same "spawner is gone" signal.
+let hupWatch = 0;
 if (!shuttingDown) {
+  hupWatch = GLib.unix_fd_add_full(GLib.PRIORITY_DEFAULT, 0, GLib.IOCondition.HUP | GLib.IOCondition.ERR, () => {
+    requestShutdown();
+    System.exit(0);
+    return GLib.SOURCE_REMOVE;
+  });
   GLib.idle_add(GLib.PRIORITY_DEFAULT, function() {
     (async function() {
       try {
@@ -507,11 +541,14 @@ if (!shuttingDown) {
         } else {
           await import(init.filename);
         }
+        if (hupWatch) { GLib.source_remove(hupWatch); hupWatch = 0; }
         readNext();
+        scriptDone = true;
+        maybeExit();
       } catch (error) {
         // A crashed script limps no further: reporting the error and then
-        // keeping the loop alive strands the parent on `exit` the same way the
-        // silent orphan does. Node emits `error` and then `exit` 1 (the exit
+        // keeping the loop alive strands the parent on \`exit\` the same way the
+        // silent orphan does. Node emits \`error\` and then \`exit\` 1 (the exit
         // reaches the parent through wait_async, not through a line).
         try { send({ type: 'error', message: error.message, stack: error.stack || '' }); } catch (_) {}
         requestShutdown();
@@ -522,3 +559,4 @@ if (!shuttingDown) {
   });
   loop.run();
 }
+`;
