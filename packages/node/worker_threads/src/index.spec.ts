@@ -5,7 +5,7 @@
 // Original: MIT license, Node.js contributors / Oven (oven-sh)
 
 import { describe, it, expect, on } from '@gjsify/unit';
-import { ensureMainLoop, quitMainLoop } from '@gjsify/utils/main-loop';
+import { acquireMainLoop, ensureMainLoop, quitMainLoop, releaseMainLoop } from '@gjsify/utils/main-loop';
 import {
     isMainThread,
     parentPort,
@@ -105,7 +105,9 @@ export default async () => {
         await on('Gjs', async () => {
             await it('a spawned worker that exits releases the hold and discards the loop', async () => {
                 quitMainLoop(); // own the singleton this test asserts about
-                const ensured = ensureMainLoop();
+                // A counted hold, not ensureMainLoop(): an uncounted caller
+                // makes the loop outlive every hold by contract.
+                const ensured = acquireMainLoop();
 
                 const worker = new Worker(
                     '(globalThis.__gjsify_worker_context ? globalThis.__gjsify_worker_context.parentPort : require("node:worker_threads").parentPort).postMessage("held");',
@@ -119,23 +121,28 @@ export default async () => {
                     worker.once('exit', resolve);
                 });
 
-                // Released on exit: the last hold drains, so the module's
-                // loop was quit and the next ensure answers a NEW loop.
+                // The worker's exit released ITS hold; dropping ours is the
+                // last one, so the loop was quit and the next ensure answers a NEW loop.
+                releaseMainLoop();
                 expect(ensureMainLoop()).not.toBe(ensured);
             });
 
             await it('unref releases while the child lives; ref re-holds before its message lands', async () => {
                 quitMainLoop();
-                const ensured = ensureMainLoop();
+                const ensured = acquireMainLoop(); // our own hold, dropped below
 
                 const worker = new Worker(
                     'setTimeout(() => (globalThis.__gjsify_worker_context ? globalThis.__gjsify_worker_context.parentPort : require("node:worker_threads").parentPort).postMessage("late"), 30);',
                     { eval: true },
                 );
                 worker.unref(); // the still-running child stops holding the parent
-                expect(ensureMainLoop()).not.toBe(ensured); // hold value hit zero: loop drained
+                releaseMainLoop(); // our hold was the last one: loop drained
+                expect(ensureMainLoop()).not.toBe(ensured);
+                quitMainLoop();
 
                 worker.ref(); // back on the loop before the message lands
+                const reheld = acquireMainLoop(); // peek at the loop the ref created
+                releaseMainLoop();
                 const got = await new Promise((resolve) => {
                     worker.once('message', resolve);
                 });
@@ -144,7 +151,7 @@ export default async () => {
                 await new Promise((resolve) => {
                     worker.once('exit', resolve);
                 });
-                expect(ensureMainLoop()).not.toBe(ensured); // exit released the re-held hold, again to zero
+                expect(ensureMainLoop()).not.toBe(reheld); // exit released the re-held hold, again to zero
 
                 quitMainLoop();
             });
