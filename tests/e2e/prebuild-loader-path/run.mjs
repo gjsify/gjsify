@@ -357,6 +357,25 @@ describe('darwin prebuilds bind GLib to the host process', () => {
         assert.ok(checked > 0, 'expected at least one meson.build that links GLib');
         assert.deepEqual(offenders, [], 'a darwin prebuild must not record its own GLib load command');
     });
+
+    // `dynamic_lookup` only works for what the host process has loaded, and gjs loads GLib
+    // and nothing else. A libsoup / GStreamer / GTK reduced to `partial_dependency` leaves
+    // its symbols unbound, so the class init calls NULL and a bare `imports.gi.<Ns>` dies
+    // with SIGSEGV on darwin-arm64 (#2368). Those libraries have to be linked by path,
+    // which records their load command and leaves GLib out of the link line.
+    it('links libsoup, GStreamer and GTK by path instead of leaving them to dynamic_lookup', () => {
+        const offenders = [];
+        let checked = 0;
+        for (const file of mesonFiles(join(ROOT, 'packages'))) {
+            if (file.includes('webview2-native')) continue;
+            const src = readFileSync(file, 'utf8');
+            if (!/'(libsoup-3\.0|gtk4|gstreamer[\w.-]*)'/.test(src)) continue;
+            checked++;
+            if (!src.includes('find_library')) offenders.push(file);
+        }
+        assert.ok(checked > 0, 'expected at least one meson.build that depends on libsoup, GStreamer or GTK');
+        assert.deepEqual(offenders, [], 'a non-GLib library the host does not load must keep its load command');
+    });
 });
 
 describe('the release cut refuses a darwin prebuild that still records GLib (#2368)', () => {

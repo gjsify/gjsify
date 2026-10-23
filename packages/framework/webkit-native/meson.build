@@ -37,13 +37,24 @@ root_dir = meson.current_source_dir()
 # branch here would be dead code. gtk4 is in the list because its own `--libs`
 # carry `-lglib-2.0 -lgobject-2.0` — stripping only the glib trio would still
 # let ld64 record a GLib load command.
-host_provided = ['glib-2.0', 'gobject-2.0', 'gio-2.0', 'gtk4']
+#
+# GLib alone is left to `dynamic_lookup`: gjs always loads it. GTK is not loaded
+# by the host, so an unrecorded GTK leaves `gtk_*` unbound and the class init
+# dereferences NULL (SIGSEGV on a bare `imports.gi.<Ns>`). It is linked by path
+# instead, which records ITS load command while GLib — absent from the link
+# line — still binds to the host.
+host_provided = ['glib-2.0', 'gobject-2.0', 'gio-2.0']
 
 dependencies = []
 foreach pkg : host_provided
     dependencies += dependency(pkg).partial_dependency(
         compile_args: true, includes: true)
 endforeach
+
+gtk_dep = dependency('gtk4')
+dependencies += gtk_dep.partial_dependency(compile_args: true, includes: true)
+dependencies += meson.get_compiler('c').find_library('gtk-4',
+    dirs: gtk_dep.get_variable(pkgconfig: 'libdir'))
 
 host_provided_link_args = ['-Wl,-undefined,dynamic_lookup']
 

@@ -38,7 +38,14 @@ host_system = host_machine.system()
 # docs/prebuilds.md § One GLib. gdk-pixbuf and gtk4 are in the list because
 # their own `--libs` carry `-lglib-2.0 -lgobject-2.0` — stripping only the glib
 # pair would still let ld64 record a GLib load command.
-host_provided = ['glib-2.0', 'gobject-2.0', 'gdk-pixbuf-2.0', 'gtk4']
+#
+# GLib alone is left to `dynamic_lookup`: gjs always loads it. gdk-pixbuf and GTK
+# are not loaded by the host, so unrecorded they leave `gdk_*` / `gtk_*` unbound
+# and the first call into them dereferences NULL. Those are linked by path
+# instead, which records THEIR load command while GLib — absent from the link
+# line — still binds to the host.
+host_provided = ['glib-2.0', 'gobject-2.0']
+host_loaded_libs = {'gdk-pixbuf-2.0': 'gdk_pixbuf-2.0', 'gtk4': 'gtk-4'}
 
 dependencies = []
 foreach pkg : host_provided
@@ -46,6 +53,16 @@ foreach pkg : host_provided
     dependencies += host_system == 'darwin' \
         ? dep.partial_dependency(compile_args: true, includes: true) \
         : dep
+endforeach
+foreach pkg, lib : host_loaded_libs
+    dep = dependency(pkg)
+    if host_system == 'darwin'
+        dependencies += dep.partial_dependency(compile_args: true, includes: true)
+        dependencies += meson.get_compiler('c').find_library(lib,
+            dirs: dep.get_variable(pkgconfig: 'libdir'))
+    else
+        dependencies += dep
+    endif
 endforeach
 
 # libepoxy pulls no GLib of its own, so it stays an ordinary link dep.
