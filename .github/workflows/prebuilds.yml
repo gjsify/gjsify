@@ -1843,7 +1843,7 @@ jobs:
       # system binary, so the test cannot be contaminated by inherited state even
       # if `env -u` missed something.
       #
-      # The host's GLib is loaded first, as gjs does: a darwin prebuild records
+      # The host's GLib, GObject and GIO are loaded first, as gjs does: a darwin prebuild records
       # no GLib load command (docs/prebuilds.md § One GLib), so a bare python
       # has nothing for `dynamic_lookup` to bind `g_*` to and the dlopen fails
       # on `_g_bytes_get_data` — which says nothing about @loader_path.
@@ -1851,7 +1851,7 @@ jobs:
         run: |
           set -euo pipefail
           rc=0
-          glib="$(brew --prefix glib)/lib/libglib-2.0.0.dylib"
+          glibdir="$(brew --prefix glib)/lib"
           # Only the bridges that HAVE a sibling cdylib, which the table declares
           # (`rustSibling`) rather than this step re-deciding. A bridge with one
           # library has no hop to prove, so listing it would claim coverage its
@@ -1861,7 +1861,7 @@ jobs:
             [ -n "$lib" ] || continue
             echo "--- dlopen $lib with no DYLD_* set"
             if env -u DYLD_LIBRARY_PATH -u DYLD_FALLBACK_LIBRARY_PATH /usr/bin/python3 -c \
-                 'import ctypes, sys; ctypes.CDLL(sys.argv[2], mode=ctypes.RTLD_GLOBAL); ctypes.CDLL(sys.argv[1]); print("loaded", sys.argv[1])' "$PWD/$lib" "$glib"
+                 'import ctypes, sys; [ctypes.CDLL(sys.argv[2] + "/lib%s-2.0.0.dylib" % n, mode=ctypes.RTLD_GLOBAL) for n in ("glib", "gobject", "gio")]; ctypes.CDLL(sys.argv[1]); print("loaded", sys.argv[1])' "$PWD/$lib" "$glibdir"
             then :; else
               echo "::error::$lib ($pkg) does not resolve its sibling Rust cdylib via @loader_path"
               rc=1
