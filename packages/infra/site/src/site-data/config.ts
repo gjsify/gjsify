@@ -6,6 +6,7 @@ import type {
     SiteConfig,
     SiteDownloadConfig,
     SiteLegalLink,
+    SitePrivacyConfig,
     SiteRelatedAppConfig,
     SiteSupportEntry,
 } from './types.js';
@@ -173,6 +174,26 @@ function parseDownloads(raw: Raw, components: readonly SiteComponent[]): SiteDow
     });
 }
 
+/**
+ * `gjsify.site.privacy`: every configured language needs its own statement file. A language with
+ * no entry fails the build rather than falling back silently — a legal page missing a translation
+ * it promised is worse than no page at all.
+ */
+function parsePrivacy(raw: Raw, languages: readonly string[]): SitePrivacyConfig | undefined {
+    const value = raw.privacy;
+    if (value === undefined) return undefined;
+    if (!isRecord(value)) throw new Error('gjsify.site.privacy must be an object');
+    const statementsRaw = value.statements;
+    if (!isRecord(statementsRaw)) {
+        throw new Error('gjsify.site.privacy.statements must be an object mapping a language to a file path');
+    }
+    const statements: Record<string, string> = {};
+    for (const lang of languages) {
+        statements[lang] = stringField(statementsRaw, lang, 'gjsify.site.privacy.statements');
+    }
+    return { statements, hostingPolicyUrl: optionalString(value, 'hostingPolicyUrl') };
+}
+
 function parseReleaseAssets(raw: Raw): boolean {
     const value = raw.releaseAssets ?? true;
     if (typeof value !== 'boolean') throw new Error('gjsify.site.releaseAssets must be true or false');
@@ -217,6 +238,7 @@ export function parseSiteConfig(manifest: RootManifest): SiteConfig {
         downloads: parseDownloads(raw, components),
         releaseAssets: parseReleaseAssets(raw),
         support: objectList(raw, 'support').map((entry, index) => parseSupport(entry, `gjsify.site.support[${index}]`)),
+        privacy: parsePrivacy(raw, languages as string[]),
         legal: objectList(raw, 'legal').map(
             (entry, index): SiteLegalLink => ({
                 label: stringField(entry, 'label', `gjsify.site.legal[${index}]`),

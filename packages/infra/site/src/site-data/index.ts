@@ -7,6 +7,7 @@ export * from './metainfo.js';
 export * from './network.js';
 export * from './oars.js';
 export * from './po.js';
+export * from './privacy.js';
 export * from './related.js';
 export * from './screenshots.js';
 export * from './sepa.js';
