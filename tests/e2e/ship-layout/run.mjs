@@ -192,7 +192,7 @@ const LAYOUT_ADDITIONS = {
         `${APP_NAME}.app/Contents/Resources/${BINARY}.icns`,
         `${APP_NAME}.app/Contents/Resources/share/glib-2.0/schemas/gschemas.compiled`,
     ],
-    windows: ['share/glib-2.0/schemas/gschemas.compiled'],
+    windows: ['share/glib-2.0/schemas/gschemas.compiled', 'ship-demo.exe'],
 };
 
 /**
