@@ -92,6 +92,28 @@ product — see [ADR 0109](../../../docs/adr/0109-a-static-site-generator-reads-
 amendment on why that line is drawn there. `hostingPolicyUrl` is the one hosting fact that is a
 per-deployment choice rather than a package guarantee, so it is config, named only when given.
 
+## Legal Notice / Impressum pages
+
+With `gjsify.site.legalNotice` set, a build also writes `/<base><lang>/legal-notice/index.html` and
+links it from the footer of every page (title "Legal Notice" / "Impressum"). Same shape as
+`privacy` — one statement file per configured language, read verbatim and rendered through the same
+Markdown subset — but **no built-in paragraph is prepended**: unlike the privacy page, this package
+has nothing of its own to say about who is legally responsible for a site, so the whole page is the
+consumer's own statement.
+
+```json
+"legalNotice": {
+  "statements": { "en": "docs/legal-notice.md", "de": "docs/legal-notice.de.md" }
+}
+```
+
+German law (§ 5 DDG, formerly § 5 TMG) requires a "Legal Notice"/Impressum directly on a site tied
+to a business, not merely linked from another domain — the page this key builds satisfies that.
+Content is typically identical across one publisher's apps (same legal entity, same address), but
+this package does not assume or enforce that: each consumer supplies its own files, the same way
+`privacy` does, because what counts as identical is a fact about the publisher, not something a
+shared package can derive.
+
 `gjsify site build --overview <file> --out <dir>` renders one page that lists several apps, each
 linking to its own support page, for a host such as `jumplink.eu/support/`:
 
@@ -139,6 +161,7 @@ Lives in the root `package.json`, next to `ship` and `flatpak`.
 | `relatedApps` | `[url \| {url, name, summary, icon}]`: sites of other apps, listed in order under "More apps by <developer>" on the landing page, see below. Optional — without it there is no section and nothing is fetched. |
 | `support`, `legal` | `support`: `{kind, url}` links, or `{kind: "sepa", name, iban, bic?, reference?}`, a bank transfer shown as IBAN plus an EPC QR code. `legal`: `{label, url}` links. Both empty by default: nothing is invented. |
 | `privacy` | `{statements: {<lang>: <path>}, hostingPolicyUrl?}`: a privacy page at `/<lang>/privacy/`, see below. Absent: no such page. |
+| `legalNotice` | `{statements: {<lang>: <path>}}`: a Legal Notice/Impressum page at `/<lang>/legal-notice/`, see below. Absent: no such page. |
 
 A `sepa` entry carries no amount, and its IBAN is checked when the config loads — length per
 country, alphabet, and the mod-97 checksum — so a typo fails the build instead of printing a QR

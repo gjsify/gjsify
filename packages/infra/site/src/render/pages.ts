@@ -41,7 +41,7 @@ export interface RenderContext {
     /** Published URL of the app icon, when there is one. */
     iconUrl?: string;
     /** Which page of the app this renders; the language switch and the head follow it. Default `app`. */
-    view?: 'app' | 'support' | 'privacy';
+    view?: 'app' | 'support' | 'privacy' | 'legal-notice';
     /** Root-relative URL of the link-preview card for this language. */
     ogImage?: string;
 }
@@ -104,6 +104,10 @@ export function supportUrl(data: SiteData, lang: string): string {
 
 export function privacyUrl(data: SiteData, lang: string): string {
     return `${pageUrl(data, lang)}privacy/`;
+}
+
+export function legalNoticeUrl(data: SiteData, lang: string): string {
+    return `${pageUrl(data, lang)}legal-notice/`;
 }
 
 /** The transfer reference when the config sets none: one per app, so the bank statement says what it was for. */
@@ -689,6 +693,7 @@ function viewUrl(ctx: Pick<RenderContext, 'data' | 'view'>, code: string): strin
     const { data, view } = ctx;
     if (view === 'support') return supportUrl(data, code);
     if (view === 'privacy') return privacyUrl(data, code);
+    if (view === 'legal-notice') return legalNoticeUrl(data, code);
     return pageUrl(data, code);
 }
 
@@ -753,10 +758,13 @@ function footer(ctx: RenderContext): string {
     const { data, lang, t } = ctx;
     const name = localized(data.app.name, lang);
     const repo = repositoryUrl(data);
-    // The privacy link is derived, never configured: a consumer with a `gjsify.site.privacy`
-    // block gets this link on every page without also listing it in `legal`, which would be a
-    // second place for the two to disagree.
+    // The privacy and legal-notice links are derived, never configured: a consumer with a
+    // `gjsify.site.privacy`/`legalNotice` block gets the link on every page without also listing
+    // it in `legal`, which would be a second place for the two to disagree.
     const legal = [
+        ...(data.config.legalNotice
+            ? [`<li><a href="${esc(legalNoticeUrl(data, lang))}">${esc(t('Legal Notice'))}</a></li>`]
+            : []),
         ...(data.config.privacy ? [`<li><a href="${esc(privacyUrl(data, lang))}">${esc(t('Privacy'))}</a></li>`] : []),
         ...data.config.legal.map((link) => `<li><a href="${esc(link.url)}">${esc(link.label)}</a></li>`),
     ].join('');
@@ -780,7 +788,7 @@ ${legal ? `<ul class="footer-legal">${legal}</ul>` : ''}
 /** The title and description of one page; also what the build checks for weak ones. */
 export function pageMeta(
     ctx: Pick<RenderContext, 'data' | 'lang' | 't'>,
-    view: 'app' | 'support' | 'privacy' = 'app',
+    view: 'app' | 'support' | 'privacy' | 'legal-notice' = 'app',
 ): { name: string; title: string; description: string } {
     const { data, lang, t } = ctx;
     const name = localized(data.app.name, lang);
@@ -798,6 +806,13 @@ export function pageMeta(
             name,
             title: `${t('Privacy')} – ${name}`,
             description: plain(t('What {app} does with data.'), { app: name }),
+        };
+    }
+    if (view === 'legal-notice') {
+        return {
+            name,
+            title: `${t('Legal Notice')} – ${name}`,
+            description: plain(t('Who publishes {app}, and how to reach them.'), { app: name }),
         };
     }
     const summary = localized(data.app.summary, lang);
@@ -1004,6 +1019,45 @@ ${ctx.iconUrl ? `<div class="hero-icon" style="--icon-url:url(${esc(ctx.iconUrl)
 <main>
 <div class="column privacy-statement">
 ${hostingNotice(ctx)}
+${renderMarkdown(statement)}
+<p class="support-back"><a href="${esc(pageUrl(data, lang))}">${fmt(t('Back to {app}'), { app: meta.name })}</a></p>
+</div>
+</main>
+${footer(ctx)}
+</body>
+</html>
+`;
+}
+
+/**
+ * `/<lang>/legal-notice/`: the app's own Legal Notice / Impressum statement, read verbatim from
+ * `gjsify.site.legalNotice.statements[lang]` and rendered through the same Markdown subset as
+ * `privacy`. Unlike `privacy`, no built-in paragraph is prepended — there is nothing about hosting
+ * to disclose here, only who is legally responsible for the site, and that is entirely the
+ * consumer's own statement.
+ */
+export function renderLegalNoticePage(page: RenderContext, statement: string): string {
+    const ctx: RenderContext = { ...page, view: 'legal-notice' };
+    const { data, lang, t } = ctx;
+    const meta = pageMeta(ctx, 'legal-notice');
+    return `<!doctype html>
+<html lang="${esc(lang)}">
+<head>
+${head(ctx)}
+</head>
+<body>
+${topBar(ctx)}
+<header class="masthead">
+<div class="hero-inner">
+${ctx.iconUrl ? `<div class="hero-icon" style="--icon-url:url(${esc(ctx.iconUrl)})"><img src="${esc(ctx.iconUrl)}" alt="" width="128" height="128"></div>` : ''}
+<div class="hero-text">
+<h1>${esc(t('Legal Notice'))}</h1>
+<p class="hero-by">${esc(meta.name)}</p>
+</div>
+</div>
+</header>
+<main>
+<div class="column privacy-statement">
 ${renderMarkdown(statement)}
 <p class="support-back"><a href="${esc(pageUrl(data, lang))}">${fmt(t('Back to {app}'), { app: meta.name })}</a></p>
 </div>
