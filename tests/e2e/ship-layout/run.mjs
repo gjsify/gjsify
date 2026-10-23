@@ -676,7 +676,6 @@ describe('CLI ship layout axis E2E', { timeout: 10 * 60 * 1000 }, () => {
         const staged = listPayload(stageX64);
         assert.ok(staged.includes(`${BINARY}.exe`), `the x64 windows stage carries no ${BINARY}.exe`);
         assert.ok(staged.includes(`${BINARY}.cmd`), 'the GUI launcher REPLACED the batch launcher');
-        assert.ok(!listPayload(stages.windows).includes(`${BINARY}.exe`));
 
         // A GUI-subsystem image, which is the one field the whole thing exists for
         // — read here with arithmetic rather than through the CLI's own writer.

@@ -722,7 +722,7 @@ describe('gvsbuild-catalogue — the committed snapshot and this tree', () => {
         }));
         const result = inspectGvsbuildCatalogue({ catalogue, pins, bundles });
         assert.deepEqual(result.problems, []);
-        assert.equal(result.stats.present, 2, 'the win32 bundle no longer claims a gvsbuild-backed format');
-        assert.equal(result.stats.absent, 2, 'the win32 bundle no longer declares a gvsbuild-bounded gap');
+        assert.equal(result.stats.present, 4, 'the win32 bundles no longer claim a gvsbuild-backed format');
+        assert.equal(result.stats.absent, 4, 'the win32 bundles no longer declare a gvsbuild-bounded gap');
     });
 });
