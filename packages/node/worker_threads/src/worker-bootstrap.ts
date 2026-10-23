@@ -510,8 +510,8 @@ if (!shuttingDown) {
         readNext();
       } catch (error) {
         // A crashed script limps no further: reporting the error and then
-        // keeping the loop alive strands the parent on `exit` the same way the
-        // silent orphan does. Node emits `error` and then `exit` 1 (the exit
+        // keeping the loop alive strands the parent on \`exit\` the same way the
+        // silent orphan does. Node emits \`error\` and then \`exit\` 1 (the exit
         // reaches the parent through wait_async, not through a line).
         try { send({ type: 'error', message: error.message, stack: error.stack || '' }); } catch (_) {}
         requestShutdown();
@@ -522,3 +522,4 @@ if (!shuttingDown) {
   });
   loop.run();
 }
+`;
