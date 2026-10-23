@@ -114,7 +114,7 @@ export interface LibInfo {
 export declare function readLibrary(file: string): LibInfo | null;
 export declare function isBuildHostAbsolutePath(p: string): boolean;
 export declare function readTypelibSharedLibraries(file: string): string[] | null;
-export declare function checkPrebuildDir(dir: string, options?: { verbose?: boolean }): string[];
+export declare function checkPrebuildDir(dir: string, options?: { verbose?: boolean; hostGlib?: boolean }): string[];
 
 /**
  * `null` means NOT MEASURED (not an ELF, or a stripped section table); `[]` means

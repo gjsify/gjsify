@@ -26,10 +26,19 @@ foreach pkg : host_provided
         : dep
 endforeach
 
+# libsoup is NOT left to `dynamic_lookup` like GLib: the host process (gjs) never
+# loads it by itself, so an unrecorded libsoup leaves `soup_*` unbound and the
+# class init dereferences NULL (SIGSEGV on a bare `imports.gi.<Ns>`). It is linked
+# by path instead, which records ITS load command while GLib — absent from the
+# link line — still binds to the host. docs/prebuilds.md § One GLib.
 soup_dep = dependency('libsoup-3.0', version: '>=3.6')
-dependencies += host_system == 'darwin' \
-    ? soup_dep.partial_dependency(compile_args: true, includes: true) \
-    : soup_dep
+if host_system == 'darwin'
+    dependencies += soup_dep.partial_dependency(compile_args: true, includes: true)
+    dependencies += meson.get_compiler('c').find_library('soup-3.0',
+        dirs: soup_dep.get_variable(pkgconfig: 'libdir'))
+else
+    dependencies += soup_dep
+endif
 
 host_provided_link_args = host_system == 'darwin' ? ['-Wl,-undefined,dynamic_lookup'] : []
 
