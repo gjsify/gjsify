@@ -972,7 +972,7 @@ export function checkPrebuildDir(dir, { verbose = true, hostGlib = false } = {})
                     problems.push(
                         `${path}: records its own GLib load command — \`${dep}\`.\n` +
                             '    A darwin prebuild must bind GLib to the host process (docs/prebuilds.md § One GLib):\n' +
-                            '    a second copy beside gjs\'s own is two GType registries, then SIGSEGV. Link with\n' +
+                            "    a second copy beside gjs's own is two GType registries, then SIGSEGV. Link with\n" +
                             '    `-Wl,-undefined,dynamic_lookup` and reduce GNOME deps to `partial_dependency`; a\n' +
                             '    binary that still names GLib was built before that fix — rebuild it (prebuilds.yml).',
                     );

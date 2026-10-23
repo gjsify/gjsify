@@ -35,7 +35,9 @@ function main() {
     const hostGlib = process.argv.includes('--host-glib');
     const dirs = process.argv.slice(2).filter((a) => !a.startsWith('--'));
     if (dirs.length === 0) {
-        console.error('usage: node scripts/check-prebuild-loader-path.mjs [--host-glib] <prebuild-dir> [<prebuild-dir> …]');
+        console.error(
+            'usage: node scripts/check-prebuild-loader-path.mjs [--host-glib] <prebuild-dir> [<prebuild-dir> …]',
+        );
         process.exit(2);
     }
     /** @type {string[]} */ const problems = [];

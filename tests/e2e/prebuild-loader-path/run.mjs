@@ -348,7 +348,11 @@ describe('darwin prebuilds bind GLib to the host process', () => {
             // Declared is not applied: webrtc-native defined `host_provided_link_args`, never
             // passed it to `library()`, and the darwin link failed on every `prebuilds.yml`
             // run from 9285791bbe on — so no darwin prebuild was rebuilt (#2368).
-            else if (/\bhost_provided_link_args *=/.test(src) && (src.match(/\bhost_provided_link_args\b/g) ?? []).length < 2) offenders.push(file);
+            else if (
+                /\bhost_provided_link_args *=/.test(src) &&
+                (src.match(/\bhost_provided_link_args\b/g) ?? []).length < 2
+            )
+                offenders.push(file);
         }
         assert.ok(checked > 0, 'expected at least one meson.build that links GLib');
         assert.deepEqual(offenders, [], 'a darwin prebuild must not record its own GLib load command');
