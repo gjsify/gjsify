@@ -41,8 +41,8 @@ const { auditMediaCapabilities, collectMediaBundles, createContext, gstPluginBas
 const BUNDLE_PACKAGES = [
     '@gjsify/gtk-runtime-darwin-arm64',
     '@gjsify/gtk-runtime-darwin-x64',
-    '@gjsify/gtk-runtime-win32-x64',
     '@gjsify/gtk-runtime-win32-arm64',
+    '@gjsify/gtk-runtime-win32-x64',
 ];
 
 /** Where a bundle keeps its plugins, in every one of the three. */
