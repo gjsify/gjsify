@@ -8,12 +8,26 @@ project('GjsifyTls', ['c', 'vala'], version: '1.0',
 
 root_dir = meson.current_source_dir()
 
-dependencies = [
-    dependency('glib-2.0'),
-    dependency('gobject-2.0'),
-    dependency('gio-2.0'),
-    dependency('gnutls'),
-]
+host_system = host_machine.system()
+
+# On darwin every GNOME library is resolved against the HOST PROCESS rather than
+# recorded as an `@rpath/` dependency: a second GLib beside the one the host
+# already loaded gives the process two GType registries, then SIGSEGV.
+# docs/prebuilds.md § One GLib. gnutls is NOT host-provided — its `--libs` reach
+# no GLib, so it stays an ordinary link dependency.
+host_provided = ['glib-2.0', 'gobject-2.0', 'gio-2.0']
+
+dependencies = []
+foreach pkg : host_provided
+    dep = dependency(pkg)
+    dependencies += host_system == 'darwin' \
+        ? dep.partial_dependency(compile_args: true, includes: true) \
+        : dep
+endforeach
+
+dependencies += dependency('gnutls')
+
+host_provided_link_args = host_system == 'darwin' ? ['-Wl,-undefined,dynamic_lookup'] : []
 
 sources = files(
     'src/vala/tls.vala',
@@ -36,6 +50,7 @@ sources = files(
 #                              wrappers + GError mapping)
 libGjsifyTls = library('gjsifytls', sources,
     dependencies: dependencies,
+    link_args: host_provided_link_args,
     c_args: [
         '-I' + meson.current_source_dir() / 'src/c',
     ],
@@ -64,7 +79,6 @@ libGjsifyTls = library('gjsifytls', sources,
 # work, so `else` (ELF naming) is the honest fallback rather than a .dll branch
 # that would imply support which does not exist.
 # ----------------------------------------------------------------------------
-host_system = host_machine.system()
 if host_system == 'darwin'
     shared_lib_name = 'libgjsifytls.dylib'
 else

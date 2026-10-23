@@ -30,7 +30,28 @@ vala_sources = [
     'src/vala/webgl2-rendering-context.vala',
 ]
 
-dependencies = [ dependency('glib-2.0'), dependency('gobject-2.0'), dependency('gdk-pixbuf-2.0'), dependency('gtk4'), dependency('epoxy')]
+host_system = host_machine.system()
+
+# On darwin every GNOME library is resolved against the HOST PROCESS rather than
+# recorded as an `@rpath/` dependency: a second GLib beside the one the host
+# already loaded gives the process two GType registries, then SIGSEGV.
+# docs/prebuilds.md § One GLib. gdk-pixbuf and gtk4 are in the list because
+# their own `--libs` carry `-lglib-2.0 -lgobject-2.0` — stripping only the glib
+# pair would still let ld64 record a GLib load command.
+host_provided = ['glib-2.0', 'gobject-2.0', 'gdk-pixbuf-2.0', 'gtk4']
+
+dependencies = []
+foreach pkg : host_provided
+    dep = dependency(pkg)
+    dependencies += host_system == 'darwin' \
+        ? dep.partial_dependency(compile_args: true, includes: true) \
+        : dep
+endforeach
+
+# libepoxy pulls no GLib of its own, so it stays an ordinary link dep.
+dependencies += dependency('epoxy')
+
+host_provided_link_args = host_system == 'darwin' ? ['-Wl,-undefined,dynamic_lookup'] : []
 
 prebuilt_vala_c = get_option('prebuilt_vala_c')
 
@@ -48,6 +69,7 @@ if prebuilt_vala_c == ''
 
     libGwebgl = library('gwebgl', sources,
         dependencies: dependencies,
+        link_args: host_provided_link_args,
         vala_gir:  gir_name,
         install: true,
         install_dir: [true, true, true, true]
@@ -58,7 +80,9 @@ if prebuilt_vala_c == ''
     # Test app — Vala-only by construction, so it lives on this branch. It is not
     # part of the shipped prebuild and the Windows experiment does not need it.
     test_sources = files('src/vala/handle-types.vala', 'src/vala/webgl-rendering-context-base.vala', 'src/vala/webgl-rendering-context.vala', 'src/test/app.vala')
-    executable('gwebgl_vala_app', test_sources, dependencies: dependencies)
+    executable('gwebgl_vala_app', test_sources,
+        dependencies: dependencies,
+        link_args: host_provided_link_args)
 else
     # The C valac already emitted, compiled by whatever C compiler this host has.
     # Nothing here is Windows-specific: the branch is "somebody else ran valac",
@@ -71,6 +95,7 @@ else
 
     libGwebgl = library('gwebgl', files(prebuilt_c),
         dependencies: dependencies,
+        link_args: host_provided_link_args,
         # The generated `.c` files do `#include "gwebgl.h"`, which sits at the
         # ROOT of the artifact while they sit under `src/vala/` — so the quoted
         # include does not find it next to the includer and needs this -I.

@@ -104,11 +104,32 @@ endif
 sdl = cmake.subproject('sdl3', options: sdl_options)
 sdl_dep = sdl.dependency('SDL3-static')
 
-dependencies = [
-    dependency('glib-2.0'),
-    dependency('gobject-2.0'),
-    sdl_dep,
-]
+# ----------------------------------------------------------------------------
+# On darwin every GNOME library resolves against the HOST PROCESS and is NOT
+# recorded as an `@rpath/` dependency. A Mach-O keys each dependency by the
+# path that resolves it, so an `LC_RPATH` entry carrying its own copy — which
+# `@gjsify/gtk-runtime-darwin-*` does — gives the process a SECOND GLib: two
+# GType registries, then SIGSEGV. `-undefined dynamic_lookup` (in the darwin
+# link args below) leaves these symbols to the flat namespace, where dyld binds
+# them to the copy the host already loaded, whichever stack that is.
+# docs/prebuilds.md § One GLib.
+#
+# `glib_deps` keeps the unstripped form: a test executable below is its OWN
+# host process, so it links GLib itself — which is also what resolves the
+# library's flat-namespace lookups when a test loads it.
+# ----------------------------------------------------------------------------
+host_provided = ['glib-2.0', 'gobject-2.0']
+
+glib_deps = []
+dependencies = []
+foreach pkg : host_provided
+    dep = dependency(pkg)
+    glib_deps += dep
+    dependencies += is_darwin \
+        ? dep.partial_dependency(compile_args: true, includes: true) \
+        : dep
+endforeach
+dependencies += sdl_dep
 
 # meson's cmake module drops SDL's own link list on every OS (on darwin CMake
 # spells it `$<LINK_LIBRARY:FRAMEWORK,…>`; elsewhere the module simply does not
@@ -134,6 +155,12 @@ if is_darwin
     # (docs/prebuilds.md). `-dead_strip_dylibs` removes any framework the final
     # link does not use, so the list can only over-state, never add.
     link_args += sdl_system_link_args + [
+        # The other half of the host-GLib arrangement above: the GNOME symbols
+        # the stripped dependencies no longer link stay undefined here and are
+        # bound by dyld to the host's copy. Not in `sdl_system_link_args`,
+        # because the test executables that take those ARE their own host
+        # process and link GLib for real.
+        '-Wl,-undefined,dynamic_lookup',
         '-Wl,-exported_symbol,_gjsify_gamepad_*',
         '-Wl,-dead_strip',
         '-Wl,-dead_strip_dylibs',
@@ -248,7 +275,7 @@ endif
 # library links and exports; win32 adds the message-queue measurement.
 # ----------------------------------------------------------------------------
 lifecycle = executable('monitor-lifecycle', 'test/monitor-lifecycle.c',
-    dependencies: [dependency('glib-2.0'), dependency('gobject-2.0')],
+    dependencies: glib_deps,
     link_with: libgjsifygamepad,
     include_directories: include_directories('src/c'),
 )
@@ -266,7 +293,11 @@ test('monitor-lifecycle', lifecycle)
 # pass while measuring nothing. One instance, reached two ways.
 virtual_pad = executable('virtual-pad', 'test/virtual-pad.c',
     objects: libgjsifygamepad.extract_all_objects(recursive: false),
-    dependencies: dependencies,
+    # `glib_deps` on top of `dependencies`: this is an executable, so it is the
+    # host process the library's stripped GNOME dependencies resolve AGAINST,
+    # and it has to link GLib for real. On darwin `dependencies` carries only
+    # their compile args (above).
+    dependencies: dependencies + glib_deps,
     # link_args of the library do not follow its objects. Without the frameworks
     # darwin fails: _IOS_JoystickGetGamepadMapping / _SDL_SYS_HapticInit undefined
     # in libSDL3_static.a (main, prebuilds run 36834638495).
@@ -402,7 +433,7 @@ if is_linux
     endif
 
     uinput_pad = executable('uinput-pad', 'test/uinput-pad.c',
-        dependencies: [dependency('glib-2.0'), dependency('gobject-2.0')],
+        dependencies: glib_deps,
         link_with: libgjsifygamepad,
         include_directories: include_directories('src/c'),
     )
@@ -418,7 +449,7 @@ if is_windows
     # loop is GLib's (which pumps none): the windows and threads the shim adds
     # and the messages that pile up with nobody dispatching them. See the file.
     message_queue = executable('win32-message-queue', 'test/win32-message-queue.c',
-        dependencies: [dependency('glib-2.0'), dependency('gobject-2.0')],
+        dependencies: glib_deps,
         link_with: libgjsifygamepad,
         include_directories: include_directories('src/c'),
     )
