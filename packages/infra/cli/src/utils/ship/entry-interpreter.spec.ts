@@ -92,6 +92,15 @@ export default async () => {
             expect(entryEvidence(minified).gi).toStrictEqual(['gi://GLib?version=2.0', 'gi://Gtk?version=4.0']);
         });
 
+        await it('does not count a guarded dynamic node: import as load-time evidence', async () => {
+            // node-llama-cpp ships `try{if(process.env.SNAP!=null&&(await import(`node:sea`)).isSea())…}`;
+            // GJS only refuses that import if the branch runs, so the bundle loads.
+            const guarded = 'try{if(process.env.SNAP!=null&&(await import(`node:sea`)).isSea())run()}catch{}';
+            expect(entryEvidence(guarded).node).toStrictEqual([]);
+            expect(check('gjs', guarded)).not.toThrow();
+            expect(check('gjs', 'import s from "node:sea";\n' + guarded)).toThrow('node:sea');
+        });
+
         await it('names at most three specifiers, then counts the rest', async () => {
             // A bundle can import a dozen namespaces; a refusal that pastes all of
             // them buries the sentence that says what to do about it.
