@@ -18,9 +18,6 @@ import { tmpdir } from 'node:os';
 import { mkdirSync, rmSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 
-/** True on real GJS — the same signal `@gjsify/unit` gates its host hooks on. */
-const IS_GJS = typeof (globalThis as { process?: { versions?: { gjs?: string } } }).process?.versions?.gjs === 'string';
-
 let cnt = 0;
 const testDir = join(tmpdir(), 'gjsify-sqlite-subquery-test-' + Date.now());
 
@@ -192,27 +189,12 @@ export default async () => {
             db.close();
         });
 
-        await it.failing(
-            'reads back a WITH clause',
-            async () => {
-                const db = seeded();
-                const rows = db.prepare('WITH c AS (SELECT k FROM l WHERE h = ?) SELECT k FROM c').all('b');
-                expect(column(rows, 'k')).toStrictEqual(['a']);
-                db.close();
-            },
-            'libgda parses a WITH clause as an UNKNOWN statement and renders it back VERBATIM — ' +
-                'so unlike EXISTS (exists-subquery.ts) the SQL reaching SQLite is correct. What fails is ' +
-                'the SQLite provider\'s own dispatch: it decides "does this yield rows" by prefix-matching ' +
-                'the rendered text against SELECT/PRAGMA/EXPLAIN (gda-sqlite-provider.c:3724, at LIBGDA_6_0_0), ' +
-                'and `WITH …` matches none, so the statement is stepped once as a command, the row it returns is ' +
-                'dropped, and the step reports not SQLITE_DONE. Measured on GJS 1.88.1 + libgda 6.0.0: ' +
-                'statement_execute_select, batch_execute and statement_execute_select_full all answer ' +
-                '"not an error" for this statement, while the identical query wrapped as ' +
-                '`SELECT * FROM (WITH c AS ( … ) SELECT …)` returns its row. Not fixable downstream without ' +
-                'rewriting the statement, and the rewrite is not semantics-preserving for a WITH that precedes ' +
-                'an INSERT/UPDATE/DELETE — see the table row in status/upstream-patch-candidates.md.',
-            { when: IS_GJS },
-        );
+        await it('reads back a WITH clause', async () => {
+            const db = seeded();
+            const rows = db.prepare('WITH c AS (SELECT k FROM l WHERE h = ?) SELECT k FROM c').all('b');
+            expect(column(rows, 'k')).toStrictEqual(['a']);
+            db.close();
+        });
     });
 
     await describe('EXISTS the word is left alone elsewhere', async () => {
