@@ -21,7 +21,7 @@ runs:
       uses: actions/cache/restore@v4
       with:
         path: C:\gtk-build\gtk\ARM64\release
-        key: gvsbuild-fork-b63cf45a87601a4c613d05a522dac0d167409aed-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-mf-v3
+        key: gvsbuild-fork-b63cf45a87601a4c613d05a522dac0d167409aed-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-mf-icons-v4
 
     - name: Set up Python
       if: steps.cache-gtk.outputs.cache-hit != 'true'
@@ -53,12 +53,15 @@ runs:
         # gvsbuild") records why. gst-plugins-good's `soup` and gst-plugins-base's `vorbis` are
         # meson `auto` features whose libraries gvsbuild does not declare as dependencies, so a
         # build that reaches them first is green and has no gstsoup.dll / gstvorbis.dll in it (#1117).
-        # Pass 1 therefore builds the libraries (+ the GIO TLS backend libsoup3 pulls in), pass 2 the
+        # Pass 1 therefore builds the libraries (+ the GIO TLS backend libsoup3 pulls in, and
+        # `adwaita-icon-theme`: x64 extracts share/icons from the release ZIP, here nothing else
+        # installs a theme, so the bundle's `icons` data set found none; it also brings
+        # hicolor-icon-theme and librsvg, the SVG pixbuf loader), pass 2 the
         # plugins with `soup`/`vorbis` pinned to `enabled`, so a miss is a configure error naming the
         # library. `--fast-build` keeps pass 2 from rebuilding what pass 1 already marked built.
         # libvorbis needs no CMake-policy flag here: the fork's project already passes it.
-        gvsbuild build --ninja-opts -j2 --enable-gi --vs-ver $vsVer --platform arm64 gtk4 libadwaita gtksourceview5 gobject-introspection glib-networking libsoup3 libvorbis
-        if ($LASTEXITCODE -ne 0) { throw "gvsbuild (arm64): the GTK4/libsoup3/libvorbis pass exited $LASTEXITCODE" }
+        gvsbuild build --ninja-opts -j2 --enable-gi --vs-ver $vsVer --platform arm64 gtk4 libadwaita gtksourceview5 gobject-introspection glib-networking libsoup3 libvorbis adwaita-icon-theme
+        if ($LASTEXITCODE -ne 0) { throw "gvsbuild (arm64): the GTK4/libsoup3/libvorbis/icon-theme pass exited $LASTEXITCODE" }
         # `gst-plugins-bad` is here for ONE plugin: `mediafoundation` (mfmp3dec/mfaacdec wrap the
         # decoders Windows ships — the bundle's only MP3/AAC route, ADR 0056 § 7), and the arm64
         # manifest claims it like the x64 one. `--auto-features=disabled` keeps the other ~100 bad
@@ -81,6 +84,11 @@ runs:
         foreach ($leaf in @('gstsoup.dll', 'gstvorbis.dll', 'gstmediafoundation.dll', 'gsticydemux.dll', 'gstid3demux.dll')) {
           if (-not (Test-Path "$p\lib\gstreamer-1.0\$leaf")) { Write-Host "MISSING $p\lib\gstreamer-1.0\$leaf"; exit 1 }
         }
+        # The bundle's `icons` data set (bundle-data.mjs) needs an index.theme per theme; caught
+        # there it is a release job after a 1.5 h build (v0.64.8).
+        foreach ($t in @('Adwaita', 'hicolor')) {
+          if (-not (Test-Path "$p\share\icons\$t\index.theme")) { Write-Host "MISSING $p\share\icons\$t\index.theme"; exit 1 }
+        }
         if (-not (Get-ChildItem "$p\lib\gio\modules" -Filter *.dll -ErrorAction SilentlyContinue)) { Write-Host "no GIO module in the prefix — glib-networking did not build"; exit 1 }
         # Without GNU gettext's intl.dll, glib silently falls back to proxy-libintl (intl-8.dll),
         # whose bindtextdomain answers "/dummy" and never translates.
@@ -93,4 +101,4 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: C:\gtk-build\gtk\ARM64\release
-        key: gvsbuild-fork-b63cf45a87601a4c613d05a522dac0d167409aed-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-mf-v3
+        key: gvsbuild-fork-b63cf45a87601a4c613d05a522dac0d167409aed-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-mf-icons-v4
