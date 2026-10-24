@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.64.7](https://github.com/gjsify/gjsify/compare/v0.64.6...v0.64.7) (2026-10-24)
+
+### Features
+
+* **ship:** win32-arm64 GTK + node runtime packages ([#1117](https://github.com/gjsify/gjsify/issues/1117)) ([#2367](https://github.com/gjsify/gjsify/issues/2367)) ([e467a88](https://github.com/gjsify/gjsify/commit/e467a880f4d1338787f1993c4ad9989240a548b1))
+* **site:** add a Legal Notice / Impressum page ([#2373](https://github.com/gjsify/gjsify/issues/2373)) ([fe51637](https://github.com/gjsify/gjsify/commit/fe51637a314dbc8422d6f86a51ac67da06e91d3a))
+* **site:** add a privacy page ([#2372](https://github.com/gjsify/gjsify/issues/2372)) ([593d835](https://github.com/gjsify/gjsify/commit/593d83594cfa2d3299f6bc4bec27ac4350b2f8e2))
+* **site:** rank Flatpak above AppImage ([#2366](https://github.com/gjsify/gjsify/issues/2366)) ([8d3dc20](https://github.com/gjsify/gjsify/commit/8d3dc20f9d1425f9a24a03cb3b770fd621f925ba))
+
+### Bug Fixes
+
+* **adwaita-app:** find app icon outside a launcher ([#2346](https://github.com/gjsify/gjsify/issues/2346)) ([6bac26e](https://github.com/gjsify/gjsify/commit/6bac26e2e81af76c459abe305845d72aa6e1af7f))
+* **adwaita-core:** keep accent imports ships-small ([#2341](https://github.com/gjsify/gjsify/issues/2341)) ([61def80](https://github.com/gjsify/gjsify/commit/61def8051620c9393efe9dfda7ebc9a3df491c05)), closes [#2321](https://github.com/gjsify/gjsify/issues/2321)
+* **prebuilds:** fail the cut on stale darwin GLib ([#2369](https://github.com/gjsify/gjsify/issues/2369)) ([1656f4e](https://github.com/gjsify/gjsify/commit/1656f4ebde593c714f06ca2e6467d7c30431d6fe))
+* **site:** localize links to the site's own pages ([#2375](https://github.com/gjsify/gjsify/issues/2375)) ([5167b15](https://github.com/gjsify/gjsify/commit/5167b15cd853d111097ddf9bba327cd3b97c8796))
+* **sqlite:** route CTE queries as row-returning ([#2344](https://github.com/gjsify/gjsify/issues/2344)) ([37e69c7](https://github.com/gjsify/gjsify/commit/37e69c79b84714fc853c6792e1c13f0b16ce6f49)), closes [#2335](https://github.com/gjsify/gjsify/issues/2335) [#2335](https://github.com/gjsify/gjsify/issues/2335)
+* **unit:** report incomplete browser runs ([#2340](https://github.com/gjsify/gjsify/issues/2340)) ([6d17a89](https://github.com/gjsify/gjsify/commit/6d17a896f5b1c0b0fb76202800dac5f8fdf81294)), closes [#2183](https://github.com/gjsify/gjsify/issues/2183) [#2183](https://github.com/gjsify/gjsify/issues/2183)
+
+### Documentation
+
+* **ship:** arm64 runtime packages are now published ([#2371](https://github.com/gjsify/gjsify/issues/2371)) ([3a1c803](https://github.com/gjsify/gjsify/commit/3a1c803cbea7592afc8f8113bec696f05f8a1b72))
+
+### Maintenance
+
+* remove win32-arm64 packages from pending-npm-bootstrap ledger ([#2370](https://github.com/gjsify/gjsify/issues/2370)) ([1d27bd0](https://github.com/gjsify/gjsify/commit/1d27bd009ea98e28b065cadfc43c64cc8acc65af))
+* update native prebuilds [skip ci] ([88f10c3](https://github.com/gjsify/gjsify/commit/88f10c3b5ed914818e0f9f4d523f41fce14af1fb))
+
 ## [0.64.6](https://github.com/gjsify/gjsify/compare/v0.64.5...v0.64.6) (2026-10-23)
 
 ### Bug Fixes

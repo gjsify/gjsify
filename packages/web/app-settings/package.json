@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/app-settings",
-    "version": "0.64.6",
+    "version": "0.64.7",
     "description": "Gio.Settings as a strict subset for the browser (localStorage) and NativeScript (ApplicationSettings); the native Gio.Settings on GJS",
     "type": "module",
     "module": "lib/esm/index.js",
