@@ -8,6 +8,8 @@ import {
     downloadWidget,
     frameAttribute,
     legalNoticeUrl,
+    linkCard,
+    localizeOwnUrl,
     privacyUrl,
     relatedSection,
     sepaCard,
@@ -75,6 +77,24 @@ export default async () => {
             expect(html).toMatch(/Scan with your banking app/);
             expect(sepaCard({ kind: 'sepa', name: 'X', iban: 'DE89370400440532013000' }, t)).not.toMatch(
                 /BIC|Reference/,
+            );
+        });
+
+        await it("moves links to the site's own pages to the rendered language, and leaves others", async () => {
+            const data = {
+                config: { url: 'https://jumplink.eu/Learn6502/', languages: ['en', 'de'] },
+            } as unknown as SiteData;
+            const own = 'https://jumplink.eu/Learn6502/';
+            expect(localizeOwnUrl(data, `${own}en/support/`, 'de')).toBe(`${own}de/support/`);
+            expect(localizeOwnUrl(data, `${own}en/#x`, 'de')).toBe(`${own}de/#x`);
+            expect(localizeOwnUrl(data, `${own}en`, 'de')).toBe(`${own}de`);
+            expect(localizeOwnUrl(data, `${own}fr/support/`, 'de')).toBe(`${own}fr/support/`);
+            expect(localizeOwnUrl(data, `${own}assets/a.png`, 'de')).toBe(`${own}assets/a.png`);
+            expect(localizeOwnUrl(data, 'https://example.org/Learn6502/en/', 'de')).toBe(
+                'https://example.org/Learn6502/en/',
+            );
+            expect(linkCard(localizeOwnUrl(data, `${own}en/support/`, 'de'), 'Unterstützen', 'heart')).toMatch(
+                /jumplink\.eu\/Learn6502\/de\/support/,
             );
         });
 

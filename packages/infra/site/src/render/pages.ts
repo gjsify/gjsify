@@ -98,6 +98,19 @@ export function absolute(data: SiteData, rootRelative: string): string {
     return new URL(rootRelative.replace(/^\//, ''), `${new URL(data.config.url).origin}/`).href;
 }
 
+/**
+ * A link into this site's own `/<lang>/…` pages, moved to the language being rendered; any other
+ * address is returned as it came. Apps put e.g. their English support page in the metainfo.
+ */
+export function localizeOwnUrl(data: SiteData, url: string, lang: string): string {
+    const own = `${data.config.url.replace(/\/+$/, '')}/`;
+    if (!url.startsWith(own)) return url;
+    const rest = url.slice(own.length);
+    const segment = /^[^/?#]*/.exec(rest)![0];
+    if (!data.config.languages.includes(segment)) return url;
+    return `${own}${lang}${rest.slice(segment.length)}`;
+}
+
 export function supportUrl(data: SiteData, lang: string): string {
     return `${pageUrl(data, lang)}support/`;
 }
@@ -587,12 +600,12 @@ function sameUrl(a: string, b: string): boolean {
 }
 
 function links(ctx: RenderContext): string {
-    const { data, t } = ctx;
+    const { data, lang, t } = ctx;
     const items = LINKS.flatMap(([key, label, glyph]) => {
         const href = data.app.urls[key];
         // No point linking the page the reader is on: the metainfo's homepage is often this site.
         if (!href || (key === 'homepage' && sameUrl(href, data.config.url))) return [];
-        return [linkCard(href, label(t), glyph)];
+        return [linkCard(localizeOwnUrl(data, href, lang), label(t), glyph)];
     });
     if (data.config.flathub)
         items.unshift(linkCard(`https://flathub.org/apps/${data.config.flathub}`, 'Flathub', 'package'));
