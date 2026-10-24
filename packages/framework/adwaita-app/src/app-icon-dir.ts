@@ -1,9 +1,10 @@
 // WHERE the app's own icon theme root (`<app>/data/icons`) lives — decided without touching GTK
 // or the disk.
 //
-// Free of imports for the same reason `locale-dir.ts` is: the environment and the filesystem
-// arrive as parameters, so the decision is exercised on Node as well as GJS. `application.ts`
-// supplies the real ones and does the `add_search_path`.
+// Free of platform imports for the same reason `locale-dir.ts` is: the environment and the
+// filesystem arrive as parameters, so the decision is exercised on Node as well as GJS.
+// `application.ts` supplies the real ones and does the `add_search_path`. The one import is
+// the shape-decided separator lookup, which needs no host either.
 //
 // THE HOLE THIS CLOSES. An app started straight from its build (`gjsify run dist/app.gjs.mjs`)
 // has no launcher, so nothing exported `XDG_DATA_DIRS` and GTK never looks into the app's
@@ -11,6 +12,8 @@
 // dialog drew an empty square; after `add_search_path('<repo>/data/icons')` it was true. A
 // packaged build was never affected, since the `gjsify ship` launcher exports the variable.
 // Every app carried its own copy of this search until it moved here.
+
+import { lastPathSeparatorIndex } from '@gjsify/utils/core';
 
 /** How many directories above the bundle are tried. Room to spare for `dist/app/x.gjs.mjs`. */
 export const ICON_DIR_SEARCH_DEPTH = 6;
@@ -49,7 +52,7 @@ export function resolveIconDir(options: ResolveIconDirOptions = {}): string | un
 export function bundleDirFromUrl(url: string | undefined): string | undefined {
     if (url === undefined || !url.startsWith('file://')) return undefined;
     const path = decodeURIComponent(new URL(url).pathname);
-    const cut = path.lastIndexOf('/');
+    const cut = lastPathSeparatorIndex(path);
     if (cut < 0) return undefined;
     return cut === 0 ? '/' : path.slice(0, cut);
 }
@@ -59,7 +62,7 @@ function searchUp(start: string, isDirectory: (path: string) => boolean): string
     for (let up = 0; up < ICON_DIR_SEARCH_DEPTH; up++) {
         const candidate = `${dir === '/' ? '' : dir}/data/icons`;
         if (isDirectory(candidate)) return candidate;
-        const cut = dir.lastIndexOf('/');
+        const cut = lastPathSeparatorIndex(dir);
         if (cut <= 0) {
             if (dir === '/') break;
             dir = '/';
