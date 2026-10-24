@@ -21,7 +21,7 @@ runs:
       uses: actions/cache/restore@v4
       with:
         path: C:\gtk-build\gtk\ARM64\release
-        key: gvsbuild-fork-b63cf45a87601a4c613d05a522dac0d167409aed-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-v1
+        key: gvsbuild-fork-b63cf45a87601a4c613d05a522dac0d167409aed-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-v2
 
     - name: Set up Python
       if: steps.cache-gtk.outputs.cache-hit != 'true'
@@ -49,15 +49,20 @@ runs:
           default { throw "unmapped Visual Studio major '$vsMajor' — add it here (gvsbuild spells these vs2022 / vs2026)" }
         }
         Write-Host "Visual Studio $vsMajor -> gvsbuild --vs-ver $vsVer"
-        gvsbuild build --ninja-opts -j2 --enable-gi --vs-ver $vsVer --platform arm64 gtk4 libadwaita gtksourceview5 gobject-introspection gstreamer gst-plugins-base gst-plugins-good libsoup3 libvorbis
-        if ($LASTEXITCODE -ne 0) { throw "gvsbuild (arm64) exited $LASTEXITCODE" }
+        gvsbuild build --ninja-opts -j2 --enable-gi --vs-ver $vsVer --platform arm64 gtk4 libadwaita gtksourceview5 gobject-introspection gstreamer gst-plugins-base libsoup3 libvorbis
+        if ($LASTEXITCODE -ne 0) { throw "gvsbuild (arm64) first pass exited $LASTEXITCODE" }
+        # gst-plugins-good does not declare libsoup3 as a dependency, so a single invocation may
+        # build it first and meson (soup=auto) then drops gstsoup silently (#1117). Second pass:
+        # --fast-build skips what pass 1 marked built, `soup=enabled` makes a miss a hard error.
+        gvsbuild build --fast-build --ninja-opts -j2 --enable-gi --vs-ver $vsVer --platform arm64 --extra-opts 'gst-plugins-good:-Dsoup=enabled' gst-plugins-good
+        if ($LASTEXITCODE -ne 0) { throw "gvsbuild (arm64) gst-plugins-good pass exited $LASTEXITCODE" }
 
     - name: Assert the prefix is complete
       shell: pwsh
       run: |
         $ErrorActionPreference = 'Stop'
         $p = 'C:\gtk-build\gtk\ARM64\release'
-        foreach ($f in @('bin\glib-2.0-0.dll', 'lib\girepository-1.0\Gtk-4.0.typelib', 'include\ffi.h', 'bin\intl.dll')) {
+        foreach ($f in @('bin\glib-2.0-0.dll', 'lib\girepository-1.0\Gtk-4.0.typelib', 'include\ffi.h', 'bin\intl.dll', 'lib\gstreamer-1.0\gstsoup.dll')) {
           if (-not (Test-Path "$p\$f")) { Write-Host "MISSING $p\$f"; exit 1 }
         }
         # Without GNU gettext's intl.dll, glib silently falls back to proxy-libintl (intl-8.dll),
@@ -71,4 +76,4 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: C:\gtk-build\gtk\ARM64\release
-        key: gvsbuild-fork-b63cf45a87601a4c613d05a522dac0d167409aed-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-v1
+        key: gvsbuild-fork-b63cf45a87601a4c613d05a522dac0d167409aed-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-v2
