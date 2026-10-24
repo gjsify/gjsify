@@ -154,7 +154,7 @@ export const WIN32_LICENSE_FAMILIES = [
     { components: ['libsoup3'], pattern: /^soup-3\.0-\d+\.dll$/i },
     {
         components: ['openssl'],
-        pattern: /^lib(crypto|ssl)-\d+(-x64)?\.dll$/i,
+        pattern: /^lib(crypto|ssl)-\d+(-(x64|arm64))?\.dll$/i,
         why: 'the Apache-2.0 payload this branch added; § 4 of that licence requires the text to travel with it',
     },
     {
