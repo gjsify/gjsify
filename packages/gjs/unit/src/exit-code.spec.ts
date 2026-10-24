@@ -61,6 +61,8 @@ export default async () => {
         await it('reports a clean run as complete with nothing failed', async () => {
             const r = browserResultsFor(clean);
             expect(r.incomplete).toBe(false);
+            expect(r.complete).toBe(true);
+            expect(r.suiteBodyThrew).toBe(false);
             expect(r.failed).toBe(0);
             expect(r.passed).toBe(5);
         });
@@ -68,6 +70,8 @@ export default async () => {
         await it('counts an incomplete run as a failure and names the throw', async () => {
             const r = browserResultsFor({ ...clean, bodyThrew: true, bodyMessage: 'boom' });
             expect(r.incomplete).toBe(true);
+            expect(r.complete).toBe(false);
+            expect(r.suiteBodyThrew).toBe(true);
             expect(r.failed).toBe(1);
             expect(r.passed).toBe(5);
             expect(r.errors[r.errors.length - 1].message).toBe('boom');

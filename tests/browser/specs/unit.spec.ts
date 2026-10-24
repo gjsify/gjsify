@@ -10,6 +10,10 @@ interface GjsifyTestResults {
     failed: number;
     /** A suite body threw and every later suite was skipped. */
     incomplete: boolean;
+    /** Inverse of `incomplete`. */
+    complete: boolean;
+    /** Raw flag: a suite body threw. */
+    suiteBodyThrew: boolean;
     /** Tests that ran. Was ASSERTIONS until #1557 renamed the two apart. */
     total: number;
     /** Assertions executed — the floor below is over this one, deliberately. */
@@ -63,6 +67,14 @@ for (const bundle of bundles) {
             `${bundle.url} is INCOMPLETE — a suite body threw and every later suite was skipped ` +
                 `(${results.total} tests ran before it):\n${errorSummary}`,
         ).toBe(false);
+
+        expect(
+            results.complete,
+            `${bundle.url} is INCOMPLETE — a suite body threw and every later suite was skipped ` +
+                `(${results.total} tests ran before it):\n${errorSummary}`,
+        ).toBe(true);
+
+        expect(results.suiteBodyThrew, `${bundle.url} reported suiteBodyThrew`).toBe(false);
 
         expect(results.failed, `${results.failed} of ${results.total} tests failed:\n${errorSummary}`).toBe(0);
     });
