@@ -167,14 +167,13 @@ distribution to name package names in.
 convention. `windows-dir-zip` was written to `macos-app-zip`'s pattern —
 `<binary>-<version>-<release>.<arch>.zip`, the second row copied from the first — and what kept the
 two apart in one `ship/out/` was a coincidence between two unrelated arch tables: `MACOS_ARCH` maps
-`x64` to `x86_64`, `WINDOWS_ARCH` maps it to `x64`. That is not a separation, it is a gap that had
-not closed yet: `WINDOWS_ARCH` has a single row only because `@gjsify/gtk-runtime-win32-arm64` is not
-built ([#1117](https://github.com/gjsify/gjsify/issues/1117)) — the arm64 GTK prefix is no longer the
-obstacle, ADR 0089 builds it from our `gjsify/gvsbuild` fork — so the day a Windows/arm64 row lands
-both formats write `…-1.arm64.zip` to the same directory and the second overwrites the first at exit 0.
-It was already costing something before that: a lone `My App-0.7.0-1.arm64.zip` on a GitHub release
-page beside a Windows zip does not say which operating system it is for, and the name is the only
-thing a user has to choose by.
+`x64` to `x86_64`, `WINDOWS_ARCH` maps it to `x64`. That is not a separation, it is a gap: until
+`@gjsify/gtk-runtime-win32-arm64` existed ([#1117](https://github.com/gjsify/gjsify/issues/1117)),
+`WINDOWS_ARCH` had a single row and the collision was latent — the day a Windows/arm64 row landed,
+both formats would have written `…-1.arm64.zip` to the same directory and the second would have
+overwritten the first at exit 0. It was already costing something before that: a lone
+`My App-0.7.0-1.arm64.zip` on a GitHub release page beside a Windows zip does not say which operating
+system it is for, and the name is the only thing a user has to choose by.
 
 So every zip row carries its OS (`macos`, `windows`), and the spelling is the USER's rather than
 `process.platform`'s — the same call `MACOS_ARCH` makes when it labels an artifact `x86_64` instead
@@ -184,18 +183,19 @@ no token; `.zip` names none and is the only container this table puts on more th
 The rule is held by a test over the WHOLE table rather than by these two rows
 (`flatpak.spec.ts` § *format descriptors*): every row is asked for its filename with the SAME arch
 label, and the set must be unique. Holding the label fixed is the point — it measures whether a row
-is distinguishable BY ITSELF or only by an arch table that may grow a value tomorrow, and it makes
-the latent Windows/arm64 collision observable today, years before the blocker lifts. A row added by
+is distinguishable BY ITSELF or only by an arch table that may grow a value tomorrow, and it was what
+made the latent Windows/arm64 collision observable long before the blocker lifted. A row added by
 copying its neighbour reds there.
 
-`windows-dir` is also the row where `archName` is one value: `wingtk/gvsbuild` hardcodes
-`self.platform = "x64"` and publishes no arm64 GTK, and the prefix that would stand in for it is built
-by our own MSVC fork in CI (ADR 0089) rather than downloaded — so what is missing is not the prefix but
-`@gjsify/gtk-runtime-win32-arm64`, the package `windows-dir` would have to stage for there to be a GTK
-to load ([#1117](https://github.com/gjsify/gjsify/issues/1117)). `Layout.arches` carries the same
-refusal one phase earlier, with the blocker named; `--stage` warns instead of refusing, because
-assembling a foreign-arch layout is what `tests/e2e/ship-layout` does on purpose — it proves the layout
-MAP over one payload, and that payload's native file has an architecture.
+`windows-dir` had exactly one `archName` value for the same reason: `wingtk/gvsbuild` hardcodes
+`self.platform = "x64"` and publishes no arm64 GTK, so until `@gjsify/gtk-runtime-win32-arm64` and
+`@gjsify/node-runtime-win32-arm64` existed there was nothing for `windows-dir` to stage on arm64
+([#1117](https://github.com/gjsify/gjsify/issues/1117)). The prefix itself stopped being the
+obstacle with ADR 0089, which builds it from our `gjsify/gvsbuild` fork in CI rather than downloading
+it; the two runtime packages are what closed the rest. `Layout.arches` now allows `['x64', 'arm64']`;
+`--stage` warns rather than refuses on a foreign arch, because assembling a foreign-arch layout is
+what `tests/e2e/ship-layout` does on purpose — it proves the layout MAP over one payload, and that
+payload's native file has an architecture.
 
 Their oracles are `python3` and `zipinfo`, and each was chosen against a plausible alternative that
 measures nothing — the reason this field is a required one rather than prose:
@@ -574,16 +574,24 @@ rows below are one table read through two maps rather than two stagers:
 
 | Piece | Package | `.app` (M2b) | program directory (M3) |
 |---|---|---|---|
-| the interpreter | `@gjsify/node-runtime-<target>` | `Contents/MacOS/node` | `node.exe` at the root |
+| the interpreter | `@gjsify/node-runtime-<target>` | `Contents/Helpers/<display name>` | `node.exe` at the root |
 | its licence | " | `Contents/Resources/share/licenses/node/LICENSE` | `share\licenses\node\LICENSE` |
 | the relocated GTK closure | `@gjsify/gtk-runtime-<target>` | `Contents/Frameworks/node-gi/prebuilds/<target>/gtk/**` | `lib\node-gi\prebuilds\<target>\gtk\**` |
 | the node-gi addon | `@gjsify/node-gi` (`prebuilds/<target>/node_gi.node`) | beside that closure, as its SIBLING | same |
 | node-gi's JavaScript | `@gjsify/node-gi` | `Contents/Resources/lib/node_modules/@gjsify/node-gi/` | `app\node_modules\@gjsify\node-gi\` |
 
-The interpreter's FILENAME comes from `nodeRuntimeBinaryName(target)` — the same function that
-decided the source file's name — so `node.exe` stays `node.exe` across the copy. A stage that
+The interpreter's FILENAME comes from `nodeRuntimeBinaryName(target)` on win32 — the same function
+that decided the source file's name — so `node.exe` stays `node.exe` across the copy. A stage that
 renamed it would be a launcher execing a file nothing wrote, and nothing else in the pipeline
-compares the two.
+compares the two. **On darwin the leaf is `identity.name`, not `node`**: Activity Monitor and
+System Events read a Mach-O process's name off the FILE NAME of the binary that is running, not
+off argv or `exec -a`, so a bundle whose carried interpreter stays named `node` is listed as `node`
+everywhere a user looks for it. `Contents/MacOS` already holds the launcher at `binaryName`, and
+APFS is case-insensitive by default — `stamped` and `Stamped` are the same file there — so the
+interpreter cannot share that directory under any capitalisation; `Contents/Helpers` is one of
+Apple's own nested-code locations (`codesign(1)`'s bundle format, beside `Frameworks`, `PlugIns`,
+`XPCServices`) and is where `assertUsableAsHelperName` refuses a display name that cannot be a file
+name (empty, `.`, `..`, or containing `/`, `:`, `\` or a NUL byte).
 
 **All three `@gjsify/node-runtime-*` targets are published** — `darwin-arm64`, `darwin-x64`
 and `win32-x64` all went live at `0.44.0` on 2026-08-30 and track the train since. (The

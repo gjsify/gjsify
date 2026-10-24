@@ -20,6 +20,7 @@
 // `type`, so the dispatch is unambiguous.
 
 import type { MessagePortTransport } from '@gjsify/message-channel';
+import { encode as encodeWire } from './structured-clone-wire.js';
 
 /** Function that writes one already-encoded line to the wire (e.g. parent's
  *  `child.stdin.write(line)` or child bootstrap's `process.stdout.write(line)`). */
@@ -54,7 +55,7 @@ export class SubprocessPortTransport implements MessagePortTransport {
     ) {}
 
     send(portId: number, data: unknown): void {
-        const line = JSON.stringify({ __msgport: portId, op: 'send', data }) + '\n';
+        const line = JSON.stringify({ __msgport: portId, op: 'send', data: encodeWire(data) }) + '\n';
         this._sendLine(line);
     }
 

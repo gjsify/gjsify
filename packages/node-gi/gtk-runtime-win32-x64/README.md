@@ -8,8 +8,10 @@ the host — the Windows sibling of `@gjsify/gtk-runtime-darwin-arm64`.
 Platform-gated (`os: ["win32"]`, `cpu: ["x64"]`), tier 3 (experimental). On any
 other platform npm skips it and `@gjsify/node-gi` falls back to a system/gvsbuild
 GTK. The heavy `gtk/` payload is **not committed** — it is built on a Windows CI
-runner (`scripts/build-gtk-runtime.mjs` in the gjsify repo) and shipped via the
-package tarball / staged into node-gi's `prebuilds/win32-x64/gtk/`.
+runner (`packages/node-gi/scripts/build-gtk-runtime-win32.mjs` in the gjsify
+repo — shared with [`@gjsify/gtk-runtime-win32-arm64`](../gtk-runtime-win32-arm64),
+the only arch-dependent input being `--prefix`) and shipped via the package
+tarball / staged into node-gi's `prebuilds/win32-x64/gtk/`.
 
 The tarball does **not** carry the builder (it imports shared rules from
 `packages/node-gi/scripts/`, which only exist in the repo); `gtk/manifest.json`
@@ -36,9 +38,9 @@ dirs, and only the DLLs are needed at runtime.
 
 ## How it is built (no relocation — the crux)
 
-`node scripts/build-gtk-runtime.mjs` runs on a Windows runner **with** a build-time
-gvsbuild GTK4 stack extracted at `--prefix` (env `GTK_PREFIX`, the closure *source*,
-not shipped):
+`node ../scripts/build-gtk-runtime-win32.mjs` runs on a Windows runner **with** a
+build-time gvsbuild GTK4 stack extracted at `--prefix` (env `GTK_PREFIX`, the closure
+*source*, not shipped):
 
 1. **Collect** — enumerate `<prefix>/bin/*.dll` and, from the display-free seed DLLs
    the conformance loads (glib/gobject/gio/gmodule + girepository + cairo + pango +
@@ -173,7 +175,7 @@ stall rather than an error. `AAC (ADTS)` stays a declared gap here, same as on d
 
 ## Two closures: display-free (default) + full windowing (`--windowing`)
 
-`build-gtk-runtime.mjs` builds one of two supersets into the same `gtk/` dir:
+`build-gtk-runtime-win32.mjs` builds one of two supersets into the same `gtk/` dir:
 
 - **Default (display-free)** — the DLL closure + typelibs the display-free
   conformance needs. `manifest.windowing === false`. This is the CONFORMANCE variant
@@ -273,7 +275,7 @@ stall rather than an error. `AAC (ADTS)` stays a declared gap here, same as on d
 
   Built on the Windows runner:
   ```
-  node scripts/build-gtk-runtime.mjs --windowing --prefix C:\gtk-build\gtk\x64\release --out gtk ^
+  node ..\scripts\build-gtk-runtime-win32.mjs --windowing --prefix C:\gtk-build\gtk\x64\release --out gtk ^
     --addon <node_gi.node>
   ```
   `--addon` is required under `--windowing`: the builder DECODES a `.svg` and a `.png`

@@ -159,7 +159,7 @@ export default async () => {
             // Linux takes GTK from the distribution — `DEFAULT_GTK_PREFERENCE` in
             // `gtk-runtime.js` states it per OS precisely so that a future Linux
             // bundle cannot silently flip an existing platform's behaviour.
-            expect([...GTK_RUNTIME_TARGETS]).toStrictEqual(['darwin-arm64', 'darwin-x64', 'win32-x64']);
+            expect([...GTK_RUNTIME_TARGETS]).toStrictEqual(['darwin-arm64', 'darwin-x64', 'win32-x64', 'win32-arm64']);
             expect(isGtkRuntimeTarget('linux-x64')).toBe(false);
             expect(gtkRuntimePackageName('darwin-arm64')).toBe('@gjsify/gtk-runtime-darwin-arm64');
         });
@@ -370,7 +370,10 @@ export default async () => {
             expect(paths.addonPath).toBe(
                 'Ship Demo.app/Contents/Resources/native/node-gi/prebuilds/darwin-arm64/node_gi.node',
             );
-            expect(paths.interpreterPath).toBe('Ship Demo.app/Contents/MacOS/node');
+            // Helpers, not MacOS — that directory already holds the launcher at
+            // `binaryName`, and named after the DISPLAY name, not `binaryName`:
+            // that is the string Activity Monitor and System Events read back.
+            expect(paths.interpreterPath).toBe('Ship Demo.app/Contents/Helpers/Ship Demo');
             expect(paths.interpreterLicensePath).toBe('Ship Demo.app/Contents/Resources/share/licenses/node/LICENSE');
             // Where Node's own resolver looks FIRST from the staged bundle at
             // `Contents/Resources/lib/<bundle>.mjs`. A `--app node` bundle keeps
@@ -450,7 +453,8 @@ export default async () => {
                 // names this file `@loader_path/../../..`-relative, so three levels
                 // of directory ARE the reference.
                 expect(paths.includes(`${under}/lib/gdk-pixbuf-2.0/2.10.0/loaders/libpixbufloader-svg.so`)).toBe(true);
-                expect(paths.includes('Ship Demo.app/Contents/MacOS/node')).toBe(true);
+                // Helpers, not MacOS, and named after the display name.
+                expect(paths.includes('Ship Demo.app/Contents/Helpers/Ship Demo')).toBe(true);
                 expect(paths.includes('Ship Demo.app/Contents/Resources/share/licenses/node/LICENSE')).toBe(true);
                 // The JavaScript the staged bundle `require`s by name, where Node's
                 // own resolver looks for it.
@@ -595,6 +599,50 @@ export default async () => {
             const darwin = hint('darwin-arm64');
             expect(darwin.includes('`lib/`')).toBe(true);
             expect(darwin.includes('`bin/`')).toBe(false);
+        });
+
+        await it('stages a closure the ship run FETCHED, whole and tree-preserved, and names where it came from', async () => {
+            const cwd = scratch('fetched-cwd');
+            const pkg = scratch('fetched-pkg');
+            writeClosure(join(pkg, 'gtk'));
+            try {
+                const staged = stageAppRuntime({
+                    layout: LAYOUTS.darwin,
+                    identity: IDENTITY,
+                    target: 'darwin-arm64',
+                    cwd,
+                    env: {},
+                    interpreter: null,
+                    fetchedGtkRuntimeDir: pkg,
+                });
+                expect(staged.found.some((line) => line.includes('fetched for this ship run'))).toBe(true);
+                expect(staged.missing.some((line) => line.includes('GTK closure'))).toBe(false);
+                // The depth is the claim: a fetched closure is staged exactly like an installed one.
+                expect(staged.files.some((file) => file.path.endsWith('loaders/libpixbufloader-svg.so'))).toBe(true);
+            } finally {
+                rmSync(cwd, { recursive: true, force: true });
+                rmSync(pkg, { recursive: true, force: true });
+            }
+        });
+
+        await it('puts the CAUSE of a failed fetch in the missing line, beside the way past it', async () => {
+            const cwd = scratch('failed-fetch');
+            try {
+                const staged = stageAppRuntime({
+                    layout: LAYOUTS.darwin,
+                    identity: IDENTITY,
+                    target: 'darwin-arm64',
+                    cwd,
+                    env: {},
+                    interpreter: null,
+                    gtkFetchFailure: 'getaddrinfo ENOTFOUND registry.npmjs.org',
+                });
+                const line = staged.missing.find((entry) => entry.includes('GTK closure')) ?? '';
+                expect(line).toContain('fetching it failed: getaddrinfo ENOTFOUND registry.npmjs.org');
+                expect(line).toContain('GJSIFY_GTK_RUNTIME');
+            } finally {
+                rmSync(cwd, { recursive: true, force: true });
+            }
         });
     });
 };

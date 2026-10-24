@@ -46,6 +46,14 @@ let windowingEnvWritesMade = [];
  * Empty off win32 (POSIX `setenv()` has one environment) and empty when the wiring no-opped.
  * @returns {Array<[string, string]>}
  */
+/** Where the windowing bundle's own catalogs live, or `undefined` (see `armBundledTextDomains` in gi.js). */
+let bundleLocaleDir;
+
+/** @returns {string | undefined} */
+export function bundledLocaleDir() {
+    return bundleLocaleDir;
+}
+
 export function windowingEnvWrites() {
     return process.platform === 'win32' ? windowingEnvWritesMade.slice() : [];
 }
@@ -483,6 +491,14 @@ export function maybeWireGtkWindowingEnv() {
             write('XDG_DATA_DIRS', cur ? `${shareDir}${pathSep}${cur}` : shareDir);
         }
     }
+
+    // The catalogs the bundle ships for its own libraries. Binding them HERE would be undone:
+    // gtk_init, adw_init and GLib's first translated message each call
+    // bindtextdomain(<domain>, <path compiled into the build host>) themselves, and that path
+    // does not exist on a Mac without Homebrew. So only the directory is recorded here;
+    // gi.js re-binds the domains once those inits have run (armBundledTextDomains).
+    const localeDir = join(bundle.dir, 'share', 'locale');
+    bundleLocaleDir = existsSync(localeDir) ? localeDir : undefined;
 
     const fontsConf = join(bundle.dir, 'etc', 'fonts', 'fonts.conf');
     if (existsSync(fontsConf)) {

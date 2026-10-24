@@ -1,9 +1,20 @@
 // SPDX-License-Identifier: MIT
 // Collect a standalone, batteries-included GTK/GObject-Introspection runtime
-// bundle for Windows x64 — so @gjsify/node-gi loads gi:// namespaces with NO
-// gvsbuild/system GTK on the host (the Windows sibling of the darwin-arm64 bundle).
+// bundle for Windows — so @gjsify/node-gi loads gi:// namespaces with NO
+// gvsbuild/system GTK on the host (the Windows sibling of the darwin builder).
 //
-//   node scripts/build-gtk-runtime.mjs [--out <dir>] [--prefix <gvsbuild GTK prefix>] [--windowing]
+// ONE script for BOTH win32 targets, the same shape `build-gtk-runtime-darwin.mjs`
+// already uses for its two arches: the only arch-dependent thing is the `--prefix`
+// a caller passes (x64's gvsbuild ZIP vs. arm64's `gjsify/gvsbuild`-fork prefix,
+// ADR 0089) and a hard platform/arch gate. Everything else — the dumpbin closure
+// walk, the typelib set, the --windowing superset, the license corpus — is
+// arch-agnostic, so a second near-copy of this file would have been the third one
+// in the tree (after the two darwin arches already share one). `--out` is
+// additionally cross-checked against the DESTINATION package's own `cpu`
+// declaration, mirroring the darwin builder's `assertOutMatchesHost`: an x64
+// runner cannot populate the arm64 package's `gtk/`.
+//
+//   node build-gtk-runtime-win32.mjs [--out <dir>] [--prefix <gvsbuild GTK prefix>] [--windowing]
 //
 // Two closures, one bundle dir:
 //   • DEFAULT (display-free) — the loadable DLLs + typelibs the DISPLAY-FREE
@@ -18,11 +29,14 @@
 //     XDG_DATA_DIRS / FONTCONFIG_*) so the SAME loader serves both — the display-free
 //     path is byte-unchanged when the windowing data is absent.
 //
-// Runs ONLY on win32/x64 with a build-time gvsbuild GTK4 stack extracted at
-// --prefix (env GTK_PREFIX, the closure *source*, not shipped — the same tree the
-// node-gi.yml windows jobs cache at C:\gtk-build\gtk\x64\release). gvsbuild bundles
-// the tools this needs (gdk-pixbuf-query-loaders / glib-compile-schemas /
-// gtk4-update-icon-cache / fc-cache) in <prefix>/bin.
+// Runs ONLY on win32/{x64,arm64} with a build-time GTK4 stack extracted at --prefix
+// (env GTK_PREFIX, the closure *source*, not shipped) — the wingtk zip at
+// C:\gtk-build\gtk\x64\release on x64, the `gjsify/gvsbuild` fork's prefix at
+// C:\gtk-build\gtk\ARM64\release on arm64 (ADR 0089; there is no upstream arm64 ZIP
+// to download, so the arm64 prefix is BUILT by `.github/actions/gvsbuild-arm64-prefix`
+// rather than extracted). Both ship the same tools this needs
+// (gdk-pixbuf-query-loaders / glib-compile-schemas / gtk4-update-icon-cache /
+// fc-cache) in <prefix>/bin.
 //
 // CRUCIAL DIFFERENCE FROM macOS: there is NO relocation step (no install_name_tool,
 // no @rpath, no codesign). Windows resolves a DLL's imports by SEARCH PATH at
@@ -40,7 +54,17 @@
 // back" and for "the terms of what it ships travel with it", because two copies of a
 // gate are two gates that drift.
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+    copyFileSync,
+    existsSync,
+    lstatSync,
+    mkdirSync,
+    readFileSync,
+    readdirSync,
+    rmSync,
+    statSync,
+    writeFileSync,
+} from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -53,7 +77,7 @@ import {
     missingWin32SpawnHelpers,
     verifyWindowingData,
     WIN32_SPAWN_HELPERS,
-} from '../../scripts/bundle-data.mjs';
+} from './bundle-data.mjs';
 import {
     WIN32_LICENSE_FAMILIES,
     assertLicenseCoverage,
@@ -62,28 +86,28 @@ import {
     scanLicenseFiles,
     upstreamLicenseComponents,
     writeLicensePayload,
-} from '../../scripts/bundle-licenses.mjs';
+} from './bundle-licenses.mjs';
 import {
     GL_IMPLEMENTATION_PATTERNS,
     describeGlImplementation,
     formatMissingGlImplementation,
-} from '../../scripts/gl-implementation.mjs';
+} from './gl-implementation.mjs';
 import {
     formatTypelibApiProblems,
     gapUpstreamProblems,
     typelibApiRecord,
     verifyTypelibApiFloor,
-} from '../../scripts/typelib-symbols.mjs';
-import { readGvsbuildCatalogue } from '../../scripts/gvsbuild-catalogue.mjs';
+} from './typelib-symbols.mjs';
+import { readGvsbuildCatalogue } from './gvsbuild-catalogue.mjs';
 import {
     BUNDLED_FONT_FAMILIES,
     bundledFontLicenseComponent,
     formatMissingFontSource,
     stageBundledFonts,
-} from '../../scripts/bundle-fonts.mjs';
-import { decodeProbeProblems, spawnDecodeProbe } from '../../scripts/decode-probe.mjs';
-import { isBundledGstPlugin, missingBundledGstPlugins, missingRequiredGstPlugins } from '../../scripts/gst-plugins.mjs';
-import { bundleRelativeLoaderCache, loaderCacheProblems } from '../../scripts/pixbuf-loader-cache.mjs';
+} from './bundle-fonts.mjs';
+import { decodeProbeProblems, spawnDecodeProbe } from './decode-probe.mjs';
+import { isBundledGstPlugin, missingBundledGstPlugins, missingRequiredGstPlugins } from './gst-plugins.mjs';
+import { bundleRelativeLoaderCache, loaderCacheProblems } from './pixbuf-loader-cache.mjs';
 import {
     REQUIRED_NAMESPACES,
     WINDOWING_REQUIRED_NAMESPACES,
@@ -92,25 +116,34 @@ import {
     planTypelibSet,
     readTypelibDir,
     verifyBundleTypelibs,
-} from '../../scripts/typelib-backers.mjs';
+} from './typelib-backers.mjs';
 
-const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-// packages/node-gi/gtk-runtime-win32-x64 -> the repository root. Only the font staging
-// needs it: the faces come from a pinned `refs/` submodule rather than from the build
-// prefix, because neither gvsbuild nor Homebrew installs the GNOME UI typeface.
-const repoRoot = dirname(dirname(dirname(pkgRoot)));
+const scriptsDir = dirname(fileURLToPath(import.meta.url)); // packages/node-gi/scripts
+const pillarDir = dirname(scriptsDir); // packages/node-gi
+// packages/node-gi -> the repository root. Only the font staging needs it: the faces
+// come from a pinned `refs/` submodule rather than from the build prefix, because
+// neither gvsbuild nor Homebrew installs the GNOME UI typeface.
+const repoRoot = dirname(dirname(pillarDir));
+
+/** The one true target: what the RUNNING machine is, never an argument — same rule as the darwin builder. */
+const TARGET = `win32-${process.arch}`;
+const SUPPORTED_ARCHES = ['x64', 'arm64'];
+
 // Repo-relative path recorded in the shipped manifest so a consumer holding only the
 // tarball can find the recipe that produced its bytes — the tarball itself no longer
 // carries this script (the package's `files` no longer lists `scripts`, which would
 // otherwise ship a copy whose relative imports above resolve to nothing).
-const BUILDER_ID = 'packages/node-gi/gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs';
+const BUILDER_ID = 'packages/node-gi/scripts/build-gtk-runtime-win32.mjs';
 
 // --- args ------------------------------------------------------------------
 function argValue(flag) {
     const i = process.argv.indexOf(flag);
     return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : undefined;
 }
-const OUT = argValue('--out') ?? join(pkgRoot, 'gtk');
+// Default destination = the sibling platform package for THIS arch. Derived, so
+// `npm run build:bundle` from either win32 package lands in the right place and
+// cannot land in the wrong one — the same rule the darwin builder applies.
+const OUT = argValue('--out') ?? join(pillarDir, `gtk-runtime-${TARGET}`, 'gtk');
 const PREFIX = argValue('--prefix') ?? process.env.GTK_PREFIX;
 // The node-gi addon that DECODES one of the bundled icons in § 5c. Required under
 // --windowing; nothing else here uses it, and there is deliberately no relocation pass
@@ -126,16 +159,46 @@ const WINDOWING = process.argv.includes('--windowing');
 // instead of re-deriving it — and so the check is exercised, not just written.
 const REQUIRE_GL = process.argv.includes('--require-gl');
 
-if (process.platform !== 'win32' || process.arch !== 'x64') {
-    console.error(`build-gtk-runtime: only supported on win32/x64, not ${process.platform}/${process.arch}`);
+if (process.platform !== 'win32' || !SUPPORTED_ARCHES.includes(process.arch)) {
+    console.error(
+        `build-gtk-runtime: only supported on win32/{${SUPPORTED_ARCHES.join(',')}}, not ${process.platform}/${process.arch}`,
+    );
     process.exit(2);
 }
 if (!PREFIX) {
     console.error(
-        'build-gtk-runtime: no GTK prefix — pass --prefix or set GTK_PREFIX (e.g. C:\\gtk-build\\gtk\\x64\\release)',
+        'build-gtk-runtime: no GTK prefix — pass --prefix or set GTK_PREFIX ' +
+            '(e.g. C:\\gtk-build\\gtk\\x64\\release or C:\\gtk-build\\gtk\\ARM64\\release)',
     );
     process.exit(1);
 }
+
+// Cross-check an explicit --out against the DESTINATION package's own platform
+// declaration — same guard as the darwin builder's `assertOutMatchesHost`: an x64
+// runner must not populate the arm64 package's `gtk/`, and vice versa.
+function assertOutMatchesHost(outDir) {
+    const manifestPath = join(dirname(outDir), 'package.json');
+    if (!existsSync(manifestPath)) return;
+    let pkg;
+    try {
+        pkg = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    } catch {
+        return; // not our concern — a malformed manifest fails elsewhere, loudly
+    }
+    const os = Array.isArray(pkg.os) ? pkg.os : null;
+    const cpu = Array.isArray(pkg.cpu) ? pkg.cpu : null;
+    if (!os && !cpu) return;
+    const okOs = !os || os.includes(process.platform);
+    const okCpu = !cpu || cpu.includes(process.arch);
+    if (okOs && okCpu) return;
+    console.error(
+        `build-gtk-runtime: --out ${outDir} belongs to ${pkg.name ?? manifestPath}, which declares ` +
+            `os=${JSON.stringify(os)} cpu=${JSON.stringify(cpu)} — this runner is ${process.platform}/${process.arch}. ` +
+            `Refusing to write one arch's closure into another arch's package.`,
+    );
+    process.exit(1);
+}
+assertOutMatchesHost(OUT);
 
 const gtkBin = join(PREFIX, 'bin');
 const gtkTypelibs = join(PREFIX, 'lib', 'girepository-1.0');
@@ -651,7 +714,7 @@ if (WINDOWING) {
         // plugins left the published win32 bundle without a single line about any of
         // them, and an application played nothing (#1544). A gap that is written down
         // stays; one nobody has written down fails here.
-        const bundledGaps = missingBundledGstPlugins(shippedGstPlugins, 'win32-x64');
+        const bundledGaps = missingBundledGstPlugins(shippedGstPlugins, TARGET);
         for (const gap of bundledGaps.declared) {
             console.warn(`build-gtk-runtime: DECLARED GAP — no ${gap.plugin} plugin: ${gap.why}`);
         }
@@ -1055,9 +1118,11 @@ const shippedBinaries = [
 // not accept (openssl installs `LICENSE` while OpenSSL 3 ships `LICENSE.txt`). So the
 // bundle shipped LGPL-2.1 GLib and Apache-2.0 OpenSSL with no terms at all. The rule the
 // merge follows lives in bundle-licenses.mjs so its test drives THIS code and not a copy;
-// provenance per file is licenses-not-in-prefix/README.md.
+// provenance per file is licenses-not-in-prefix/README.md. SHARED between both win32
+// arches — the vendored projects (glib, openssl, …) are generic gaps in what the
+// gvsbuild prefix documents, not an x64-specific fact, so one copy serves both targets.
 for (const component of upstreamLicenseComponents({
-    root: join(pkgRoot, 'licenses-not-in-prefix'),
+    root: join(scriptsDir, 'licenses-not-in-prefix'),
     documented: byComponent.keys(),
     binaries: shippedBinaries,
     families: WIN32_LICENSE_FAMILIES,
@@ -1074,7 +1139,7 @@ const licensePayload = writeLicensePayload({ outDir: join(OUT, 'licenses'), comp
 writeFileSync(
     join(OUT, 'THIRD-PARTY-NOTICES.md'),
     renderThirdPartyNotice({
-        target: 'win32-x64',
+        target: TARGET,
         builder: BUILDER_ID,
         provenance: PREFIX,
         windowing: WINDOWING,
@@ -1126,7 +1191,7 @@ const typelibBytes = dirSize(typelibOut);
 const dataBytes = WINDOWING ? dirSize(join(OUT, 'lib')) + dirSize(join(OUT, 'share')) + dirSize(join(OUT, 'etc')) : 0;
 const licenseBytes = dirSize(join(OUT, 'licenses'));
 const manifest = {
-    platform: 'win32-x64',
+    platform: TARGET,
     windowing: WINDOWING,
     builder: BUILDER_ID,
     generatedFrom: PREFIX,

@@ -156,3 +156,38 @@ export function chdir(directory: string): void {
 
     throw new Error('process.chdir() is not supported in this environment');
 }
+
+export function getExecArgv(): string[] {
+    // On Node.js (or any non-GJS host), the host already knows.
+    if (!isGjsHost()) {
+        const host = globalThis.process as { execArgv?: unknown } | undefined;
+        if (Array.isArray(host?.execArgv)) return host.execArgv as string[];
+        return [];
+    }
+    // On GJS, `imports.system.programArgs` does NOT include the leading flags
+    // (`-m`, `-c`, …) because the interpreter consumed them. Reconstruct them
+    // from /proc/self/cmdline so a portable re-exec idiom
+    // `spawn(execPath, [...execArgv, argv[1], ...])` keeps `-m` on GJS and
+    // stays empty on Node.
+    try {
+        const GLib = getGjsGlobal().imports?.gi?.GLib;
+        if (GLib?.file_get_contents) {
+            const [, contents] = GLib.file_get_contents('/proc/self/cmdline');
+            if (contents) {
+                const bytes = contents instanceof Uint8Array ? contents : new Uint8Array(contents);
+                const text = new TextDecoder().decode(bytes);
+                const parts = text.split('\0').filter((p) => p.length > 0);
+                // parts[0] is the interpreter (gjs). Collect leading flags.
+                const flags: string[] = [];
+                for (let i = 1; i < parts.length; i++) {
+                    if (parts[i].startsWith('-')) flags.push(parts[i]);
+                    else break;
+                }
+                return flags;
+            }
+        }
+    } catch {
+        /* ignore */
+    }
+    return [];
+}

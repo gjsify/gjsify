@@ -28,12 +28,14 @@
 // THE CALLER IS `utils/ship/app-runtime.ts` (#1354 M2b), and this paragraph used
 // to say there was none — "⚠️ NOTHING CALLS THIS YET, outside its own spec … a
 // promise to a caller that does not exist yet". It exists: the macOS layout stages
-// `nodePath` into `Contents/MacOS/node` and `licensePath` beside it, and the
-// `null`-not-throw contract is what lets that caller stage the GTK closure it DID
-// find while naming the interpreter package it did not. #1354 M3 adds the second
-// caller — the Windows program directory stages `node.exe` beside its `.cmd` — so
-// both non-Linux rows of the table above are now used, and this paragraph no
-// longer has a "still has none" half to record.
+// `nodePath` into `Contents/Helpers/<display name>` and `licensePath` beside it in
+// `Contents/Resources`, and the `null`-not-throw contract is what lets that caller
+// stage the GTK closure it DID find while naming the interpreter package it did
+// not. #1354 M3 adds the second caller — the Windows program directory stages
+// `node.exe` beside its `.cmd` — so both non-Linux rows of the table above are now
+// used, and this paragraph no longer has a "still has none" half to record.
+// `node.exe` keeps that name verbatim: nothing collides with it on Windows, and
+// only the darwin leaf changed — see `layout.ts`'s `dirs.helpers`.
 //
 // The tests keep the by-name claim honest independently of any caller: they
 // resolve a real installed package out of a throwaway consumer tree holding
@@ -46,7 +48,7 @@ import { dirname, join } from 'node:path';
 import { resolveInstalledPackage } from '../resolve-npm-package.js';
 
 /** The targets a bundled interpreter is published for. */
-export const NODE_RUNTIME_TARGETS = ['darwin-arm64', 'darwin-x64', 'win32-x64'] as const;
+export const NODE_RUNTIME_TARGETS = ['darwin-arm64', 'darwin-x64', 'win32-x64', 'win32-arm64'] as const;
 
 export type NodeRuntimeTarget = (typeof NODE_RUNTIME_TARGETS)[number];
 

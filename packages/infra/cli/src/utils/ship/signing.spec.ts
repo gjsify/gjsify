@@ -112,7 +112,7 @@ export default async () => {
         });
 
         await it('lets the seal add its own directory and nothing else', async () => {
-            const planned = ['Ship Demo.app/Contents/MacOS/ship-demo', 'Ship Demo.app/Contents/MacOS/node'];
+            const planned = ['Ship Demo.app/Contents/MacOS/ship-demo', 'Ship Demo.app/Contents/Helpers/Ship Demo'];
             const sealPrefix = 'Ship Demo.app/Contents/_CodeSignature/';
             const seal = [`${sealPrefix}CodeResources`, `${sealPrefix}CodeDirectory`];
 

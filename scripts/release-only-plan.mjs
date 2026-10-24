@@ -33,13 +33,14 @@ import { createContext } from '../packages/infra/manifest-conformance/lib/contex
 
 export const JOBS = {
     gtk_darwin: ['@gjsify/gtk-runtime-darwin-arm64', '@gjsify/gtk-runtime-darwin-x64'],
-    gtk_win32: ['@gjsify/gtk-runtime-win32-x64', '@gjsify/gl-runtime-win32-x64'],
+    gtk_win32: ['@gjsify/gtk-runtime-win32-x64', '@gjsify/gtk-runtime-win32-arm64', '@gjsify/gl-runtime-win32-x64'],
     node_gi: ['@gjsify/node-gi'],
     napi: ['@gjsify/napi', '@gjsify/napi-darwin-arm64', '@gjsify/napi-linux-x64'],
     node_runtime: [
         '@gjsify/node-runtime-darwin-arm64',
         '@gjsify/node-runtime-darwin-x64',
         '@gjsify/node-runtime-win32-x64',
+        '@gjsify/node-runtime-win32-arm64',
     ],
     gi_android: ['@gjsify/gi-runtime-android'],
 };

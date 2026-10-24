@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-dom-three-loader-ldraw",
-  "version": "0.64.4",
+  "version": "0.64.6",
   "private": true,
   "description": "Three.js LDraw loader showcase ported from refs/three/examples/webgl_loader_ldraw.html with Adwaita controls",
   "main": "dist/gjs.js",

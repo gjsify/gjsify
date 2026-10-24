@@ -30,6 +30,7 @@ import type { Argv } from 'yargs';
 
 import { Config } from '../config.js';
 import type { Command } from '../types/index.js';
+import { ensurePkgDir } from './dlx.js';
 import {
     renderDesktopEntry,
     renderMetainfoApp,
@@ -37,10 +38,13 @@ import {
     validateAppMetadata,
 } from '../utils/app-metadata.js';
 import { readPackageJson } from '../utils/pkg-json.js';
+import { parseSpec } from '../utils/parse-spec.js';
+import { cliVersion } from '../utils/publish-headers.js';
 import { describeExit, spawnToCompletion } from '../utils/spawn.js';
 import { buildDeb } from '../utils/ship/deb.js';
 import { deriveDepends, warnAboutGjsFloor, warnAboutNodeFloor } from '../utils/ship/depends.js';
 import { isGtkRuntimeTarget, stageAppRuntime, type StagedAppRuntime } from '../utils/ship/app-runtime.js';
+import { acquireGtkRuntime } from '../utils/ship/gtk-runtime-acquire.js';
 import { discoverPayload } from '../utils/ship/discover.js';
 import {
     appDirFor,
@@ -76,7 +80,9 @@ import {
     place,
     placeStage,
     resolveLayout,
+    windowsGuiLauncherPath,
     LAYOUT_NAMES,
+    LAYOUTS,
     type Layout,
 } from '../utils/ship/layout.js';
 import { isNodeRuntimeTarget, resolveNodeRuntime } from '../utils/ship/node-runtime.js';
@@ -527,7 +533,7 @@ async function assemble(args: ShipOptions): Promise<void> {
     // `.deb`/`.rpm` `Depends:` is the promise that `node` or `gjs` is on `PATH`, and
     // carrying a second copy inside the payload would be a private interpreter no
     // distribution update ever patches.
-    const runtime = resolveCarriedRuntime(layout, settings, projectDir);
+    const runtime = await resolveCarriedRuntime(layout, settings, projectDir);
 
     const stageInputs: StageInputs = {
         bundleFiles: discovered.bundleFiles,
@@ -614,7 +620,17 @@ async function assemble(args: ShipOptions): Promise<void> {
     // `packOne` reads it again. That is the price of checking the tree that is
     // shipped rather than the bytes that happen to be in memory, and it is the
     // same reason `readStage` exists at all.
-    assertPayloadMatchesArch(readStage([stageDir], staged), settings.arch);
+    //
+    // ONE NAMED EXEMPTION: the windows GUI-launcher stub is x86-64 machine code
+    // on every windows arch by design (`pe-launcher.ts`'s `MACHINE_AMD64`
+    // comment) — it only `exec`s the sibling `.cmd`, which hands off to the
+    // arch-correct `node.exe` the stage carries, and Windows-on-ARM runs x64
+    // code through Prism for exactly this path. `layout.windows` now emits that
+    // stub unconditionally (it used to skip arm64 entirely), so an arm64 stage
+    // legitimately carries one x64 PE beside its arm64 payload.
+    assertPayloadMatchesArch(readStage([stageDir], staged), settings.arch, {
+        exempt: layout === LAYOUTS.windows ? new Set([windowsGuiLauncherPath(settings)]) : undefined,
+    });
 
     // What the map carried into a layout that has no install step for it.
     //
@@ -896,19 +912,41 @@ function announceSigning(sign: SignPlan, notarize: NotaryPlan): void {
  * thing to make non-vacuous on this layout, since a JavaScript bundle has no
  * cputype to disagree with.
  */
-function resolveCarriedRuntime(layout: Layout, settings: ShipSettings, projectDir: string): StagedAppRuntime {
+async function resolveCarriedRuntime(
+    layout: Layout,
+    settings: ShipSettings,
+    projectDir: string,
+): Promise<StagedAppRuntime> {
     const empty: StagedAppRuntime = { files: [], launcher: {}, found: [], missing: [] };
     if (layout.os === 'linux' || settings.app !== 'node') return empty;
     const target = `${layout.os}-${settings.arch}`;
     if (!isGtkRuntimeTarget(target)) return empty;
+
+    // The closure is fetched, not installed: a project that lists it puts a second
+    // GLib next to Homebrew's in its dev tree (see `gtk-runtime-acquire.ts`).
+    const acquired = await acquireGtkRuntime({
+        target,
+        version: cliVersion(),
+        discovery: { cwd: projectDir },
+        ensure: async (spec) =>
+            (await ensurePkgDir(parseSpec(spec), { verbose: false, cacheMaxAge: DLX_CACHE_MAX_AGE_MIN, frozen: false }))
+                .pkgDir,
+        log: (message) => console.log(`${LOG} ${message}`),
+    });
+
     return stageAppRuntime({
         layout,
         identity: settings,
         target,
         cwd: projectDir,
         interpreter: isNodeRuntimeTarget(target) ? resolveNodeRuntime(target, { cwd: projectDir }) : null,
+        ...(acquired.kind === 'fetched' ? { fetchedGtkRuntimeDir: acquired.dir } : {}),
+        ...(acquired.kind === 'failed' ? { gtkFetchFailure: acquired.reason } : {}),
     });
 }
+
+/** How long a fetched runtime stays in the dlx cache — the same week `gjsify showcase` uses. */
+const DLX_CACHE_MAX_AGE_MIN = 60 * 24 * 7;
 
 /**
  * Phase two: pack a stage that was assembled somewhere else.

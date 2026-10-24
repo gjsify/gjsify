@@ -233,3 +233,41 @@ Windows actually resolves the closure — is the subject of the two
 `cli-cross-platform.yml` steps added with this ADR (#1065), which load the addon
 on a Windows runner **carrying no gvsbuild**, and assert that a bundle-less load
 is diagnosed rather than merely failed.
+
+## Amendment (§ 5): the closure is fetched at ship time, never installed in a dev tree
+
+*Added 2026-10-22.*
+
+**A bundle in a consumer's `node_modules` violates the one-registry invariant (§ 4)
+on macOS, with no runtime involved but the build's own.** Every darwin prebuild
+carries the rpath `@loader_path` → `…/gtk-runtime-darwin-<arch>/gtk/lib` →
+`<brew>/lib`, so the first `dlopen` of a gjsify native module (rolldown, tls,
+http2, …) in a project that has the bundle installed finds the bundle's GLib and
+GObject beside the Homebrew ones the `gjs` host already loaded. Measured in a
+project that listed `@gjsify/gtk-runtime-darwin-*` under `optionalDependencies`
+(the `os`/`cpu` gate makes that "installed on every Mac"): `gjsify build` died with
+`No signal 'context_response' on object 'GVolumeMonitor'` and exit 139, and the
+running app logged `GNotificationCenterDelegate is implemented in both …`. The
+same `build` run with the prebuild directory of a project WITHOUT the bundle
+succeeded, with byte-identical typelibs — the rpath target alone decided it.
+
+The documented advice, "install the pair for each architecture you ship", was
+therefore the cause. Preference (§ 2) cannot fix it for the reason § 4 gives: an
+`LC_RPATH` is fixed at link time and the bundle-first order is deliberate, because
+a shipped `.app` has no Homebrew.
+
+**Decision.** The closure is needed at exactly one moment — when `gjsify ship`
+copies it into the artifact — so it is acquired then. `resolveGtkRuntime()` keeps
+its four candidates and gains a fifth, last: the package fetched for this run into
+the dlx cache (`acquireGtkRuntime`, `ensurePkgDir`), at the CLI's own version,
+because addon and closure are a matched pair and no range can be checked.
+Projects stop declaring the package. A project that still does ships exactly as
+before and keeps the exposure until it drops the dependency; `GJSIFY_GTK_RUNTIME`
+skips the fetch. A failed fetch is a PARTIAL result with the cause named, like a
+missing closure always was.
+
+**Rejected: reorder the rpath, Homebrew first.** It contradicts the bundle-first
+rule above and still leaves two registries on a host that has the bundle and a
+different GLib. **Rejected: a `dev` / `ship` dependency split in the consumer.**
+It moves the workaround into every project and leaves the documentation telling
+people to install the package.

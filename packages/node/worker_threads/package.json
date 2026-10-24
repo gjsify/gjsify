@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/worker_threads",
-    "version": "0.64.4",
+    "version": "0.64.6",
     "description": "Node.js worker_threads module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",
@@ -50,7 +50,8 @@
         "@girs/glib-2.0": "5.4.0",
         "@gjsify/events": "workspace:^",
         "@gjsify/message-channel": "workspace:^",
-        "@gjsify/sab-native": "workspace:^"
+        "@gjsify/sab-native": "workspace:^",
+        "@gjsify/utils": "workspace:^"
     },
     "gjsify": {
         "runtimes": {

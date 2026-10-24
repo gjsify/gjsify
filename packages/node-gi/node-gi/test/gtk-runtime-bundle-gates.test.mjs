@@ -639,7 +639,7 @@ test('the notice states the modifications and names every bundled binary', () =>
 test('a prefix-attributed notice says so instead of implying a per-binary mapping', () => {
     const notice = renderThirdPartyNotice({
         target: 'win32-x64',
-        builder: 'packages/node-gi/gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs',
+        builder: 'packages/node-gi/scripts/build-gtk-runtime-win32.mjs',
         provenance: 'C:\\gtk-build\\gtk\\x64\\release',
         windowing: true,
         modifications: [],
@@ -826,9 +826,9 @@ const WIN32_PREFIX_COMPONENTS = [
 ];
 
 const WIN32_SHIPPED_BINARIES = [...WIN32_BUNDLED_DLLS, ...WIN32_MODULE_DLLS, ...WIN32_EXECUTABLES];
-const WIN32_VENDORED_ROOT = fileURLToPath(
-    new URL('../../gtk-runtime-win32-x64/licenses-not-in-prefix', import.meta.url),
-);
+// Shared between both win32 arches now (the builder is one script for both,
+// packages/node-gi/scripts/build-gtk-runtime-win32.mjs).
+const WIN32_VENDORED_ROOT = fileURLToPath(new URL('../../scripts/licenses-not-in-prefix', import.meta.url));
 
 /** The projects the prefix builds binaries from and documents no terms for — the whole gap. */
 const WIN32_UNDOCUMENTED_BY_PREFIX = [

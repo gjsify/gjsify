@@ -6,7 +6,7 @@
 import { EventEmitter } from '@gjsify/events';
 import { restoreClaimedRawModes } from '@gjsify/terminal-native';
 import { detectArch, detectPlatform, detectPpid, detectVersionInfo, getPid } from './internal/detect.js';
-import { chdir, getArgv, getCwd, getEnvProxy, getExecPath } from './internal/env.js';
+import { chdir, getArgv, getCwd, getEnvProxy, getExecPath, getExecArgv } from './internal/env.js';
 import { exitProcess } from './internal/exit.js';
 import { hrtime as hrtimeImpl, hrtimeBigint } from './internal/hrtime.js';
 import { cpuUsage, killPid, memoryUsage, readUmask, type CpuUsage, type MemoryUsage } from './internal/system.js';
@@ -85,7 +85,7 @@ export class Process extends EventEmitter {
         this.argv = getArgv();
         this.argv0 = this.argv[0] || 'gjs';
         this.execPath = getExecPath();
-        this.execArgv = globalThis.process?.execArgv ?? [];
+        this.execArgv = getExecArgv();
         this.config = (globalThis.process?.config as unknown as Record<string, unknown>) ?? {
             target_defaults: {},
             variables: {},

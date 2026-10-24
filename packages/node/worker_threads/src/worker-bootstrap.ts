@@ -122,6 +122,61 @@ function drainSabFds(count) {
   }
 }
 
+// Tagged JSON codec for structured-clone types (mirrors structured-clone-wire.ts).
+const __TYPED_ARRAYS = ['Int8Array','Uint8Array','Uint8ClampedArray','Int16Array','Uint16Array','Int32Array','Uint32Array','Float32Array','Float64Array','BigInt64Array','BigUint64Array'];
+function __toB64(buf){const b=new Uint8Array(buf);let s='';for(let i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s);}
+function __fromB64(s){const bin=atob(s);const out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out;}
+function encodeWire(value, seen){
+  if(value===null||value===undefined) return value;
+  if(typeof value==='bigint') return {__gjsify:'BigInt', value:value.toString()};
+  if(value===Infinity) return {__gjsify:'Infinity'};
+  if(value===-Infinity) return {__gjsify:'NegInfinity'};
+  if(typeof value==='number' && isNaN(value)) return {__gjsify:'NaN'};
+  if(typeof value!=='object') return value;
+  if(value instanceof Date) return {__gjsify:'Date', value:value.getTime()};
+  if(value instanceof RegExp) return {__gjsify:'RegExp', source:value.source, flags:value.flags};
+  if(value instanceof Error) return {__gjsify:'Error', name:value.name, message:value.message, stack:value.stack};
+  if(value instanceof Map){const e=[];for(const [k,v] of value) e.push([encodeWire(k,seen),encodeWire(v,seen)]);return {__gjsify:'Map', entries:e};}
+  if(value instanceof Set){const v=[];for(const x of value) v.push(encodeWire(x,seen));return {__gjsify:'Set', values:v};}
+  const tag=Object.prototype.toString.call(value).slice(8,-1);
+  if(tag==='ArrayBuffer') return {__gjsify:'ArrayBuffer', data:__toB64(value)};
+  if(__TYPED_ARRAYS.indexOf(tag)!==-1){const ta=value;return {__gjsify:tag, data:__toB64(ta.buffer.slice(ta.byteOffset, ta.byteOffset+ta.byteLength))};}
+  if(Array.isArray(value)) return value.map(function(x){return encodeWire(x,seen);});
+  if(tag==='Object'){const out={};for(const k of Object.keys(value)) out[k]=encodeWire(value[k],seen);return out;}
+  throw new Error('DataCloneError: value could not be cloned');
+}
+function decodeWire(value){
+  if(value===null||value===undefined) return value;
+  if(typeof value!=='object') return value;
+  if(Array.isArray(value)) return value.map(decodeWire);
+  const obj=value;
+  if(typeof obj.__gjsify==='string'){
+    switch(obj.__gjsify){
+      case 'BigInt': return BigInt(obj.value);
+      case 'Infinity': return Infinity;
+      case 'NegInfinity': return -Infinity;
+      case 'NaN': return NaN;
+      case 'Date': return new Date(obj.value);
+      case 'RegExp': return new RegExp(obj.source, obj.flags);
+      case 'Error': {const e=new Error(obj.message); e.name=obj.name; if(obj.stack) e.stack=obj.stack; return e;}
+      case 'Map': {const m=new Map(); for(const [k,v] of obj.entries) m.set(decodeWire(k),decodeWire(v)); return m;}
+      case 'Set': {const s=new Set(); for(const v of obj.values) s.add(decodeWire(v)); return s;}
+      case 'ArrayBuffer': return __fromB64(obj.data).buffer;
+      default: {
+        if(__TYPED_ARRAYS.indexOf(obj.__gjsify)!==-1){
+          const bytes=__fromB64(obj.data);
+          const Ctor=globalThis[obj.__gjsify];
+          return new Ctor(bytes.buffer);
+        }
+        return value;
+      }
+    }
+  }
+  const tag=Object.prototype.toString.call(value).slice(8,-1);
+  if(tag==='Object'){const out={};for(const k of Object.keys(obj)) out[k]=decodeWire(obj[k]);return out;}
+  return value;
+}
+
 function materialise(value) {
   if (value === null || typeof value !== 'object') return value;
   if (typeof value.__sab === 'number' && typeof value.size === 'number') {
@@ -207,7 +262,7 @@ function makeChildSidePort(portId) {
      *  semantics. */
     _receive(data) {
       if (closed) return;
-      Promise.resolve().then(() => { if (!closed) emit('message', data); });
+      Promise.resolve().then(() => { if (!closed) emit('message', decodeWire(data)); });
     },
     /** @internal Called by the dispatcher when the parent sends
      *  {__msgport: portId, op: 'close'}. Fires the local 'close' event
@@ -240,7 +295,7 @@ function makeChildSidePort(portId) {
     },
     postMessage(data) {
       if (closed) return;
-      send({ __msgport: portId, op: 'send', data });
+      send({ __msgport: portId, op: 'send', data: encodeWire(data) });
     },
     close() {
       if (closed) return;
@@ -278,6 +333,7 @@ if (init.sabSocketFd === 3) {
 
 // Simplified EventEmitter for parentPort
 const _listeners = new Map();
+function _listenersChanged() { maybeExit(); }
 const parentPort = {
   on(ev, fn) {
     if (!_listeners.has(ev)) _listeners.set(ev, []);
@@ -291,28 +347,172 @@ const parentPort = {
   off(ev, fn) {
     const a = _listeners.get(ev);
     if (a) _listeners.set(ev, a.filter(f => f !== fn));
+    _listenersChanged();
     return this;
   },
   emit(ev, ...a) { (_listeners.get(ev) || []).forEach(fn => fn(...a)); },
-  postMessage(data) { send({ type: 'message', data }); },
+  postMessage(data) { send({ type: 'message', data: encodeWire(data) }); },
   close() { send({ type: 'exit', code: 0 }); requestShutdown(); },
   removeAllListeners(ev) {
     if (ev) _listeners.delete(ev); else _listeners.clear();
+    _listenersChanged();
     return this;
   },
 };
+
+// Worker-crash contract and the fallback timers behind it.
+//
+// GJS exposes no global error surface a bootstrap could catch into: measured
+// on gjs 1.88.1, \`globalThis.addEventListener\` does not exist, an uncaught
+// throw inside a GLib callback only prints a Gjs-CRITICAL while the loop keeps
+// running, and \`System\` has no uncaughtException/unhandledRejection hook. So a
+// worker that crashes outside a message handler is a silent orphan — the
+// parent waits on \`error\`/\`exit\` and never gets either (issue #2336). Every
+// crash path below funnels through \`crash()\`: one \`error\` line to the parent,
+// then exit 1, which is Node's \`error\` then \`exit\` 1.
+// Node ends a worker once its script is done and nothing keeps the event loop
+// alive: no parentPort 'message' listener, no pending timer, no open
+// MessagePort. The child is a subprocess that would otherwise park in
+// \`loop.run()\` on its stdin forever, so its parent would never see \`exit\`.
+// Only this bootstrap's own timers can be counted: a child whose timers were
+// replaced by a richer provider (the globals register) or that has other
+// handles we cannot see keeps the old parked behaviour.
+let scriptDone = false;
+const shimTimers = { nextId: 0, byId: new Map() };
+let shimSetTimeout = null;
+function maybeExit() {
+  if (!scriptDone || shuttingDown) return;
+  if (globalThis.setTimeout !== shimSetTimeout) return;
+  if (shimTimers.byId.size > 0 || childPortRegistry.size > 0) return;
+  for (const fns of _listeners.values()) if (fns.length > 0) return;
+  requestShutdown();
+  System.exit(0);
+}
+
+function crash(error) {
+  try {
+    send({ type: 'error', message: (error && error.message) ? error.message : String(error), stack: (error && error.stack) || '' });
+  } catch (_) { /* parent's stdout is gone — the exit below is what it still sees */ }
+  requestShutdown();
+  System.exit(1);
+}
 
 // Set worker context globals (read by @gjsify/worker_threads when imported by user script)
 globalThis.__gjsify_worker_context = {
   isMainThread: false,
   parentPort,
-  workerData: materialise(init.workerData ?? null),
+  workerData: materialise(decodeWire(init.workerData ?? null)),
   threadId: init.threadId ?? 0,
+  // The crash contract. Called by the fallback shim below for a raw .mjs
+  // child and by the timers provider in a bundled one (globals register).
+  // Only ever referenced inside a worker child — the main thread has no
+  // worker context, so its stderr-only reporting stays untouched.
+  crash,
 };
+
+// Child-local timers for every spawned child.
+//
+// Bare gjs ships its own setTimeout from its ESM modules
+// (\`resource:///org/gnome/gjs/modules/esm/_timers.js\`, measured on
+// gjs 1.88.1), but a throw inside one of its
+// callbacks only prints a Gjs-CRITICAL while the loop keeps running, so a
+// crashing worker sits invisible. The shim OVERWRITES the built-in: its
+// callbacks report through the crash contract and then the child dies the
+// Node way. A richer provider (the timers register of a bundled child) still
+// wins — it replaces these globals on import, and its dispatch carries the
+// same contract (reportTimerThrow + context.crash).
+{
+  const timers = shimTimers;
+  function clearById(id) {
+    const gid = timers.byId.get(id);
+    if (gid === undefined) return;
+    timers.byId.delete(id);
+    maybeExit();
+    // g_source_remove has no throw path: a stale id logs a GLib CRITICAL and
+    // returns false, it never raises (same contract the globals register
+    // states for its own _cancel()).
+    GLib.source_remove(gid);
+  }
+  globalThis.setTimeout = function (fn, delay) {
+    if (typeof fn !== 'function') throw new TypeError('Callback must be a function. Received ' + typeof fn);
+    const id = ++timers.nextId;
+    const args = Array.prototype.slice.call(arguments, 2);
+    const gid = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.max(0, Number(delay) || 0), () => {
+      timers.byId.delete(id);
+      try { fn.apply(null, args); } catch (error) { crash(error); }
+      maybeExit();
+      return GLib.SOURCE_REMOVE;
+    });
+    timers.byId.set(id, gid);
+    return id;
+  };
+  globalThis.setInterval = function (fn, delay) {
+    if (typeof fn !== 'function') throw new TypeError('Callback must be a function. Received ' + typeof fn);
+    const id = ++timers.nextId;
+    const args = Array.prototype.slice.call(arguments, 2);
+    const gid = GLib.timeout_add(GLib.PRIORITY_DEFAULT, Math.max(0, Number(delay) || 0), () => {
+      try { fn.apply(null, args); } catch (error) { crash(error); return GLib.SOURCE_REMOVE; }
+      return GLib.SOURCE_CONTINUE;
+    });
+    timers.byId.set(id, gid);
+    return id;
+  };
+  shimSetTimeout = globalThis.setTimeout;
+  globalThis.clearTimeout = clearById;
+  globalThis.clearInterval = clearById;
+}
 
 send({ type: 'online' });
 
-// Async stdin reader for messages from parent
+// Lines arriving on stdin before the worker script settles. The dynamic
+// import below needs a quiet main loop to resolve (GJS quirk), so a line
+// read while it is still pending is queued instead of dispatched into
+// parentPort's message handler — drained once the script is done.
+const pendingLines = [];
+
+// Dispatch one parsed-as-JSON-eligible stdin line. Returns false for
+// 'terminate', which requests shutdown and must not be followed by
+// another read — the process is on its way out.
+function dispatchLine(line) {
+  const msg = JSON.parse(line);
+  if (typeof msg.__msgport === 'number') {
+    // Cross-process MessagePort traffic — route to the local child-
+    // side port from childPortRegistry by portId. Both 'send' and
+    // 'close' dispatch on a microtask inside the port's helpers, so
+    // user listeners fire after the current stdin-callback unwinds.
+    const cpPort = childPortRegistry.get(msg.__msgport);
+    if (cpPort) {
+      if (msg.op === 'send') cpPort._receive(msg.data);
+      else if (msg.op === 'close') cpPort._internalClose();
+    }
+    // Unknown portId or op silently dropped — could happen mid-close
+    // race where the parent sends a final message after the child has
+    // already torn down the local port.
+  }
+  else if (msg.type === 'message') {
+    // Drain fds for any SharedBuffer placeholders BEFORE materialise.
+    // recv_fd is synchronous but the sender always wrote the SCM_RIGHTS
+    // messages before writing this stdin line, so they're already
+    // buffered.
+    if (init.sabSocketFd === 3) drainSabFds(countSabPlaceholders(msg.data));
+    parentPort.emit('message', materialise(decodeWire(msg.data)));
+  }
+  else if (msg.type === 'terminate') { send({ type: 'exit', code: 1 }); requestShutdown(); return false; }
+  return true;
+}
+
+// Async stdin reader for messages from parent. Runs from the start rather
+// than only once the worker script settles: EOF on stdin means the spawner
+// is gone, and that can arrive while the script's own top-level await never
+// settles on its own, so EOF has to be caught independently of dispatch.
+//
+// macOS's poll() never reports POLLHUP for a pipe whose write end closed —
+// only POLLIN, backed by a zero-length read (measured on darwin; Linux sets
+// both), so a HUP-only watch armed before the script settles never fires
+// there and the orphan outlives its spawner. Reading the stream the normal
+// way sees that same zero-length read as EOF on either OS, which is why
+// this one reader replaces the separate HUP watch this bootstrap used to
+// run alongside it.
 function readNext() {
   dataIn.read_line_async(GLib.PRIORITY_DEFAULT, null, (source, result) => {
     try {
@@ -325,31 +525,12 @@ function readNext() {
         System.exit(0);
         return;
       }
-      const msg = JSON.parse(line);
-      if (typeof msg.__msgport === 'number') {
-        // Cross-process MessagePort traffic — route to the local child-
-        // side port from childPortRegistry by portId. Both 'send' and
-        // 'close' dispatch on a microtask inside the port's helpers, so
-        // user listeners fire after the current stdin-callback unwinds.
-        const cpPort = childPortRegistry.get(msg.__msgport);
-        if (cpPort) {
-          if (msg.op === 'send') cpPort._receive(msg.data);
-          else if (msg.op === 'close') cpPort._internalClose();
-        }
-        // Unknown portId or op silently dropped — could happen mid-close
-        // race where the parent sends a final message after the child has
-        // already torn down the local port.
+      if (!scriptDone) {
+        pendingLines.push(line);
+        readNext();
+        return;
       }
-      else if (msg.type === 'message') {
-        // Drain fds for any SharedBuffer placeholders BEFORE materialise.
-        // recv_fd is synchronous but the sender always wrote the SCM_RIGHTS
-        // messages before writing this stdin line, so they're already
-        // buffered.
-        if (init.sabSocketFd === 3) drainSabFds(countSabPlaceholders(msg.data));
-        parentPort.emit('message', materialise(msg.data));
-      }
-      else if (msg.type === 'terminate') { send({ type: 'exit', code: 1 }); requestShutdown(); return; }
-      readNext();
+      if (dispatchLine(line)) readNext();
     } catch (err) {
       try {
         send({ type: 'error', message: 'bootstrap message error: ' + (err && err.message ? err.message : err), stack: err && err.stack || '' });
@@ -358,23 +539,44 @@ function readNext() {
     }
   });
 }
-readNext();
-
-// Execute worker code
-try {
-  if (init.eval) {
-    const AsyncFn = Object.getPrototypeOf(async function(){}).constructor;
-    await new AsyncFn('parentPort', 'workerData', 'threadId', init.code)(
-      parentPort, globalThis.__gjsify_worker_context.workerData, init.threadId
-    );
-  } else {
-    await import(init.filename);
-  }
-} catch (error) {
-  send({ type: 'error', message: error.message, stack: error.stack || '' });
+// Start the main loop so await import() has a running loop to resolve
+// against, and run the worker code from an idle callback: idle_add fires
+// as soon as the loop is running (even with pending I/O in the stdin
+// buffer), whereas timeout_add(0) can be starved by a pending async read
+// that never completes because import() hung.
+if (!shuttingDown) {
+  readNext();
+  GLib.idle_add(GLib.PRIORITY_DEFAULT, function() {
+    (async function() {
+      try {
+        if (init.eval) {
+          const AsyncFn = Object.getPrototypeOf(async function(){}).constructor;
+          await new AsyncFn('parentPort', 'workerData', 'threadId', init.code)(
+            parentPort, globalThis.__gjsify_worker_context.workerData, init.threadId
+          );
+        } else {
+          await import(init.filename);
+        }
+        scriptDone = true;
+        // Drain whatever arrived on stdin while the import above was still
+        // settling — queued instead of dispatched, see pendingLines above.
+        for (const queued of pendingLines) {
+          if (!dispatchLine(queued)) break;
+        }
+        pendingLines.length = 0;
+        maybeExit();
+      } catch (error) {
+        // A crashed script limps no further: reporting the error and then
+        // keeping the loop alive strands the parent on \`exit\` the same way the
+        // silent orphan does. Node emits \`error\` and then \`exit\` 1 (the exit
+        // reaches the parent through wait_async, not through a line).
+        try { send({ type: 'error', message: error.message, stack: error.stack || '' }); } catch (_) {}
+        requestShutdown();
+        System.exit(1);
+      }
+    })();
+    return GLib.SOURCE_REMOVE;
+  });
+  loop.run();
 }
-
-// Skip the loop entirely when shutdown was requested while the script above
-// was still running — otherwise that lost quit() strands the child forever.
-if (!shuttingDown) loop.run();
 `;

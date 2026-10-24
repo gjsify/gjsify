@@ -1,0 +1,34 @@
+feat(ship): win32-arm64 GTK + node runtime packages (#1117)
+
+`gjsify ship win32 --arch arm64` now stages and packs: `@gjsify/gtk-runtime-win32-arm64`
+and `@gjsify/node-runtime-win32-arm64` are new, built/fetched against the arm64 GTK
+prefix ADR 0089 builds from our `gjsify/gvsbuild` fork in CI (windows-11-arm).
+
+- shared win32 builder: `packages/node-gi/scripts/build-gtk-runtime-win32.mjs` now
+  serves both win32 arches (only --prefix and the MSVC toolset differ); retires
+  gtk-runtime-win32-x64's own copy. licenses-not-in-prefix/ moved beside it (shared).
+- node-runtime: TARGETS gains win32-arm64 (dist tag win-arm64); LICENSE size matches
+  win32-x64's, no EXPECTED_LICENSE_BYTES change needed.
+- ship CLI: GTK_RUNTIME_TARGETS, NODE_RUNTIME_TARGETS, WINDOWS_ARCH and
+  commands/showcase.ts's shipped list all carry win32-arm64; Layout.arches for
+  windows is now ['x64', 'arm64'].
+- fix(msi): write Win64="yes" explicitly for every non-x86 arch on both backends —
+  wixl's own Arch enum only sets the 64-bit Component attribute for X64/IA64, never
+  ARM64, so an unmodified `wixl -a arm64` build would have shipped 32-bit components.
+- fix(layout): the windows GUI-launcher stub (pe-launcher.ts) used to be emitted only
+  for arch==='x64', silently omitting the launcher/icon on arm64; it is x86-64 machine
+  code on every windows arch by design (it only execs the sibling .cmd, which Windows
+  runs through Prism and hands off to the staged arm64 node.exe), so it now emits
+  unconditionally and assertPayloadMatchesArch carries one named exemption for it.
+- release.yml: new publish-gtk-runtime-win32-arm64 job (reuses
+  .github/actions/gvsbuild-arm64-prefix) and a win32-arm64 leg on the
+  publish-node-runtime matrix. release-only-plan.mjs's JOBS map updated.
+- status/pending-npm-bootstrap.json: both new names queued for manual first-publish +
+  Trusted Publisher bootstrap (npm OIDC cannot create a package).
+- docs: ADR 0024 amendment, ship-formats.md, status/open-todos/windows.md,
+  website/ship/windows.md, AGENTS.md (node-runtime) updated; status/status.json
+  entries for both new packages.
+
+Out of scope, named in status/open-todos/windows.md § win32-arm64: the two-pass
+gst-plugins-good build for gstsoup.dll/souphttpsrc (no http(s) media source yet on
+arm64), webgl, gamepad, WebView2 on arm64.

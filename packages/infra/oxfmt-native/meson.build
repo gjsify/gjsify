@@ -18,10 +18,23 @@ project('GjsifyOxfmt', ['c', 'vala'], version: '1.0',
 
 cc = meson.get_compiler('c')
 
-vala_deps = [
-    dependency('glib-2.0'),
-    dependency('gobject-2.0'),
-]
+host_system = host_machine.system()
+
+# On darwin every GNOME library is resolved against the HOST PROCESS rather than
+# recorded as an `@rpath/` dependency: a second GLib beside the one the host
+# already loaded gives the process two GType registries, then SIGSEGV.
+# docs/prebuilds.md § One GLib.
+host_provided = ['glib-2.0', 'gobject-2.0']
+
+vala_deps = []
+foreach pkg : host_provided
+    dep = dependency(pkg)
+    vala_deps += host_system == 'darwin' \
+        ? dep.partial_dependency(compile_args: true, includes: true) \
+        : dep
+endforeach
+
+host_provided_link_args = host_system == 'darwin' ? ['-Wl,-undefined,dynamic_lookup'] : []
 
 # ----------------------------------------------------------------------------
 # Host-dependent naming + runtime-lookup conventions
@@ -44,8 +57,6 @@ vala_deps = [
 # portability work, so `else` (ELF naming) is the honest fallback rather than a
 # .dll branch that would imply support that does not exist.
 # ----------------------------------------------------------------------------
-host_system = host_machine.system()
-
 if host_system == 'darwin'
     rust_cdylib_name = 'libgjsify_oxfmt.dylib'
     shared_lib_name = 'libgjsifyoxfmt.dylib'
@@ -156,7 +167,8 @@ sources = files(
 inc = include_directories('src/vala')
 
 # Tell ld where to find libgjsify_oxfmt.so (placed there by rust_cdylib)
-link_args = ['-L' + meson.current_build_dir(), '-lgjsify_oxfmt']
+link_args = ['-L' + meson.current_build_dir(), '-lgjsify_oxfmt'] \
+    + host_provided_link_args
 
 libGjsifyOxfmt = library('gjsifyoxfmt', sources,
     dependencies: vala_deps,

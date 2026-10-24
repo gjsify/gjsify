@@ -4,7 +4,8 @@
 // Ported from refs/bun/test/js/node/worker_threads/worker_threads.test.ts
 // Original: MIT license, Node.js contributors / Oven (oven-sh)
 
-import { describe, it, expect } from '@gjsify/unit';
+import { describe, it, expect, on } from '@gjsify/unit';
+import { acquireMainLoop, ensureMainLoop, quitMainLoop, releaseMainLoop } from '@gjsify/utils/main-loop';
 import {
     isMainThread,
     parentPort,
@@ -91,6 +92,87 @@ export default async () => {
         await it('SHARE_ENV should have a description', async () => {
             // The symbol should have a meaningful description
             expect(SHARE_ENV.toString().includes('SHARE_ENV')).toBe(true);
+        });
+    });
+
+    // The state-level assertions for the process hold (these use the same
+    // single-file `@gjsify/utils/main-loop` instance the parent-side Worker
+    // imports, so identity comes for free). What CANNOT be asserted inside
+    // this harness is the parked-entry behavior that hold exists for — the
+    // runner drives its own main loop, so the drain contract moves to
+    // `tests/e2e/worker-keepalive/` over a built `--app gjs` bundle.
+    await describe('Worker process hold', async () => {
+        await on('Gjs', async () => {
+            await it('a spawned worker that exits releases the hold and discards the loop', async () => {
+                quitMainLoop(); // own the singleton this test asserts about
+                // A counted hold, not ensureMainLoop(): an uncounted caller
+                // makes the loop outlive every hold by contract.
+                const ensured = acquireMainLoop();
+
+                const worker = new Worker(
+                    '(globalThis.__gjsify_worker_context ? globalThis.__gjsify_worker_context.parentPort : require("node:worker_threads").parentPort).postMessage("held");',
+                    { eval: true },
+                );
+                const got = await new Promise((resolve) => {
+                    worker.once('message', resolve);
+                });
+                expect(got).toBe('held');
+                await new Promise((resolve) => {
+                    worker.once('exit', resolve);
+                });
+
+                // The worker's exit released ITS hold; dropping ours is the
+                // last one, so the loop was quit and the next ensure answers a NEW loop.
+                releaseMainLoop();
+                expect(ensureMainLoop()).not.toBe(ensured);
+            });
+
+            await it('unref releases while the child lives; ref re-holds before its message lands', async () => {
+                quitMainLoop();
+                const ensured = acquireMainLoop(); // our own hold, dropped below
+
+                const worker = new Worker(
+                    'setTimeout(() => (globalThis.__gjsify_worker_context ? globalThis.__gjsify_worker_context.parentPort : require("node:worker_threads").parentPort).postMessage("late"), 30);',
+                    { eval: true },
+                );
+                worker.unref(); // the still-running child stops holding the parent
+                releaseMainLoop(); // our hold was the last one: loop drained
+                expect(ensureMainLoop()).not.toBe(ensured);
+                quitMainLoop();
+
+                worker.ref(); // back on the loop before the message lands
+                const reheld = acquireMainLoop(); // peek at the loop the ref created
+                releaseMainLoop();
+                const got = await new Promise((resolve) => {
+                    worker.once('message', resolve);
+                });
+                expect(got).toBe('late'); // the child survived the unref window
+
+                await new Promise((resolve) => {
+                    worker.once('exit', resolve);
+                });
+                expect(ensureMainLoop()).not.toBe(reheld); // exit released the re-held hold, again to zero
+
+                quitMainLoop();
+            });
+        });
+
+        await on('Node.js', async () => {
+            await it('unref/ref and a whole round trip are tolerable no-ops', async () => {
+                const worker = new Worker(
+                    '(globalThis.__gjsify_worker_context ? globalThis.__gjsify_worker_context.parentPort : require("node:worker_threads").parentPort).postMessage("held");',
+                    { eval: true },
+                );
+                worker.unref();
+                worker.ref();
+                const got = await new Promise((resolve) => {
+                    worker.once('message', resolve);
+                });
+                expect(got).toBe('held');
+                await new Promise((resolve) => {
+                    worker.once('exit', resolve);
+                });
+            });
         });
     });
 
@@ -1561,9 +1643,34 @@ export default async () => {
             expect(result.type === 'error' || (result.type === 'exit' && result.code !== 0)).toBe(true);
         });
 
+        await it('should report a throw in a timer callback as error, then exit 1', async () => {
+            // The crash contract runs the timer through whichever setTimeout
+            // provider the child has: the bootstrap fallback shim on GJS
+            // (a spawned child resolves no timers), Node's own underneath.
+            // Both must report `error`, then `exit` 1 — never a silent
+            // child that keeps running (#2336).
+            const worker = new Worker('setTimeout(() => { throw new Error("boom-eval"); }, 5);', { eval: true });
+            try {
+                const err = await new Promise<Error>((resolve) => {
+                    worker.once('error', (e: Error) => resolve(e));
+                });
+                const code = await new Promise<number>((resolve) => {
+                    worker.once('exit', (c: number) => resolve(c));
+                });
+                expect((err as Error).message).toContain('boom-eval');
+                expect(code).toBe(1);
+            } finally {
+                try {
+                    await worker.terminate();
+                } catch {
+                    /* already gone — the crash path delivered faster */
+                }
+            }
+        });
+
         await it('should emit exit event with code after terminate', async () => {
             const worker = new Worker(
-                'parentPort.postMessage("started"); await new Promise(r => setTimeout(r, 5000));',
+                '(globalThis.__gjsify_worker_context ? globalThis.__gjsify_worker_context.parentPort : require("node:worker_threads").parentPort).postMessage("started"); await new Promise(r => setTimeout(r, 5000));',
                 { eval: true },
             );
 
@@ -1586,8 +1693,14 @@ export default async () => {
 
     await describe('Worker threadId', async () => {
         await it('each Worker should get a unique threadId', async () => {
-            const w1 = new Worker('parentPort.postMessage(threadId);', { eval: true });
-            const w2 = new Worker('parentPort.postMessage(threadId);', { eval: true });
+            const w1 = new Worker(
+                '(globalThis.__gjsify_worker_context ? globalThis.__gjsify_worker_context.parentPort : require("node:worker_threads").parentPort).postMessage(threadId);',
+                { eval: true },
+            );
+            const w2 = new Worker(
+                '(globalThis.__gjsify_worker_context ? globalThis.__gjsify_worker_context.parentPort : require("node:worker_threads").parentPort).postMessage(threadId);',
+                { eval: true },
+            );
 
             // threadId is assigned at construction time
             expect(typeof w1.threadId).toBe('number');

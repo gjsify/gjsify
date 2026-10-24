@@ -204,7 +204,16 @@ function renderPrefixLauncher(settings: ShipSettings, bundleRelPath: string, lay
  * IT EXECS WHAT THE BUNDLE CARRIES. `runtime` comes from
  * `utils/ship/app-runtime.ts` and names the interpreter, the relocated GTK
  * closure and the node-gi addon staged inside `Contents/` — so the exec line is
- * `"$here/node"` and the two locators below point into `dirs.native`.
+ * `"$here/../Helpers/<display name>"` and the two locators below point into
+ * `dirs.native`. The interpreter is staged under `Contents/Helpers`, not
+ * `Contents/MacOS` beside this very script, and named after `identity.name`
+ * rather than kept as `node`: Activity Monitor and System Events read a
+ * process's name off the FILE NAME of the Mach-O that is running, not off argv
+ * or any `exec -a`, so a bundle whose carried interpreter is still called `node`
+ * shows up as `node` everywhere a user looks for it (`layout.ts`'s `dirs.helpers`,
+ * `app-runtime.ts`'s `appRuntimePaths`). `beside()` computes the relative hop
+ * from the actual two directories rather than assuming a sibling, so this
+ * function needs no special case for the rename.
  * When the stage carries none of them every line here is byte-identical to what
  * M2a wrote, which is what keeps a bundle assembled without the runtime packages
  * exactly as (un)usable as it was rather than differently broken.
@@ -349,10 +358,14 @@ function renderAppBundleLauncher(
         );
     }
 
-    // `"$here/node"`, not `node`. The bare name is true of a developer's machine
-    // and false of a `.app` a stranger downloads, and the difference is not a
-    // degraded experience: macOS ships no Node at all, so the launcher's first act
-    // would be `exec: node: not found`.
+    // `"$here/../Helpers/<display name>"`, not a bare `node`. The bare name is
+    // true of a developer's machine and false of a `.app` a stranger downloads,
+    // and the difference is not a degraded experience: macOS ships no Node at
+    // all, so the launcher's first act would be `exec: node: not found`. The path
+    // is relative rather than the literal `../Helpers/…` written out, because
+    // `beside()` already carries the relation between `dirs.launcher` and
+    // wherever `appRuntimePaths` staged the interpreter — this function does not
+    // need to know that the leaf changed from `node` to `identity.name`.
     const interpreter = runtime.interpreter === undefined ? undefined : `"$here/${beside(runtime.interpreter)}"`;
     lines.push(
         `exec ${execLine(layout, `"$contents/${under(dirs.bundle)}/${bundleRelPath}"`, settings, interpreter)} "$@"`,
@@ -521,8 +534,8 @@ function windowsPath(rel: string): string {
  * `@gjsify/node-runtime-<target>` exists for; this comment used to say "the day a
  * stage carries one, THIS is the line that names it by a layout-relative path
  * instead", and #1354 M2b is that day — `utils/ship/app-runtime.ts` stages the
- * interpreter into `Contents/MacOS/node` and the `.app` launcher execs
- * `"$here/node"`.
+ * interpreter into `Contents/Helpers/<display name>` and the `.app` launcher
+ * execs `"$here/../Helpers/<display name>"`.
  *
  * #1354 M3 is the same day one OS over: the Windows layout stages `node.exe` into
  * the program directory and its `.cmd` runs `"%HERE%node.exe"`.

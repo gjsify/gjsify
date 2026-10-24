@@ -30,7 +30,12 @@ import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { EventEmitter } from 'node:events';
 import { fdChannel } from '@gjsify/sab-native';
+// The SUBPATH import, not the `@gjsify/utils` barrel: the barrel is gjs-only
+// by declaration (ADR 0014) and @gjsify/unit shows the established precedent —
+// its own import of this pair runs the same single-file, Node-safe surface.
+import { acquireMainLoop, releaseMainLoop } from '@gjsify/utils/main-loop';
 import { extractSharedBuffers } from './sab-transfer.js';
+import { encode as encodeWire, decode as decodeWire } from './structured-clone-wire.js';
 import { MessagePort } from './message-port.js';
 import {
     SubprocessPortTransport,
@@ -70,6 +75,9 @@ export class Worker extends EventEmitter {
      *  -1 when sab-native's prebuild isn't loaded → SharedBuffer transfer is
      *  unavailable but everything else works. Closed in `_cleanup()`. */
     private _sabSocketFd = -1;
+
+    /** A spawned, referenced worker holds the process like a Node active handle. */
+    private _holdsProcess = false;
     /** Per-Worker sequence counter for SharedBuffer transfer tags. Resets
      *  to 0 at spawn; each postMessage call increments it by the number of
      *  unique SharedBuffer instances in the value tree. */
@@ -136,8 +144,18 @@ export class Worker extends EventEmitter {
             }
         }
 
+        // Spawn the SAME gjs binary as the parent (issue #2338.3): never
+        // rely on PATH, which may resolve a different GJS (or none, e.g.
+        // inside an AppImage/Flatpak).
+        let gjsBin = 'gjs';
         try {
-            this._subprocess = launcher.spawnv(['gjs', '-m', bootstrapPath]);
+            const exe = GLib.file_read_link('/proc/self/exe');
+            if (exe) gjsBin = exe;
+        } catch {
+            /* fall back to PATH lookup */
+        }
+        try {
+            this._subprocess = launcher.spawnv([gjsBin, '-m', bootstrapPath]);
         } catch (err) {
             this._cleanup();
             throw new Error(`Failed to spawn worker: ${err instanceof Error ? err.message : err}`);
@@ -165,6 +183,16 @@ export class Worker extends EventEmitter {
             }
         }
 
+        // The child is spawned and its entry resolved: hold the process the
+        // way Node holds a Worker handle until exit or unref (issue #2339).
+        // On a bare gjs script nothing drives the main loop after the entry
+        // module settles, so an unreferenced worker died with it; on a
+        // gjsified entry the parked hook loop would only ever end via
+        // process.exit(). acquireMainLoop() counts the hold so the release
+        // below can drain-quit on Node-parity instead of parking forever.
+        this._holdsProcess = true;
+        acquireMainLoop();
+
         // Walk workerData for SharedBuffer instances + route their fds over
         // the SCM_RIGHTS channel before the JSON init line lands on stdin,
         // exactly like postMessage does for subsequent messages. This makes
@@ -174,7 +202,7 @@ export class Worker extends EventEmitter {
         const initData =
             JSON.stringify({
                 threadId: this.threadId,
-                workerData: initWorkerData,
+                workerData: encodeWire(initWorkerData),
                 eval: isEval,
                 filename: isEval ? undefined : resolvedFilename,
                 code: isEval ? resolvedFilename : undefined,
@@ -229,7 +257,8 @@ export class Worker extends EventEmitter {
             // within each fd (stdin, side-channel) but the two fds are
             // independent.
             const serialised = this._serializeWithSabTransfer(processed);
-            const line = JSON.stringify({ type: 'message', data: serialised }) + '\n';
+            const encoded = encodeWire(serialised);
+            const line = JSON.stringify({ type: 'message', data: encoded }) + '\n';
             this._stdinPipe.write_all(_encoder.encode(line), null);
         } catch {
             // Worker stdin closed
@@ -385,9 +414,19 @@ export class Worker extends EventEmitter {
     }
 
     ref(): this {
+        if (!this._exited && !this._holdsProcess) {
+            this._holdsProcess = true;
+            acquireMainLoop();
+        }
         return this;
     }
     unref(): this {
+        // Node: an unref'd Worker stops holding the event loop — the process
+        // may drain and exit while the worker thread lives on. Here the
+        // process draining means the child's stdin sees EOF and it shuts
+        // down (the orphan contract in the bootstrap); the release happens
+        // before the parent's post-worker code could decide otherwise.
+        this._releaseProcessHold();
         return this;
     }
 
@@ -447,7 +486,9 @@ export class Worker extends EventEmitter {
                     const keptPort = this._portRegistry.get(msg.__msgport);
                     if (keptPort) {
                         if (msg.op === 'send') {
-                            (keptPort as unknown as { _receiveMessage(m: unknown): void })._receiveMessage(msg.data);
+                            (keptPort as unknown as { _receiveMessage(m: unknown): void })._receiveMessage(
+                                decodeWire(msg.data),
+                            );
                         } else if (msg.op === 'close') {
                             this._portRegistry.delete(msg.__msgport);
                             // _inner.close() flips the W3C-side state; close() on the
@@ -464,7 +505,7 @@ export class Worker extends EventEmitter {
                         this.emit('online');
                         break;
                     case 'message':
-                        this.emit('message', msg.data);
+                        this.emit('message', decodeWire(msg.data));
                         break;
                     case 'error': {
                         const err = new Error(msg.message);
@@ -512,8 +553,19 @@ export class Worker extends EventEmitter {
 
         const exitCode = this._subprocess?.get_if_exited() ? this._subprocess.get_exit_status() : 1;
 
+        // Release before the listeners: a listener that spawns the next
+        // worker re-holds through its own constructor, so a sped-through
+        // wait chain can never drain the count twice.
+        this._releaseProcessHold();
         this._cleanup();
         this.emit('exit', exitCode);
+    }
+
+    /** Drop the process hold this worker kept (spawn/unref parity). */
+    private _releaseProcessHold(): void {
+        if (!this._holdsProcess) return;
+        this._holdsProcess = false;
+        releaseMainLoop();
     }
 
     private _cleanup(): void {

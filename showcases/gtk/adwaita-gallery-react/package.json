@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/example-gtk-adwaita-gallery-react",
-    "version": "0.64.4",
+    "version": "0.64.6",
     "description": "Every Adwaita gallery snippet that has a React dialect, generated from one source and asserted against the real GTK widget tree",
     "type": "module",
     "private": true,

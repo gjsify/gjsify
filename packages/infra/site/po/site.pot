@@ -209,6 +209,12 @@ msgstr ""
 msgid "by {developer}"
 msgstr ""
 
+msgid "Legal Notice"
+msgstr ""
+
+msgid "Privacy"
+msgstr ""
+
 msgid "{app} is licensed under {license}."
 msgstr ""
 
@@ -221,7 +227,22 @@ msgstr ""
 msgid "{app} is free software. Support its development with a transfer or a service."
 msgstr ""
 
+msgid "What {app} does with data."
+msgstr ""
+
+msgid "Who publishes {app}, and how to reach them."
+msgstr ""
+
 msgid "Back to {app}"
+msgstr ""
+
+msgid "This page is a static file: no cookie, no analytics, nothing from a third party."
+msgstr ""
+
+msgid "Whoever serves it may keep ordinary web-server access logs of the request."
+msgstr ""
+
+msgid "See the hosting provider's notice"
 msgstr ""
 
 msgid "Flathub"

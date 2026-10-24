@@ -189,3 +189,77 @@ app's data is duplicated into a central list and the apps stay the source of tru
 **SEO output belongs to the build.** Open Graph cards (SVG rasterised by GdkPixbuf, no extra
 dependency), `SoftwareApplication` JSON-LD, a sitemap with `hreflang` alternates and a
 `robots.txt` only where the site owns the host root.
+
+## Amendment (2026-10-23) — a privacy page, and why the website/software line it draws matters
+
+Browser extensions and desktop apps built on this platform (Beifahrer first) need a privacy policy
+URL to submit to their stores — Chrome, Edge and AMO all ask for one, and Chrome's policy is
+explicit that an inaccurate one is grounds for removal. The first draft of this amendment modelled
+the page on a marketing website's Datenschutzerklärung (data controller, legal basis, server logs,
+cookie notice, contact form) — reasonable material for a WEBSITE that is itself the product, wrong
+for a page that is only the download point for a product running somewhere else entirely. A person
+reviewing it caught the category error: for an app that phones home to nobody, this package is not
+a GDPR "controller" for anything the app does, and dressing an audit-style statement like
+Beifahrer's `docs/store/privacy.md` (claims cited to `file:line`, no legal boilerplate because
+there is no data flow to describe) in website clothing would make it say more than is true.
+
+**Two paragraphs, two different subjects, drawn at the line §2 already names — derived vs.
+invented:**
+
+1. **Visiting this static page** is a fact about what `@gjsify/site` itself ships: no cookie, no
+   analytics, no third-party resource, for every consumer, because the renderer adds none. This
+   much is DERIVED from the package's own guarantee and safe to generate once, in English and
+   German, in `po/`. `hostingPolicyUrl` names the one fact that still varies by deployment — which
+   host's own access-log policy applies — and is config, left out rather than guessed.
+2. **What the app does with data** is a claim about the APP's own code and is never generated. A
+   consumer points `gjsify.site.privacy.statements[lang]` at a file it wrote and verified itself,
+   one per configured language — a missing language fails the build, because a legal page quietly
+   short of a promised translation is worse than no page.
+
+**Decision.** `gjsify.site.privacy` adds `/<lang>/privacy/`: the hosting paragraph above, then the
+statement file rendered through a small Markdown subset (`src/render/markdown.ts` — headings,
+paragraphs, lists, GFM tables, links, bold, inline code; heading levels shift up by one, since the
+page already owns an `h1`). The footer links to it automatically wherever `privacy` is configured,
+the same way the support section is automatic — a second, hand-listed `legal` entry would be a
+second place for the two to drift apart.
+
+**Alternative rejected: restructure the statement into GDPR sections (Verantwortlicher,
+Rechtsgrundlage, Betroffenenrechte) the way the website templates the first draft drew from do.**
+Those sections answer "what does THIS WEBSITE do with a visitor's data", which is a question about
+`@gjsify/site`'s own hosting, already covered by paragraph 1 — forcing an app's "nothing leaves the
+device" into that shape would invent a controller relationship that does not exist, for data this
+package never sees.
+
+## Amendment (2026-10-23) — a Legal Notice / Impressum page, same shape, different question
+
+German law raises a second, separate requirement for any site tied to a business: § 5 DDG (the
+Digitale-Dienste-Gesetz, formerly § 5 TMG) requires an "Impressum" — name, address, contact —
+reachable directly from the site itself, not merely linked from another domain. This is NOT the
+privacy page's question. Privacy asks "what does the software do with data"; a Legal Notice asks
+"who is legally responsible for this page", and the two have different authors in general (the
+privacy statement is about the APP's code; the Legal Notice is about the PUBLISHER) even though
+for a single-developer publisher like this project's own consumers they name the same person.
+
+**Decision.** `gjsify.site.legalNotice` adds `/<lang>/legal-notice/`, structurally identical to
+`privacy` — one statement file per configured language, read verbatim, rendered through the same
+Markdown subset, linked from the footer automatically. The one deliberate difference: **no
+built-in paragraph is prepended.** Privacy's hosting paragraph exists because this package can
+truthfully say something about ITS OWN behaviour (no cookie, no analytics); for a Legal Notice
+there is no equivalent fact this package can derive — who is legally responsible for a site is
+entirely the consumer's to state, so the whole page is the consumer's own text.
+
+**Alternative rejected: one combined "Legal" page for both privacy and the Legal Notice.** They
+answer unrelated legal questions under unrelated statutes (data protection vs. telemedia
+operator disclosure), are typically authored by different reasoning (code audit vs. publisher
+identity) and — per the actual rollout this amendment was written for — are not even always
+authored by the same amount of care at the same time: a publisher may have a verified Legal
+Notice ready before a fully audited privacy statement exists for every app. Separate pages let
+each ship on its own schedule.
+
+**Alternative rejected: derive the Legal Notice content once, centrally, and inject it into every
+consumer.** Tempting because the content is usually byte-identical across one publisher's apps —
+same legal entity, same address. Rejected for the same reason `privacy` never generates its
+statement: identical-across-apps is a fact about THIS publisher, not a guarantee `@gjsify/site` can
+make for every consumer (a publisher could legitimately run several legal entities, one per app).
+The package stays ignorant of that question; a consumer that wants one canonical text copies the
+same file into each app's `legalNotice.statements`, same as any other cross-repo content it owns.

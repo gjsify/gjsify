@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.64.6](https://github.com/gjsify/gjsify/compare/v0.64.5...v0.64.6) (2026-10-23)
+
+### Bug Fixes
+
+* **cli:** add gjs prefix to dyld fallback ([#2353](https://github.com/gjsify/gjsify/issues/2353)) ([cfac72a](https://github.com/gjsify/gjsify/commit/cfac72a87aea524dc4366b6732f9724b8468cf85))
+* **cli:** name the macOS interpreter after the app ([#2362](https://github.com/gjsify/gjsify/issues/2362)) ([4127603](https://github.com/gjsify/gjsify/commit/4127603dcf5a048034eb1b967c0f588011ffaf3e))
+* **cli:** remove packages a resolve dropped ([#2356](https://github.com/gjsify/gjsify/issues/2356)) ([51aed9e](https://github.com/gjsify/gjsify/commit/51aed9eb0067bffb74e07e3b1ed7ed82bebe0266)), closes [#2345](https://github.com/gjsify/gjsify/issues/2345)
+* **prebuilds:** bind darwin GLib to the host process ([#2359](https://github.com/gjsify/gjsify/issues/2359)) ([9285791](https://github.com/gjsify/gjsify/commit/9285791bbe6db014987f6071d4e91c313090ff9a))
+* **process:** populate execArgv on GJS so portable re-exec keeps -m ([#2348](https://github.com/gjsify/gjsify/issues/2348)) ([#2357](https://github.com/gjsify/gjsify/issues/2357)) ([9c168dc](https://github.com/gjsify/gjsify/commit/9c168dc46f9cb61fbfdb37de500d4f9fe51000a1))
+* **worker_threads:** catch spawner EOF on darwin mid-script ([#2363](https://github.com/gjsify/gjsify/issues/2363)) ([74a4bde](https://github.com/gjsify/gjsify/commit/74a4bde8af6329687975a3b461ecab4d83ea22a6))
+* **worker_threads:** close the bootstrap template ([#2360](https://github.com/gjsify/gjsify/issues/2360)) ([5ee9cb3](https://github.com/gjsify/gjsify/commit/5ee9cb32416d8076799b65f02702f18a12517e63)), closes [#2343](https://github.com/gjsify/gjsify/issues/2343) [#2359](https://github.com/gjsify/gjsify/issues/2359)
+* **worker_threads:** keepalive holds so unreferenced workers don't park forever ([#2351](https://github.com/gjsify/gjsify/issues/2351)) ([2197d26](https://github.com/gjsify/gjsify/commit/2197d26d7488cd188b234164635deec968e453d4)), closes [#2339](https://github.com/gjsify/gjsify/issues/2339)
+* **worker_threads:** preserve structured-clone types across the subprocess boundary ([#2337](https://github.com/gjsify/gjsify/issues/2337)) ([#2354](https://github.com/gjsify/gjsify/issues/2354)) ([12a5da8](https://github.com/gjsify/gjsify/commit/12a5da854db2fc6eb9f2d8a43b916e493cb7a2e9))
+* **worker_threads:** report child crashes ([#2343](https://github.com/gjsify/gjsify/issues/2343)) ([e9fdd87](https://github.com/gjsify/gjsify/commit/e9fdd87dc472455f992260664e647f13ab069a3d)), closes [#2336](https://github.com/gjsify/gjsify/issues/2336)
+
+## [0.64.5](https://github.com/gjsify/gjsify/compare/v0.64.4...v0.64.5) (2026-10-22)
+
+### Features
+
+* **node-gi:** ship fontconfig + locale catalogs in darwin runtime ([#2350](https://github.com/gjsify/gjsify/issues/2350)) ([bce12eb](https://github.com/gjsify/gjsify/commit/bce12eb429b02dc42040e7b5667a29d9ec7993e6))
+
+### Bug Fixes
+
+* **cli:** fetch the GTK closure at ship time ([#2345](https://github.com/gjsify/gjsify/issues/2345)) ([e2ba6b6](https://github.com/gjsify/gjsify/commit/e2ba6b61e678621fe2352503c28fbcd738c8460f))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([237b904](https://github.com/gjsify/gjsify/commit/237b9042d5af83412f26f54ce61519179f3f0cde))
+
 ## [0.64.4](https://github.com/gjsify/gjsify/compare/v0.64.3...v0.64.4) (2026-10-22)
 
 ### Bug Fixes

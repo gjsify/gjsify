@@ -147,3 +147,43 @@ export function formatExtraneousError(entries: readonly ExtraneousPackage[], pre
             'In CI this usually means a cache entry was restored from a DIFFERENT lockfile.',
     ].join('\n');
 }
+
+/**
+ * Install paths the PREVIOUS lockfile placed and a fresh resolve no longer does —
+ * what a plain install DROPPED, and the only thing it removes.
+ *
+ * THE INCIDENT (2026-10-22). A project removed `@gjsify/gtk-runtime-darwin-*` from its
+ * `optionalDependencies`; `gjsify install` rewrote the lockfile without them and left
+ * the 0.64.2 copies in `node_modules`. On a Mac every darwin prebuild's rpath prefers
+ * that bundle's GLib over Homebrew's, so every build kept dying with `No signal
+ * 'context_response' on object 'GVolumeMonitor'` — after the fix, from a dependency
+ * the project no longer declared. npm removes such a package; this installer only
+ * ever added.
+ *
+ * WHY THE LOCKFILE DIFF, and not "everything {@link findExtraneous} reports". The tree
+ * legitimately holds packages no lockfile names: `ensureProjectGjsEngine` lays the GJS
+ * bundler engine down after the install and on purpose keeps it out of the lockfile.
+ * Sweeping the undescribed set would delete that engine on every install and fetch it
+ * again. A path some earlier lockfile of THIS project placed is this installer's own
+ * output, so removing it cannot take anything another writer put there.
+ *
+ * Nested placements under a dropped root collapse into the root, like
+ * {@link findExtraneous}, so the caller removes each directory once.
+ */
+export function droppedInstallPaths(previous: Iterable<string>, next: readonly { installPath: string }[]): string[] {
+    const kept = new Set(next.map((n) => normalizePath(n.installPath)));
+    const dropped = [...new Set([...previous].map(normalizePath))]
+        .filter((p) => p.startsWith('node_modules/') && !kept.has(p))
+        .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    const keptList = [...kept];
+    const roots: string[] = [];
+    for (const p of dropped) {
+        const parent = roots[roots.length - 1];
+        if (parent && p.startsWith(`${parent}/`)) continue;
+        // A directory still holding a kept placement is not removed whole; its own
+        // dropped descendants are still listed, one by one.
+        if (keptList.some((k) => k.startsWith(`${p}/`))) continue;
+        roots.push(p);
+    }
+    return roots;
+}

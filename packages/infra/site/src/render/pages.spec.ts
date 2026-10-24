@@ -2,7 +2,16 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import type { DownloadTarget, Screenshot, SiteData } from '../site-data/index.js';
 import type { ProcessedImage } from './images.js';
-import { badges, ctaLabel, downloadWidget, frameAttribute, relatedSection, sepaCard } from './pages.js';
+import {
+    badges,
+    ctaLabel,
+    downloadWidget,
+    frameAttribute,
+    legalNoticeUrl,
+    privacyUrl,
+    relatedSection,
+    sepaCard,
+} from './pages.js';
 
 const t = (msgid: string) => msgid;
 const target = (os: DownloadTarget['os'], format: DownloadTarget['format'], component?: string): DownloadTarget => ({
@@ -135,6 +144,18 @@ export default async () => {
             expect(html).toMatch(/href="https:\/\/example.org\/other\/de\/"/);
             expect(html).toMatch(/related-name">Anderes</);
             expect(html).toMatch(/related-summary">Things</);
+        });
+
+        await it('addresses the privacy page under the app page, per language', async () => {
+            const data = { config: { base: '/app/', url: 'https://example.org/app/' } } as unknown as SiteData;
+            expect(privacyUrl(data, 'en')).toBe('/app/en/privacy/');
+            expect(privacyUrl(data, 'de')).toBe('/app/de/privacy/');
+        });
+
+        await it('addresses the legal-notice page under the app page, per language', async () => {
+            const data = { config: { base: '/app/', url: 'https://example.org/app/' } } as unknown as SiteData;
+            expect(legalNoticeUrl(data, 'en')).toBe('/app/en/legal-notice/');
+            expect(legalNoticeUrl(data, 'de')).toBe('/app/de/legal-notice/');
         });
     });
 };
