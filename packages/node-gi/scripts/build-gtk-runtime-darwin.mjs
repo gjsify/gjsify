@@ -114,6 +114,8 @@ import {
     formatMissingFontSource,
     stageBundledFonts,
 } from './bundle-fonts.mjs';
+import { DARWIN_FONTS_CONF_PATH, stageDarwinFontconfig } from './fontconfig-darwin.mjs';
+import { DARWIN_LOCALE_DOMAINS, stageDarwinLocale } from './locale-darwin.mjs';
 
 const scriptsDir = dirname(fileURLToPath(import.meta.url)); // packages/node-gi/scripts
 const pillarDir = dirname(scriptsDir); // packages/node-gi
@@ -1124,6 +1126,11 @@ const windowing = {
     // So an Adwaita stylesheet naming the GNOME font silently gets a substitute here too.
     fonts: 0,
     fontFamilies: [],
+    localeLocales: 0,
+    localeFiles: 0,
+    // The fontconfig config the faces above are resolved through. Its absence was a defect
+    // with no error message on a machine without Homebrew (§ fontconfig-darwin.mjs).
+    fontsConf: '',
     gtksource: false,
 };
 if (WINDOWING) {
@@ -1214,10 +1221,10 @@ if (WINDOWING) {
 
     // 4b-e. The GNOME UI faces, from the pinned `refs/adwaita-fonts` checkout — Homebrew
     // has no formula for them, so unlike every other set here the source is not the keg
-    // prefix (§ bundle-fonts.mjs). On this platform fontconfig's stock config finds them
-    // over the `XDG_DATA_DIRS` node-gi already sets; `initFonts()` registers them anyway,
-    // because a CoreText map answers NOT_SUPPORTED and is reported as declined rather than
-    // failed, and that is the one path where "nothing registered" is the correct outcome.
+    // prefix (§ bundle-fonts.mjs). Rendered text reaches them through the config staged
+    // right below; `initFonts()` registers them anyway, because a CoreText map answers
+    // NOT_SUPPORTED and is reported as declined rather than failed, and that is the one path
+    // where "nothing registered" is the correct outcome.
     const fonts = stageBundledFonts({ repoRoot, outDir: OUT });
     if (fonts.faces.length > 0) {
         windowing.fonts = fonts.faces.length;
@@ -1226,6 +1233,27 @@ if (WINDOWING) {
     } else {
         console.warn(`build-gtk-runtime: ${formatMissingFontSource(fonts.source)}`);
     }
+
+    // 4b-f. The fontconfig CONFIG those faces are resolved through, emitted here rather than
+    // copied from the keg: Homebrew's `etc/fonts` names Cellar paths and its own cache, and
+    // the bundled libfontconfig otherwise falls back to the prefix COMPILED INTO IT — which
+    // is the build host's `/opt/homebrew/etc/fonts` and does not exist on a user's Mac. The
+    // incident, the two independent causes and the measurement that verified this file:
+    // § fontconfig-darwin.mjs.
+    const fontsConf = stageDarwinFontconfig(OUT);
+    windowing.fontsConf = DARWIN_FONTS_CONF_PATH;
+    console.log(`build-gtk-runtime: fontconfig config bundled — ${DARWIN_FONTS_CONF_PATH}`);
+
+    // 4b-g. GTK/libadwaita/GLib/GtkSourceView catalogs. Without these, the bundle's own
+    // strings stay English under a German locale, because the libraries look for them under
+    // paths compiled into the build host. § locale-darwin.mjs.
+    const locale = stageDarwinLocale(OUT, join(brewShare, 'locale'));
+    windowing.localeLocales = locale.locales;
+    windowing.localeFiles = locale.files;
+    console.log(
+        `build-gtk-runtime: locale catalogs bundled — ${locale.files} files across ${locale.locales} locales ` +
+            `(${DARWIN_LOCALE_DOMAINS.join(', ')})`,
+    );
 }
 
 // --- 4d. the runtime DATA must be real files, not links into this machine ----

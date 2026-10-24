@@ -29,12 +29,34 @@ fs = import('fs')
 
 root_dir = meson.current_source_dir()
 
-dependencies = [
-    dependency('glib-2.0'),
-    dependency('gobject-2.0'),
-    dependency('gio-2.0'),
-    dependency('gtk4'),
-]
+# Every GNOME library here is resolved against the HOST PROCESS rather than
+# recorded as an `@rpath/` dependency: a second GLib beside the one the host
+# already loaded gives the process two GType registries, then SIGSEGV.
+# docs/prebuilds.md § One GLib. The sibling bridges branch on `host_system`;
+# this one cannot be built anywhere but darwin (the `error()` above), so a
+# branch here would be dead code. gtk4 is in the list because its own `--libs`
+# carry `-lglib-2.0 -lgobject-2.0` — stripping only the glib trio would still
+# let ld64 record a GLib load command.
+#
+# GLib alone is left to `dynamic_lookup`: gjs always loads it. GTK is not loaded
+# by the host, so an unrecorded GTK leaves `gtk_*` unbound and the class init
+# dereferences NULL (SIGSEGV on a bare `imports.gi.<Ns>`). It is linked by path
+# instead, which records ITS load command while GLib — absent from the link
+# line — still binds to the host.
+host_provided = ['glib-2.0', 'gobject-2.0', 'gio-2.0']
+
+dependencies = []
+foreach pkg : host_provided
+    dependencies += dependency(pkg).partial_dependency(
+        compile_args: true, includes: true)
+endforeach
+
+gtk_dep = dependency('gtk4')
+dependencies += gtk_dep.partial_dependency(compile_args: true, includes: true)
+dependencies += meson.get_compiler('c').find_library('gtk-4',
+    dirs: gtk_dep.get_variable(pkgconfig: 'libdir'))
+
+host_provided_link_args = ['-Wl,-undefined,dynamic_lookup']
 
 # `-fobjc-arc` is what makes the CFBridgingRetain/CFRelease pairs in the
 # implementation mean what they say: under ARC those are the explicit
@@ -57,7 +79,7 @@ headers = files('src/objc/gjsify-webkit.h')
 
 libgjsifywebkit = library('gjsifywebkit', sources,
     dependencies: dependencies,
-    link_args: frameworks,
+    link_args: frameworks + host_provided_link_args,
     install: true,
     # The Vala bridges get this from valac; here it is explicit. It is the same
     # requirement `check-prebuild-loader-path.mjs` enforces on every shipped

@@ -8,13 +8,46 @@ project('GjsifyWebrtc', ['c', 'vala'], version: '0.1',
 
 root_dir = meson.current_source_dir()
 
-dependencies = [
-    dependency('glib-2.0'),
-    dependency('gobject-2.0'),
-    dependency('gstreamer-1.0'),
-    dependency('gstreamer-sdp-1.0'),
-    dependency('gstreamer-webrtc-1.0'),
-]
+host_system = host_machine.system()
+
+# On darwin every GNOME library is resolved against the HOST PROCESS rather than
+# recorded as an `@rpath/` dependency: a second GLib beside the one the host
+# already loaded gives the process two GType registries, then SIGSEGV.
+# docs/prebuilds.md § One GLib. The gstreamer packages are in the list because
+# their own `--libs` carry `-lglib-2.0 -lgobject-2.0` — stripping only the glib
+# pair would still let ld64 record a GLib load command.
+#
+# GLib alone is left to `dynamic_lookup`: gjs always loads it. GStreamer is not
+# loaded by the host, so an unrecorded GStreamer leaves `gst_*` unbound and the
+# class init dereferences NULL (SIGSEGV on a bare `imports.gi.<Ns>`). Those
+# libraries are linked by path instead, which records THEIR load command while
+# GLib — absent from the link line — still binds to the host.
+host_provided = ['glib-2.0', 'gobject-2.0']
+gstreamer_libs = {
+    'gstreamer-1.0': 'gstreamer-1.0',
+    'gstreamer-sdp-1.0': 'gstsdp-1.0',
+    'gstreamer-webrtc-1.0': 'gstwebrtc-1.0',
+}
+
+dependencies = []
+foreach pkg : host_provided
+    dep = dependency(pkg)
+    dependencies += host_system == 'darwin' \
+        ? dep.partial_dependency(compile_args: true, includes: true) \
+        : dep
+endforeach
+foreach pkg, lib : gstreamer_libs
+    dep = dependency(pkg)
+    if host_system == 'darwin'
+        dependencies += dep.partial_dependency(compile_args: true, includes: true)
+        dependencies += meson.get_compiler('c').find_library(lib,
+            dirs: dep.get_variable(pkgconfig: 'libdir'))
+    else
+        dependencies += dep
+    endif
+endforeach
+
+host_provided_link_args = host_system == 'darwin' ? ['-Wl,-undefined,dynamic_lookup'] : []
 
 sources = files(
     'src/vala/promise-bridge.vala',
@@ -25,6 +58,7 @@ sources = files(
 
 libGjsifyWebrtc = library('gjsifywebrtc', sources,
     dependencies: dependencies,
+    link_args: host_provided_link_args,
     vala_gir: meson.project_name() + '-0.1.gir',
     install: true,
     install_dir: [true, true, true, true],

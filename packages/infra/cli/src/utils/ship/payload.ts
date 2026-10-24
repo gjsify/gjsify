@@ -866,10 +866,23 @@ export function readBinaryArch(data: Uint8Array): string | null {
  * JavaScript and ADR 0024 § A1 turns it into a design commitment — so a host
  * comparison would refuse the very case the split exists to allow.
  */
-export function assertPayloadMatchesArch(payload: readonly PayloadEntry[], arch: string): void {
+export function assertPayloadMatchesArch(
+    payload: readonly PayloadEntry[],
+    arch: string,
+    options: { exempt?: ReadonlySet<string> } = {},
+): void {
     for (const entry of payload) {
         const found = readBinaryArch(entry.data);
         if (found === null || found === arch) continue;
+        // ONE NAMED EXCEPTION, not a relaxation of the rule: the windows layout's
+        // GUI-launcher stub (`pe-launcher.ts`) is x86-64 machine code on every
+        // windows arch BY DESIGN — it only `exec`s the sibling `.cmd`, which hands
+        // off to the arch-correct `node.exe` the stage actually carries, and
+        // Windows-on-ARM runs x64 code through Prism for exactly this reason. The
+        // caller names that one path; nothing else may match it, so a real
+        // cross-arch payload (the #1354/0.41.0 incident this function exists for)
+        // still throws.
+        if (options.exempt?.has(entry.path)) continue;
         throw new Error(
             `gjsify ship: the payload is ${found}, but the package would be labelled ${arch} — ` +
                 `${entry.path} is built for ${found}.\n` +

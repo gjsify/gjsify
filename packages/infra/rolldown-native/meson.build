@@ -17,15 +17,43 @@ project('GjsifyRolldown', ['c', 'vala'], version: '1.0',
 
 cc = meson.get_compiler('c')
 
-vala_deps = [
-    dependency('glib-2.0'),
-    dependency('gobject-2.0'),
-    # json-glib is used by BundlerSession to peek at the hook name +
-    # request id from the Rust-emitted JSON envelope before routing
-    # to the matching GObject signal. The full payload is forwarded
-    # to JS unparsed.
-    dependency('json-glib-1.0'),
-]
+host_system = host_machine.system()
+
+# On darwin every GNOME library is resolved against the HOST PROCESS rather than
+# recorded as an `@rpath/` dependency: a second GLib beside the one the host
+# already loaded gives the process two GType registries, then SIGSEGV.
+# docs/prebuilds.md § One GLib. json-glib is in the list because its own
+# `--libs` carry `-lglib-2.0 -lgobject-2.0` — stripping only the glib pair would
+# still let ld64 record a GLib load command.
+#
+# json-glib is used by BundlerSession to peek at the hook name + request id
+# from the Rust-emitted JSON envelope before routing to the matching GObject
+# signal. The full payload is forwarded to JS unparsed.
+#
+# GLib alone is left to `dynamic_lookup`: gjs always loads it. json-glib is not
+# loaded by the host, so unrecorded it leaves `json_*` unbound; it is linked by
+# path instead, which records ITS load command while GLib stays out of the link
+# line.
+host_provided = ['glib-2.0', 'gobject-2.0']
+
+vala_deps = []
+foreach pkg : host_provided
+    dep = dependency(pkg)
+    vala_deps += host_system == 'darwin' \
+        ? dep.partial_dependency(compile_args: true, includes: true) \
+        : dep
+endforeach
+
+json_dep = dependency('json-glib-1.0')
+if host_system == 'darwin'
+    vala_deps += json_dep.partial_dependency(compile_args: true, includes: true)
+    vala_deps += cc.find_library('json-glib-1.0',
+        dirs: json_dep.get_variable(pkgconfig: 'libdir'))
+else
+    vala_deps += json_dep
+endif
+
+host_provided_link_args = host_system == 'darwin' ? ['-Wl,-undefined,dynamic_lookup'] : []
 
 # ----------------------------------------------------------------------------
 # Host-dependent naming + runtime-lookup conventions
@@ -52,8 +80,6 @@ vala_deps = [
 # `gjsify.platforms` gains `darwin-arm64`.
 # The branch below is kept in lockstep with its lightningcss/oxfmt siblings.
 # ----------------------------------------------------------------------------
-host_system = host_machine.system()
-
 if host_system == 'darwin'
     rust_cdylib_name = 'libgjsify_rolldown.dylib'
     shared_lib_name = 'libgjsifyrolldown.dylib'
@@ -162,7 +188,8 @@ sources = files(
 
 inc = include_directories('src/vala')
 
-link_args = ['-L' + meson.current_build_dir(), '-lgjsify_rolldown']
+link_args = ['-L' + meson.current_build_dir(), '-lgjsify_rolldown'] \
+    + host_provided_link_args
 
 libGjsifyRolldown = library('gjsifyrolldown', sources,
     dependencies: vala_deps,

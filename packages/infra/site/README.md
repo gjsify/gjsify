@@ -63,6 +63,57 @@ and rasterised by GdkPixbuf), `SoftwareApplication` JSON-LD, `hreflang` alternat
 root owns it and must list this sitemap. A page title or meta description that is too short
 (or only the app name) is reported as a build warning.
 
+## Privacy pages
+
+With `gjsify.site.privacy` set, a build also writes `/<base><lang>/privacy/index.html` and links it
+from the footer of every page (title "Privacy" / "Datenschutz"). It opens with one built-in
+paragraph — about visiting THIS page, which sets no cookie, runs no analytics and loads nothing
+from a third-party domain, because this package adds none of those — then the consumer's own
+statement of what the APP does with data, read verbatim from the file `statements[lang]` names and
+rendered through a small Markdown subset (headings, paragraphs, lists, GFM tables, links, bold,
+inline code; `#`/`##`/`###` render as `h2`/`h3`/`h4`, one level up, since the page already has its
+own `h1`).
+
+```json
+"privacy": {
+  "statements": { "en": "docs/privacy.md", "de": "docs/privacy.de.md" },
+  "hostingPolicyUrl": "https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement"
+}
+```
+
+**The statement is never generated**, and every configured language needs its own entry — a
+missing one fails the build rather than silently showing English where a translation was promised.
+This is deliberate, not a gap to close: what the APP does with data is a claim about its own code,
+checked the same way `docs/store/privacy.md` already is in a consumer like Beifahrer (every
+substantive line cited to a `file:line`), and an app that talks to no data only because the page
+*says* so is exactly the "inaccurate privacy policy" app stores remove listings for. `@gjsify/site`
+can derive the hosting paragraph because it is a fact about what THIS package ships, not about the
+product — see [ADR 0109](../../../docs/adr/0109-a-static-site-generator-reads-an-app-from-its-metainfo.md)'s
+amendment on why that line is drawn there. `hostingPolicyUrl` is the one hosting fact that is a
+per-deployment choice rather than a package guarantee, so it is config, named only when given.
+
+## Legal Notice / Impressum pages
+
+With `gjsify.site.legalNotice` set, a build also writes `/<base><lang>/legal-notice/index.html` and
+links it from the footer of every page (title "Legal Notice" / "Impressum"). Same shape as
+`privacy` — one statement file per configured language, read verbatim and rendered through the same
+Markdown subset — but **no built-in paragraph is prepended**: unlike the privacy page, this package
+has nothing of its own to say about who is legally responsible for a site, so the whole page is the
+consumer's own statement.
+
+```json
+"legalNotice": {
+  "statements": { "en": "docs/legal-notice.md", "de": "docs/legal-notice.de.md" }
+}
+```
+
+German law (§ 5 DDG, formerly § 5 TMG) requires a "Legal Notice"/Impressum directly on a site tied
+to a business, not merely linked from another domain — the page this key builds satisfies that.
+Content is typically identical across one publisher's apps (same legal entity, same address), but
+this package does not assume or enforce that: each consumer supplies its own files, the same way
+`privacy` does, because what counts as identical is a fact about the publisher, not something a
+shared package can derive.
+
 `gjsify site build --overview <file> --out <dir>` renders one page that lists several apps, each
 linking to its own support page, for a host such as `jumplink.eu/support/`:
 
@@ -109,6 +160,8 @@ Lives in the root `package.json`, next to `ship` and `flatpak`.
 | `releaseAssets` | `false` ignores the GitHub release assets, so `downloads` is the whole list. Default `true`. |
 | `relatedApps` | `[url \| {url, name, summary, icon}]`: sites of other apps, listed in order under "More apps by <developer>" on the landing page, see below. Optional — without it there is no section and nothing is fetched. |
 | `support`, `legal` | `support`: `{kind, url}` links, or `{kind: "sepa", name, iban, bic?, reference?}`, a bank transfer shown as IBAN plus an EPC QR code. `legal`: `{label, url}` links. Both empty by default: nothing is invented. |
+| `privacy` | `{statements: {<lang>: <path>}, hostingPolicyUrl?}`: a privacy page at `/<lang>/privacy/`, see below. Absent: no such page. |
+| `legalNotice` | `{statements: {<lang>: <path>}}`: a Legal Notice/Impressum page at `/<lang>/legal-notice/`, see below. Absent: no such page. |
 
 A `sepa` entry carries no amount, and its IBAN is checked when the config loads — length per
 country, alphabet, and the mod-97 checksum — so a typo fails the build instead of printing a QR
@@ -139,7 +192,9 @@ unknown id fails the build with the known ids listed.
 
 The recommendation ("Recommended for your system") is made once per part, so each block
 highlights its own best match, and the big button at the top of the dialog offers the first
-declared component: the thing to install first.
+declared component: the thing to install first. On Linux the order is Flathub, the Flatpak
+bundle, the AppImage, then deb and rpm: the Flatpak runs sandboxed on the shared GNOME runtime
+and updates with it, where an AppImage trusts the host's typelibs and needs FUSE.
 
 ### Related apps
 

@@ -19,7 +19,7 @@ from decides which one you get. Pick the narrowest one that covers your imports.
 |---|---|---|
 | `@gjsify/utils/core` | GJS · Node · browser · NativeScript | everything that is well-defined without GLib/Gio |
 | `@gjsify/utils` | **GJS only** | `…/core` plus the six modules that call into GLib/Gio |
-| `@gjsify/utils/main-loop` | GJS · Node · browser · NativeScript | just `ensureMainLoop` / `holdMainLoop` / `quitMainLoop` |
+| `@gjsify/utils/main-loop` | GJS · Node · browser · NativeScript | just `ensureMainLoop` / `holdMainLoop` / `quitMainLoop` / `acquireMainLoop` / `releaseMainLoop` |
 
 ```typescript
 // Cross-runtime — safe from a package whose browser / nativescript slot is
@@ -45,6 +45,16 @@ loop, a daemon — needs `holdMainLoop()` instead, which arms regardless of dept
 spins the default context itself while a module's top-level await is pending, so a
 continuation resumed from a timer or a Gio callback runs at depth 1, where
 `ensureMainLoop()` declines and the process exits as soon as the module settles.
+
+`acquireMainLoop()` / `releaseMainLoop()` are the drain half, for consumers whose liveness
+follows a handle: one counted hold per live child — `@gjsify/worker_threads` acquires on spawn
+and follows `unref()` / `ref()` — released when that handle's exit or `unref()` lands, and the
+release reaching zero quits the loop, so the parked blocking `run()` returns and the process
+exits like Node's (`node:worker_threads` keeps a script alive while a `Worker` is referenced —
+the contract #2339 asked for). The primitives above have no release at all, only
+`process.exit()` ends them; a counted hold is the consumer's own — per acquire one release,
+never what someone else armed. The io packages that arm via `ensureMainLoop()` today keep
+their park-forever behavior until their close paths migrate to the pair.
 
 The root barrel adds `gbytesToUint8Array`, `cli`, `readJSON`, `existsFD`, `existsSync`,
 `gioAsync`, `readBytesAsync`, `inputStreamAsyncIterator`, `resolve`, `getProgramExe`,

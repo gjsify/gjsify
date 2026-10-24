@@ -14,10 +14,14 @@ import { processImage, type ProcessedImage } from './render/images.js';
 import { ogCardSvg } from './render/og-card.js';
 import {
     absolute,
+    legalNoticeUrl,
     localized,
     pageMeta,
     pageUrl,
+    privacyUrl,
+    renderLegalNoticePage,
     renderPage,
+    renderPrivacyPage,
     renderRoot,
     renderSupportPage,
     supportUrl,
@@ -40,6 +44,8 @@ import {
     type SiteData,
     APP_MANIFEST_FILE,
     buildAppManifest,
+    loadLegalNoticeStatements,
+    loadPrivacyStatements,
 } from './site-data/index.js';
 
 /**
@@ -216,6 +222,12 @@ export async function buildSite(options: SiteBuildOptions): Promise<SiteBuildRes
     const iconHref = await iconDataUri(data, target);
     const { light = '#84bbfd' } = data.app.branding;
     const hasSupport = data.config.support.length > 0;
+    const privacyStatements = data.config.privacy
+        ? await loadPrivacyStatements(data.config.privacy, target.root)
+        : undefined;
+    const legalNoticeStatements = data.config.legalNotice
+        ? await loadLegalNoticeStatements(data.config.legalNotice, target.root)
+        : undefined;
     for (const lang of data.config.languages) {
         const t = translator(catalogs[lang]);
         const ctx = { data, lang, t, assets, images, iconUrl, ogImage: `${data.config.base}og-${lang}.png` };
@@ -235,13 +247,32 @@ export async function buildSite(options: SiteBuildOptions): Promise<SiteBuildRes
             await mkdir(join(target.out, lang, 'support'), { recursive: true });
             await writeFile(join(target.out, lang, 'support', 'index.html'), renderSupportPage(ctx));
         }
+        if (privacyStatements) {
+            await mkdir(join(target.out, lang, 'privacy'), { recursive: true });
+            await writeFile(
+                join(target.out, lang, 'privacy', 'index.html'),
+                renderPrivacyPage(ctx, privacyStatements[lang]!),
+            );
+        }
+        if (legalNoticeStatements) {
+            await mkdir(join(target.out, lang, 'legal-notice'), { recursive: true });
+            await writeFile(
+                join(target.out, lang, 'legal-notice', 'index.html'),
+                renderLegalNoticePage(ctx, legalNoticeStatements[lang]!),
+            );
+        }
     }
     const manifest = buildAppManifest(data, iconUrl ? absolute(data, iconUrl) : undefined);
     await writeFile(join(target.out, APP_MANIFEST_FILE), `${JSON.stringify(manifest, null, 2)}\n`);
     await writeFile(join(target.out, 'index.html'), renderRoot(data, assets, iconUrl));
     const address = (build: (data: SiteData, lang: string) => string) =>
         Object.fromEntries(data.config.languages.map((lang) => [lang, absolute(data, build(data, lang))]));
-    const pages: SitemapPage[] = [address(pageUrl), ...(hasSupport ? [address(supportUrl)] : [])];
+    const pages: SitemapPage[] = [
+        address(pageUrl),
+        ...(hasSupport ? [address(supportUrl)] : []),
+        ...(privacyStatements ? [address(privacyUrl)] : []),
+        ...(legalNoticeStatements ? [address(legalNoticeUrl)] : []),
+    ];
     await writeFile(join(target.out, 'sitemap.xml'), sitemapXml(pages, data.config.defaultLanguage));
     // Only a site served from the host root can own `/robots.txt`; below a path the host does.
     if (data.config.base === '/') {

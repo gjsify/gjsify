@@ -36,6 +36,7 @@ import shipDependsSuite from './utils/ship/depends.spec.js';
 import shipGiSelectionSuite from './utils/ship/gi-selection.spec.js';
 import shipNodeRuntimeSuite from './utils/ship/node-runtime.spec.js';
 import shipAppRuntimeSuite from './utils/ship/app-runtime.spec.js';
+import shipGtkRuntimeAcquireSuite from './utils/ship/gtk-runtime-acquire.spec.js';
 import shipFlatpakSuite from './utils/ship/flatpak.spec.js';
 import shipDmgSuite from './utils/ship/dmg.spec.js';
 import shipAppImageSuite from './utils/ship/appimage.spec.js';
@@ -55,6 +56,7 @@ import publishDiagnoseSuite from './publish-diagnose.spec.js';
 import publishReadbackSuite from './publish-readback.spec.js';
 import publishStatusSuite from './publish-status.spec.js';
 import publishHoldSuite from './publish-hold.spec.js';
+import transientRetrySuite from './transient-retry.spec.js';
 import publishHeadersSuite from './utils/publish-headers.spec.js';
 import cliRuntimeClosureSuite from './utils/cli-runtime-closure.spec.js';
 import whoamiCommandSuite from './whoami-command.spec.js';
@@ -306,6 +308,7 @@ run(
         shipGiSelectionSuite,
         shipNodeRuntimeSuite,
         shipAppRuntimeSuite,
+        shipGtkRuntimeAcquireSuite,
         shipFlatpakSuite,
         shipDmgSuite,
         shipAppImageSuite,
@@ -325,6 +328,7 @@ run(
         publishReadbackSuite,
         publishStatusSuite,
         publishHoldSuite,
+        transientRetrySuite,
         publishHeadersSuite,
         cliRuntimeClosureSuite,
         whoamiCommandSuite,

@@ -308,7 +308,7 @@ function resolveLocalShowcaseDir(showcase: ShowcaseInfo): string | null {
  */
 function gtkRuntimeSpecs(cliVersion: string | undefined): string[] {
     const target = `${process.platform}-${process.arch}`;
-    const shipped = ['win32-x64', 'darwin-arm64', 'darwin-x64'];
+    const shipped = ['win32-x64', 'win32-arm64', 'darwin-arm64', 'darwin-x64'];
     if (!shipped.includes(target)) return [];
     const name = `@gjsify/gtk-runtime-${target}`;
     return [cliVersion ? `${name}@${cliVersion}` : name];

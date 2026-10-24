@@ -1,0 +1,122 @@
+{
+  "name": "@gjsify/gtk-runtime-win32-arm64",
+  "version": "0.64.6",
+  "description": "Batteries-included GTK/GObject-Introspection runtime bundle for Windows arm64 — lets @gjsify/node-gi load gi:// namespaces (GLib/GObject/Gio/cairo/Pango/Graphene/Gdk) with NO gvsbuild/system GTK. Platform-gated (win32/arm64 only). GTK is built from source by our MSVC gjsify/gvsbuild fork (ADR 0089) — upstream gvsbuild publishes no arm64 ZIP.",
+  "type": "module",
+  "license": "SEE LICENSE IN gtk/THIRD-PARTY-NOTICES.md",
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./gtk/girepository-1.0": "./gtk/girepository-1.0",
+    "./gtk/bin": "./gtk/bin"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "gtk"
+  ],
+  "gjsify": {
+    "runtimes": {
+      "gjs": "none",
+      "node": "polyfill",
+      "browser": "none",
+      "nativescript": "none"
+    },
+    "tier": 3,
+    "mediaCapabilities": {
+      "gstPluginDir": "gtk/lib/gstreamer-1.0",
+      "audioDecode": [
+        {
+          "format": "WAV / PCM",
+          "plugin": "wavparse",
+          "element": "wavparse"
+        },
+        {
+          "format": "MP3",
+          "plugin": "mediafoundation",
+          "element": "mfmp3dec"
+        },
+        {
+          "format": "AAC (M4A)",
+          "plugin": "mediafoundation",
+          "element": "mfaacdec"
+        },
+        {
+          "format": "Ogg / Vorbis",
+          "plugin": "vorbis",
+          "element": "vorbisdec",
+          "upstream": {
+            "catalogue": "gvsbuild",
+            "library": "libvorbis"
+          }
+        },
+        {
+          "format": "Opus",
+          "plugin": "opus",
+          "element": "opusdec",
+          "upstream": {
+            "catalogue": "gvsbuild",
+            "library": "opus"
+          }
+        },
+        {
+          "format": "A-law",
+          "plugin": "alaw",
+          "element": "alawdec"
+        },
+        {
+          "format": "µ-law",
+          "plugin": "mulaw",
+          "element": "mulawdec"
+        }
+      ],
+      "gaps": [
+        {
+          "plugin": "mpg123",
+          "element": "mpg123audiodec",
+          "upstream": {
+            "catalogue": "gvsbuild",
+            "library": "mpg123"
+          },
+          "why": "MP3 is DECODED on this target, by `mfmp3dec` out of the `mediafoundation` plugin (gst-plugins-bad), which wraps the MP3 decoder Windows itself ships — see the `MP3` claim. This entry is the OTHER decoder, the one the darwin bundles use: gst-plugins-good's `mpg123` links libmpg123, and the gvsbuild version this bundle is built from defines no project for that library, so the element cannot be built here. It stays declared, with `upstream`, so the day gvsbuild gains the project this bundle can ship the same decoder as darwin and stop depending on the OS component. What the OS route costs, stated because it is not nothing: Media Foundation is absent from Windows N editions until the Media Feature Pack is installed, and is the optional Server-Media-Foundation feature on Windows Server — where mfplat.dll is missing the plugin does not load and MP3 is the gap it was before (ADR 0056 § 7)."
+        },
+        {
+          "format": "FLAC",
+          "plugin": "flac",
+          "element": "flacdec",
+          "upstream": {
+            "catalogue": "gvsbuild",
+            "library": "flac"
+          },
+          "why": "the gst-plugins-good element links libFLAC and gvsbuild defines no project for that library either — the same absence as MP3, read off the same project list, and neither is a licensing decision: libmpg123 is LGPL-2.1 and libFLAC is BSD-3-Clause. Unlike MP3 this one has a route out of the pinned catalogue and is therefore a COSTED decision rather than an absence: gvsbuild builds gst-plugins-rs under the project name `gst-plugin-gtk4`, and that tree's `claxon` feature is a pure-Rust FLAC decoder (`claxondec`, MPL-2.0). It is not taken — ADR 0056 § Alternatives rejected carries the price. A libFLAC project in gvsbuild closes it in one word instead."
+        },
+        {
+          "plugin": "wasapi2",
+          "why": "the modern Windows sink, and the one absence here that costs no format: `directsound` ships and `autoaudiosink` resolves to it. Declared because it is the same silent absence, not because anything breaks."
+        },
+        {
+          "format": "AAC (ADTS)",
+          "why": "the same `mfaacdec` that decodes the M4A shape (see the `AAC (M4A)` claim) does not decode a bare ADTS stream through `decodebin3` on the x64 bundle (measured on CI); the same gvsbuild-built GStreamer closure backs this arch, so the gap is assumed shared until measured separately on arm64."
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build:bundle": "node ../scripts/build-gtk-runtime-win32.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gjsify/gjsify.git",
+    "directory": "packages/node-gi/gtk-runtime-win32-arm64"
+  }
+}

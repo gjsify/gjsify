@@ -316,6 +316,110 @@ describe('check-prebuild-loader-path: the build-host leak', () => {
     });
 });
 
+describe('darwin prebuilds bind GLib to the host process', () => {
+    // A Mach-O keys each dependency by the path that resolves it, so a prebuild linking
+    // `@rpath/libglib` next to the bundle's `LC_RPATH` loads the bundle's GLib even when
+    // Homebrew `gjs` already loaded its own: two GType registries, SIGSEGV in
+    // `gjsify_terminal_resize_watcher_real_dispose` during GC. The fix is in the LINK
+    // (`-undefined dynamic_lookup`, GNOME deps reduced to compile args), so it cannot be
+    // read off a committed artifact until CI rebuilds one; this reads the build files
+    // instead, from any host.
+    const ROOT = join(dirname(new URL(import.meta.url).pathname), '..', '..', '..');
+
+    /** @param {string} dir @returns {string[]} */
+    const mesonFiles = (dir) =>
+        readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+            if (e.name === 'node_modules' || e.name === 'subprojects' || e.name.startsWith('.')) return [];
+            const p = join(dir, e.name);
+            if (e.isDirectory()) return mesonFiles(p);
+            return e.name === 'meson.build' ? [p] : [];
+        });
+
+    it('gives every meson.build that links GLib the dynamic_lookup link arg', () => {
+        const offenders = [];
+        let checked = 0;
+        for (const file of mesonFiles(join(ROOT, 'packages'))) {
+            // webview2-native is win32-only: no darwin build, no Mach-O.
+            if (file.includes('webview2-native')) continue;
+            const src = readFileSync(file, 'utf8');
+            if (!/dependency\('glib-2\.0'\)|'glib-2\.0'/.test(src)) continue;
+            checked++;
+            if (!src.includes('dynamic_lookup') || !src.includes('partial_dependency')) offenders.push(file);
+            // Declared is not applied: webrtc-native defined `host_provided_link_args`, never
+            // passed it to `library()`, and the darwin link failed on every `prebuilds.yml`
+            // run from 9285791bbe on — so no darwin prebuild was rebuilt (#2368).
+            else if (
+                /\bhost_provided_link_args *=/.test(src) &&
+                (src.match(/\bhost_provided_link_args\b/g) ?? []).length < 2
+            )
+                offenders.push(file);
+        }
+        assert.ok(checked > 0, 'expected at least one meson.build that links GLib');
+        assert.deepEqual(offenders, [], 'a darwin prebuild must not record its own GLib load command');
+    });
+
+    // `dynamic_lookup` only works for what the host process has loaded, and gjs loads GLib
+    // and nothing else. A libsoup / GStreamer / GTK reduced to `partial_dependency` leaves
+    // its symbols unbound, so the class init calls NULL and a bare `imports.gi.<Ns>` dies
+    // with SIGSEGV on darwin-arm64 (#2368). Those libraries have to be linked by path,
+    // which records their load command and leaves GLib out of the link line.
+    it('links libsoup, GStreamer and GTK by path instead of leaving them to dynamic_lookup', () => {
+        const offenders = [];
+        let checked = 0;
+        for (const file of mesonFiles(join(ROOT, 'packages'))) {
+            if (file.includes('webview2-native')) continue;
+            const src = readFileSync(file, 'utf8');
+            if (!/'(libsoup-3\.0|gtk4|json-glib-1\.0|gstreamer[\w.-]*)'/.test(src)) continue;
+            checked++;
+            if (!src.includes('find_library')) offenders.push(file);
+        }
+        assert.ok(checked > 0, 'expected at least one meson.build that depends on libsoup, GStreamer or GTK');
+        assert.deepEqual(offenders, [], 'a non-GLib library the host does not load must keep its load command');
+    });
+});
+
+describe('the release cut refuses a darwin prebuild that still records GLib (#2368)', () => {
+    const stage = (commands) => {
+        const dir = mkdtempSync(join(tmpdir(), 'gjsify-host-glib-'));
+        writeFileSync(join(dir, 'libgjsifyfoo.dylib'), machO(commands));
+        return dir;
+    };
+    const ID = { cmd: LC_ID_DYLIB, str: '@rpath/libgjsifyfoo.dylib' };
+
+    it('FAILS @rpath GLib and GObject, naming the fix', () => {
+        const dir = stage([
+            ID,
+            { cmd: LC_LOAD_DYLIB, str: '@rpath/libglib-2.0.0.dylib' },
+            { cmd: LC_LOAD_DYLIB, str: '@rpath/libgobject-2.0.0.dylib' },
+            SYSTEM_DYLIB,
+        ]);
+        try {
+            const problems = checkPrebuildDir(dir, { verbose: false, hostGlib: true });
+            assert.equal(problems.length, 2);
+            assert.match(problems.join('\n'), /dynamic_lookup/);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('PASSES an image with no GLib load command, and is off by default', () => {
+        const clean = stage([ID, SYSTEM_DYLIB]);
+        const stale = stage([ID, { cmd: LC_LOAD_DYLIB, str: '@rpath/libglib-2.0.0.dylib' }, SYSTEM_DYLIB]);
+        try {
+            assert.deepEqual(checkPrebuildDir(clean, { verbose: false, hostGlib: true }), []);
+            assert.deepEqual(checkPrebuildDir(stale, { verbose: false }), []);
+        } finally {
+            rmSync(clean, { recursive: true, force: true });
+            rmSync(stale, { recursive: true, force: true });
+        }
+    });
+
+    it('is wired into the release-it after:bump hook', () => {
+        const hook = JSON.parse(readFileSync(join(MONOREPO_ROOT, '.release-it.json'), 'utf8')).hooks['after:bump'];
+        assert.match(hook, /check-prebuild-loader-path\.mjs --host-glib /);
+    });
+});
+
 describe('typelib shared-library records', () => {
     const TERMINAL_LE = prebuildDir('node', 'terminal-native', 'linux-x64', 'GjsifyTerminal-1.0.typelib');
 

@@ -9,6 +9,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -17,6 +18,7 @@ import {
     buildLauncherShims,
     buildNativeEnvPreamble,
     buildShLauncher,
+    dyldFallbackPreamble,
     isGjsBundlePath,
     normalizeBinMap,
     parseShebang,
@@ -254,6 +256,48 @@ export default async () => {
             expect(mac).toContain('$HOME/lib');
             // An inherited value keeps priority; the defaults are only ever added.
             expect(mac).toContain('${DYLD_FALLBACK_LIBRARY_PATH:+$DYLD_FALLBACK_LIBRARY_PATH:}');
+        });
+
+        // Measured on macOS 27 / arm64: with the documented default EXPORTED (not
+        // unset), `GjsPrivate-1.0`'s bare `libgjs.0.dylib` no longer resolves and
+        // every `gjsify` command died in Gio's override with `Unsupported type
+        // void`. Executed, not string-matched: the value is assembled by `sh` at
+        // launch, and only the expansion says which directory dyld will see.
+        await it('appends the lib/ beside the gjs on PATH, expanded at launch', async () => {
+            if (process.platform === 'win32') return;
+            const prefix = mkdtempSync(join(tmpdir(), 'gjsify-dyld-prefix-'));
+            try {
+                mkdirSync(join(prefix, 'bin'));
+                writeFileSync(join(prefix, 'bin', 'gjs'), '#!/bin/sh\n', { mode: 0o755 });
+                const run = (env: Record<string, string>) =>
+                    spawnSync(
+                        '/bin/sh',
+                        ['-c', `${dyldFallbackPreamble('darwin')}printf %s "$DYLD_FALLBACK_LIBRARY_PATH"`],
+                        {
+                            env,
+                            encoding: 'utf8',
+                        },
+                    ).stdout;
+
+                const found = run({ PATH: `${join(prefix, 'bin')}:/usr/bin:/bin`, HOME: '/h' }).split(':');
+                expect(found.slice(0, 4)).toStrictEqual(['/h/lib', '/usr/local/lib', '/lib', '/usr/lib']);
+                expect(found[4]).toBe(`${join(prefix, 'bin')}/../lib`);
+
+                // No gjs on PATH (the node branch of a shim): nothing is appended.
+                expect(run({ PATH: '/nonexistent', HOME: '/h' })).toBe('/h/lib:/usr/local/lib:/lib:/usr/lib');
+                // The helper variable does not leak into the exec'd interpreter.
+                const leaked = spawnSync(
+                    '/bin/sh',
+                    ['-c', `${dyldFallbackPreamble('darwin')}printf %s "\${gjsify_gjs-unset}"`],
+                    {
+                        env: { PATH: `${join(prefix, 'bin')}:/usr/bin:/bin`, HOME: '/h' },
+                        encoding: 'utf8',
+                    },
+                ).stdout;
+                expect(leaked).toBe('unset');
+            } finally {
+                rmSync(prefix, { recursive: true, force: true });
+            }
         });
 
         await it('leaves the fallback variable alone off darwin', async () => {

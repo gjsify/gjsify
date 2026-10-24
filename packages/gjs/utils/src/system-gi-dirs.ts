@@ -126,7 +126,11 @@ export interface SystemGiLibraryDirsHost {
  * child launched through it searches LESS than one launched with the
  * variable unset — the regression `packages/infra/cli/src/utils/system-gi.ts`
  * (`composeDyldFallback`) and `packages/node-gi/node-gi/system-gi.js` both
- * exist to avoid. A THIRD caller that only needs the tail, not the rest of
+ * exist to avoid. The tail is necessary, not sufficient: a bare leaf such as
+ * `GjsPrivate`'s `libgjs.0.dylib` still resolves unset and not set (measured on
+ * macOS 27 / arm64), so a value that starts `gjs` also needs gjs's own `lib/` —
+ * see `dyldFallbackPreamble` in `packages/infra/cli/src/utils/bin-shim.ts`.
+ * A THIRD caller that only needs the tail, not the rest of
  * that composition (a launcher replacing the environment outright has no
  * "current value of the variable" to fold in), imports this rather than
  * hand-rolling the same four-entry array — see

@@ -99,6 +99,10 @@ export function windowingEnvWrites() {
     return [];
 }
 
+export function bundledLocaleDir() {
+    return undefined;
+}
+
 // NativeScript's runtime class hands out the Application without @nativescript/core
 // (android.app.ActivityThread is a hidden API and absent from the metadata).
 function deriveAppDir() {

@@ -8,6 +8,8 @@ project('GjsifySabNative', ['c', 'vala'], version: '1.0',
 
 root_dir = meson.current_source_dir()
 
+host_system = host_machine.system()
+
 # Required system packages (Fedora 43+):
 #   dnf install vala meson ninja-build
 #
@@ -24,11 +26,21 @@ root_dir = meson.current_source_dir()
 # and call into it from Vala via [CCode] extern declarations. Buffer ownership
 # stays C-side, mirroring the @gjsify/http2-native nghttp2-helpers pattern.
 
-vala_deps = [
-    dependency('glib-2.0'),
-    dependency('gobject-2.0'),
-    dependency('gio-2.0'),
-]
+# On darwin every GNOME library is resolved against the HOST PROCESS rather than
+# recorded as an `@rpath/` dependency: a second GLib beside the one the host
+# already loaded gives the process two GType registries, then SIGSEGV.
+# docs/prebuilds.md § One GLib.
+host_provided = ['glib-2.0', 'gobject-2.0', 'gio-2.0']
+
+vala_deps = []
+foreach pkg : host_provided
+    dep = dependency(pkg)
+    vala_deps += host_system == 'darwin' \
+        ? dep.partial_dependency(compile_args: true, includes: true) \
+        : dep
+endforeach
+
+host_provided_link_args = host_system == 'darwin' ? ['-Wl,-undefined,dynamic_lookup'] : []
 
 sources = files(
     'src/vala/sab-helpers.c',
@@ -38,8 +50,6 @@ sources = files(
 
 # Compiler picks up sab-helpers.h via the include dir.
 inc = include_directories('src/vala')
-
-host_system = host_machine.system()
 
 # -D_GNU_SOURCE: needed for memfd_create + MFD_CLOEXEC + SYS_futex visibility.
 # darwin exposes everything its backend uses by default.
@@ -57,6 +67,7 @@ libGjsifySabNative = library('gjsifysabnative', sources,
     dependencies: vala_deps,
     include_directories: inc,
     c_args: c_args,
+    link_args: host_provided_link_args,
     vala_gir: meson.project_name() + '-1.0.gir',
     install: true,
     install_dir: [true, true, true, true],

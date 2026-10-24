@@ -21,23 +21,30 @@ The program directory is what an installer lays down and a user browses to. The
 zip is what a user downloads, so its filename carries the version and the
 architecture.
 
-`x64` is the only architecture. `gjsify`, the project that builds GTK for
-Windows, publishes no arm64 runtime bundle yet, so there is no GTK for a Windows
-on ARM artifact to load. `--arch arm64` is refused by name rather than producing a
-directory that cannot start.
+`x64` and `arm64` are both supported. `wingtk/gvsbuild`, the project that builds
+GTK for Windows, still publishes x64 assets only — but the arm64 GTK prefix is
+built from source in our own CI by the `gjsify/gvsbuild` fork (ADR 0089), and
+`@gjsify/gtk-runtime-win32-arm64` + `@gjsify/node-runtime-win32-arm64` ship
+against it.
 
 ## The runtime it carries
 
 There is no GJS on Windows, so nothing there can run a `gjs` payload, and ship
 says so before it packs anything. Set `gjsify.ship.app.win32` to `"node"`, as
 [Ship your app](/gjsify/ship/#what-macos-and-windows-carry) shows, and install
-`@gjsify/node-runtime-win32-x64`, `@gjsify/gtk-runtime-win32-x64` and
-`@gjsify/node-gi`.
+`@gjsify/node-runtime-win32-x64` and `@gjsify/node-gi`. The GTK closure,
+`@gjsify/gtk-runtime-win32-x64`, is fetched by `gjsify ship` into its cache when
+nothing provides one; you do not install it.
 
 The key is `win32`, the `process.platform` spelling, not `windows`, which is what
 the command positional takes. A key nothing reads would leave the target on the
 project default with nothing to say so, so `gjsify ship` and the manifest audit
 both refuse it by name.
+
+
+`@gjsify/gtk-runtime-win32-arm64` and `@gjsify/node-runtime-win32-arm64`
+are the Windows/ARM siblings of the x64 bundles above; `gjsify ship win32
+--arch arm64` resolves them by name.
 
 `GJSIFY_GTK_RUNTIME`, when set, names a directory holding `bin/` and
 `girepository-1.0/`.
@@ -186,8 +193,9 @@ A project on any operating system, producing all three Windows artifacts. The
 `.msi` step needs `msitools` on Linux, so it can run in the same place.
 
 ```bash
-# 1. Declare the runtime, on the packaging host.
-npm install --save-dev @gjsify/node-runtime-win32-x64 @gjsify/gtk-runtime-win32-x64
+# 1. Declare the interpreter, on the packaging host. The GTK closure is
+#    fetched by `ship` into its cache and is not installed.
+npm install --save-dev @gjsify/node-runtime-win32-x64
 npm install --save @gjsify/node-gi
 
 # 2. Install the MSI compiler.
@@ -214,7 +222,6 @@ process computes about itself. The positional accepts both `windows` and
 | Message says | Fix |
 |---|---|
 | the windows layout cannot run a `gjs` app | set `gjsify.ship.app.win32` to `"node"` (or `gjsify.app`, for every target) and rebuild the bundle for Node |
-| `the windows layout is not assemblable for --arch arm64` | use `--arch x64`; there is no Windows on ARM GTK to load |
 | `packing a msi on … needs … wixl` | install `msitools`, or WiX Toolset v3.14 on Windows |
 | `is not a version an .msi can carry` | set `gjsify.ship.version` to a plain `x.y.z` |
 | `the windows layout would put this app in a directory called …` | set `gjsify.ship.name` to a name Windows can hold |

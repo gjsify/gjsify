@@ -27,6 +27,26 @@ interface Message {
     value?: unknown;
 }
 
+const CRASH_FIXTURE_URL = new URL('./fixtures/crash-worker.mjs', import.meta.url);
+
+/**
+ * Crash contract (#2336): a worker that throws outside a message handler —
+ * here inside a timer callback — reports `error` to the parent and then exits
+ * 1, instead of a silent child that outlives the protocol. Node parity: a
+ * Node worker's `uncaughtException` reaches the parent the same way.
+ */
+function crashContract(worker: Worker): { error: Promise<Error>; exit: Promise<number> } {
+    const error = new Promise<Error>((resolve, reject) => {
+        worker.once('error', (err: Error) => resolve(err));
+        setTimeout(() => reject(new Error('no error event within 5000 ms')), 5000);
+    });
+    const exit = new Promise<number>((resolve, reject) => {
+        worker.once('exit', (code: number) => resolve(code));
+        setTimeout(() => reject(new Error('no exit event within 5000 ms')), 5000);
+    });
+    return { error, exit };
+}
+
 /** Collect the next N messages from a worker, then resolve. */
 function collectMessages(worker: Worker, count: number, timeoutMs = 5000): Promise<Message[]> {
     return new Promise((resolve, reject) => {
@@ -203,6 +223,34 @@ export default async () => {
                     } catch {
                         /* already gone */
                     }
+                }
+            }
+        });
+    });
+
+    await describe('Worker — file-based (crash contract)', async () => {
+        await it('reports the uncaught throw as error, then exits 1', async () => {
+            const worker = new Worker(CRASH_FIXTURE_URL);
+            try {
+                const observed: { type: string; value: unknown }[] = [];
+                const { error, exit } = crashContract(worker);
+                worker.on('message', (msg: Message) => {
+                    expect(msg.type).toBe('ready');
+                });
+                const err = await error;
+                observed.push({ type: 'error', value: (err as Error).message });
+                const code = await exit;
+                observed.push({ type: 'exit', value: code });
+                expect((err as Error).message).toContain('boom-in-timer');
+                expect(code).toBe(1);
+                // Node emits `error` before `exit`; the reverse would claim a
+                // cleanup the crash path never had.
+                expect(observed[0].type).toBe('error');
+            } finally {
+                try {
+                    await worker.terminate();
+                } catch {
+                    /* already gone — the crash path delivered faster */
                 }
             }
         });

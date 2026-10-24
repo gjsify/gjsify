@@ -8,12 +8,39 @@ project('GjsifyHttpSoupBridge', ['c', 'vala'], version: '1.0',
 
 root_dir = meson.current_source_dir()
 
-dependencies = [
-    dependency('glib-2.0'),
-    dependency('gobject-2.0'),
-    dependency('gio-2.0'),
-    dependency('libsoup-3.0', version: '>=3.6'),
-]
+host_system = host_machine.system()
+
+# On darwin every GNOME library is resolved against the HOST PROCESS rather than
+# recorded as an `@rpath/` dependency: a second GLib beside the one the host
+# already loaded gives the process two GType registries, then SIGSEGV.
+# docs/prebuilds.md § One GLib. libsoup is in the list because its own `--libs`
+# carry `-lglib-2.0 -lgobject-2.0` — stripping only the glib trio would still
+# let ld64 record a GLib load command.
+host_provided = ['glib-2.0', 'gobject-2.0', 'gio-2.0']
+
+dependencies = []
+foreach pkg : host_provided
+    dep = dependency(pkg)
+    dependencies += host_system == 'darwin' \
+        ? dep.partial_dependency(compile_args: true, includes: true) \
+        : dep
+endforeach
+
+# libsoup is NOT left to `dynamic_lookup` like GLib: the host process (gjs) never
+# loads it by itself, so an unrecorded libsoup leaves `soup_*` unbound and the
+# class init dereferences NULL (SIGSEGV on a bare `imports.gi.<Ns>`). It is linked
+# by path instead, which records ITS load command while GLib — absent from the
+# link line — still binds to the host. docs/prebuilds.md § One GLib.
+soup_dep = dependency('libsoup-3.0', version: '>=3.6')
+if host_system == 'darwin'
+    dependencies += soup_dep.partial_dependency(compile_args: true, includes: true)
+    dependencies += meson.get_compiler('c').find_library('soup-3.0',
+        dirs: soup_dep.get_variable(pkgconfig: 'libdir'))
+else
+    dependencies += soup_dep
+endif
+
+host_provided_link_args = host_system == 'darwin' ? ['-Wl,-undefined,dynamic_lookup'] : []
 
 sources = files(
     'src/vala/peer-close-watch.vala',
@@ -24,6 +51,7 @@ sources = files(
 
 libGjsifyHttpSoupBridge = library('gjsifyhttpsoupbridge', sources,
     dependencies: dependencies,
+    link_args: host_provided_link_args,
     vala_gir: meson.project_name() + '-1.0.gir',
     install: true,
     install_dir: [true, true, true, true],
@@ -42,7 +70,6 @@ libGjsifyHttpSoupBridge = library('gjsifyhttpsoupbridge', sources,
 # work, so `else` (ELF naming) is the honest fallback rather than a .dll branch
 # that would imply support which does not exist.
 # ----------------------------------------------------------------------------
-host_system = host_machine.system()
 if host_system == 'darwin'
     shared_lib_name = 'libgjsifyhttpsoupbridge.dylib'
 else

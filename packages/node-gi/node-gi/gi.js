@@ -17,6 +17,7 @@ import {
     clearInterval,
     runtimeProcess,
     windowingEnvWrites,
+    bundledLocaleDir,
     FOREIGN_PARENT_CLASSES,
 } from '#host';
 import { createGioDBus } from './overrides/gio-dbus.js';
@@ -1289,6 +1290,7 @@ function flushPropertiesToJsSetters(instance, handle, reg) {
 // process loop) — for concurrent runtime-loop + GLib work there, drive GLib with
 // startMainContextPump instead of a blocking run.
 function applicationRunAsync(handle) {
+    armBundledTextDomains(handle);
     return new Promise((resolve, reject) => {
         setImmediate(() => {
             try {
@@ -1298,6 +1300,37 @@ function applicationRunAsync(handle) {
             }
         });
     });
+}
+
+// ---- the GTK runtime bundle's own catalogs ----
+//
+// gtk_init, adw_init, gtk_source_init and GLib's first translated message each call
+// bindtextdomain(<domain>, <dir compiled into the build host>) — on the darwin bundle a
+// Homebrew Cellar path a user's Mac does not have, so GTK's own strings (Adw widgets, entry
+// context menus, shortcuts) stayed English under a German locale. Measured: the domains read
+// /opt/homebrew/Cellar/{gtk4,libadwaita}/… in a `startup` handler and NOT before `run()`, so
+// any earlier binding is undone. Armed on `register` and `run` (either emits `startup`), the
+// handler runs right after GApplication's
+// RUN_FIRST class closure (where those inits happen) and before `activate` builds the UI.
+// An app that builds widgets in its OWN startup handler connected before `run()` sees them
+// first, untranslated. Armed only when the loader found catalogs in the bundle.
+const BUNDLED_TEXT_DOMAINS = ['gtk40', 'libadwaita', 'glib20', 'gtksourceview-5'];
+const textDomainsArmed = new WeakSet();
+
+function armBundledTextDomains(handle) {
+    const dir = bundledLocaleDir();
+    if (dir === undefined || textDomainsArmed.has(handle)) return;
+    // `run` is not only GApplication's (GtkDialog, GTask, …), and only it emits `startup`.
+    if (!native.isInstanceOf(handle, 'Gio', 'Application')) return;
+    textDomainsArmed.add(handle);
+    native.connectSignal(
+        handle,
+        'startup',
+        wrapSignalCallback(() => {
+            for (const domain of BUNDLED_TEXT_DOMAINS) native.bindtextdomain(domain, dir);
+        }),
+        false,
+    );
 }
 
 // ---- portable GLib main-context pump (Bun/Deno) ----
@@ -1676,7 +1709,10 @@ function wrapInstance(handle, userProto) {
         let thunk = giMethodThunks[prop];
         if (thunk === undefined) {
             thunk = instanceHasMethod(handle, prop)
-                ? (...args) => wrapReturn(native.callMethod(handle, prop, unwrapArgs(args)))
+                ? (...args) => {
+                      if (prop === 'run' || prop === 'register') armBundledTextDomains(handle);
+                      return wrapReturn(native.callMethod(handle, prop, unwrapArgs(args)));
+                  }
                 : null;
             giMethodThunks[prop] = thunk;
         }
@@ -1979,6 +2015,7 @@ function makeGiMethod(where, method, arity) {
         // the registration is honoured here, where the instance is known.
         const promisified = promisifiedMethods.size === 0 ? undefined : resolveRegistered(handle, method);
         if (promisified !== undefined) return promisified.apply(this, args);
+        if (method === 'run' || method === 'register') armBundledTextDomains(handle);
         return wrapReturn(native.callMethod(handle, method, unwrapArgs(args)));
     };
     nativeThunks.add(fn);

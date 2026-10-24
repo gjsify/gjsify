@@ -82,7 +82,7 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, posix, sep } from 'node:path';
 
 import { listFilesRecursive } from './discover.js';
-import type { Layout, LayoutIdentity } from './layout.js';
+import { assertUsableAsHelperName, type Layout, type LayoutIdentity } from './layout.js';
 import { nodeRuntimeBinaryName } from './node-runtime.js';
 import { isExecutableAsset } from './plan.js';
 import { resolveInstalledPackage, type ResolveInstalledPackageOptions } from '../resolve-npm-package.js';
@@ -97,7 +97,7 @@ import type { StagedFile } from './types.js';
  * deriving one from the other would make a future Linux GTK bundle silently imply
  * a bundled Linux interpreter (which `node-runtime.ts` refuses on purpose).
  */
-export const GTK_RUNTIME_TARGETS = ['darwin-arm64', 'darwin-x64', 'win32-x64'] as const;
+export const GTK_RUNTIME_TARGETS = ['darwin-arm64', 'darwin-x64', 'win32-x64', 'win32-arm64'] as const;
 
 export type GtkRuntimeTarget = (typeof GTK_RUNTIME_TARGETS)[number];
 
@@ -148,6 +148,13 @@ export interface ResolveRuntimeOptions {
      * is Bun's global-cache behaviour, which is otherwise unreachable from Node.
      */
     resolve?: ResolveInstalledPackageOptions['resolve'];
+    /**
+     * The directory of a `@gjsify/gtk-runtime-<target>` package that
+     * {@link acquireGtkRuntime} fetched for THIS run — the last candidate, after
+     * everything the author installed or pointed at. See `gtk-runtime-acquire.ts`
+     * for why it is fetched rather than installed.
+     */
+    fetchedGtkRuntimeDir?: string;
 }
 
 /**
@@ -168,7 +175,11 @@ export interface ResolveRuntimeOptions {
  *     for a ship run.
  *  3. the sibling monorepo directory `../gtk-runtime-<target>/gtk`, which is what
  *     an in-repo `npm run build:bundle` writes.
- *  4. the published `@gjsify/gtk-runtime-<target>` package's `gtk/`.
+ *  4. the published `@gjsify/gtk-runtime-<target>` package's `gtk/`, when the
+ *     author installed it.
+ *  5. the same package fetched for this run (`fetchedGtkRuntimeDir`) — NOT in
+ *     node-gi's probe, because node-gi never fetches: it finds the closure inside
+ *     the `.app` this function put it in, and the layout there is the same.
  *
  * A candidate counts only when it holds BOTH the loadable-code directory and the
  * typelib directory — node-gi's own probe, restated here rather than weakened,
@@ -204,6 +215,13 @@ export function resolveGtkRuntime(
     const packageName = gtkRuntimePackageName(target);
     const entry = resolveStagedPackage(packageName, options);
     if (entry !== null) candidates.push({ source: packageName, dir: join(dirname(entry), 'gtk') });
+
+    if (options.fetchedGtkRuntimeDir !== undefined) {
+        candidates.push({
+            source: `${packageName} (fetched for this ship run)`,
+            dir: join(options.fetchedGtkRuntimeDir, 'gtk'),
+        });
+    }
 
     for (const candidate of candidates) {
         const libDir = join(candidate.dir, nativeSubdir);
@@ -340,8 +358,11 @@ export interface AppRuntimePaths {
     /** `<prebuildDir>/node_gi.node` — what `NODE_GI_NATIVE` pins. */
     addonPath: string;
     /**
-     * `<App>.app/Contents/MacOS/node`, or `<program dir>/node.exe` — beside the
-     * launcher that execs it, under the name the target's own release uses.
+     * `<App>.app/Contents/Helpers/<display name>`, or `<program dir>/node.exe`
+     * beside the launcher — darwin names it after the app (`layout.ts`'s
+     * `dirs.helpers`) so Activity Monitor and System Events show the app
+     * instead of `node`; Windows keeps the interpreter's own release name
+     * beside the `.cmd`, where nothing reads a process list by file name.
      */
     interpreterPath: string;
     /** Node's own LICENSE, under `Contents/Resources` (macOS) or `share/` (Windows). */
@@ -358,20 +379,35 @@ export function appRuntimePaths(layout: Layout, identity: LayoutIdentity, target
         prebuildDir,
         gtkDir: posix.join(prebuildDir, 'gtk'),
         addonPath: posix.join(prebuildDir, NODE_GI_ADDON_FILENAME),
-        // `Contents/MacOS`, because that is where a `.app` keeps executables and
-        // because `$here` — which the launcher already computes — is then the whole
-        // path expression. `dirs.native` would work for dyld and would make
-        // the launcher walk back up for the one file it execs. On Windows
-        // `dirs.launcher` is the program directory itself, so the interpreter lands
-        // beside the `.cmd` for the same reason.
+        // ON DARWIN, `Contents/Helpers/<display name>` — NEVER `Contents/MacOS`,
+        // because that directory already holds the launcher at `binaryName`, and
+        // APFS is case-insensitive by default: `stamped` and `Stamped` are the
+        // same file there, so no capitalisation of `binaryName` can share the
+        // directory with it. `Contents/Helpers` is one of Apple's own
+        // nested-code locations (`codesign(1)`'s bundle format, beside
+        // `Frameworks`, `PlugIns`, `XPCServices`), and naming the leaf after
+        // `identity.name` rather than `binaryName` is the whole point: Activity
+        // Monitor and System Events read a Mach-O process's name off its own
+        // FILE NAME, not off `exec -a` or any argv — measured by hand-editing a
+        // released `.app`, moving its interpreter to `Contents/Helpers/<App>`
+        // and rewriting the launcher's `exec` line, after which `ps -o comm` and
+        // System Events both read the app's name instead of `node`.
         //
-        // THE LEAF COMES FROM `node-runtime.ts`, which is the module that already
-        // decided it for the SOURCE file — `node.exe` on win32, `node` elsewhere,
-        // read off the TARGET and never `process.platform` (assembling a Windows
-        // program directory on Linux is the supported path). Restating the rule here
-        // would let the two drift into a stage that copies `node.exe` to `node` and a
-        // launcher that execs neither.
-        interpreterPath: posix.join(dirs.launcher, nodeRuntimeBinaryName(target)),
+        // Derived from the LAYOUT (`dirs.helpers !== ''`) rather than from
+        // `layout.name === 'darwin'`: only the darwin row sets `helpers` to a
+        // real directory (`layout.ts`), so this branch is "does this layout have
+        // a helpers seam", not a second darwin-specific fact typed out here.
+        //
+        // ON WINDOWS AND LINUX, unchanged: `dirs.launcher` and the leaf
+        // `node-runtime.ts` already decided for the SOURCE file — `node.exe` on
+        // win32, read off the TARGET and never `process.platform` (assembling a
+        // Windows program directory on Linux is the supported path). A Windows
+        // program directory has no launcher-collision to dodge in the first
+        // place, so its interpreter stays beside the `.cmd`.
+        interpreterPath:
+            dirs.helpers === ''
+                ? posix.join(dirs.launcher, nodeRuntimeBinaryName(target))
+                : posix.join(dirs.helpers, assertUsableAsHelperName(identity.name)),
         // rpm's `share/licenses/<name>/LICENSE` shape, which the `macos-app` row
         // already uses for the app's own licence — one layout for a reader to learn,
         // and `node` is a name no `binaryName` can collide with silently: `placeStage`
@@ -415,6 +451,10 @@ export interface StageAppRuntimeInput {
     resolve?: ResolveRuntimeOptions['resolve'];
     /** The interpreter, already resolved — see `node-runtime.ts`. `null` when absent. */
     interpreter: { source: string; nodePath: string; licensePath: string } | null;
+    /** See {@link ResolveRuntimeOptions.fetchedGtkRuntimeDir}. */
+    fetchedGtkRuntimeDir?: string;
+    /** Why the fetch produced nothing — named in the `missing` line, so the cause is not guessed at. */
+    gtkFetchFailure?: string;
 }
 
 /**
@@ -484,9 +524,11 @@ export function stageAppRuntime(input: StageAppRuntimeInput): StagedAppRuntime {
         // resolver then refuses -- a hint that is wrong is worse than none,
         // because it costs the reader the time to follow it first.
         const nativeSubdir = input.target.startsWith('win32-') ? 'bin' : 'lib';
+        const why = input.gtkFetchFailure === undefined ? '' : ` — fetching it failed: ${input.gtkFetchFailure}`;
         missing.push(
-            `no GTK closure — install \`${gtkRuntimePackageName(input.target)}\` (or point ` +
-                `\`GJSIFY_GTK_RUNTIME\` at a bundle directory holding \`${nativeSubdir}/\` and \`girepository-1.0/\`)`,
+            `no GTK closure${why} — point \`GJSIFY_GTK_RUNTIME\` at a bundle directory holding ` +
+                `\`${nativeSubdir}/\` and \`girepository-1.0/\`, or install \`${gtkRuntimePackageName(input.target)}\` ` +
+                'where the build can reach it',
         );
     }
 
@@ -543,6 +585,7 @@ function discoveryOptions(input: StageAppRuntimeInput): ResolveRuntimeOptions {
     if (input.cwd !== undefined) options.cwd = input.cwd;
     if (input.env !== undefined) options.env = input.env;
     if (input.resolve !== undefined) options.resolve = input.resolve;
+    if (input.fetchedGtkRuntimeDir !== undefined) options.fetchedGtkRuntimeDir = input.fetchedGtkRuntimeDir;
     return options;
 }
 

@@ -5,7 +5,7 @@
 
 ### What these three are
 
-`@gjsify/node-runtime-{darwin-arm64,darwin-x64,win32-x64}` each ship **one Node binary and Node's `LICENSE`**, nothing else, so a `gjsify ship` artifact for macOS or Windows can carry its own interpreter. **Linux gets no package on purpose**: a `.deb`/`.rpm` declares a dependency on the distribution's Node (`utils/ship/depends.ts` → `NODE_PACKAGE`), the way a `--app gjs` package declares `gjs`.
+`@gjsify/node-runtime-{darwin-arm64,darwin-x64,win32-x64,win32-arm64}` each ship **one Node binary and Node's `LICENSE`**, nothing else, so a `gjsify ship` artifact for macOS or Windows can carry its own interpreter. **Linux gets no package on purpose**: a `.deb`/`.rpm` declares a dependency on the distribution's Node (`utils/ship/depends.ts` → `NODE_PACKAGE`), the way a `--app gjs` package declares `gjs`. `win32-arm64` (ADR 0089, #1117) uses the SAME fetcher and the SAME `TARGETS` shape — `distTag: 'win-arm64'`, `node-${v}-win-arm64.zip` — and its `LICENSE` is byte-identical in size to win32-x64's (160,555 B CRLF), so `EXPECTED_LICENSE_BYTES` needed no change.
 
 Shape is `@gjsify/gtk-runtime-*`'s (hand-written manifest, gitignored payload, `files:` overriding `.gitignore` at pack time), NOT `packages/node/tls-native-*`'s: that one commits its artifacts and machine-generates its manifest from `scripts/generate-platform-packages.mjs`, and a 120 MB binary must not be committed. The one place we diverge from gtk-runtime is the publish topology — its payload is BUILT on the OS it targets and needs a runner per OS; ours is a verified DOWNLOAD, so all three ride one ubuntu job and nothing here reads `process.platform`.
 
@@ -28,7 +28,7 @@ Shape is `@gjsify/gtk-runtime-*`'s (hand-written manifest, gitignored payload, `
 ### Two declarations that are choices, not derivations
 
 |`gjsify.runtimes.node` is **`polyfill`**, copied from `@gjsify/gtk-runtime-*` rather than reasoned to. The drift check sees neither family (`axis: "unknown"`, `file_count: 0`), so nothing would have caught a divergence — and a structurally identical sibling declaring something different is exactly the drift no checker covers. `none` is in any case false: `index.js` imports `node:fs`/`node:path`/`node:url` and exists to be read from a Node process.
-|`resolveNodeRuntime()` (CLI: `utils/ship/node-runtime.ts`) returns `null` rather than throwing "so the caller can decide how loud to be". Its caller is `utils/ship/app-runtime.ts` (#1354 M2b), which stages the interpreter into `<App>.app/Contents/MacOS/node` — and USES the `null`: it stages the GTK closure it did find and names the interpreter package it did not, instead of failing. Windows has none yet; do not give it one that ignores the `null`.
+|`resolveNodeRuntime()` (CLI: `utils/ship/node-runtime.ts`) returns `null` rather than throwing "so the caller can decide how loud to be". Its caller is `utils/ship/app-runtime.ts` (#1354 M2b), which stages the interpreter into `<App>.app/Contents/Helpers/<display name>` (not `Contents/MacOS/node` — that collides with the launcher and APFS case-folds) — and USES the `null`: it stages the GTK closure it did find and names the interpreter package it did not, instead of failing. Windows has none yet; do not give it one that ignores the `null`.
 
 ### Bumping the Node version
 

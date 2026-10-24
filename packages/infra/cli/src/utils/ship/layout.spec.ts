@@ -15,6 +15,7 @@ import { pngSize, rasters } from './icon-fixture.spec.js';
 import { ICNS_SIZES } from './icns.js';
 import { ICO_SIZES } from './ico.js';
 import {
+    assertUsableAsHelperName,
     hostLayout,
     launcherPath,
     layoutForOs,
@@ -79,6 +80,31 @@ export default async () => {
                 expect(`${name}=${dir}`.includes('Contents/Frameworks')).toBe(false);
             }
             expect(dirs.native).toBe('Hello World.app/Contents/Resources/native');
+        });
+
+        await it('names the carried interpreter under Contents/Helpers, never Contents/MacOS', () => {
+            // `Contents/MacOS` already holds the launcher at `binaryName`, and APFS
+            // is case-insensitive by default — `stamped` and `Stamped` are the same
+            // file there — so no capitalisation of `binaryName` can share that
+            // directory with it. `Contents/Helpers` is one of Apple's own
+            // nested-code locations (`codesign(1)`'s bundle format).
+            const dirs = LAYOUTS.darwin.dirs(IDENTITY);
+            expect(dirs.helpers).toBe('Hello World.app/Contents/Helpers');
+            // Neither of the other two layouts has a launcher-name collision to
+            // dodge, so neither declares a helpers seam.
+            expect(LAYOUTS.linux.dirs(IDENTITY).helpers).toBe('');
+            expect(LAYOUTS.windows.dirs(IDENTITY).helpers).toBe('');
+        });
+
+        await it('refuses a display name that cannot be the helper file name', () => {
+            // A SUPERSET of the `.app` directory's own refusal: wrapping "." or
+            // ".." in "<name>.app" produces an ordinary directory name, while this
+            // leaf is `identity.name` taken literally, where "." and ".." name the
+            // directory itself and its parent.
+            for (const bad of ['', '.', '..', 'a/b', 'a:b', 'a\\b', 'a\u0000b']) {
+                expect(() => assertUsableAsHelperName(bad)).toThrow('gjsify.ship.name');
+            }
+            expect(assertUsableAsHelperName('Ship Demo')).toBe('Ship Demo');
         });
 
         await it('keeps an unrecognised destination inside Contents on macOS', () => {

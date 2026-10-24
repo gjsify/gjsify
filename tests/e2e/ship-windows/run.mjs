@@ -441,34 +441,6 @@ describe('CLI ship Windows program directory E2E', { timeout: 10 * 60 * 1000 }, 
         assert.deepEqual(manifest.formats, [], 'a stage nothing can pack must record that, not a format it cannot use');
     });
 
-    it('refuses to PACK an architecture no Windows GTK closure exists for, naming the blocker', () => {
-        // #1117, and the blocker is OURS: `@gjsify/gtk-runtime-win32-arm64` is not
-        // built, and on Windows that bundle is the only GTK there is. The arm64
-        // prefix it would be built from is not the obstacle — ADR 0089 builds it
-        // from `gjsify/gvsbuild` in CI.
-        const bare = scaffoldNodeApp(join(tmpDir, 'arm64'));
-        const refusal = shipExpectingFailure(['ship', 'windows', '--skip-build', '--arch', 'arm64'], bare);
-        assert.match(refusal, /the windows layout is not assemblable for `--arch arm64`/);
-        assert.match(refusal, /gjsify\/gjsify#1117/);
-    });
-
-    it('WARNS at --stage for that architecture rather than refusing, and says nothing can pack it', async () => {
-        // The other half, and the reason the refusal is not at stage time: a stage
-        // is a build intermediate, and `tests/e2e/ship-layout` assembles all three
-        // layouts from ONE payload on purpose — that payload's native file has an
-        // architecture, so a stage-time refusal would ban the suite that proves the
-        // layout map. What must not leave is an ARTIFACT.
-        const bare = scaffoldNodeApp(join(tmpDir, 'arm64-stage'));
-        const { status, stdout, stderr } = await runCli(
-            CLI_ENTRY,
-            ['ship', 'windows', '--skip-build', '--stage', '--arch', 'arm64'],
-            { cwd: bare },
-        );
-        assert.equal(status, 0);
-        assert.match(`${stdout}${stderr}`, /this stage is labelled arm64 and the windows layout has no runtime/);
-        assert.match(`${stdout}${stderr}`, /gjsify\/gjsify#1117/);
-    });
-
     /** The packed directory as `ZipEntry[]`, so a red run differs from the green one in ONE field. */
     function programEntries() {
         return listFiles(programDir).map((rel) => ({

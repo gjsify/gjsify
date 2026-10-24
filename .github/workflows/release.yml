@@ -345,6 +345,20 @@ jobs:
           # "unchecked" (the hold still applies).
           NPM_STATUS_TOKEN: ${{ secrets.NPM_STATUS_TOKEN }}
 
+      # Second pass: publish what the sweep held, then wait out the versions npm accepted but had
+      # not served at the sweep's 5 s read-back. Anything still held or unserved fails the job
+      # below, after the summary and the asset upload (the last step of this job).
+      - name: Publish held packages and settle read-back
+        if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          .github/scripts/retry-held-publish.sh latest
+          gjsify publish --settle-ledger
+        env:
+          GJSIFY_PUBLISH_DEBUG: "1"
+          GJSIFY_PUBLISH_LEDGER: ${{ runner.temp }}/publish-ledger.jsonl
+          NPM_STATUS_TOKEN: ${{ secrets.NPM_STATUS_TOKEN }}
+
       - name: Report held and unserved packages
         if: ${{ always() && (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
         run: |
@@ -408,6 +422,16 @@ jobs:
         run: |
           echo "Packages successfully published to npm for release ${RELEASE_TAG}"
           echo "Published packages: @gjsify/*"
+
+      # Last step on purpose: the summary and asset upload above still run when this fails.
+      - name: Fail if packages stayed held or unserved
+        if: ${{ !cancelled() && (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          gjsify publish --report-ledger --fail-on-unsettled --ref "$RELEASE_REF" >/dev/null
+        env:
+          GJSIFY_PUBLISH_LEDGER: ${{ runner.temp }}/publish-ledger.jsonl
+          RELEASE_REF: ${{ github.event.release.tag_name || inputs.release_tag || github.ref_name }}
 
   # macOS publish legs for the batteries-included GTK runtime bundles — ONE JOB, one
   # matrix leg per macOS arch (@gjsify/gtk-runtime-darwin-arm64 on `macos-15` — ADR 0074,
@@ -1013,7 +1037,7 @@ jobs:
       - name: Build the GTK runtime bundle (--windowing superset, populate gtk/)
         shell: pwsh
         run: |
-          node packages/node-gi/gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs `
+          node packages/node-gi/scripts/build-gtk-runtime-win32.mjs `
             --windowing `
             --out packages/node-gi/gtk-runtime-win32-x64/gtk `
             --prefix $env:GTK_PREFIX `
@@ -1093,6 +1117,123 @@ jobs:
         run: |
           node "$env:CLI_BIN" publish `
             packages/node-gi/gl-runtime-win32-x64 `
+            --tolerate-republish --tag latest --access public
+
+  # arm64 sibling of publish-gtk-runtime-win32-x64 (ADR 0089). Same builder
+  # (packages/node-gi/scripts/build-gtk-runtime-win32.mjs, shared with x64 — only
+  # --prefix and the MSVC toolset differ), same verify/publish shape. The ONE real
+  # difference: there is no upstream arm64 ZIP to download, so the prefix is BUILT
+  # in this job by the same composite action node-gi.yml's `windows-arm64` leg
+  # already uses (.github/actions/gvsbuild-arm64-prefix, pinned by the fork's
+  # commit SHA, cached) — a tag-scoped release run rarely hits that cache, so this
+  # job may pay the ~1.5h cold build (the cost of shipping arm64 before upstream
+  # gvsbuild does).
+  #
+  # No @gjsify/gl-runtime-win32-arm64: the optional Mesa OpenGL package (#1097) is
+  # x64-only today (status/open-todos/windows.md § win32-arm64 lists webgl/gamepad
+  # as still open on this architecture) — nothing here claims otherwise.
+  publish-gtk-runtime-win32-arm64:
+    name: Publish @gjsify/gtk-runtime-win32-arm64 (Windows/ARM bundle)
+    needs: [publish, node-gi-prebuild-win32-arm64]
+    if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true && (needs.publish.outputs.all == 'true' || needs.publish.outputs.gtk_win32 == 'true') }}
+    runs-on: windows-11-arm
+    timeout-minutes: 240
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GTK_PREFIX: 'C:\gtk-build\gtk\ARM64\release'
+    steps:
+      - name: Checkout repository (the released tag)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
+      - name: Build or restore the arm64 GTK4 prefix
+        uses: ./.github/actions/gvsbuild-arm64-prefix
+
+      - name: Put GTK on PATH (for the bundle-data tools)
+        shell: pwsh
+        run: '"$env:GTK_PREFIX\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8'
+
+      # The decode probe's consumer half — the win32-arm64 addon prebuild from node-gi.yml's
+      # `windows-arm64` leg, staged into node-gi-prebuild-win32-arm64 above.
+      - name: Download node-gi addon prebuild (for the decode probe)
+        uses: actions/download-artifact@v4
+        with:
+          name: node-gi-prebuild-win32-arm64
+          path: addon
+
+      # Same pinned submodule the x64 leg uses — neither gvsbuild nor Homebrew
+      # packages the GNOME UI typeface.
+      - name: Check out refs/adwaita-fonts (the bundle ships its faces)
+        timeout-minutes: 10
+        uses: ./.github/actions/checkout-ref-submodule
+        with:
+          path: refs/adwaita-fonts
+          mirror: https://github.com/GNOME/adwaita-fonts.git
+          reason: >-
+            The GTK runtime bundle ships these faces under `share/fonts`, and the
+            `fonts` windowing-data set fails the build without them
+
+      - name: Build the GTK runtime bundle (--windowing superset, populate gtk/)
+        shell: pwsh
+        run: |
+          node packages/node-gi/scripts/build-gtk-runtime-win32.mjs `
+            --windowing `
+            --out packages/node-gi/gtk-runtime-win32-arm64/gtk `
+            --prefix $env:GTK_PREFIX `
+            --addon (Join-Path $PWD 'addon\node_gi.node')
+
+      # Same gate as the x64 leg — see that job's step for the per-line rationale.
+      - name: Verify bundle (windowing data + licenses + layout present)
+        shell: pwsh
+        run: |
+          $B = "packages/node-gi/gtk-runtime-win32-arm64/gtk"
+          Get-Content "$B/manifest.json"
+          Write-Host "--- bundle size ---"
+          "{0:N1} MiB" -f ((Get-ChildItem $B -Recurse -File | Measure-Object Length -Sum).Sum / 1MB)
+          if (-not (Test-Path "$B/bin") -or -not (Test-Path "$B/girepository-1.0")) {
+            Write-Host "BUNDLE INCOMPLETE: gtk/bin + gtk/girepository-1.0 are required (index.js isPresent)"
+            exit 1
+          }
+          Write-Host "--- assert this is the WINDOWING superset, not the display-free variant ---"
+          foreach ($p in @("girepository-1.0/Adw-1.typelib", "bin/adwaita-1-0.dll", "girepository-1.0/GtkSource-5.typelib", "bin/gtksourceview-5-0.dll", "lib/gdk-pixbuf-2.0/2.10.0/loaders.cache")) {
+            if (-not (Test-Path "$B/$p")) { Write-Host "$p MISSING - not the windowing bundle"; exit 1 }
+          }
+          foreach ($t in @("share/glib-2.0/schemas", "share/icons", "share/gtksourceview-5")) {
+            if (-not (Get-ChildItem "$B/$t" -Recurse -File -ErrorAction SilentlyContinue | Where-Object Length -gt 0 | Select-Object -First 1)) {
+              Write-Host "$t holds no non-empty file - declared runtime data is missing"; exit 1
+            }
+          }
+          if (-not (Get-ChildItem "$B/share/icons" -Filter index.theme -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1)) {
+            Write-Host "no icon theme with an index.theme - icon lookups would silently fail"; exit 1
+          }
+          Write-Host "--- assert the third-party terms ship with the binaries ---"
+          if (-not (Test-Path "$B/THIRD-PARTY-NOTICES.md")) { Write-Host "THIRD-PARTY-NOTICES.md MISSING"; exit 1 }
+          if (-not (Test-Path "$B/licenses")) { Write-Host "licenses/ MISSING - LGPL DLLs with no terms attached"; exit 1 }
+          node packages/node-gi/scripts/verify-bundle-manifest.mjs --bundle $B
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Write-Host "bundle populated, complete + license-covered"
+
+      - name: Prepare a Node-runnable @gjsify/cli
+        id: cli
+        shell: pwsh
+        run: node scripts/bootstrap-published-cli.mjs
+
+      - name: Publish @gjsify/gtk-runtime-win32-arm64 (OIDC, with bundle)
+        shell: pwsh
+        env:
+          GJSIFY_PUBLISH_DEBUG: '1'
+          CLI_BIN: ${{ steps.cli.outputs.bin }}
+        run: |
+          node "$env:CLI_BIN" publish `
+            packages/node-gi/gtk-runtime-win32-arm64 `
             --tolerate-republish --tag latest --access public
 
   # @gjsify/node-gi is the Node GI reverse bridge. Like the gtk-runtime packages it
@@ -2210,7 +2351,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [darwin-arm64, darwin-x64, win32-x64]
+        target: [darwin-arm64, darwin-x64, win32-x64, win32-arm64]
     permissions:
       # id-token: write = npm Trusted Publishing (OIDC). Each package's Trusted
       # Publisher is configured for THIS workflow file (release.yml), so an OIDC
@@ -2648,6 +2789,17 @@ jobs:
           GJSIFY_PUBLISH_LEDGER: ${{ runner.temp }}/publish-ledger.jsonl
           NPM_STATUS_TOKEN: ${{ secrets.NPM_STATUS_TOKEN }}
 
+      - name: Publish held packages and settle read-back
+        if: ${{ steps.decide.outputs.publish == 'true' }}
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          .github/scripts/retry-held-publish.sh next
+          gjsify publish --settle-ledger
+        env:
+          GJSIFY_PUBLISH_DEBUG: '1'
+          GJSIFY_PUBLISH_LEDGER: ${{ runner.temp }}/publish-ledger.jsonl
+          NPM_STATUS_TOKEN: ${{ secrets.NPM_STATUS_TOKEN }}
+
       - name: Report held and unserved packages
         if: ${{ always() && steps.decide.outputs.publish == 'true' }}
         run: |
@@ -2672,3 +2824,13 @@ jobs:
             echo "npm i @gjsify/cli@next   # ${VERSION}"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # Recover with `gh run rerun <id>` (keeps the version), never a new dispatch.
+      - name: Fail if packages stayed held or unserved
+        if: ${{ !cancelled() && steps.decide.outputs.publish == 'true' }}
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          gjsify publish --report-ledger --fail-on-unsettled --ref "$NEXT_REF" >/dev/null
+        env:
+          GJSIFY_PUBLISH_LEDGER: ${{ runner.temp }}/publish-ledger.jsonl
+          NEXT_REF: next@${{ steps.version.outputs.version }}
