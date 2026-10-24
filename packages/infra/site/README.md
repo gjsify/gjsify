@@ -63,6 +63,10 @@ and rasterised by GdkPixbuf), `SoftwareApplication` JSON-LD, `hreflang` alternat
 root owns it and must list this sitemap. A page title or meta description that is too short
 (or only the app name) is reported as a build warning.
 
+A metainfo URL that points into the site's own `/<lang>/…` pages (it starts with `gjsify.site.url`)
+is rewritten to the language of the page being rendered, so `/en/support/` becomes `/de/support/` on
+the German page. Other addresses are left alone.
+
 ## Privacy pages
 
 With `gjsify.site.privacy` set, a build also writes `/<base><lang>/privacy/index.html` and links it
