@@ -14,9 +14,10 @@
 import { run } from '@gjsify/unit';
 
 import aboutDialogSuite from './about-dialog.spec.js';
+import appIconSuite from './app-icon.spec.js';
 import appearanceReaderSuite from './appearance/reader.spec.js';
 import iconThemeSuite from './icon-theme.spec.js';
 import navShellSuite from './nav-shell.spec.js';
 import systemAccentSuite from './system-accent.spec.js';
 
-run({ aboutDialogSuite, appearanceReaderSuite, iconThemeSuite, navShellSuite, systemAccentSuite });
+run({ aboutDialogSuite, appIconSuite, appearanceReaderSuite, iconThemeSuite, navShellSuite, systemAccentSuite });

@@ -54,6 +54,8 @@ export type { FileFilterSpec, PickFileOptions } from './file-dialog.js';
 export { initLocale } from './locale.js';
 export type { InitLocaleOptions, Translator } from './locale.js';
 
+export { ICON_DIR_SEARCH_DEPTH, bundleDirFromUrl, resolveIconDir } from './app-icon-dir.js';
+export type { ResolveIconDirOptions } from './app-icon-dir.js';
 export { SYSTEM_LOCALE_DIR, resolveLocaleDir, systemLocaleDir } from './locale-dir.js';
 export type { ResolveLocaleDirOptions } from './locale-dir.js';
 export { LOCALE_ENV_VARS, localeEnvToSet, posixLocale } from './locale-env.js';

@@ -17,6 +17,7 @@ import Gtk from 'gi://Gtk?version=4.0';
 import system from 'system';
 import { type InstallDevtoolsOptions, installDevtools } from '@gjsify/devtools';
 import { type CreateAboutDialogOptions, applyAboutLinks, createAboutDialog } from './about-dialog.js';
+import { addAppIconDir } from './app-icon.js';
 import { type BundledIconThemeOptions, installBundledIconTheme } from './icon-theme.js';
 import type { AboutInfo } from './types.js';
 
@@ -45,6 +46,15 @@ export interface AdwaitaAppOptions {
      * shipped set authoritative. See {@link BundledIconThemeOptions}.
      */
     bundledIcons?: boolean | BundledIconThemeOptions;
+    /**
+     * The app's own icon theme root (`<app>/data/icons`, holding `hicolor/...`). Added to
+     * the icon theme on `startup` when the theme cannot already find the app icon, which is
+     * the case for an app run straight from its build tree.
+     *
+     * Omitted: `GJSIFY_ICON_DIR`, then an upward search from the bundle for `data/icons`.
+     * A packaged install needs none of this, its launcher exports `XDG_DATA_DIRS`.
+     */
+    iconDir?: string;
     /** When set, wires an `app.about` action opening an `Adw.AboutDialog`. */
     about?: AboutInfo;
     /**
@@ -112,6 +122,7 @@ export class AdwaitaApp extends Adw.Application {
         // lookup, so a resource path added after something has already asked for a
         // name leaves that widget on whatever answered first.
         this._installBundledIcons();
+        this._installAppIcon();
         if (this._options.css) this._loadCss(this._options.css);
         this._installDevtools();
         this._options.onStartup?.(this);
@@ -121,6 +132,19 @@ export class AdwaitaApp extends Adw.Application {
         const icons = this._options.bundledIcons;
         if (icons === false) return;
         installBundledIconTheme(typeof icons === 'object' ? icons : {});
+    }
+
+    // An app run from its build tree has no launcher, so nothing exported `XDG_DATA_DIRS` and
+    // GTK never sees `data/icons/hicolor/...`: the About dialog drew an empty square. A packaged
+    // install already resolves the icon, and `addAppIconDir` leaves it alone.
+    private _installAppIcon(): void {
+        const display = Gdk.Display.get_default();
+        if (!display) return;
+        addAppIconDir(
+            Gtk.IconTheme.get_for_display(display),
+            this._options.about?.applicationIcon ?? this._options.applicationId,
+            { iconDir: this._options.iconDir },
+        );
     }
 
     private _loadCss(css: string): void {
