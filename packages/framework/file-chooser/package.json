@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/file-chooser",
-    "version": "0.64.7",
+    "version": "0.64.8",
     "description": "Gtk.FileDialog, Gtk.FileFilter and Gio.File as one import on GJS, the browser and NativeScript: the native classes on GJS, File System Access or a self-drawn OPFS dialog on the web, the Storage Access Framework on Android",
     "keywords": [
         "gjs",

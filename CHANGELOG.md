@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.64.8](https://github.com/gjsify/gjsify/compare/v0.64.7...v0.64.8) (2026-10-24)
+
+### Bug Fixes
+
+* **ci:** build gstsoup in the arm64 gvsbuild prefix ([#2377](https://github.com/gjsify/gjsify/issues/2377)) ([43c51b2](https://github.com/gjsify/gjsify/commit/43c51b23d4ddd3e07453de11ed23ca7fb4b72f46)), closes [#1117](https://github.com/gjsify/gjsify/issues/1117)
+* **ci:** build vorbis and mediafoundation for arm64 ([#2378](https://github.com/gjsify/gjsify/issues/2378)) ([9131659](https://github.com/gjsify/gjsify/commit/9131659b09d1f322c1cda31ab7dba5935b670117)), closes [#2377](https://github.com/gjsify/gjsify/issues/2377) [#2377](https://github.com/gjsify/gjsify/issues/2377) [#1117](https://github.com/gjsify/gjsify/issues/1117)
+* **cli:** ignore dynamic node: imports in ship guard ([#2376](https://github.com/gjsify/gjsify/issues/2376)) ([8bf2119](https://github.com/gjsify/gjsify/commit/8bf2119b43fb41533eae724c9192cd99dfb3d52b))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([453bab6](https://github.com/gjsify/gjsify/commit/453bab69332f1e6d9ded9ac9ef7338d076f69a5f))
+
 ## [0.64.7](https://github.com/gjsify/gjsify/compare/v0.64.6...v0.64.7) (2026-10-24)
 
 ### Features
