@@ -7,7 +7,9 @@
 > Android payload = tier-3 `gi-runtime-android/`: addon + a MEASURED DT_NEEDED closure + its
 > typelibs as ONE gitignored AAR, built never committed. What the closure cannot reach is
 > SELECTED: `--gi-namespaces` seeds the walk, `payload-baseline.json` holds the default payload
-> (ADR 0117). The app opts into the real engine, and
+> (ADR 0117). Needs `@nativescript/android` ≥ `build-inputs.json`'s pin: older runtimes export NO
+> `napi_*` (9.1.0-alpha.6 zero symbols, 9.1.1 145), so the APK builds and dies in `dlopen` — a
+> peerDependency, failed by name in `platforms/android/include.gradle`. The app opts into the real engine, and
 > `@nativescript/vite`'s vendor chunk would evaluate first so import order could not win —
 > `defineNativescriptConfig` keeps one chunk by default (`nativescriptSingleChunk()`,
 > [report](../../docs/reports/2026-10-11-node-gi-nativescript-plugin.md)).

@@ -21,8 +21,11 @@
     ],
     "nativescript": {
         "platforms": {
-            "android": "7.0.0"
+            "android": "9.1.1"
         }
+    },
+    "peerDependencies": {
+        "@nativescript/android": ">=9.1.1"
     },
     "gjsify": {
         "runtimes": {
