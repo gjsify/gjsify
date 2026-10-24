@@ -21,7 +21,7 @@ runs:
       uses: actions/cache/restore@v4
       with:
         path: C:\gtk-build\gtk\ARM64\release
-        key: gvsbuild-fork-b63cf45a87601a4c613d05a522dac0d167409aed-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-v2
+        key: gvsbuild-fork-b63cf45a87601a4c613d05a522dac0d167409aed-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-mf-v3
 
     - name: Set up Python
       if: steps.cache-gtk.outputs.cache-hit != 'true'
@@ -49,22 +49,39 @@ runs:
           default { throw "unmapped Visual Studio major '$vsMajor' — add it here (gvsbuild spells these vs2022 / vs2026)" }
         }
         Write-Host "Visual Studio $vsMajor -> gvsbuild --vs-ver $vsVer"
-        gvsbuild build --ninja-opts -j2 --enable-gi --vs-ver $vsVer --platform arm64 gtk4 libadwaita gtksourceview5 gobject-introspection gstreamer gst-plugins-base libsoup3 libvorbis
-        if ($LASTEXITCODE -ne 0) { throw "gvsbuild (arm64) first pass exited $LASTEXITCODE" }
-        # gst-plugins-good does not declare libsoup3 as a dependency, so a single invocation may
-        # build it first and meson (soup=auto) then drops gstsoup silently (#1117). Second pass:
-        # --fast-build skips what pass 1 marked built, `soup=enabled` makes a miss a hard error.
-        gvsbuild build --fast-build --ninja-opts -j2 --enable-gi --vs-ver $vsVer --platform arm64 --extra-opts 'gst-plugins-good:-Dsoup=enabled' gst-plugins-good
-        if ($LASTEXITCODE -ne 0) { throw "gvsbuild (arm64) gst-plugins-good pass exited $LASTEXITCODE" }
+        # TWO PASSES, AND THE ORDER IS THE POINT — the x64 leg (release.yml, "Build GStreamer with
+        # gvsbuild") records why. gst-plugins-good's `soup` and gst-plugins-base's `vorbis` are
+        # meson `auto` features whose libraries gvsbuild does not declare as dependencies, so a
+        # build that reaches them first is green and has no gstsoup.dll / gstvorbis.dll in it (#1117).
+        # Pass 1 therefore builds the libraries (+ the GIO TLS backend libsoup3 pulls in), pass 2 the
+        # plugins with `soup`/`vorbis` pinned to `enabled`, so a miss is a configure error naming the
+        # library. `--fast-build` keeps pass 2 from rebuilding what pass 1 already marked built.
+        # libvorbis needs no CMake-policy flag here: the fork's project already passes it.
+        gvsbuild build --ninja-opts -j2 --enable-gi --vs-ver $vsVer --platform arm64 gtk4 libadwaita gtksourceview5 gobject-introspection glib-networking libsoup3 libvorbis
+        if ($LASTEXITCODE -ne 0) { throw "gvsbuild (arm64): the GTK4/libsoup3/libvorbis pass exited $LASTEXITCODE" }
+        # `gst-plugins-bad` is here for ONE plugin: `mediafoundation` (mfmp3dec/mfaacdec wrap the
+        # decoders Windows ships — the bundle's only MP3/AAC route, ADR 0056 § 7), and the arm64
+        # manifest claims it like the x64 one. `--auto-features=disabled` keeps the other ~100 bad
+        # plugins out of the build; the `--skip`s are bad's (and good's libvpx) declared
+        # dependencies that only WebRTC/VP8 plugins use, which that flag has switched off.
+        gvsbuild build --fast-build --ninja-opts -j2 --enable-gi --vs-ver $vsVer --platform arm64 --skip libvpx --skip libnice --skip libsrtp2 --skip webrtc-audio-processing --extra-opts 'gst-plugins-base:-Dvorbis=enabled' --extra-opts 'gst-plugins-good:-Dsoup=enabled' --extra-opts 'gst-plugins-bad:--auto-features=disabled;-Dmediafoundation=enabled' gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad
+        if ($LASTEXITCODE -ne 0) { throw "gvsbuild (arm64): the GStreamer pass exited $LASTEXITCODE" }
 
     - name: Assert the prefix is complete
       shell: pwsh
       run: |
         $ErrorActionPreference = 'Stop'
         $p = 'C:\gtk-build\gtk\ARM64\release'
-        foreach ($f in @('bin\glib-2.0-0.dll', 'lib\girepository-1.0\Gtk-4.0.typelib', 'include\ffi.h', 'bin\intl.dll', 'lib\gstreamer-1.0\gstsoup.dll')) {
+        foreach ($f in @('bin\glib-2.0-0.dll', 'lib\girepository-1.0\Gtk-4.0.typelib', 'include\ffi.h', 'bin\intl.dll')) {
           if (-not (Test-Path "$p\$f")) { Write-Host "MISSING $p\$f"; exit 1 }
         }
+        # NAMED, not counted: the arm64 bundle manifest CLAIMS these formats, and the bundle builder
+        # (build-gtk-runtime-win32.mjs) fails on a claimed plugin the prefix lacks — which, caught
+        # there, is a release job after a 1.5 h build (v0.64.7). Same list as the x64 prefix check.
+        foreach ($leaf in @('gstsoup.dll', 'gstvorbis.dll', 'gstmediafoundation.dll', 'gsticydemux.dll', 'gstid3demux.dll')) {
+          if (-not (Test-Path "$p\lib\gstreamer-1.0\$leaf")) { Write-Host "MISSING $p\lib\gstreamer-1.0\$leaf"; exit 1 }
+        }
+        if (-not (Get-ChildItem "$p\lib\gio\modules" -Filter *.dll -ErrorAction SilentlyContinue)) { Write-Host "no GIO module in the prefix — glib-networking did not build"; exit 1 }
         # Without GNU gettext's intl.dll, glib silently falls back to proxy-libintl (intl-8.dll),
         # whose bindtextdomain answers "/dummy" and never translates.
         Write-Host "arm64 prefix present (cache hit: ${{ steps.cache-gtk.outputs.cache-hit }})"
@@ -76,4 +93,4 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: C:\gtk-build\gtk\ARM64\release
-        key: gvsbuild-fork-b63cf45a87601a4c613d05a522dac0d167409aed-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-v2
+        key: gvsbuild-fork-b63cf45a87601a4c613d05a522dac0d167409aed-arm64-gtk4-libadwaita-gtksourceview5-gi-gstreamer-soup-vorbis-mf-v3
