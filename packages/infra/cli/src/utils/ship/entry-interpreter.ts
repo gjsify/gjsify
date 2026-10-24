@@ -78,7 +78,11 @@ export function entryEvidence(source: string): EntryEvidence {
         const specifier = importedSpecifier(astNode);
         if (specifier === null) return;
         if (specifier.startsWith('gi://') || GJS_BUILTINS.has(specifier)) gi.add(specifier);
-        else if (specifier.startsWith('node:')) node.add(specifier);
+        // A dynamic `import('node:…')` is a reading under which the bundle works: npm
+        // libraries feature-detect with it (node-llama-cpp's `try { await
+        // import('node:sea') }` behind `process.env.SNAP`), and it is refused only
+        // if reached. A static one is refused at load, whatever the control flow.
+        else if (specifier.startsWith('node:') && astNode.type !== 'ImportExpression') node.add(specifier);
     });
     return { gi: [...gi].sort(), node: [...node].sort() };
 }
