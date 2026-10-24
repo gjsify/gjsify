@@ -32,7 +32,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -59,6 +59,24 @@ const SKIP = e2eSkipReason('adwaita-accent-bundle', [
     ['the in-tree gjsify CLI', existsSync(CLI)],
     ['a built @gjsify/adwaita-core', existsSync(BUILT_ACCENT)],
 ]);
+
+/**
+ * What the bundler included and from where, for a failure message: the regions it
+ * kept, the package it resolved, and the `sideEffects` it read. A bundle that
+ * carries a claim in one environment and not another is otherwise undiagnosable.
+ */
+function explain(out) {
+    const regions = out
+        .split('\n')
+        .filter((line) => line.startsWith('//#region'))
+        .filter((line) => /adwaita-core|gio-resource/.test(line));
+    const manifest = JSON.parse(readFileSync(join(PACKAGE, 'package.json'), 'utf-8'));
+    return [
+        `package: ${realpathSync(join(REPO_ROOT, 'node_modules', '@gjsify', 'adwaita-core'))}`,
+        `sideEffects: ${JSON.stringify(manifest.sideEffects)}`,
+        `regions: ${regions.join(' | ')}`,
+    ].join('\n');
+}
 
 /** Build one probe and return the bundle's source. */
 function bundle(entry) {
@@ -113,7 +131,7 @@ describe('an accent-only bundle carries no Gio resource registry (E2E)', { skip:
         assert.ok(out.includes(BLUE), 'the accent colour must survive — the bundle is measured, not emptied');
         assert.ok(
             !out.includes(CLAIM),
-            `a bundle that imports one accent colour must not carry ${CLAIM} — it is the module that throws on a second evaluation (#2321)`,
+            `a bundle that imports one accent colour must not carry ${CLAIM} — it is the module that throws on a second evaluation (#2321)\n${explain(out)}`,
         );
     });
 
