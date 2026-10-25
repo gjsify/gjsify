@@ -44,6 +44,7 @@ import { describeExit, spawnToCompletion } from '../utils/spawn.js';
 import { buildDeb } from '../utils/ship/deb.js';
 import { deriveDepends, warnAboutGjsFloor, warnAboutNodeFloor } from '../utils/ship/depends.js';
 import { isGtkRuntimeTarget, stageAppRuntime, type StagedAppRuntime } from '../utils/ship/app-runtime.js';
+import { resolveNodeModulesClosure, stageNodeModules } from '../utils/ship/node-modules.js';
 import { acquireGtkRuntime } from '../utils/ship/gtk-runtime-acquire.js';
 import { discoverPayload } from '../utils/ship/discover.js';
 import {
@@ -533,6 +534,7 @@ async function assemble(args: ShipOptions): Promise<void> {
     // carrying a second copy inside the payload would be a private interpreter no
     // distribution update ever patches.
     const runtime = await resolveCarriedRuntime(layout, settings, projectDir);
+    carryNodeModules(runtime, layout, settings, projectDir, ship.nodeModules, ship.nodeModulesExclude);
 
     const stageInputs: StageInputs = {
         bundleFiles: discovered.bundleFiles,
@@ -942,6 +944,46 @@ async function resolveCarriedRuntime(
         ...(acquired.kind === 'fetched' ? { fetchedGtkRuntimeDir: acquired.dir } : {}),
         ...(acquired.kind === 'failed' ? { gtkFetchFailure: acquired.reason } : {}),
     });
+}
+
+/**
+ * `gjsify.ship.nodeModules`: the npm packages an `--app node` bundle imports and cannot contain,
+ * staged beside the bundle with what they need at runtime (`utils/ship/node-modules.ts`).
+ *
+ * Only for a node payload: a GJS bundle inlines or rewrites them, so one declaration can serve a
+ * project that ships GJS on Linux and Node on macOS and Windows. Mutates `runtime` because the
+ * files take the same route as the carried interpreter — already stage-relative, past the planner.
+ */
+function carryNodeModules(
+    runtime: StagedAppRuntime,
+    layout: Layout,
+    settings: ShipSettings,
+    projectDir: string,
+    declared: string[] | undefined,
+    exclude: string[] | undefined,
+): void {
+    if (declared === undefined || declared.length === 0 || settings.app !== 'node') return;
+    const closure = resolveNodeModulesClosure(declared, projectDir, {
+        target: { os: layout.os, cpu: settings.arch },
+        exclude,
+    });
+    runtime.files.push(...stageNodeModules(closure, layout.dirs(settings).bundle));
+    runtime.found.push(`node_modules: ${closure.packages.length} package(s) for ${declared.join(', ')}`);
+    if (closure.excluded.length > 0) {
+        console.log(`${LOG} node_modules: left out by gjsify.ship.nodeModulesExclude: ${closure.excluded.join(', ')}`);
+    }
+    if (closure.skippedForTarget.length > 0) {
+        console.log(
+            `${LOG} node_modules: left out, installed but built for another platform than ${layout.os}-${settings.arch}: ` +
+                closure.skippedForTarget.join(', '),
+        );
+    }
+    if (closure.skippedOptional.length > 0) {
+        console.log(
+            `${LOG} node_modules: ${closure.skippedOptional.length} optional dependenc(ies) not installed, ` +
+                `so not carried (other platforms' builds): ${closure.skippedOptional.join(', ')}`,
+        );
+    }
 }
 
 /** How long a fetched runtime stays in the dlx cache — the same week `gjsify showcase` uses. */
