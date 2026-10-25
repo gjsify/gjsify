@@ -80,6 +80,9 @@ import {
     STAGE_MANIFEST_FILE,
 } from '../ship/fixture.mjs';
 
+// Hermetic: never download a GTK closure for a target this suite does not install one for.
+process.env.GJSIFY_GTK_RUNTIME_FETCH = '0';
+
 /** The display name the shared scaffold declares — and therefore the bundle's own directory. */
 const APP_NAME = 'Ship Demo';
 const BINARY = 'ship-demo';

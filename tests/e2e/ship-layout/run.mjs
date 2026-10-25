@@ -60,6 +60,9 @@ import {
     STAGE_MANIFEST_FILE,
 } from '../ship/fixture.mjs';
 
+// Hermetic: never download a GTK closure for a target this suite does not install one for.
+process.env.GJSIFY_GTK_RUNTIME_FETCH = '0';
+
 const { readLibrary } = await import(
     pathToFileURL(join(MONOREPO_ROOT, 'packages', 'infra', 'manifest-conformance', 'lib', 'binary.mjs')).href
 );

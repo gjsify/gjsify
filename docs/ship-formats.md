@@ -580,6 +580,14 @@ rows below are one table read through two maps rather than two stagers:
 | the node-gi addon | `@gjsify/node-gi` (`prebuilds/<target>/node_gi.node`) | beside that closure, as its SIBLING | same |
 | node-gi's JavaScript | `@gjsify/node-gi` | `Contents/Resources/lib/node_modules/@gjsify/node-gi/` | `app\node_modules\@gjsify\node-gi\` |
 
+**The GTK closure is fetched for the TARGET, not for the host** (`utils/ship/gtk-runtime-acquire.ts`):
+when nothing in the project provides it, ship installs `@gjsify/gtk-runtime-<target>@<cli version>`
+into the dlx cache with the target's `os`/`cpu` in place of the host's. Up to 0.64.10 that install
+checked the host, refused every foreign target as EBADPLATFORM, and ship wrote the macOS and Windows
+artifacts of a Linux build without GTK: they started only where Homebrew had GTK installed.
+`GJSIFY_GTK_RUNTIME_FETCH=0` turns the fetch off for an offline build or a hermetic suite, and the
+"no GTK closure" line names that as the reason.
+
 The interpreter's FILENAME comes from `nodeRuntimeBinaryName(target)` on win32 — the same function
 that decided the source file's name — so `node.exe` stays `node.exe` across the copy. A stage that
 renamed it would be a launcher execing a file nothing wrote, and nothing else in the pipeline

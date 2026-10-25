@@ -70,6 +70,12 @@ export async function acquireGtkRuntime(input: AcquireGtkRuntimeInput): Promise<
 
     const name = gtkRuntimePackageName(input.target);
     const spec = `${name}@${input.version}`;
+    // An offline build, or a suite that must not download 100 MB per run, stages what is
+    // reachable and nothing more. The e2e suites that assert "a project without the packages
+    // stages no runtime" held only while the fetch failed on Linux for every foreign target.
+    if ((discovery.env ?? process.env)['GJSIFY_GTK_RUNTIME_FETCH'] === '0') {
+        return { kind: 'failed', reason: `GJSIFY_GTK_RUNTIME_FETCH=0 turned off the fetch of ${spec}` };
+    }
     input.log?.(
         `${name} is not installed here, and is not meant to be — fetching ${spec} into the cache ` +
             '(about 100 MB, once)',

@@ -68,6 +68,22 @@ export default async () => {
             expect(fetched.length).toBe(0);
         });
 
+        await it('fetches nothing under GJSIFY_GTK_RUNTIME_FETCH=0, and says so', async () => {
+            const fetched: string[] = [];
+            const result = await acquireGtkRuntime({
+                target: 'win32-x64',
+                version: '0.64.4',
+                discovery: { cwd: bareProject(), env: { GJSIFY_GTK_RUNTIME_FETCH: '0' } },
+                ensure: async (spec) => {
+                    fetched.push(spec);
+                    return packageWithClosure();
+                },
+            });
+            expect(result.kind).toBe('failed');
+            expect(result.kind === 'failed' ? result.reason : '').toContain('GJSIFY_GTK_RUNTIME_FETCH=0');
+            expect(fetched.length).toBe(0);
+        });
+
         await it('fetches the EXACT cli version of the target package when nothing provides one', async () => {
             const pkg = packageWithClosure();
             const fetched: string[] = [];

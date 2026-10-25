@@ -46,6 +46,9 @@ import {
     STAGE_SCHEMA_VERSION,
 } from './fixture.mjs';
 
+// Hermetic: never download a GTK closure for a target this suite does not install one for.
+process.env.GJSIFY_GTK_RUNTIME_FETCH = '0';
+
 describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
     let tmpDir;
     let projectDir;
