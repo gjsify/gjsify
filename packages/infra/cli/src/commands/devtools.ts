@@ -92,7 +92,7 @@ system.exit(await runDevtoolsCli(system.programArgs));
  * `instances` — so anything a rig does by hand over `gdbus` has a scriptable spelling.
  */
 export const devtoolsCommand: Command<unknown, DevtoolsCliOptions> = {
-    command: 'devtools',
+    command: 'devtools <operation> [operands..]',
     description:
         'Drive a running devtools-enabled app from a script: capture a screenshot to a file, find a widget, ' +
         'activate it, send a key. Peer of `gjsify debug`, which speaks MCP for an AI agent.',
