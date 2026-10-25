@@ -875,6 +875,19 @@ export function windowsGuiLauncherPath(identity: LayoutIdentity): string {
 }
 
 /**
+ * The payload paths exempt from the architecture check for one OS (`assertPayloadMatchesArch`).
+ *
+ * On windows that is the GUI-launcher stub, x86-64 machine code on every windows arch by design.
+ * ONE function for the two places that read the stage back — the assemble phase and the pack
+ * phase — because the pack phase once had its own call without the exemption: an arm64 stage
+ * assembled fine and every package refused it with "stamped.exe is built for x64". `undefined`
+ * for an OS with no such file.
+ */
+export function payloadArchExemptions(os: HostOs, identity: LayoutIdentity): ReadonlySet<string> | undefined {
+    return os === 'win32' ? new Set([windowsGuiLauncherPath(identity)]) : undefined;
+}
+
+/**
  * What the windows GUI launcher calls the file it writes under `%TEMP%`.
  *
  * Named after the binary rather than the display name: `%TEMP%` is shared by

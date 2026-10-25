@@ -80,9 +80,8 @@ import {
     place,
     placeStage,
     resolveLayout,
-    windowsGuiLauncherPath,
+    payloadArchExemptions,
     LAYOUT_NAMES,
-    LAYOUTS,
     type Layout,
 } from '../utils/ship/layout.js';
 import { isNodeRuntimeTarget, resolveNodeRuntime } from '../utils/ship/node-runtime.js';
@@ -629,7 +628,7 @@ async function assemble(args: ShipOptions): Promise<void> {
     // stub unconditionally (it used to skip arm64 entirely), so an arm64 stage
     // legitimately carries one x64 PE beside its arm64 payload.
     assertPayloadMatchesArch(readStage([stageDir], staged), settings.arch, {
-        exempt: layout === LAYOUTS.windows ? new Set([windowsGuiLauncherPath(settings)]) : undefined,
+        exempt: payloadArchExemptions(layout.os, settings),
     });
 
     // What the map carried into a layout that has no install step for it.
@@ -1173,7 +1172,9 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
     // asserting afterwards would compare against a label that no longer names an
     // architecture, and the mismatch that matters is exactly the one on a payload
     // that IS architecture-specific.
-    assertPayloadMatchesArch(assembled, input.arch);
+    assertPayloadMatchesArch(assembled, input.arch, {
+        exempt: payloadArchExemptions(format.layoutOs, settings),
+    });
 
     // The second half of the same idea, on the other label this artifact carries:
     // something declares which interpreter runs the app, and until now nothing
