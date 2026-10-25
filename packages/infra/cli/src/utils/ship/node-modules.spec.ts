@@ -124,7 +124,8 @@ export default async () => {
             chmodSync(join(dir, 'bin', 'tool'), 0o755);
             const staged = stageNodeModules(resolveNodeModulesClosure(['addon'], root), 'lib');
             const mode = (suffix: string) => staged.find((f) => f.path.endsWith(suffix))?.mode;
-            expect(mode('bin/tool')).toBe(0o755);
+            // NTFS has no execute bit to read back: `chmod` is a no-op there and `stat` answers 0o666.
+            if (process.platform !== 'win32') expect(mode('bin/tool')).toBe(0o755);
             expect(mode('libx.dylib')).toBe(0o755);
             expect(mode('a.js')).toBe(0o644);
         });
