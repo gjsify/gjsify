@@ -16,6 +16,7 @@ import { join } from 'node:path';
 
 import { spawnToCompletion } from './spawn.js';
 import type { ProgressReporter } from './install-progress.js';
+import type { PlatformTarget } from './platform-check.js';
 
 export type { ProgressEvent, ProgressPhase, ProgressReporter } from './install-progress.js';
 export { makeProgressReporter } from './install-progress.js';
@@ -98,6 +99,15 @@ export interface InstallOptions {
      * and the warning falls back to bare ranges.
      */
     specOrigins?: Map<string, string[]>;
+    /**
+     * The `os`/`cpu`/`libc` triple to install FOR, instead of the host's (and of
+     * `npm_config_os`/`_cpu`/`_libc`). For a tree that is copied into an artifact
+     * for another machine and never run here — `gjsify ship` assembling a darwin or
+     * win32 bundle on Linux fetches that target's GTK closure, whose `os`/`cpu`
+     * gate would otherwise refuse it as EBADPLATFORM (ADR 0024 § A1). The npm
+     * backend passes it on as `--os`/`--cpu`/`--libc`.
+     */
+    platform?: PlatformTarget;
 }
 
 const DEFAULT_BACKEND = process.env.GJSIFY_INSTALL_BACKEND ?? 'native';
@@ -119,7 +129,7 @@ export async function installPackages(opts: InstallOptions): Promise<InstallResu
     return { installed };
 }
 
-async function installViaNpm({ prefix, specs, verbose, registry }: InstallOptions): Promise<void> {
+async function installViaNpm({ prefix, specs, verbose, registry, platform }: InstallOptions): Promise<void> {
     if (specs.length === 0) {
         throw new Error('installPackages: empty specs list');
     }
@@ -143,6 +153,8 @@ async function installViaNpm({ prefix, specs, verbose, registry }: InstallOption
         '--prefix',
         prefix,
         ...(verbose ? ['--loglevel', 'verbose'] : ['--loglevel', 'warn']),
+        ...(platform ? ['--os', platform.os, '--cpu', platform.cpu] : []),
+        ...(platform?.libc ? ['--libc', platform.libc] : []),
         ...specs,
     ];
 

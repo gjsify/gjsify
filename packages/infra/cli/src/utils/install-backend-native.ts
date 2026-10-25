@@ -375,8 +375,9 @@ async function installPackagesNativeLocked(
     // The triple this install materialises FOR. Normally the running host;
     // `--os/--cpu/--libc` (npm's config keys, read from the environment by
     // `resolveHostPlatform`) override it, which is what makes the darwin/win32/musl
-    // branches reviewable from one machine.
-    const target = resolveHostPlatform();
+    // branches reviewable from one machine. A caller that installs for another
+    // machine's artifact (`opts.platform`) wins over both.
+    const target = opts.platform ?? resolveHostPlatform();
     const force = readPlatformForce(process.env);
     log('install: platform target %s%s', describePlatformTarget(target), force ? ' (--force: checks bypassed)' : '');
 

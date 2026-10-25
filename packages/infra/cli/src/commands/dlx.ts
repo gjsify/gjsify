@@ -25,6 +25,7 @@ import {
     symlinkSwap,
 } from '../utils/dlx-cache.js';
 import { installPackages, makeProgressReporter } from '../utils/install-backend.js';
+import { describePlatformTarget, type PlatformTarget } from '../utils/platform-check.js';
 
 interface DlxOptions {
     spec: string;
@@ -159,6 +160,12 @@ export interface EnsureOpts {
      * Part of the cache key, so the gjs and node trees never share an entry.
      */
     extraSpecs?: readonly string[];
+    /**
+     * Install the tree for this platform rather than the host's: a package that is
+     * copied into another machine's artifact (`gjsify ship` fetching a darwin GTK
+     * closure on Linux). Part of the cache key.
+     */
+    platform?: PlatformTarget;
 }
 
 /**
@@ -176,7 +183,10 @@ export async function ensurePkgDir(
     }
 
     const specs = [parsed.spec, ...(opts.extraSpecs ?? [])];
-    const cacheKey = createCacheKey({ packages: specs });
+    const cacheKey = createCacheKey({
+        packages: specs,
+        ...(opts.platform ? { platform: describePlatformTarget(opts.platform) } : {}),
+    });
     const cacheDir = cacheDirFor(cacheKey);
 
     const cached = opts.cacheMaxAge > 0 ? getValidCachedPkg(cacheDir, opts.cacheMaxAge) : undefined;
@@ -205,6 +215,7 @@ export async function ensurePkgDir(
         lockfile: true,
         frozen: opts.frozen,
         progress,
+        ...(opts.platform ? { platform: opts.platform } : {}),
     });
 
     const liveTarget = symlinkSwap(cacheDir, prepareDir);
