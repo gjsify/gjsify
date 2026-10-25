@@ -219,13 +219,16 @@ export function auditShip(ctx) {
             }
         }
 
-        // `nodeModules` is a list of package names; a string or a path would stage nothing and say so nowhere.
-        const nodeModules = block.nodeModules;
-        if (
-            nodeModules !== undefined &&
-            (!Array.isArray(nodeModules) || nodeModules.some((name) => typeof name !== 'string' || name.length === 0))
-        ) {
-            failures.push(`${pkg.rel}/package.json: \`gjsify.ship.nodeModules\` must be a list of npm package names.`);
+        // `nodeModules` / `nodeModulesExclude` are lists of package names; a string or a path would
+        // stage (or leave out) nothing and say so nowhere.
+        for (const key of ['nodeModules', 'nodeModulesExclude']) {
+            const names = block[key];
+            if (
+                names !== undefined &&
+                (!Array.isArray(names) || names.some((name) => typeof name !== 'string' || name.length === 0))
+            ) {
+                failures.push(`${pkg.rel}/package.json: \`gjsify.ship.${key}\` must be a list of npm package names.`);
+            }
         }
 
         // `bundledTypelibs` as a TABLE: same silent-key failure as `bundle`, and here the cost is a

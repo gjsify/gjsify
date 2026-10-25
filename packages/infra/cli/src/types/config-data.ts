@@ -614,6 +614,13 @@ export interface ConfigDataShip extends AppMetadata {
      */
     nodeModules?: string[];
     /**
+     * Packages {@link ConfigDataShip.nodeModules} leaves out wherever they turn up in the closure —
+     * for an optional dependency the project does not want to ship, e.g. the CUDA and Vulkan
+     * builds of an inference addon (`@node-llama-cpp/win-x64-cuda`, hundreds of MB) when the
+     * program only runs on the CPU. Names a declared package itself are not affected.
+     */
+    nodeModulesExclude?: string[];
+    /**
      * Additions for ONE package format — `deb` or `rpm` — on top of everything above.
      *
      * Exists for a library the distros disagree about: one that Fedora ships and Ubuntu does

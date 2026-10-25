@@ -66,12 +66,21 @@ export interface NodeModulesTarget {
     cpu: string;
 }
 
+export interface NodeModulesOptions {
+    /** Platform filter, see {@link NodeModulesTarget}. Without one nothing is filtered by `os` / `cpu`. */
+    target?: NodeModulesTarget;
+    /** Package names left out wherever they appear below a declared one — `gjsify.ship.nodeModulesExclude`. */
+    exclude?: readonly string[];
+}
+
 export interface NodeModulesClosure {
     packages: NodeModulePackage[];
     /** Optional dependencies that are not installed — expected for other platforms, listed for the log. */
     skippedOptional: string[];
     /** Dependencies installed here but built for another platform, named by their `os` / `cpu` fields. */
     skippedForTarget: string[];
+    /** Dependencies the project asked to leave out, and that were reached. */
+    excluded: string[];
 }
 
 function readManifest(dir: string): Manifest | null {
@@ -118,14 +127,20 @@ function destinationOf(found: string): string | null {
 export function resolveNodeModulesClosure(
     names: readonly string[],
     cwd: string,
-    target?: NodeModulesTarget,
+    options: NodeModulesOptions = {},
 ): NodeModulesClosure {
+    const { target, exclude = [] } = options;
     const packages = new Map<string, NodeModulePackage>();
     const skippedOptional: string[] = [];
     const skippedForTarget: string[] = [];
+    const excluded: string[] = [];
 
     const visit = (name: string, from: string, via: string[], optional: boolean): void => {
         if (name === LEFT_TO_APP_RUNTIME) return;
+        if (via.length > 0 && exclude.includes(name)) {
+            if (!excluded.includes(name)) excluded.push(name);
+            return;
+        }
         const found = findInstalled(name, from);
         if (found === null) {
             if (optional) {
@@ -179,6 +194,7 @@ export function resolveNodeModulesClosure(
         packages: [...packages.values()].sort((a, b) => (a.dest < b.dest ? -1 : 1)),
         skippedOptional: skippedOptional.sort(),
         skippedForTarget: skippedForTarget.sort(),
+        excluded: excluded.sort(),
     };
 }
 

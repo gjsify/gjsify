@@ -72,11 +72,23 @@ export default async () => {
             install(root, '@addon/win-arm64', { name: '@addon/win-arm64', os: ['win32'], cpu: ['arm64'] });
             install(root, '@addon/win-x64', { name: '@addon/win-x64', os: ['win32'], cpu: ['x64'] });
             install(root, '@addon/not-mac', { name: '@addon/not-mac', os: ['!darwin'] });
-            const closure = resolveNodeModulesClosure(['addon'], root, { os: 'win32', cpu: 'arm64' });
+            const closure = resolveNodeModulesClosure(['addon'], root, { target: { os: 'win32', cpu: 'arm64' } });
             expect(closure.packages.map((p) => p.dest)).toStrictEqual(['@addon/not-mac', '@addon/win-arm64', 'addon']);
             expect(closure.skippedForTarget).toStrictEqual(['@addon/mac', '@addon/win-x64']);
             // Without a target nothing is filtered: the library function stays usable on its own.
             expect(resolveNodeModulesClosure(['addon'], root).packages.length).toBe(5);
+        });
+
+        await it('leaves out what the project excludes, but never a declared package', async () => {
+            const root = project();
+            install(root, 'addon', { name: 'addon', optionalDependencies: { '@addon/gpu': '1', '@addon/cpu': '1' } });
+            install(root, '@addon/gpu', { name: '@addon/gpu' });
+            install(root, '@addon/cpu', { name: '@addon/cpu' });
+            const closure = resolveNodeModulesClosure(['addon', '@addon/gpu'], root, { exclude: ['@addon/gpu'] });
+            expect(closure.packages.map((p) => p.dest)).toStrictEqual(['@addon/cpu', '@addon/gpu', 'addon']);
+            const without = resolveNodeModulesClosure(['addon'], root, { exclude: ['@addon/gpu'] });
+            expect(without.packages.map((p) => p.dest)).toStrictEqual(['@addon/cpu', 'addon']);
+            expect(without.excluded).toStrictEqual(['@addon/gpu']);
         });
 
         await it('refuses a declared name that is not installed', async () => {

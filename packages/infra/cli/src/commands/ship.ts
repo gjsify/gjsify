@@ -535,7 +535,7 @@ async function assemble(args: ShipOptions): Promise<void> {
     // carrying a second copy inside the payload would be a private interpreter no
     // distribution update ever patches.
     const runtime = await resolveCarriedRuntime(layout, settings, projectDir);
-    carryNodeModules(runtime, layout, settings, projectDir, ship.nodeModules);
+    carryNodeModules(runtime, layout, settings, projectDir, ship.nodeModules, ship.nodeModulesExclude);
 
     const stageInputs: StageInputs = {
         bundleFiles: discovered.bundleFiles,
@@ -961,11 +961,18 @@ function carryNodeModules(
     settings: ShipSettings,
     projectDir: string,
     declared: string[] | undefined,
+    exclude: string[] | undefined,
 ): void {
     if (declared === undefined || declared.length === 0 || settings.app !== 'node') return;
-    const closure = resolveNodeModulesClosure(declared, projectDir, { os: layout.os, cpu: settings.arch });
+    const closure = resolveNodeModulesClosure(declared, projectDir, {
+        target: { os: layout.os, cpu: settings.arch },
+        exclude,
+    });
     runtime.files.push(...stageNodeModules(closure, layout.dirs(settings).bundle));
     runtime.found.push(`node_modules: ${closure.packages.length} package(s) for ${declared.join(', ')}`);
+    if (closure.excluded.length > 0) {
+        console.log(`${LOG} node_modules: left out by gjsify.ship.nodeModulesExclude: ${closure.excluded.join(', ')}`);
+    }
     if (closure.skippedForTarget.length > 0) {
         console.log(
             `${LOG} node_modules: left out, installed but built for another platform than ${layout.os}-${settings.arch}: ` +
