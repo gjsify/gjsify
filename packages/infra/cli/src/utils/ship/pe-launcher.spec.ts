@@ -2,9 +2,9 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import { pngSize, rasters, tinyPng } from './icon-fixture.spec.js';
 import { ICO_SIZES, iconResources, RT_GROUP_ICON, RT_ICON } from './ico.js';
-import { windowsGuiLauncherPath, windowsLaunchLogLeaf } from './layout.js';
+import { payloadArchExemptions, windowsGuiLauncherPath, windowsLaunchLogLeaf } from './layout.js';
 import { buildGuiLauncher, PE_DIRECTORY_RESOURCE, PE_SUBSYSTEM_GUI, RESOURCE_LANGUAGE } from './pe-launcher.js';
-import { classifyBinary, readBinaryArch } from './payload.js';
+import { assertPayloadMatchesArch, classifyBinary, readBinaryArch } from './payload.js';
 
 /**
  * Read the fields a PE loader reads, with arithmetic and not with our writer.
@@ -288,6 +288,27 @@ export default async () => {
             // instead of a path search — so the two names must differ only there.
             expect(windowsGuiLauncherPath(identity)).toBe('ship-demo.exe');
             expect(windowsLaunchLogLeaf(identity)).toBe('ship-demo.launch.log');
+        });
+
+        await it('is exempt from the arch check on windows, in the pack phase too', async () => {
+            // The stub is x86-64 on every windows arch. The pack phase read the stage back WITHOUT
+            // this exemption once, so an arm64 stage assembled and then every package refused it.
+            const stub = {
+                path: 'ship-demo.exe',
+                mode: 0o755,
+                data: buildGuiLauncher({ logLeaf: 'ship-demo.launch.log' }),
+            };
+            expect(readBinaryArch(stub.data)).toBe('x64');
+            assertPayloadMatchesArch([stub], 'arm64', { exempt: payloadArchExemptions('win32', identity) });
+
+            // Control: without the exemption, or on another OS, the same bytes are a wrong-arch payload.
+            expect(() => assertPayloadMatchesArch([stub], 'arm64')).toThrow();
+            expect(payloadArchExemptions('darwin', identity)).toBe(undefined);
+            // And only that one path: another x64 image beside it is still refused.
+            const other = { ...stub, path: 'node.exe' };
+            expect(() =>
+                assertPayloadMatchesArch([other], 'arm64', { exempt: payloadArchExemptions('win32', identity) }),
+            ).toThrow();
         });
     });
 };
