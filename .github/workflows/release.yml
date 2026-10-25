@@ -2568,6 +2568,7 @@ jobs:
       - publish
       - publish-gtk-runtime-darwin
       - publish-gtk-runtime-win32-x64
+      - publish-gtk-runtime-win32-arm64
       - publish-node-gi
       - publish-napi
       - publish-node-runtime

@@ -51,6 +51,7 @@ import { packWorkspace, type PackWorkspaceOptions } from './pack.js';
 import { getNpmTrustedToken, hasGithubOidcEnv, OidcExchangeError, OidcUnavailableError } from '../utils/npm-oidc.js';
 import { diagnose404, is404DiagnosticCandidate, type Diagnose404Result } from '../utils/publish-diagnose.js';
 import {
+    budgetForPayload,
     DEFAULT_VERIFY_BUDGET_MS,
     formatUnconfirmedPublish,
     probePackageName,
@@ -868,8 +869,9 @@ export async function publishWorkspace(input: PublishWorkspaceInput): Promise<Pu
      * `publish-unconfirmed`. Same origin, same credential, one request later.
      */
     const readBack = async (): Promise<ReadbackResult | undefined> => {
-        const budgetMs = input.verifyBudgetMs ?? DEFAULT_VERIFY_BUDGET_MS;
-        if (budgetMs <= 0) return undefined;
+        const configuredMs = input.verifyBudgetMs ?? DEFAULT_VERIFY_BUDGET_MS;
+        if (configuredMs <= 0) return undefined;
+        const budgetMs = budgetForPayload(configuredMs, bodyStr.length);
         return verifyPublishedVersion({
             registry: registryClean,
             name: packed.name,

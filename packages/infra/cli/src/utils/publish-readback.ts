@@ -236,6 +236,27 @@ export function probeTimeoutFor(configuredMs: number, remainingMs: number): numb
 export const DEFAULT_VERIFY_BUDGET_MS = 600_000;
 
 /**
+ * Payload size above which the DEFAULT window starts to grow, and the growth per MiB.
+ *
+ * v0.64.9, run 40145205912: `@gjsify/gtk-runtime-win32-arm64` PUT 69.7 MB, got a 202,
+ * and the read-back gave up after 600 s with `not-published`; the registry's `time`
+ * map recorded the version 20 s later. The lag scales with what npm has to ingest,
+ * and the 600 s ceiling was measured on packages of a few MB. So the window grows by
+ * 10 s per MiB past 32 MiB (that package: ~945 s). Only the PATIENT default grows —
+ * an explicit short budget (the sweep's `--verify-timeout 5`) is a caller's decision.
+ * An upload npm accepted but never recorded still ends in `not-published`.
+ */
+const LARGE_PAYLOAD_BYTES = 32 * 1024 * 1024;
+const EXTRA_BUDGET_PER_MIB_MS = 10_000;
+
+/** The read-back budget for a payload: `configuredMs`, longer if it is the default and the upload is large. */
+export function budgetForPayload(configuredMs: number, payloadBytes: number): number {
+    if (configuredMs < DEFAULT_VERIFY_BUDGET_MS || payloadBytes <= LARGE_PAYLOAD_BYTES) return configuredMs;
+    const extraMiB = (payloadBytes - LARGE_PAYLOAD_BYTES) / (1024 * 1024);
+    return configuredMs + Math.ceil(extraMiB) * EXTRA_BUDGET_PER_MIB_MS;
+}
+
+/**
  * Make one probe's URL uncacheable, by giving it a key no cache holds.
  *
  * THE REQUEST HEADER DOES NOT WORK, and this file used to say it did. Measured

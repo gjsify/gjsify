@@ -11,6 +11,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 import {
     backoffFor,
+    budgetForPayload,
     DEFAULT_VERIFY_BUDGET_MS,
     formatUnconfirmedPublish,
     probeTimeoutFor,
@@ -665,6 +666,18 @@ export default async () => {
             // merely joined by a second, contradicting paragraph.
             expect(msg.includes('Re-run this publish')).toBe(false);
             expect(msg.includes('A 2xx from npm is an ACCEPTED write')).toBe(false);
+        });
+    });
+
+    await describe('budgetForPayload', async () => {
+        await it('keeps the default for small payloads', () => {
+            expect(budgetForPayload(DEFAULT_VERIFY_BUDGET_MS, 5 * 1024 * 1024)).toBe(DEFAULT_VERIFY_BUDGET_MS);
+        });
+        await it('grows the default for the 69.7 MB ARM64 bundle past the 600 s that failed', () => {
+            expect(budgetForPayload(DEFAULT_VERIFY_BUDGET_MS, 69_700_000)).toBeGreaterThan(620_000);
+        });
+        await it('leaves an explicit short budget alone', () => {
+            expect(budgetForPayload(5_000, 69_700_000)).toBe(5_000);
         });
     });
 
