@@ -596,6 +596,24 @@ export interface ConfigDataShip extends AppMetadata {
      */
     bundledTypelibs?: string[] | ShipBundledTypelibsOptions;
     /**
+     * npm packages the `--app node` bundle imports but cannot contain, by NAME — e.g.
+     * `["node-llama-cpp"]`.
+     *
+     * An `--app node` build keeps every Node-API addon package external (an addon finds its
+     * `.node` relative to its own files), so the bundle `import`s it by name at runtime. A `.app`
+     * or program directory has no `npm install`; without this entry the artifact fails with
+     * `ERR_MODULE_NOT_FOUND` before the program starts. Each name is staged into the bundle's
+     * `node_modules/` with its `dependencies` and `optionalDependencies`, resolved from the
+     * project the way Node would, at the paths they are installed at (two versions of one package
+     * stay nested). An optional dependency that is not installed is skipped, which is how a
+     * per-platform addon package is chosen: `gjsify install --os <os> --cpu <cpu>` before `ship`.
+     * A required one that is missing is an error.
+     *
+     * Ignored for a GJS payload, so one declaration serves a project that ships GJS on Linux and
+     * Node on macOS and Windows. `@gjsify/node-gi` is not listed here; `ship` carries it itself.
+     */
+    nodeModules?: string[];
+    /**
      * Additions for ONE package format — `deb` or `rpm` — on top of everything above.
      *
      * Exists for a library the distros disagree about: one that Fedora ships and Ubuntu does

@@ -219,6 +219,15 @@ export function auditShip(ctx) {
             }
         }
 
+        // `nodeModules` is a list of package names; a string or a path would stage nothing and say so nowhere.
+        const nodeModules = block.nodeModules;
+        if (
+            nodeModules !== undefined &&
+            (!Array.isArray(nodeModules) || nodeModules.some((name) => typeof name !== 'string' || name.length === 0))
+        ) {
+            failures.push(`${pkg.rel}/package.json: \`gjsify.ship.nodeModules\` must be a list of npm package names.`);
+        }
+
         // `bundledTypelibs` as a TABLE: same silent-key failure as `bundle`, and here the cost is a
         // target that ships without the typelib it needs.
         const typelibs = block.bundledTypelibs;

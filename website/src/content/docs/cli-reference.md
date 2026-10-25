@@ -1632,6 +1632,7 @@ Packing the same build twice gives byte-identical files. [How It Works](/gjsify/
 | `typelibPackages` | `{}` | GI namespace to the package shipping its typelib. This is what unblocks an unknown namespace. |
 | `bundledTypelibs` | `[]` | Directories whose `*.typelib` and `*.so` the package carries itself, for GI libraries that arrive as npm prebuilds rather than distro packages. Staged into `lib/<name>/gi/`, with the launcher pointing `GI_TYPELIB_PATH` and `LD_LIBRARY_PATH` there. |
 | `localeDir` | none | Directory of COMPILED gettext catalogues in `<lang>/LC_MESSAGES/<domain>.mo` layout. Staged into `share/locale/`; the launcher exports `GJSIFY_LOCALE_DIR`. `.po` sources are refused, because `bindtextdomain` reads `.mo` only. |
+| `nodeModules` | none | npm package NAMES an `--app node` bundle imports but cannot contain (a Node-API addon package stays external), e.g. `["node-llama-cpp"]`. Staged into the bundle's `node_modules/` with their `dependencies` and `optionalDependencies` at the paths they are installed at; an optional dependency that is not installed is skipped (run `gjsify install --os <os> --cpu <cpu>` before `ship` to pick the per-platform addon), a missing required one is an error. Ignored for a GJS payload. |
 | `fonts` | none | Font files or a directory of them, staged into `share/fonts/<appId>/`. See [Fonts](#fonts) below. |
 | `extraFiles` | `{}` | Extra payload entries: prefix-relative destination to project-relative source. |
 | `execArgs` | `[]` | Arguments the launcher appends before the user's own. |
