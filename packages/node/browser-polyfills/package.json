@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/browser-node-polyfills",
-    "version": "0.64.9",
+    "version": "0.64.10",
     "description": "Meta package: @gjsify Node.js polyfill packages that run in the browser",
     "type": "module",
     "keywords": [

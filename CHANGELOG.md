@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.64.10](https://github.com/gjsify/gjsify/compare/v0.64.9...v0.64.10) (2026-10-25)
+
+### Features
+
+* **cli:** carry addon packages in ship ([#2383](https://github.com/gjsify/gjsify/issues/2383)) ([1cfd3be](https://github.com/gjsify/gjsify/commit/1cfd3be755ea73605ba62b412c9d175d254b9fc8))
+
+### Bug Fixes
+
+* **cli:** exempt the windows stub when packing ([#2384](https://github.com/gjsify/gjsify/issues/2384)) ([af4c2ad](https://github.com/gjsify/gjsify/commit/af4c2add93810b0d57a407e00ff7e121be696ebb))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([22f205a](https://github.com/gjsify/gjsify/commit/22f205ae71ec816e52cc3bd5a25e718c285b6bcf))
+
 ## [0.64.9](https://github.com/gjsify/gjsify/compare/v0.64.8...v0.64.9) (2026-10-24)
 
 ### Bug Fixes

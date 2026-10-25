@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/example-dom-three-geometry-teapot",
-  "version": "0.64.9",
+  "version": "0.64.10",
   "private": true,
   "description": "Three.js geometry teapot example ported from refs/three/examples/webgl_geometry_teapot.html with Adwaita controls",
   "main": "dist/gjs.js",
