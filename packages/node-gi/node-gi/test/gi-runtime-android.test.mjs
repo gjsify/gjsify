@@ -41,6 +41,7 @@ const manifest = JSON.parse(readFileSync(`${pkgDir}package.json`, 'utf8'));
 const licenseTable = JSON.parse(readFileSync(`${pkgDir}licenses/bundled-projects.json`, 'utf8'));
 const declaredDivergence = JSON.parse(readFileSync(`${pkgDir}typelib-abi-divergence.json`, 'utf8'));
 const baseline = JSON.parse(readFileSync(`${pkgDir}payload-baseline.json`, 'utf8'));
+const buildInputs = JSON.parse(readFileSync(`${pkgDir}build-inputs.json`, 'utf8'));
 
 /** A GI prefix as the closure walk sees it: DT_NEEDED per soname, `null` outside the prefix. */
 function prefix(libraries) {
@@ -666,6 +667,49 @@ describe('the package itself: what npm installs and what a checkout keeps', () =
         // where the cause is one line away from the symptom.
         assert.equal(typeof manifest.nativescript?.platforms?.android, 'string');
         assert.equal(manifest.nativescript.platforms.ios, undefined, 'the payload is Android-only');
+    });
+
+    it('declares the Node-API floor as a peer, at the version the AAR was linked against', () => {
+        // The AAR is linked against the libNativeScript.so build-inputs.json pins, and
+        // `napi_*` is the whole reason: 9.1.0-alpha.6 exports NONE of those symbols, 9.1.1
+        // exports 145. So the peer range is not a guess about compatibility, it is the
+        // version this payload's undefined symbols were resolved from, and the two numbers
+        // cannot drift — the floor is what the gradle guard and npm both read, while
+        // build-inputs.json is what the release job downloads.
+        assert.equal(manifest.peerDependencies['@nativescript/android'], `>=${buildInputs.nativescript.version}`);
+        // `nativescript.platforms.android` is documented as the minimum supported runtime.
+        // The NS CLI only tests the key for PRESENCE (it reads the manifest to decide what
+        // is a native Android plugin, never comparing versions), so a stale value here is
+        // never contradicted by a build — it is simply a false claim in published metadata.
+        assert.equal(manifest.nativescript.platforms.android, buildInputs.nativescript.version);
+    });
+
+    it('is exercised on the device by the runtime it declares, not an older one', () => {
+        // tests/integration/nativescript-gi is the only consumer in the repo that installs
+        // this package, so it is the only place the floor is ever proven on hardware. Pinned
+        // below the floor it would prove the opposite and still pass its own gradle guard.
+        const consumer = JSON.parse(
+            readFileSync(
+                new URL('../../../../tests/integration/nativescript-gi/package.json', import.meta.url),
+                'utf8',
+            ),
+        );
+        assert.equal(consumer.devDependencies['@nativescript/android'], buildInputs.nativescript.version);
+    });
+
+    it('lets gradle fail by name on a runtime without Node-API, floor read not hardcoded', () => {
+        // Reading the floor out of package.json is what keeps ONE number in the repo: the
+        // npm tarball carries `files`, and `build-inputs.json` is not in it, so a gradle
+        // script that wanted the pin directly would have to copy it. A hardcoded version
+        // here would pass this file's other assertions while silently enforcing yesterday's.
+        const gradle = readFileSync(`${pkgDir}platforms/android/include.gradle`, 'utf8');
+        assert.match(gradle, /peerDependencies\?\.get\('@nativescript\/android'\)/);
+        assert.match(gradle, /napi_create_type_error/);
+        assert.doesNotMatch(
+            gradle.replace(/^\s*\/\/.*$/gm, ''),
+            /\d+\.\d+\.\d+/,
+            'include.gradle names a version outside a comment',
+        );
     });
 
     it('node-gi never depends on it — resolved by name, like the GTK bundle (ADR 0023)', () => {
