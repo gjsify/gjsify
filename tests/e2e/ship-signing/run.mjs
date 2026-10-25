@@ -70,6 +70,9 @@ import { runCli } from '../mock-registry.mjs';
 import { CLI_ENTRY, MONOREPO_ROOT, NODE_BUNDLE, scaffold } from '../ship/fixture.mjs';
 import { signedMachO, TEXT_BODY_OFFSET } from '../macho.mjs';
 
+// Hermetic: never download a GTK closure for a target this suite does not install one for.
+process.env.GJSIFY_GTK_RUNTIME_FETCH = '0';
+
 const APP_NAME = 'Ship Demo';
 const BINARY = 'ship-demo';
 const COMPARATOR = join(MONOREPO_ROOT, '.github', 'ship-oracle', 'verify-signed-arrival.mjs');

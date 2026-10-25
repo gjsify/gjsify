@@ -25,6 +25,7 @@ import {
     utimesSync,
     writeFileSync,
 } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -78,6 +79,24 @@ export default async () => {
             const npmjs = createCacheKey({ packages: ['x@1'], registries: { '': 'https://registry.npmjs.org/' } });
             const other = createCacheKey({ packages: ['x@1'], registries: { '': 'https://other.example/' } });
             expect(npmjs).not.toBe(other);
+        });
+
+        await it('separates a tree installed for another platform', async () => {
+            // `gjsify ship` fetches the darwin GTK closure on Linux: the host tree
+            // filters that package away, so the two must never share an entry.
+            const host = createCacheKey({ packages: ['@gjsify/gtk-runtime-darwin-arm64@1.0.0'] });
+            const darwin = createCacheKey({
+                packages: ['@gjsify/gtk-runtime-darwin-arm64@1.0.0'],
+                platform: 'darwin-arm64',
+            });
+            expect(host).not.toBe(darwin);
+        });
+
+        await it('keeps the key of an entry without a platform', async () => {
+            // Existing cache entries stay valid: the platform only enters the hash when set.
+            const payload = JSON.stringify([['x@1'], []]);
+            const expected = createHash('sha256').update(payload).digest('hex');
+            expect(createCacheKey({ packages: ['x@1'] })).toBe(expected);
         });
     });
 

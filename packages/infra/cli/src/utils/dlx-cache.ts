@@ -22,13 +22,21 @@ function lexCompare(a: string, b: string): number {
 interface CacheKeyOpts {
     packages: string[];
     registries?: Record<string, string>;
+    /**
+     * The platform the tree was installed FOR (`darwin-arm64`), when not the host's.
+     * The same specs filter to a different tree per platform. Absent, the key is
+     * the one it always was, so existing cache entries stay valid.
+     */
+    platform?: string;
 }
 
 /** Stable, sorted JSON hash of inputs. */
 export function createCacheKey(opts: CacheKeyOpts): string {
     const sortedPkgs = [...opts.packages].sort(lexCompare);
     const sortedRegs = Object.entries(opts.registries ?? {}).sort(([a], [b]) => lexCompare(a, b));
-    const payload = JSON.stringify([sortedPkgs, sortedRegs]);
+    const payload = JSON.stringify(
+        opts.platform === undefined ? [sortedPkgs, sortedRegs] : [sortedPkgs, sortedRegs, opts.platform],
+    );
     return createHash('sha256').update(payload).digest('hex');
 }
 

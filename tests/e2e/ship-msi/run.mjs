@@ -47,6 +47,9 @@ import { runCliSync } from '../mock-registry.mjs';
 import { CLI_ENTRY, listFiles, ORACLE, probe, shipExpectingFailure } from '../ship/fixture.mjs';
 import { APP_NAME, ARCH, BINARY, installRuntimePackages, scaffoldNodeApp } from '../ship/windows-fixture.mjs';
 
+// Hermetic: never download a GTK closure for a target this suite does not install one for.
+process.env.GJSIFY_GTK_RUNTIME_FETCH = '0';
+
 const MSI_NAME = `${BINARY}-1.2.3-1.${ARCH}.msi`;
 
 /**

@@ -925,13 +925,22 @@ async function resolveCarriedRuntime(
 
     // The closure is fetched, not installed: a project that lists it puts a second
     // GLib next to Homebrew's in its dev tree (see `gtk-runtime-acquire.ts`).
+    // Fetched FOR THE TARGET: on a Linux host the package's own `os`/`cpu` gate
+    // refused it as EBADPLATFORM, and every macOS and Windows artifact assembled
+    // on Linux shipped without GTK, starting only where Homebrew happened to have it.
     const acquired = await acquireGtkRuntime({
         target,
         version: cliVersion(),
         discovery: { cwd: projectDir },
         ensure: async (spec) =>
-            (await ensurePkgDir(parseSpec(spec), { verbose: false, cacheMaxAge: DLX_CACHE_MAX_AGE_MIN, frozen: false }))
-                .pkgDir,
+            (
+                await ensurePkgDir(parseSpec(spec), {
+                    verbose: false,
+                    cacheMaxAge: DLX_CACHE_MAX_AGE_MIN,
+                    frozen: false,
+                    platform: { os: layout.os, cpu: settings.arch },
+                })
+            ).pkgDir,
         log: (message) => console.log(`${LOG} ${message}`),
     });
 

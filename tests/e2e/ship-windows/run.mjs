@@ -83,6 +83,9 @@ import {
     TARGET,
 } from '../ship/windows-fixture.mjs';
 
+// Hermetic: never download a GTK closure for a target this suite does not install one for.
+process.env.GJSIFY_GTK_RUNTIME_FETCH = '0';
+
 const ZIP_NAME = `${BINARY}-1.2.3-1.windows.${ARCH}.zip`;
 
 /** The ZIP writer itself, for the red run no CLI invocation can produce. */
