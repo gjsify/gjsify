@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.64.9](https://github.com/gjsify/gjsify/compare/v0.64.8...v0.64.9) (2026-10-24)
+
+### Bug Fixes
+
+* **ci:** bundle an icon theme in the arm64 prefix ([#2382](https://github.com/gjsify/gjsify/issues/2382)) ([ad9b09e](https://github.com/gjsify/gjsify/commit/ad9b09e12bee62dfcc37c473500e0aa76c0e8f47)), closes [#1117](https://github.com/gjsify/gjsify/issues/1117)
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([3adf745](https://github.com/gjsify/gjsify/commit/3adf745d58cf00f879ffd2d86dda9c6e90346d9b))
+
 ## [0.64.8](https://github.com/gjsify/gjsify/compare/v0.64.7...v0.64.8) (2026-10-24)
 
 ### Bug Fixes

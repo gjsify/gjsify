@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/gtk-runtime-win32-arm64",
-  "version": "0.64.8",
+  "version": "0.64.9",
   "description": "Batteries-included GTK/GObject-Introspection runtime bundle for Windows arm64 — lets @gjsify/node-gi load gi:// namespaces (GLib/GObject/Gio/cairo/Pango/Graphene/Gdk) with NO gvsbuild/system GTK. Platform-gated (win32/arm64 only). GTK is built from source by our MSVC gjsify/gvsbuild fork (ADR 0089) — upstream gvsbuild publishes no arm64 ZIP.",
   "type": "module",
   "license": "SEE LICENSE IN gtk/THIRD-PARTY-NOTICES.md",
