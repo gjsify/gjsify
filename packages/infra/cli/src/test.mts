@@ -69,6 +69,7 @@ import dirLinkSuite from './utils/dir-link.spec.js';
 import devLinkSuite from './utils/dev-link.spec.js';
 import resolveBinOnPathSuite from './utils/resolve-bin-on-path.spec.js';
 import showcasePreflightSuite from './commands/showcase-preflight.spec.js';
+import commandPositionalsSuite from './commands/positionals.spec.js';
 import upgradeExactSuite from './commands/upgrade.spec.js';
 import selfUpdateNextNoticeSuite from './commands/self-update-next-notice.spec.js';
 import checkSystemDepsSuite from './utils/check-system-deps.spec.js';
@@ -343,6 +344,7 @@ run(
         devLinkSuite,
         resolveBinOnPathSuite,
         showcasePreflightSuite,
+        commandPositionalsSuite,
         upgradeExactSuite,
         selfUpdateNextNoticeSuite,
         checkSystemDepsSuite,
