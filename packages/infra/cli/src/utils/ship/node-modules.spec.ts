@@ -57,6 +57,28 @@ export default async () => {
             expect(closure.skippedOptional).toStrictEqual(['@addon/linux-x64']);
         });
 
+        await it('leaves out an installed dependency built for another platform', async () => {
+            const root = project();
+            install(root, 'addon', {
+                name: 'addon',
+                optionalDependencies: {
+                    '@addon/mac': '1',
+                    '@addon/win-arm64': '1',
+                    '@addon/win-x64': '1',
+                    '@addon/not-mac': '1',
+                },
+            });
+            install(root, '@addon/mac', { name: '@addon/mac', os: ['darwin'], cpu: ['arm64'] });
+            install(root, '@addon/win-arm64', { name: '@addon/win-arm64', os: ['win32'], cpu: ['arm64'] });
+            install(root, '@addon/win-x64', { name: '@addon/win-x64', os: ['win32'], cpu: ['x64'] });
+            install(root, '@addon/not-mac', { name: '@addon/not-mac', os: ['!darwin'] });
+            const closure = resolveNodeModulesClosure(['addon'], root, { os: 'win32', cpu: 'arm64' });
+            expect(closure.packages.map((p) => p.dest)).toStrictEqual(['@addon/not-mac', '@addon/win-arm64', 'addon']);
+            expect(closure.skippedForTarget).toStrictEqual(['@addon/mac', '@addon/win-x64']);
+            // Without a target nothing is filtered: the library function stays usable on its own.
+            expect(resolveNodeModulesClosure(['addon'], root).packages.length).toBe(5);
+        });
+
         await it('refuses a declared name that is not installed', async () => {
             const root = project();
             let message = '';

@@ -963,9 +963,15 @@ function carryNodeModules(
     declared: string[] | undefined,
 ): void {
     if (declared === undefined || declared.length === 0 || settings.app !== 'node') return;
-    const closure = resolveNodeModulesClosure(declared, projectDir);
+    const closure = resolveNodeModulesClosure(declared, projectDir, { os: layout.os, cpu: settings.arch });
     runtime.files.push(...stageNodeModules(closure, layout.dirs(settings).bundle));
     runtime.found.push(`node_modules: ${closure.packages.length} package(s) for ${declared.join(', ')}`);
+    if (closure.skippedForTarget.length > 0) {
+        console.log(
+            `${LOG} node_modules: left out, installed but built for another platform than ${layout.os}-${settings.arch}: ` +
+                closure.skippedForTarget.join(', '),
+        );
+    }
     if (closure.skippedOptional.length > 0) {
         console.log(
             `${LOG} node_modules: ${closure.skippedOptional.length} optional dependenc(ies) not installed, ` +

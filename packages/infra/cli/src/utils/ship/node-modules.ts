@@ -19,7 +19,8 @@
 // `dependencies` and `optionalDependencies`, each found by walking `node_modules` upward from the
 // package that asks for it. A missing optional dependency is skipped silently — that is the
 // per-platform filter (`@node-llama-cpp/mac-arm64-metal` is optional; `gjsify install --os
-// darwin --cpu arm64` is what puts the right one on disk) — and a missing required one is an
+// darwin --cpu arm64` is what puts the right one on disk; one that IS on disk but whose `os` /
+// `cpu` fields exclude the artifact's target is left out too, since installs accumulate) — and a missing required one is an
 // error naming the chain, because a package without its dependency is the very artifact this
 // exists to prevent.
 //
@@ -43,6 +44,8 @@ const LEFT_TO_APP_RUNTIME = '@gjsify/node-gi';
 interface Manifest {
     name?: string;
     version?: string;
+    os?: string | string[];
+    cpu?: string | string[];
     dependencies?: Record<string, string>;
     optionalDependencies?: Record<string, string>;
 }
@@ -57,10 +60,18 @@ export interface NodeModulePackage {
     dest: string;
 }
 
+/** The platform the artifact is for, spelled like npm's `os` / `cpu` fields (`darwin`, `win32`; `arm64`, `x64`). */
+export interface NodeModulesTarget {
+    os: string;
+    cpu: string;
+}
+
 export interface NodeModulesClosure {
     packages: NodeModulePackage[];
     /** Optional dependencies that are not installed — expected for other platforms, listed for the log. */
     skippedOptional: string[];
+    /** Dependencies installed here but built for another platform, named by their `os` / `cpu` fields. */
+    skippedForTarget: string[];
 }
 
 function readManifest(dir: string): Manifest | null {
@@ -83,6 +94,14 @@ function findInstalled(name: string, from: string): string | null {
     }
 }
 
+/** npm's rule for `os` / `cpu`: a `!x` entry blocks `x`; otherwise, if any plain entry exists, `value` must be one. */
+function allows(field: string | string[] | undefined, value: string): boolean {
+    const list = typeof field === 'string' ? [field] : (field ?? []);
+    if (list.includes(`!${value}`)) return false;
+    const positive = list.filter((entry) => !entry.startsWith('!'));
+    return positive.length === 0 || positive.includes(value);
+}
+
 /** The path below the first `node_modules` segment, POSIX-separated, or `null` when there is none. */
 function destinationOf(found: string): string | null {
     const parts = found.split(sep);
@@ -96,9 +115,14 @@ function destinationOf(found: string): string | null {
  * Throws on a name that is not installed, a required dependency that is not, and two different
  * installed copies that would land on one staged path.
  */
-export function resolveNodeModulesClosure(names: readonly string[], cwd: string): NodeModulesClosure {
+export function resolveNodeModulesClosure(
+    names: readonly string[],
+    cwd: string,
+    target?: NodeModulesTarget,
+): NodeModulesClosure {
     const packages = new Map<string, NodeModulePackage>();
     const skippedOptional: string[] = [];
+    const skippedForTarget: string[] = [];
 
     const visit = (name: string, from: string, via: string[], optional: boolean): void => {
         if (name === LEFT_TO_APP_RUNTIME) return;
@@ -124,6 +148,16 @@ export function resolveNodeModulesClosure(names: readonly string[], cwd: string)
         const dir = realpathSync(found);
         const manifest = readManifest(dir);
         if (manifest === null) throw new Error(`gjsify ship: ${join(dir, 'package.json')} is unreadable.`);
+        // A dependency built for another platform may well be on disk: `gjsify install --os` adds to a
+        // tree, it does not clear it. Carrying it would put a foreign binary in the artifact.
+        if (
+            via.length > 0 &&
+            target !== undefined &&
+            !(allows(manifest.os, target.os) && allows(manifest.cpu, target.cpu))
+        ) {
+            if (!skippedForTarget.includes(name)) skippedForTarget.push(name);
+            return;
+        }
         const existing = packages.get(dest);
         if (existing !== undefined) {
             if (existing.dir !== dir) {
@@ -144,6 +178,7 @@ export function resolveNodeModulesClosure(names: readonly string[], cwd: string)
     return {
         packages: [...packages.values()].sort((a, b) => (a.dest < b.dest ? -1 : 1)),
         skippedOptional: skippedOptional.sort(),
+        skippedForTarget: skippedForTarget.sort(),
     };
 }
 
