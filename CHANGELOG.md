@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.64.11](https://github.com/gjsify/gjsify/compare/v0.64.10...v0.64.11) (2026-10-25)
+
+### Bug Fixes
+
+* **cli:** bind the devtools positionals ([#2387](https://github.com/gjsify/gjsify/issues/2387)) ([5bfe6ab](https://github.com/gjsify/gjsify/commit/5bfe6abb5a924969f885627c533274459d299f21))
+* **cli:** fetch the GTK closure for the ship target ([#2386](https://github.com/gjsify/gjsify/issues/2386)) ([a46703b](https://github.com/gjsify/gjsify/commit/a46703bbdff73d0a1976513259cc2e78f046d2a2)), closes [#2345](https://github.com/gjsify/gjsify/issues/2345)
+* **gi-runtime-android:** need a Node-API runtime ([#2380](https://github.com/gjsify/gjsify/issues/2380)) ([27c43bd](https://github.com/gjsify/gjsify/commit/27c43bdfec216e7e9800e3851dc713c01142d70a))
+* **release:** size read-back, gate closure on arm64 ([#2385](https://github.com/gjsify/gjsify/issues/2385)) ([fd29c89](https://github.com/gjsify/gjsify/commit/fd29c895de99b0bc47f89086a1182894e8e9713a))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([c667f34](https://github.com/gjsify/gjsify/commit/c667f34c940bd090fe2a038728a63c4dd2b9e1ab))
+* update native prebuilds [skip ci] ([f85efb0](https://github.com/gjsify/gjsify/commit/f85efb0b764cc20202c48d98bd0f5799986b1d35))
+
 ## [0.64.10](https://github.com/gjsify/gjsify/compare/v0.64.9...v0.64.10) (2026-10-25)
 
 ### Features
