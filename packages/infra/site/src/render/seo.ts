@@ -1,6 +1,7 @@
 // Everything a crawler or a link preview reads that is not the visible page: locale tags, the
 // title and description, structured data, the sitemap. Pure string work, so it runs on every runtime.
 
+import type { SiteRelatedAppConfig } from '../site-data/index.js';
 import { esc } from './html.js';
 
 /** Facebook's Open Graph wants `language_TERRITORY`; a bare language code is not a valid `og:locale`. */
@@ -109,8 +110,71 @@ export function softwareApplicationJsonLd(input: SoftwareApplicationInput): stri
         sameAs: input.repository ? [input.repository] : undefined,
         inLanguage: input.languages,
     };
-    const json = JSON.stringify(data).replace(/</g, '\\u003c');
-    return `<script type="application/ld+json">${json}</script>`;
+    return jsonLdScript(data);
+}
+
+function jsonLdScript(data: Record<string, unknown>): string {
+    return `<script type="application/ld+json">${JSON.stringify(data).replace(/</g, '\\u003c')}</script>`;
+}
+
+export interface PersonInput {
+    name: string;
+    url: string;
+    jobTitle?: string;
+    description?: string;
+    image?: string;
+    email?: string;
+    /** Profiles elsewhere: GitHub, Mastodon, … */
+    sameAs: readonly string[];
+}
+
+/** `ProfilePage` about a `Person`: what a search engine reads from a developer page. */
+export function personJsonLd(input: PersonInput): string {
+    return jsonLdScript({
+        '@context': 'https://schema.org',
+        '@type': 'ProfilePage',
+        mainEntity: {
+            '@type': 'Person',
+            name: input.name,
+            url: input.url,
+            jobTitle: input.jobTitle || undefined,
+            description: input.description || undefined,
+            image: input.image,
+            email: input.email ? `mailto:${input.email}` : undefined,
+            sameAs: input.sameAs.length > 0 ? input.sameAs : undefined,
+        },
+    });
+}
+
+export interface BlogPostingInput {
+    title: string;
+    description: string;
+    url: string;
+    /** ISO dates. */
+    published: string;
+    updated?: string;
+    author: string;
+    authorUrl?: string;
+    image?: string;
+    lang: string;
+    tags: readonly string[];
+}
+
+export function blogPostingJsonLd(input: BlogPostingInput): string {
+    return jsonLdScript({
+        '@context': 'https://schema.org',
+        '@type': 'BlogPosting',
+        headline: input.title,
+        description: input.description,
+        url: input.url,
+        mainEntityOfPage: input.url,
+        datePublished: input.published,
+        dateModified: input.updated ?? input.published,
+        author: { '@type': 'Person', name: input.author, url: input.authorUrl },
+        image: input.image,
+        inLanguage: input.lang,
+        keywords: input.tags.length > 0 ? input.tags.join(', ') : undefined,
+    });
 }
 
 /** One logical page, as its absolute address per language. */
@@ -137,6 +201,18 @@ ${entries.join('\n')}
 `;
 }
 
-export function robotsTxt(sitemapUrl: string): string {
-    return `User-agent: *\nAllow: /\n\nSitemap: ${sitemapUrl}\n`;
+/**
+ * Crawlers read `robots.txt` at the host root only, so the sitemaps of apps served below this
+ * site on the same host would go unannounced. A site address (not an inline entry) is a site of
+ * this package, which always writes `sitemap.xml` next to its `app.json`.
+ */
+export function neighbourSitemaps(siteUrl: string, apps: readonly SiteRelatedAppConfig[]): string[] {
+    const origin = new URL(siteUrl).origin;
+    return apps
+        .filter((app) => app.name === undefined && new URL(app.url).origin === origin)
+        .map((app) => `${app.url}sitemap.xml`);
+}
+
+export function robotsTxt(sitemapUrls: readonly string[]): string {
+    return `User-agent: *\nAllow: /\n\n${sitemapUrls.map((url) => `Sitemap: ${url}\n`).join('')}`;
 }

@@ -1,7 +1,8 @@
 # @gjsify/site
 
-Static landing page generator for a GNOME-style app. Everything on the page comes from files the
-project already has — the AppStream metainfo, the root `package.json`, the app's gettext
+Static landing page generator for a GNOME-style app — and, with the same look, for the developer
+behind it: a hub, a CV and a blog (see [Developer sites](#developer-sites)). Everything on the page
+comes from files the project already has — the AppStream metainfo, the root `package.json`, the app's gettext
 catalogues, a screenshot directory — plus, at build time, the GitHub release and Flathub APIs.
 Nothing about any particular app is compiled in: all app-specific values come from a
 `gjsify.site` block.
@@ -39,10 +40,10 @@ gjsify site build --runtime node        # build and run on a specific runtime
 
 | Option | Meaning |
 | --- | --- |
-| `--overview <file>` | `build`: render the support overview listed in this JSON file instead of one app (see below). |
 | `--root <path>` | Repository to work on — a checkout whose root `package.json` has `gjsify.site`. Default: the working directory. |
 | `--out <dir>` | Output directory, emptied first. Default: `<root>/dist`. |
 | `--offline` | Skip every network call. The page then links to the releases page and omits the counts. |
+| `--drafts` | `build`: include blog posts marked `draft: true`. |
 | `--no-cache` | Ignore the one-hour HTTP response cache. |
 | `--cache-dir <dir>` | Where the response cache and the image renditions live. Default: `<root>/node_modules/.cache/gjsify-site`. |
 | `--check` | `i18n`: report what is out of date instead of writing it. |
@@ -60,7 +61,8 @@ Every build also writes a 1200×630 link-preview card per language (`og-<lang>.p
 and rasterised by GdkPixbuf), `SoftwareApplication` JSON-LD, `hreflang` alternates with an
 `x-default` that points at the default-language page, a valid `og:locale` (`de_DE`), and a
 `sitemap.xml`. `robots.txt` is written only when `gjsify.site.base` is `/`; below a path the host
-root owns it and must list this sitemap. A page title or meta description that is too short
+root owns it and must list this sitemap. A site at `/` does that for every related app (or
+developer app) given as a site address on the same host. A page title or meta description that is too short
 (or only the app name) is reported as a build warning.
 
 A metainfo URL that points into the site's own `/<lang>/…` pages (it starts with `gjsify.site.url`)
@@ -118,21 +120,6 @@ this package does not assume or enforce that: each consumer supplies its own fil
 `privacy` does, because what counts as identical is a fact about the publisher, not something a
 shared package can derive.
 
-`gjsify site build --overview <file> --out <dir>` renders one page that lists several apps, each
-linking to its own support page, for a host such as `jumplink.eu/support/`:
-
-```json
-{
-  "url": "https://jumplink.eu/",
-  "base": "/support/",
-  "languages": ["en", "de"],
-  "apps": ["../learn6502", "../beifahrer"]
-}
-```
-
-Each `apps` entry is a repository root (relative to the file) with its own `gjsify.site` block;
-its name and published address are read from there.
-
 `GITHUB_TOKEN` is optional and only raises the API rate limit. When a lookup fails the build
 warns rather than failing: a release API outage is not a reason to have no page.
 
@@ -166,6 +153,9 @@ Lives in the root `package.json`, next to `ship` and `flatpak`.
 | `support`, `legal` | `support`: `{kind, url}` links, or `{kind: "sepa", name, iban, bic?, reference?}`, a bank transfer shown as IBAN plus an EPC QR code. `legal`: `{label, url}` links. Both empty by default: nothing is invented. |
 | `privacy` | `{statements: {<lang>: <path>}, hostingPolicyUrl?}`: a privacy page at `/<lang>/privacy/`, see below. Absent: no such page. |
 | `legalNotice` | `{statements: {<lang>: <path>}}`: a Legal Notice/Impressum page at `/<lang>/legal-notice/`, see below. Absent: no such page. |
+| `blog` | `{posts: <dir>}`: Markdown posts rendered at `/<lang>/blog/`, see [Blog](#blog). Absent: no blog. |
+| `theme` | `{accent?, displayFont?, imageRendering?}`: how the site departs from the default look, see [Theme](#theme). |
+| `developer` | Instead of `metainfo`: makes this a developer site, see [Developer sites](#developer-sites). |
 
 A `sepa` entry carries no amount, and its IBAN is checked when the config loads — length per
 country, alphabet, and the mod-97 checksum — so a typo fails the build instead of printing a QR
@@ -255,6 +245,82 @@ one surface. The text on it is not assumed to be white; the build measures the b
 relative luminance and writes near-black or white into `--band-fg`, whichever the eye can read.
 Everything below the masthead keeps the site's own neutral palette, so a pale brand colour cannot
 make the description unreadable. An app without `<branding>` gets the default blue.
+
+## Blog
+
+`"blog": { "posts": "blog" }` turns every `*.md` below that directory into a post. The language
+comes from the file name (`hello.en.md`, `hello.de.md`) or the frontmatter; files sharing a slug
+are translations of each other and link to each other through `hreflang`.
+
+```markdown
+---
+title: Hello
+date: 2026-10-20
+updated: 2026-10-22
+summary: One sentence for the index, the feed and the link preview.
+tags: [GNOME, gjsify]
+---
+
+First paragraph — the description when there is no `summary`.
+```
+
+| Key | Meaning |
+| --- | --- |
+| `title`, `date` | Required. `date`/`updated` are `YYYY-MM-DD` or an ISO 8601 date-time. |
+| `slug`, `lang` | Override what the file name says. |
+| `updated`, `summary`, `tags` | Optional. |
+| `draft` | `true` leaves the post out unless the build runs with `--drafts`. |
+
+| Page | URL |
+| --- | --- |
+| Index + Atom feed, per language | `/<lang>/blog/`, `/<lang>/blog/feed.xml` |
+| Post + its link-preview card | `/<lang>/blog/<slug>/`, `/<lang>/blog/<slug>/og.png` |
+| Tag, only in the languages that use it | `/<lang>/blog/tags/<tag>/`, `…/feed.xml` |
+
+Everything else in the directory — images, downloads — is published under `/blog/` at the same
+relative path, so `![shot](shot.png)` works in the editor and on the page. A link to another post's
+`.md` file becomes a link to that post's page; one to a post the build does not render (a draft,
+a typo) fails the build, since no Markdown is ever published. Posts are `BlogPosting` JSON-LD with
+`article:*` meta, and the landing page shows the newest three of its language.
+
+## Theme
+
+| Key | Meaning |
+| --- | --- |
+| `accent` | `"#rrggbb"` or `{light, dark}`: links, buttons, focus rings. The text on it is measured like the brand colour. |
+| `displayFont` | Repo-relative `.woff2` used for headings. The package ships and fetches no font itself. |
+| `imageRendering` | `"pixelated"` keeps pixel art crisp: CSS `image-rendering` plus nearest-neighbour renditions. Default `"auto"`. |
+
+The theme is written into each page as a short inline style, so a site without one gets exactly
+the default stylesheet.
+
+## Developer sites
+
+`developer` instead of `metainfo` makes the site about a person rather than one app — the same
+layout, support, privacy and legal pages, plus a hub and a CV:
+
+```json
+"gjsify": { "site": {
+  "url": "https://example.org",
+  "languages": ["en", "de"],
+  "developer": {
+    "resume": { "en": "content/resume.en.json", "de": "content/resume.de.json" },
+    "apps": ["https://example.org/notes/"]
+  },
+  "blog": { "posts": "blog" }
+} }
+```
+
+- `resume` names a [JSON Resume](https://jsonresume.org/schema) file for **every** configured
+  language — no page of a CV falls back to another language. `basics.image` of the default
+  language's résumé is the avatar; `basics.summary` is Markdown.
+- `apps` has the format of `relatedApps`; `relatedApps` itself is rejected here.
+- `base` defaults to `/` and `repository` is optional (it links the site's source).
+- With no metainfo `<branding>` to read, `theme.accent` also paints the masthead and the bar.
+
+The hub `/<lang>/` shows the person, their apps, the newest posts and a link to the CV
+`/<lang>/cv/`, which prints as a plain document. Both carry `ProfilePage` JSON-LD with the
+résumé's profiles as `sameAs`.
 
 ## Translations
 

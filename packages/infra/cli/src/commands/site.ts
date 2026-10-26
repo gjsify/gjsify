@@ -38,8 +38,8 @@ interface SiteCliOptions {
     operation: string;
     root?: string;
     out?: string;
-    overview?: string;
     offline: boolean;
+    drafts: boolean;
     cache: boolean;
     cacheDir?: string;
     check: boolean;
@@ -109,12 +109,13 @@ export const siteCommand: Command<unknown, SiteCliOptions> = {
                 description: 'Repository to read from (default: the working directory)',
                 type: 'string',
             })
-            .option('overview', {
-                description: 'build: render the support overview listed in this JSON file instead of one app',
-                type: 'string',
-            })
             .option('out', { description: 'Output directory, emptied first (default: <root>/dist)', type: 'string' })
             .option('offline', { description: 'Skip every network call', type: 'boolean', default: false })
+            .option('drafts', {
+                description: 'build: include blog posts marked `draft: true`',
+                type: 'boolean',
+                default: false,
+            })
             .option('cache', {
                 description: 'Use the one-hour HTTP response cache (--no-cache to ignore it)',
                 type: 'boolean',
@@ -195,8 +196,8 @@ export const siteCommand: Command<unknown, SiteCliOptions> = {
         const forwarded: string[] = [args.operation, '--package-dir', packageDir];
         if (args.root) forwarded.push('--root', resolve(cwd, args.root));
         if (args.out) forwarded.push('--out', resolve(cwd, args.out));
-        if (args.overview) forwarded.push('--overview', resolve(cwd, args.overview));
         if (args.offline) forwarded.push('--offline');
+        if (args.drafts) forwarded.push('--drafts');
         if (!args.cache) forwarded.push('--no-cache');
         else if (args.cacheDir) forwarded.push('--cache-dir', resolve(cwd, args.cacheDir));
         if (args.check) forwarded.push('--check');

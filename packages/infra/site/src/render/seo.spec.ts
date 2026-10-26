@@ -3,6 +3,7 @@ import { describe, expect, it } from '@gjsify/unit';
 import { ogCardSvg, wrapText } from './og-card.js';
 import {
     metaDescription,
+    neighbourSitemaps,
     ogLocale,
     pageTitle,
     robotsTxt,
@@ -52,7 +53,17 @@ export default async () => {
             const xml = sitemapXml([{ en: 'https://e.org/en/', de: 'https://e.org/de/' }], 'en');
             expect(xml).toMatch(/hreflang="x-default" href="https:\/\/e.org\/en\/"/);
             expect(xml.match(/<loc>/g)?.length).toBe(2);
-            expect(robotsTxt('https://e.org/sitemap.xml')).toMatch(/Sitemap: https:\/\/e.org\/sitemap.xml/);
+            expect(robotsTxt(['https://e.org/sitemap.xml'])).toMatch(/Sitemap: https:\/\/e.org\/sitemap.xml/);
+        });
+
+        await it('announces the sitemaps of the apps below a root site on the same host', async () => {
+            const sitemaps = neighbourSitemaps('https://e.org/', [
+                { url: 'https://e.org/notes/' },
+                { url: 'https://other.org/app/' },
+                { url: 'https://e.org/plain/', name: 'Plain' },
+            ]);
+            expect(sitemaps).toStrictEqual(['https://e.org/notes/sitemap.xml']);
+            expect(robotsTxt(['https://e.org/sitemap.xml', ...sitemaps]).match(/^Sitemap:/gm)?.length).toBe(2);
         });
 
         await it('wraps card text and draws the name', async () => {

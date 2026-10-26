@@ -49,7 +49,8 @@ export interface RasterImage {
     opaqueBounds(threshold: number): Rect | null;
     cropped(rect: Rect): RasterImage;
     /** Keeps the aspect ratio. Never enlarges: a width at or above this one answers the same image. */
-    resizedToWidth(width: number): RasterImage;
+    /** `nearest` keeps pixel art's hard edges; the default resamples smoothly. */
+    resizedToWidth(width: number, filter?: 'smooth' | 'nearest'): RasterImage;
     encode(format: ImageFormat): Uint8Array;
 }
 
@@ -115,7 +116,7 @@ function wrap(pixbuf: GdkPixbuf.Pixbuf): RasterImage {
             if (!sub) throw new Error(`Could not crop an image to ${rect.width}x${rect.height}`);
             return wrap(sub);
         },
-        resizedToWidth(target) {
+        resizedToWidth(target, filter = 'smooth') {
             if (target >= width) return wrap(pixbuf);
             const scaled = pixbuf.scale_simple(
                 target,
@@ -123,7 +124,7 @@ function wrap(pixbuf: GdkPixbuf.Pixbuf): RasterImage {
                 // HYPER over BILINEAR: these are large screenshots scaled far
                 // down, where bilinear drops thin UI lines (1px borders, text
                 // stems) that the page is meant to show.
-                GdkPixbuf.InterpType.HYPER,
+                filter === 'nearest' ? GdkPixbuf.InterpType.NEAREST : GdkPixbuf.InterpType.HYPER,
             );
             if (!scaled) throw new Error(`Could not scale an image to ${target}px`);
             return wrap(scaled);

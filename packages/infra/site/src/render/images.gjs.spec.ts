@@ -117,6 +117,28 @@ export default async () => {
             expect(written.includes('misc-shot-1200.webp')).toBe(true);
         });
 
+        await it('keeps pixel art crisp: a pixelated rendition blends no colours', async () => {
+            const dir = await mkdtemp(join(tmpdir(), 'gjsify-site-images-'));
+            const source = join(dir, 'art.png');
+            // One-pixel black/white columns: any smoothing filter turns them grey.
+            const stripes = GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB, false, 8, 1200, 4);
+            stripes.fill(0xffffffff);
+            const black = GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB, false, 8, 1, 4);
+            black.fill(0x000000ff);
+            for (let x = 0; x < 1200; x += 2) black.copy_area(0, 0, 1, 4, stripes, x, 0);
+            stripes.savev(source, 'png', ['compression'], ['9']);
+
+            const options = { outDir: join(dir, 'out'), cacheDir: join(dir, 'cache'), urlBase: '/' };
+            await processImage(source, 'art', { ...options, pixelated: true });
+            const scaled = GdkPixbuf.Pixbuf.new_from_file(join(dir, 'out', 'art-640.png'));
+            const pixels = scaled.get_pixels();
+            const channels = scaled.get_n_channels();
+            const reds = new Set<number>();
+            for (let x = 0; x < scaled.get_width(); x++) reds.add(pixels[x * channels] as number);
+            expect([...reds].sort((a, b) => a - b)).toStrictEqual([0, 255]);
+            expect((await readdir(join(dir, 'cache'))).every((name) => name.startsWith('px-'))).toBe(true);
+        });
+
         await it('crops the transparent margin before it measures the artwork', async () => {
             const dir = await mkdtemp(join(tmpdir(), 'gjsify-site-trim-'));
             const source = join(dir, 'window.png');

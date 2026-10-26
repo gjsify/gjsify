@@ -163,27 +163,82 @@ export interface RelatedApp {
     languages: string[];
 }
 
-/** The `gjsify.site` block of the root package.json, with defaults applied. */
-export interface SiteConfig {
-    metainfo: string;
+/** `gjsify.site.blog`: a directory of Markdown posts, rendered at `/<lang>/blog/`. */
+export interface SiteBlogConfig {
+    /** Repo-relative directory holding the `*.md` posts and the images they reference. */
+    posts: string;
+}
+
+/** A colour for each scheme; a single configured colour serves both. */
+export interface SiteColor {
+    light: string;
+    dark: string;
+}
+
+/** `gjsify.site.theme`: how a site departs from the default look. Every key is optional. */
+export interface SiteThemeConfig {
+    /** Links, buttons and focus rings. Default: the stylesheet's Adwaita blue. */
+    accent?: SiteColor;
+    /** Repo-relative woff2 file used for headings; the package ships and fetches no font itself. */
+    displayFont?: string;
+    /** `pixelated` keeps pixel art crisp: CSS `image-rendering` and nearest-neighbour renditions. */
+    imageRendering: 'auto' | 'pixelated';
+}
+
+/** The keys that mean the same on an app site and on a developer site. */
+export interface SiteCommonConfig {
     base: string;
     url: string;
     languages: string[];
     /** Language `/` falls back to when the visitor's languages match none of `languages`. */
     defaultLanguage: string;
-    /** Language of the metainfo's untranslated text; the other languages are looked up in the catalogues. */
+    /** Language of the untranslated source text; the other languages are looked up in the catalogues. */
     sourceLanguage: string;
-    repository: string;
-    flathub?: string;
-    webApp?: string;
-    /** Directory holding the app's `<lang>.po` catalogues, used when the metainfo lacks a translation. */
-    translations?: string;
     /**
      * Directory holding `<lang>.po` catalogues for the strings this configuration itself introduces —
      * the download labels. They overlay the page catalogues shipped with the renderer, which cannot
      * know a consumer's own copy.
      */
     pageTranslations?: string;
+    support: SiteSupportEntry[];
+    legal: SiteLegalLink[];
+    /** A privacy/data-practices page at `/<lang>/privacy/`. `undefined`: no such page is built. */
+    privacy?: SitePrivacyConfig;
+    /** A Legal Notice / Impressum page at `/<lang>/legal-notice/`. `undefined`: no such page is built. */
+    legalNotice?: SiteLegalNoticeConfig;
+    /** `undefined`: no blog pages. */
+    blog?: SiteBlogConfig;
+    theme: SiteThemeConfig;
+}
+
+/** `gjsify.site.developer`: a page about a person and the apps they publish. */
+export interface SiteDeveloperConfig {
+    /** A JSON Resume file per configured language, repo-relative. */
+    resume: Record<string, string>;
+    /** Same format as `relatedApps`, in the order the hub lists them. */
+    apps: SiteRelatedAppConfig[];
+}
+
+/** A developer site: `gjsify.site` with `developer` instead of `metainfo`. */
+export interface DeveloperSiteConfig extends SiteCommonConfig {
+    kind: 'developer';
+    developer: SiteDeveloperConfig;
+    /** Source of the site itself, linked from the footer. */
+    repository?: string;
+}
+
+/** Either kind of `gjsify.site`, told apart by `kind`. */
+export type AnySiteConfig = SiteConfig | DeveloperSiteConfig;
+
+/** The `gjsify.site` block of an app's root package.json, with defaults applied. */
+export interface SiteConfig extends SiteCommonConfig {
+    kind: 'app';
+    metainfo: string;
+    repository: string;
+    flathub?: string;
+    webApp?: string;
+    /** Directory holding the app's `<lang>.po` catalogues, used when the metainfo lacks a translation. */
+    translations?: string;
     /** Repo-relative app icon; defaults to the Flatpak or `ship` icon of the root package.json. */
     icon?: string;
     /**
@@ -195,12 +250,6 @@ export interface SiteConfig {
     downloads: SiteDownloadConfig[];
     /** False ignores the latest release's assets, so `downloads` is the whole list. Default true. */
     releaseAssets: boolean;
-    support: SiteSupportEntry[];
-    legal: SiteLegalLink[];
-    /** A privacy/data-practices page at `/<lang>/privacy/`. `undefined`: no such page is built. */
-    privacy?: SitePrivacyConfig;
-    /** A Legal Notice / Impressum page at `/<lang>/legal-notice/`. `undefined`: no such page is built. */
-    legalNotice?: SiteLegalNoticeConfig;
     /** Sites of other apps to list under "More apps by <developer>", in order. Empty: no section. */
     relatedApps: SiteRelatedAppConfig[];
 }

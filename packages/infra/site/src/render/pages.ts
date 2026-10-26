@@ -17,19 +17,25 @@ import {
     type SiteSupportSepa,
     type TargetPlatform,
 } from '../site-data/index.js';
-import { readableText } from './color.js';
+import { blogFeedUrl, blogIndexUrl } from './blog.js';
 import { attrs, esc, fmt, plain } from './html.js';
 import { icon, type IconName } from './icons.js';
+import {
+    absoluteUrl,
+    documentPage,
+    githubUrl,
+    rootPage,
+    simplePage,
+    sitePageUrl,
+    type ClientAssets,
+    type PageMeta,
+    type Shell,
+    type Translate,
+} from './layout.js';
 import { renderMarkdown } from './markdown.js';
-import { OG_HEIGHT, OG_WIDTH } from './og-card.js';
 import { qrSvg } from './qr.js';
-import { metaDescription, ogLocale, pageTitle, softwareApplicationJsonLd } from './seo.js';
+import { metaDescription, pageTitle, softwareApplicationJsonLd } from './seo.js';
 import type { ImageFormat, ProcessedImage } from './images.js';
-
-export interface ClientAssets {
-    js: string;
-    css: string[];
-}
 
 export interface RenderContext {
     data: SiteData;
@@ -44,9 +50,11 @@ export interface RenderContext {
     view?: 'app' | 'support' | 'privacy' | 'legal-notice';
     /** Root-relative URL of the link-preview card for this language. */
     ogImage?: string;
+    /** The blog's latest posts in this language, rendered; only the landing page shows them. */
+    latestPosts?: string;
+    /** Root-relative URL of the published `theme.displayFont`. */
+    displayFontUrl?: string;
 }
-
-type Translate = (msgid: string) => string;
 
 /** What the download dialog reads: the targets, the catalogue and the locale it formats sizes in. */
 export type DownloadContext = Pick<RenderContext, 'data' | 't' | 'lang'>;
@@ -95,7 +103,7 @@ export function pageUrl(data: SiteData, lang: string): string {
 }
 
 export function absolute(data: SiteData, rootRelative: string): string {
-    return new URL(rootRelative.replace(/^\//, ''), `${new URL(data.config.url).origin}/`).href;
+    return absoluteUrl(data.config, rootRelative);
 }
 
 /**
@@ -126,10 +134,6 @@ export function legalNoticeUrl(data: SiteData, lang: string): string {
 /** The transfer reference when the config sets none: one per app, so the bank statement says what it was for. */
 export function supportReference(data: SiteData): string {
     return `Support ${data.app.name.source}`;
-}
-
-export function languageName(code: string): string {
-    return new Intl.DisplayNames([code], { type: 'language' }).of(code) ?? code;
 }
 
 function blocks(content: DescriptionBlock[], lang: string): string {
@@ -618,7 +622,8 @@ ${items.join('\n')}
 </section>`;
 }
 
-function relatedCard(app: RelatedApp, lang: string): string {
+/** One app as a card: icon, name, summary. Also the app grid of a developer site. */
+export function relatedCard(app: RelatedApp, lang: string): string {
     const summary = relatedText(app.summary, lang);
     const mark = app.icon
         ? `<img class="related-icon" src="${esc(app.icon)}" alt="" width="48" height="48" loading="lazy">`
@@ -701,48 +706,6 @@ function tags(ctx: RenderContext): string {
     return body.trim() ? `<section class="tags-section">\n${body}\n</section>` : '';
 }
 
-/** Which address the current view's own page lives at, in another language. */
-function viewUrl(ctx: Pick<RenderContext, 'data' | 'view'>, code: string): string {
-    const { data, view } = ctx;
-    if (view === 'support') return supportUrl(data, code);
-    if (view === 'privacy') return privacyUrl(data, code);
-    if (view === 'legal-notice') return legalNoticeUrl(data, code);
-    return pageUrl(data, code);
-}
-
-function languageSwitch(ctx: RenderContext, className: string, style: 'code' | 'name'): string {
-    const { data, lang, t } = ctx;
-    const items = data.config.languages.map((code) => {
-        const label = style === 'code' ? code.toUpperCase() : languageName(code);
-        return code === lang
-            ? `<li><span aria-current="true">${esc(label)}</span></li>`
-            : `<li><a href="${esc(viewUrl(ctx, code))}" hreflang="${esc(code)}" lang="${esc(code)}">${esc(label)}</a></li>`;
-    });
-    return `<nav class="${className}" aria-label="${esc(t('Language'))}"><ul>${items.join('')}</ul></nav>`;
-}
-
-function repositoryUrl(data: SiteData): string | undefined {
-    return data.app.urls.vcsBrowser ?? (data.config.repository || undefined);
-}
-
-function topBar(ctx: RenderContext): string {
-    const { data, lang, t } = ctx;
-    const repo = repositoryUrl(data);
-    const onGitHub = repo ? /(^|\.)github\.com$/.test(new URL(repo).host) : false;
-    return `<div class="topbar">
-<div class="bar-inner">
-<a class="bar-brand" href="${esc(pageUrl(data, lang))}">
-${ctx.iconUrl ? `<img src="${esc(ctx.iconUrl)}" alt="" width="24" height="24">` : ''}
-<span>${esc(localized(data.app.name, lang))}</span>
-</a>
-<div class="bar-end">
-${languageSwitch(ctx, 'bar-languages', 'code')}
-${repo ? `<a class="bar-link" href="${esc(repo)}">${icon('code')}<span>${onGitHub ? 'GitHub' : esc(t('Source code'))}</span></a>` : ''}
-</div>
-</div>
-</div>`;
-}
-
 /**
  * Everything above the text: the icon and name, the install button, the facts row and the
  * screenshots. One element, so the app's brand colour is behind all of it rather than behind the
@@ -765,37 +728,6 @@ ${downloadWidget(ctx)}
 ${badges(ctx)}
 ${screenshotBand(ctx)}
 </header>`;
-}
-
-function footer(ctx: RenderContext): string {
-    const { data, lang, t } = ctx;
-    const name = localized(data.app.name, lang);
-    const repo = repositoryUrl(data);
-    // The privacy and legal-notice links are derived, never configured: a consumer with a
-    // `gjsify.site.privacy`/`legalNotice` block gets the link on every page without also listing
-    // it in `legal`, which would be a second place for the two to disagree.
-    const legal = [
-        ...(data.config.legalNotice
-            ? [`<li><a href="${esc(legalNoticeUrl(data, lang))}">${esc(t('Legal Notice'))}</a></li>`]
-            : []),
-        ...(data.config.privacy ? [`<li><a href="${esc(privacyUrl(data, lang))}">${esc(t('Privacy'))}</a></li>`] : []),
-        ...data.config.legal.map((link) => `<li><a href="${esc(link.url)}">${esc(link.label)}</a></li>`),
-    ].join('');
-    const licenses = [
-        data.app.license ? fmt(t('{app} is licensed under {license}.'), { app: name, license: data.app.license }) : '',
-        data.app.contentLicense
-            ? fmt(t('This page reproduces text licensed under {license}.'), { license: data.app.contentLicense })
-            : '',
-    ].filter(Boolean);
-    return `<footer class="footer">
-<div class="footer-inner">
-${languageSwitch(ctx, 'footer-languages', 'name')}
-${repo ? `<p class="footer-source"><a href="${esc(repo)}">${icon('code')}<span>${esc(t('Source code'))}</span></a></p>` : ''}
-${licenses.length > 0 ? `<p class="footer-license">${licenses.join(' ')}</p>` : ''}
-<p class="footer-made"><a href="https://github.com/gjsify/gjsify">${esc(plain(t('Made with {project}'), { project: 'gjsify' }))}</a></p>
-${legal ? `<ul class="footer-legal">${legal}</ul>` : ''}
-</div>
-</footer>`;
 }
 
 /** The title and description of one page; also what the build checks for weak ones. */
@@ -863,75 +795,72 @@ function structuredData(ctx: RenderContext, title: string, description: string):
     });
 }
 
-function head(ctx: RenderContext): string {
-    const { data, lang } = ctx;
-    const view = ctx.view ?? 'app';
-    const viewPath = (code: string) => viewUrl({ data, view }, code);
-    const { name, title, description } = pageMeta(ctx, view);
-    const url = absolute(data, viewPath(lang));
-    const ogImage = ctx.ogImage ? absolute(data, ctx.ogImage) : undefined;
-    const { light, dark } = data.app.branding;
-    // An app without `<branding>` keeps the stylesheet's own palette: the custom property is left
-    // unset so its `var()` fallback wins, rather than being set to a stand-in colour here.
-    const brandVars = [
-        light ? `--brand-light:${light};--band-fg-light:${readableText(light)}` : '',
-        dark ? `--brand-dark:${dark};--band-fg-dark:${readableText(dark)}` : '',
-    ]
-        .filter(Boolean)
-        .join(';');
-    const alternates = data.config.languages.map(
-        (code) => `<link rel="alternate" hreflang="${esc(code)}" href="${esc(absolute(data, viewPath(code)))}">`,
-    );
-    const meta: Array<[string, string]> = [
-        ['og:type', 'website'],
-        ['og:title', title],
-        ['og:description', description],
-        ['og:url', url],
-        ['og:site_name', name],
-        ['og:locale', ogLocale(lang)],
-        ...data.config.languages
-            .filter((code) => code !== lang)
-            .map((code): [string, string] => ['og:locale:alternate', ogLocale(code)]),
-    ];
-    if (ogImage) {
-        meta.push(
-            ['og:image', ogImage],
-            ['og:image:width', String(OG_WIDTH)],
-            ['og:image:height', String(OG_HEIGHT)],
-            ['og:image:alt', name],
-        );
-    }
-    return `<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(title)}</title>
-<meta name="description" content="${esc(description)}">
-<link rel="canonical" href="${esc(url)}">
-${alternates.join('\n')}
-<link rel="alternate" hreflang="x-default" href="${esc(absolute(data, viewPath(data.config.defaultLanguage)))}">
-${meta.map(([property, content]) => `<meta property="${property}" content="${esc(content)}">`).join('\n')}
-<meta name="twitter:card" content="${ogImage ? 'summary_large_image' : 'summary'}">
-<meta name="twitter:title" content="${esc(title)}">
-<meta name="twitter:description" content="${esc(description)}">
-${ogImage ? `<meta name="twitter:image" content="${esc(ogImage)}">` : ''}
-<meta name="theme-color" content="${esc(light ?? '#ffffff')}" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="${esc(dark ?? '#1e1e1e')}" media="(prefers-color-scheme: dark)">
-${ctx.iconUrl ? `<link rel="icon" type="image/svg+xml" href="${esc(ctx.iconUrl)}">` : ''}
-${view === 'app' ? structuredData(ctx, title, description) : ''}
-${brandVars ? `<style>:root{${brandVars}}</style>` : ''}
-${ctx.assets.css.map((href) => `<link rel="stylesheet" href="${esc(href)}">`).join('\n')}
-<script type="module" src="${esc(ctx.assets.js)}"></script>`;
+type View = NonNullable<RenderContext['view']>;
+
+const VIEW_PATHS: Record<View, string> = {
+    app: '',
+    support: 'support/',
+    privacy: 'privacy/',
+    'legal-notice': 'legal-notice/',
+};
+
+function repositoryUrl(data: SiteData): string | undefined {
+    return data.app.urls.vcsBrowser ?? githubUrl(data.config.repository);
+}
+
+/** The frame of every page of an app site in one language. */
+export function appShell(
+    ctx: Pick<RenderContext, 'data' | 'lang' | 't' | 'assets' | 'iconUrl' | 'displayFontUrl'> & { current?: 'blog' },
+): Shell {
+    const { data, lang, t } = ctx;
+    const name = localized(data.app.name, lang);
+    const { config } = data;
+    return {
+        config,
+        lang,
+        t,
+        assets: ctx.assets,
+        name,
+        home: pageUrl(data, lang),
+        iconUrl: ctx.iconUrl,
+        branding: data.app.branding,
+        repository: repositoryUrl(data),
+        licenses: [
+            data.app.license
+                ? plain(t('{app} is licensed under {license}.'), { app: name, license: data.app.license })
+                : '',
+            data.app.contentLicense
+                ? plain(t('This page reproduces text licensed under {license}.'), { license: data.app.contentLicense })
+                : '',
+        ].filter(Boolean),
+        nav: config.blog
+            ? [{ href: blogIndexUrl(config, lang), label: t('Blog'), glyph: 'blog', current: ctx.current === 'blog' }]
+            : [],
+        feeds: config.blog ? [{ title: `${name} – ${t('Blog')}`, href: blogFeedUrl(config, lang) }] : [],
+        displayFontUrl: ctx.displayFontUrl,
+    };
+}
+
+function appPageMeta(ctx: RenderContext, view: View): PageMeta {
+    const { data } = ctx;
+    const { title, description } = pageMeta(ctx, view);
+    return {
+        title,
+        description,
+        urls: Object.fromEntries(
+            data.config.languages.map((code) => [code, sitePageUrl(data.config, code, VIEW_PATHS[view])]),
+        ),
+        ogImage: ctx.ogImage,
+        jsonLd: view === 'app' ? structuredData(ctx, title, description) : undefined,
+    };
 }
 
 export function renderPage(ctx: RenderContext): string {
     const { data, lang } = ctx;
-    return `<!doctype html>
-<html lang="${esc(lang)}">
-<head>
-${head(ctx)}
-</head>
-<body>
-${topBar(ctx)}
-${masthead(ctx)}
+    return documentPage(
+        appShell(ctx),
+        appPageMeta(ctx, 'app'),
+        `${masthead(ctx)}
 <main>
 <div class="column">
 <section class="about">
@@ -939,68 +868,53 @@ ${masthead(ctx)}
 ${blocks(data.app.description, lang)}
 </section>
 ${releases(ctx)}
+${ctx.latestPosts ?? ''}
 ${support(ctx)}
 ${links(ctx)}
 ${relatedSection(ctx)}
 ${tags(ctx)}
 </div>
-</main>
-${footer(ctx)}
-</body>
-</html>
-`;
+</main>`,
+    );
+}
+
+/** The support entries as cards; shared with the developer site, whose reference is the person's. */
+export function supportList(entries: readonly SiteSupportEntry[], t: Translate, reference: string): string {
+    return `<app-support>
+<ul class="card-list">
+${entries.map((entry) => supportItem(entry, t, reference)).join('\n')}
+</ul>
+</app-support>`;
+}
+
+function backToApp(ctx: RenderContext, name: string): { href: string; label: string } {
+    return { href: pageUrl(ctx.data, ctx.lang), label: fmt(ctx.t('Back to {app}'), { app: name }) };
 }
 
 /** `/<lang>/support/`: the ways to support the app, as plain markup that needs no script. */
 export function renderSupportPage(page: RenderContext): string {
     const ctx: RenderContext = { ...page, view: 'support' };
-    const { data, lang, t } = ctx;
+    const { data, t } = ctx;
     const meta = pageMeta(ctx, 'support');
-    const reference = supportReference(data);
-    return `<!doctype html>
-<html lang="${esc(lang)}">
-<head>
-${head(ctx)}
-</head>
-<body>
-${topBar(ctx)}
-<header class="masthead">
-<div class="hero-inner">
-${ctx.iconUrl ? `<div class="hero-icon" style="--icon-url:url(${esc(ctx.iconUrl)})"><img src="${esc(ctx.iconUrl)}" alt="" width="128" height="128"></div>` : ''}
-<div class="hero-text">
-<h1>${esc(t('Support'))}</h1>
-<p class="hero-by">${esc(meta.name)}</p>
-</div>
-</div>
-</header>
-<main>
-<div class="column">
-<p class="support-intro">${esc(meta.description)}</p>
-<app-support>
-<ul class="card-list">
-${data.config.support.map((entry) => supportItem(entry, t, reference)).join('\n')}
-</ul>
-</app-support>
-<p class="support-back"><a href="${esc(pageUrl(data, lang))}">${fmt(t('Back to {app}'), { app: meta.name })}</a></p>
-</div>
-</main>
-${footer(ctx)}
-</body>
-</html>
-`;
+    return simplePage(appShell(ctx), appPageMeta(ctx, 'support'), {
+        heading: t('Support'),
+        byline: meta.name,
+        body: `<p class="support-intro">${esc(meta.description)}</p>
+${supportList(data.config.support, t, supportReference(data))}`,
+        back: backToApp(ctx, meta.name),
+    });
 }
 
 /**
- * The paragraph every privacy page opens with, regardless of what the app does. It is about
- * visiting THIS static page, not about the app — this package adds no cookie, no analytics and no
- * third-party resource of its own, so that much is true for every consumer. `hostingPolicyUrl` is
- * the one fact that varies by deployment and is not guessed; left out, nothing about hosting is said.
+ * The paragraph every privacy page opens with, regardless of what the site is about. It is about
+ * visiting THIS static page — this package adds no cookie, no analytics and no third-party resource
+ * of its own, so that much is true for every consumer. `hostingPolicyUrl` is the one fact that
+ * varies by deployment and is not guessed; left out, nothing about hosting is said.
  */
-function hostingNotice(ctx: RenderContext): string {
-    const { data, t } = ctx;
+export function hostingNotice(config: Pick<SiteData['config'], 'privacy'>, t: Translate): string {
     const intro = t('This page is a static file: no cookie, no analytics, nothing from a third party.');
     const logs = t('Whoever serves it may keep ordinary web-server access logs of the request.');
-    const link = data.config.privacy?.hostingPolicyUrl;
+    const link = config.privacy?.hostingPolicyUrl;
     return `<p class="privacy-hosting">${esc(intro)} ${esc(logs)}${link ? ` <a href="${esc(link)}">${esc(t("See the hosting provider's notice"))}</a>` : ''}</p>`;
 }
 
@@ -1011,35 +925,15 @@ function hostingNotice(ctx: RenderContext): string {
  */
 export function renderPrivacyPage(page: RenderContext, statement: string): string {
     const ctx: RenderContext = { ...page, view: 'privacy' };
-    const { data, lang, t } = ctx;
     const meta = pageMeta(ctx, 'privacy');
-    return `<!doctype html>
-<html lang="${esc(lang)}">
-<head>
-${head(ctx)}
-</head>
-<body>
-${topBar(ctx)}
-<header class="masthead">
-<div class="hero-inner">
-${ctx.iconUrl ? `<div class="hero-icon" style="--icon-url:url(${esc(ctx.iconUrl)})"><img src="${esc(ctx.iconUrl)}" alt="" width="128" height="128"></div>` : ''}
-<div class="hero-text">
-<h1>${esc(t('Privacy'))}</h1>
-<p class="hero-by">${esc(meta.name)}</p>
-</div>
-</div>
-</header>
-<main>
-<div class="column privacy-statement">
-${hostingNotice(ctx)}
-${renderMarkdown(statement)}
-<p class="support-back"><a href="${esc(pageUrl(data, lang))}">${fmt(t('Back to {app}'), { app: meta.name })}</a></p>
-</div>
-</main>
-${footer(ctx)}
-</body>
-</html>
-`;
+    return simplePage(appShell(ctx), appPageMeta(ctx, 'privacy'), {
+        heading: ctx.t('Privacy'),
+        byline: meta.name,
+        columnClass: 'privacy-statement',
+        body: `${hostingNotice(ctx.data.config, ctx.t)}
+${renderMarkdown(statement)}`,
+        back: backToApp(ctx, meta.name),
+    });
 }
 
 /**
@@ -1051,64 +945,17 @@ ${footer(ctx)}
  */
 export function renderLegalNoticePage(page: RenderContext, statement: string): string {
     const ctx: RenderContext = { ...page, view: 'legal-notice' };
-    const { data, lang, t } = ctx;
     const meta = pageMeta(ctx, 'legal-notice');
-    return `<!doctype html>
-<html lang="${esc(lang)}">
-<head>
-${head(ctx)}
-</head>
-<body>
-${topBar(ctx)}
-<header class="masthead">
-<div class="hero-inner">
-${ctx.iconUrl ? `<div class="hero-icon" style="--icon-url:url(${esc(ctx.iconUrl)})"><img src="${esc(ctx.iconUrl)}" alt="" width="128" height="128"></div>` : ''}
-<div class="hero-text">
-<h1>${esc(t('Legal Notice'))}</h1>
-<p class="hero-by">${esc(meta.name)}</p>
-</div>
-</div>
-</header>
-<main>
-<div class="column privacy-statement">
-${renderMarkdown(statement)}
-<p class="support-back"><a href="${esc(pageUrl(data, lang))}">${fmt(t('Back to {app}'), { app: meta.name })}</a></p>
-</div>
-</main>
-${footer(ctx)}
-</body>
-</html>
-`;
+    return simplePage(appShell(ctx), appPageMeta(ctx, 'legal-notice'), {
+        heading: ctx.t('Legal Notice'),
+        byline: meta.name,
+        columnClass: 'privacy-statement',
+        body: renderMarkdown(statement),
+        back: backToApp(ctx, meta.name),
+    });
 }
 
 /** The root page: a script picks the visitor's language, the link list is what everyone else (and every crawler) sees. */
 export function renderRoot(data: SiteData, assets: ClientAssets, iconUrl: string | undefined): string {
-    const { config } = data;
-    const name = data.app.name.source;
-    const json = (value: unknown) => JSON.stringify(value).replace(/</g, '\\u003c');
-    const choose = `var l=${json(config.languages)},d=${json(config.defaultLanguage)},p=(navigator.languages||[navigator.language]).map(function(x){return String(x).toLowerCase()}),c=d;for(var i=0;i<p.length;i++){var m=l.filter(function(x){return p[i]===x.toLowerCase()||p[i].split("-")[0]===x.toLowerCase()})[0];if(m){c=m;break}}location.replace(${json(config.base)}+c+"/")`;
-    const alternates = config.languages.map(
-        (code) => `<link rel="alternate" hreflang="${esc(code)}" href="${esc(absolute(data, pageUrl(data, code)))}">`,
-    );
-    return `<!doctype html>
-<html lang="${esc(config.defaultLanguage)}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(name)}</title>
-<link rel="canonical" href="${esc(absolute(data, pageUrl(data, config.defaultLanguage)))}">
-${alternates.join('\n')}
-<link rel="alternate" hreflang="x-default" href="${esc(absolute(data, pageUrl(data, config.defaultLanguage)))}">
-${iconUrl ? `<link rel="icon" type="image/svg+xml" href="${esc(iconUrl)}">` : ''}
-${assets.css.map((href) => `<link rel="stylesheet" href="${esc(href)}">`).join('\n')}
-<script>${choose}</script>
-</head>
-<body class="root">
-<main>
-<h1>${esc(name)}</h1>
-<ul class="languages-list">${config.languages.map((code) => `<li><a href="${esc(pageUrl(data, code))}" hreflang="${esc(code)}" lang="${esc(code)}">${esc(languageName(code))}</a></li>`).join('')}</ul>
-</main>
-</body>
-</html>
-`;
+    return rootPage(data.config, data.app.name.source, assets, iconUrl);
 }

@@ -6,14 +6,98 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+msgid "Updated {date}"
+msgstr "Aktualisiert am {date}"
+
+msgid "Draft"
+msgstr "Entwurf"
+
+msgid "Subscribe to the feed"
+msgstr "Feed abonnieren"
+
+msgid "Posts tagged “{tag}”"
+msgstr "Beiträge zum Thema „{tag}“"
+
+msgid "Blog"
+msgstr "Blog"
+
+msgid "Posts by {name}"
+msgstr "Beiträge von {name}"
+
+msgid "No posts in this language yet."
+msgstr "In dieser Sprache gibt es noch keine Beiträge."
+
+msgid "All posts"
+msgstr "Alle Beiträge"
+
+msgid "From the blog"
+msgstr "Aus dem Blog"
+
+msgid "CV"
+msgstr "Lebenslauf"
+
+msgid "Apps"
+msgstr "Apps"
+
+msgid "Support my work"
+msgstr "Meine Arbeit unterstützen"
+
+msgid "Read my CV"
+msgstr "Zum Lebenslauf"
+
+msgid "Elsewhere"
+msgstr "Anderswo"
+
+msgid "today"
+msgstr "heute"
+
+msgid "Experience, projects and skills of {name}."
+msgstr "Berufserfahrung, Projekte und Kenntnisse von {name}."
+
+msgid "Experience"
+msgstr "Berufserfahrung"
+
+msgid "Projects"
+msgstr "Projekte"
+
+msgid "Education"
+msgstr "Ausbildung"
+
+msgid "Skills"
+msgstr "Kenntnisse"
+
+msgid "Languages"
+msgstr "Sprachen"
+
+msgid "Back to {app}"
+msgstr "Zurück zu {app}"
+
+msgid "{name} writes free software. Support the work with a transfer or a service."
+msgstr "{name} schreibt freie Software. Unterstütze die Arbeit per Überweisung oder über einen Dienst."
+
 msgid "Support"
 msgstr "Unterstützen"
 
-msgid "These apps are free software. Pick one to see how to support its development."
-msgstr "Diese Apps sind freie Software. Wähle eine aus, um zu sehen, wie du ihre Entwicklung unterstützen kannst."
+msgid "Privacy"
+msgstr "Datenschutz"
+
+msgid "What {app} does with data."
+msgstr "Was {app} mit Daten tut."
+
+msgid "Legal Notice"
+msgstr "Impressum"
+
+msgid "Who publishes {app}, and how to reach them."
+msgstr "Wer {app} veröffentlicht, und wie man diese Person erreicht."
 
 msgid "Language"
 msgstr "Sprache"
+
+msgid "Source code"
+msgstr "Quellcode"
+
+msgid "Made with {project}"
+msgstr "Gemacht mit {project}"
 
 msgid "Website"
 msgstr "Webseite"
@@ -23,9 +107,6 @@ msgstr "Hilfe"
 
 msgid "FAQ"
 msgstr "FAQ"
-
-msgid "Source code"
-msgstr "Quellcode"
 
 msgid "Report an issue"
 msgstr "Fehler melden"
@@ -210,32 +291,14 @@ msgstr "Architekturen"
 msgid "by {developer}"
 msgstr "von {developer}"
 
-msgid "Legal Notice"
-msgstr "Impressum"
-
-msgid "Privacy"
-msgstr "Datenschutz"
+msgid "{app} is free software. Support its development with a transfer or a service."
+msgstr "{app} ist freie Software. Unterstütze die Entwicklung per Überweisung oder über einen Dienst."
 
 msgid "{app} is licensed under {license}."
 msgstr "{app} steht unter der Lizenz {license}."
 
 msgid "This page reproduces text licensed under {license}."
 msgstr "Diese Seite gibt Texte unter der Lizenz {license} wieder."
-
-msgid "Made with {project}"
-msgstr "Gemacht mit {project}"
-
-msgid "{app} is free software. Support its development with a transfer or a service."
-msgstr "{app} ist freie Software. Unterstütze die Entwicklung per Überweisung oder über einen Dienst."
-
-msgid "What {app} does with data."
-msgstr "Was {app} mit Daten tut."
-
-msgid "Who publishes {app}, and how to reach them."
-msgstr "Wer {app} veröffentlicht, und wie man diese Person erreicht."
-
-msgid "Back to {app}"
-msgstr "Zurück zu {app}"
 
 msgid "This page is a static file: no cookie, no analytics, nothing from a third party."
 msgstr "Diese Seite ist eine statische Datei: keine Cookies, keine Analysewerkzeuge, nichts von Drittanbietern."
