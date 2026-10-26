@@ -21,8 +21,8 @@
   --fg: #1d1d20;
   --muted: #5e5c64;
   --line: rgb(0 0 0 / 0.1);
-  --accent: #1c71d8;
-  --accent-fg: #fff;
+  --accent: var(--accent-light, #1c71d8);
+  --accent-fg: var(--accent-fg-light, #fff);
   --shadow: 0 8px 24px rgb(0 0 0 / 0.14);
   /* Lifts the screenshot off the brand band without drawing a card around it. */
   --shot-shadow: 0 0.75rem 2rem rgb(0 0 0 / 0.25);
@@ -46,7 +46,8 @@
     --fg: #f6f5f4;
     --muted: #b6b4b1;
     --line: rgb(255 255 255 / 0.11);
-    --accent: #3584e4;
+    --accent: var(--accent-dark, #3584e4);
+    --accent-fg: var(--accent-fg-dark, #fff);
     --shadow: 0 8px 24px rgb(0 0 0 / 0.5);
     --shot-shadow: 0 0.75rem 2rem rgb(0 0 0 / 0.45);
   }
@@ -78,6 +79,7 @@ picture {
 h1,
 h2,
 h3 {
+  font-family: var(--display-font, inherit);
   line-height: 1.2;
 }
 
@@ -1421,4 +1423,282 @@ app-support {
   margin-top: 0.4rem;
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+/* Blog */
+
+.bar-link[aria-current="page"] {
+  opacity: 1;
+  text-decoration: underline;
+  text-underline-offset: 0.3em;
+}
+
+.post-list {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.post-card {
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.post-card h2,
+.post-card h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.post-card h2 a,
+.post-card h3 a {
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.post-card h2 a:hover,
+.post-card h3 a:hover {
+  color: var(--accent);
+}
+
+.post-card > p:last-child {
+  margin-block-end: 0;
+}
+
+.post-meta {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.post-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tag {
+  display: inline-block;
+  padding: 0.05rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.tag:hover {
+  color: var(--accent);
+}
+
+.post-feed a,
+.post-back a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.post-feed {
+  margin-block: 1.5rem 0;
+}
+
+.post-empty {
+  color: var(--muted);
+}
+
+.blog,
+.post,
+.cv {
+  max-width: var(--text);
+}
+
+.post-head {
+  margin-block-end: 2rem;
+}
+
+.post-back {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+}
+
+.post-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+}
+
+.post-body pre {
+  overflow-x: auto;
+  padding: 1rem;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.post-body blockquote {
+  margin-inline: 0;
+  padding-inline-start: 1rem;
+  border-inline-start: 3px solid var(--line);
+  color: var(--muted);
+}
+
+.latest-posts {
+  margin-block: 2.5rem;
+}
+
+.latest-posts h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.5rem;
+}
+
+/* Developer site */
+
+.developer-avatar img {
+  border-radius: var(--radius-lg);
+}
+
+.developer-cv {
+  margin-block-start: 1.5rem;
+}
+
+.developer-apps {
+  margin-block: 2.5rem;
+}
+
+/* CV */
+
+.cv-head {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-block-end: 2rem;
+}
+
+.cv-avatar {
+  flex: none;
+  border-radius: var(--radius-lg);
+}
+
+.cv-label {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 1.1rem;
+}
+
+.cv-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+}
+
+.cv-contact li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.cv-section {
+  margin-block: 2rem;
+}
+
+.cv-section h2 {
+  margin: 0 0 0.75rem;
+  padding-block-end: 0.25rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 1.35rem;
+}
+
+.cv-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cv-entry + .cv-entry {
+  margin-block-start: 1.25rem;
+}
+
+.cv-entry h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.cv-entry p {
+  margin: 0.25rem 0 0;
+}
+
+.cv-period {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.cv-highlights {
+  margin: 0.4rem 0 0;
+  padding-inline-start: 1.25rem;
+}
+
+.cv-entry .tags {
+  margin-block-start: 0.5rem;
+}
+
+@media (max-width: 600px) {
+  .cv-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* On paper the CV is the page: no bar, no footer, no colour, links spelled out where it matters. */
+@media print {
+  :root {
+    color-scheme: light;
+  }
+
+  .topbar,
+  .footer,
+  .post-feed,
+  .post-back {
+    display: none;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  main {
+    padding: 0;
+  }
+
+  .column {
+    width: auto;
+    max-width: none;
+  }
+
+  .cv a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .cv-section,
+  .cv-entry {
+    break-inside: avoid;
+  }
+
+  .tags li,
+  .tag {
+    border-color: #999;
+    background: none;
+  }
 }

@@ -1,6 +1,9 @@
+export * from './blog.js';
 export * from './config.js';
+export * from './developer.js';
 export * from './downloads.js';
 export * from './flathub.js';
+export * from './frontmatter.js';
 export * from './github.js';
 export * from './load.js';
 export * from './metainfo.js';
@@ -10,6 +13,7 @@ export * from './oars.js';
 export * from './po.js';
 export * from './privacy.js';
 export * from './related.js';
+export * from './resume.js';
 export * from './screenshots.js';
 export * from './sepa.js';
 export * from './types.js';

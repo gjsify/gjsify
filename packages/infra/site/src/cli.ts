@@ -7,7 +7,7 @@
 
 import { join, resolve } from 'node:path';
 
-import { buildOverview, buildSite, syncSiteI18n } from './site.js';
+import { buildSite, syncSiteI18n } from './site.js';
 
 const USAGE = `Usage: gjsify site <command> [options]
 
@@ -15,11 +15,10 @@ const USAGE = `Usage: gjsify site <command> [options]
   i18n [options]     Update the page catalogues from the strings the build can emit
 
 Options:
-  --overview <file>  build: render the support overview listed in this JSON file
-                     instead of one app (url, languages, apps)
   --root <path>      Repository to work on (default: the working directory)
   --out <dir>        Output directory, emptied first (default: <root>/dist)
   --offline          Skip every network call
+  --drafts           build: include blog posts marked \`draft: true\`
   --no-cache         Ignore the one-hour HTTP response cache
   --cache-dir <dir>  Where to keep the response cache and image renditions
                      (default: <root>/node_modules/.cache/gjsify-site)
@@ -47,27 +46,18 @@ function cacheOption(flags: readonly string[]): string | false | undefined {
 }
 
 async function build(flags: readonly string[]): Promise<number> {
-    const overview = flagValue(flags, '--overview');
-    if (overview) {
-        const result = await buildOverview({
-            config: overview,
-            out: resolve(flagValue(flags, '--out') ?? join(process.cwd(), 'dist')),
-            packageDir: flagValue(flags, '--package-dir'),
-        });
-        console.log(`Built ${result.languages.length} overview pages for ${result.apps} apps`);
-        return 0;
-    }
     const root = resolve(flagValue(flags, '--root') ?? process.cwd());
     const result = await buildSite({
         root,
         out: resolve(flagValue(flags, '--out') ?? join(root, 'dist')),
         offline: flags.includes('--offline'),
+        drafts: flags.includes('--drafts'),
         cacheDir: cacheOption(flags),
         packageDir: flagValue(flags, '--package-dir'),
         githubToken: process.env.GITHUB_TOKEN || undefined,
         warn: (message) => console.warn(`warning: ${message}`),
     });
-    console.log(`Built ${result.languages.length} pages and ${result.screenshots} screenshots`);
+    console.log(`Built the pages in ${result.languages.length} languages and ${result.screenshots} screenshots`);
     return 0;
 }
 

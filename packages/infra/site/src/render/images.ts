@@ -28,6 +28,8 @@ export interface ImageOptions {
     /** Persistent store of encoded renditions; AVIF is slow, so it is reused while the source is unchanged. */
     cacheDir: string;
     urlBase: string;
+    /** `theme.imageRendering: pixelated` — nearest-neighbour renditions for pixel art. */
+    pixelated?: boolean;
 }
 
 /**
@@ -112,9 +114,10 @@ export async function processImage(source: string, slug: string, options: ImageO
         let scaled: RasterImage | undefined;
         for (const format of FORMATS) {
             const name = `${slug}-${width}.${format}`;
-            const cached = join(options.cacheDir, name);
+            // The filter is part of the cache key: switching the theme must not serve stale renditions.
+            const cached = join(options.cacheDir, options.pixelated ? `px-${name}` : name);
             if (!(await isFresh(cached, source))) {
-                scaled ??= image.resizedToWidth(width);
+                scaled ??= image.resizedToWidth(width, options.pixelated ? 'nearest' : 'smooth');
                 await writeFile(cached, scaled.encode(format));
             }
             await copyFile(cached, join(options.outDir, name));

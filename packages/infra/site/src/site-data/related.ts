@@ -97,9 +97,18 @@ async function loadOne(entry: SiteRelatedAppConfig, options: RelatedAppsOptions)
     }
 }
 
+/** Resolves app entries in order — `relatedApps`, or a developer's `apps`. Never throws: an entry that cannot be had is skipped with a warning. */
+export async function loadAppEntries(
+    entries: readonly SiteRelatedAppConfig[],
+    options: RelatedAppsOptions,
+): Promise<RelatedApp[]> {
+    const loaded = await Promise.all(entries.map((entry) => loadOne(entry, options)));
+    return loaded.filter((app): app is RelatedApp => app !== undefined);
+}
+
 /**
  * Resolves `gjsify.site.relatedApps` in configured order. The site's own entry is dropped, so every
- * app can share one list. Never throws: an entry that cannot be had is skipped with a warning.
+ * app can share one list.
  */
 export async function loadRelatedApps(
     config: SiteConfig,
@@ -107,10 +116,8 @@ export async function loadRelatedApps(
     options: RelatedAppsOptions,
 ): Promise<RelatedApp[]> {
     const candidates = config.relatedApps.filter((entry) => !sameUrl(entry.url, config.url));
-    const loaded = await Promise.all(candidates.map((entry) => loadOne(entry, options)));
-    return loaded.filter(
-        (app): app is RelatedApp => app !== undefined && app.id !== ownId && !sameUrl(app.url, config.url),
-    );
+    const loaded = await loadAppEntries(candidates, options);
+    return loaded.filter((app) => app.id !== ownId && !sameUrl(app.url, config.url));
 }
 
 /** A text in the reader's language, else English, else whatever the app has. */

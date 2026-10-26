@@ -1,9 +1,15 @@
 import { isValidBic, isValidIban, normalizeIban } from './sepa.js';
 import type {
+    AnySiteConfig,
     TargetFormat,
     TargetPlatform,
+    SiteBlogConfig,
+    SiteColor,
+    SiteCommonConfig,
     SiteComponent,
     SiteConfig,
+    SiteDeveloperConfig,
+    SiteThemeConfig,
     SiteDownloadConfig,
     SiteLegalLink,
     SiteLegalNoticeConfig,
@@ -82,12 +88,11 @@ function httpUrl(value: string, where: string): string {
 }
 
 /** Strings are site addresses to fetch `app.json` from; objects are inline entries for apps without one. */
-function parseRelatedApps(raw: Raw): SiteRelatedAppConfig[] {
-    const value = raw.relatedApps;
+function parseRelatedApps(value: unknown, key: string): SiteRelatedAppConfig[] {
     if (value === undefined) return [];
-    if (!Array.isArray(value)) throw new Error('gjsify.site.relatedApps must be a list');
+    if (!Array.isArray(value)) throw new Error(`${key} must be a list`);
     return value.map((entry: unknown, index): SiteRelatedAppConfig => {
-        const where = `gjsify.site.relatedApps[${index}]`;
+        const where = `${key}[${index}]`;
         if (typeof entry === 'string') return { url: withSlash(httpUrl(entry, where)) };
         if (!isRecord(entry)) throw new Error(`${where} must be a site address or an object`);
         const field = (key: string) => (entry[key] === undefined ? undefined : stringField(entry, key, where));
@@ -226,11 +231,61 @@ export function normalizeBase(base: string): string {
     return `/${base.replace(/^\/+|\/+$/g, '')}/`.replace(/^\/\/$/, '/');
 }
 
-/** Validates `gjsify.site` and applies defaults; the error names the offending key. */
-export function parseSiteConfig(manifest: RootManifest): SiteConfig {
-    const raw = manifest.gjsify?.site;
-    if (!isRecord(raw)) throw new Error('The root package.json has no "gjsify.site" object');
+function parseBlog(raw: Raw): SiteBlogConfig | undefined {
+    const value = raw.blog;
+    if (value === undefined) return undefined;
+    if (!isRecord(value)) throw new Error('gjsify.site.blog must be an object');
+    return { posts: stringField(value, 'posts', 'gjsify.site.blog') };
+}
 
+const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+function parseColor(value: unknown, where: string): SiteColor {
+    const hex = (entry: unknown, key: string): string => {
+        if (typeof entry !== 'string' || !HEX_COLOR.test(entry))
+            throw new Error(`${key} must be a hex colour like #3584e4`);
+        return entry;
+    };
+    if (typeof value === 'string') return { light: hex(value, where), dark: value };
+    if (!isRecord(value)) throw new Error(`${where} must be a hex colour or { "light", "dark" }`);
+    return { light: hex(value.light, `${where}.light`), dark: hex(value.dark, `${where}.dark`) };
+}
+
+function parseTheme(raw: Raw): SiteThemeConfig {
+    const value = raw.theme;
+    if (value === undefined) return { imageRendering: 'auto' };
+    if (!isRecord(value)) throw new Error('gjsify.site.theme must be an object');
+    const imageRendering = value.imageRendering ?? 'auto';
+    if (imageRendering !== 'auto' && imageRendering !== 'pixelated') {
+        throw new Error('gjsify.site.theme.imageRendering must be "auto" or "pixelated"');
+    }
+    const displayFont =
+        value.displayFont === undefined ? undefined : stringField(value, 'displayFont', 'gjsify.site.theme');
+    if (displayFont !== undefined && !displayFont.endsWith('.woff2'))
+        throw new Error('gjsify.site.theme.displayFont must be a .woff2 file');
+    return {
+        accent: value.accent === undefined ? undefined : parseColor(value.accent, 'gjsify.site.theme.accent'),
+        displayFont,
+        imageRendering,
+    };
+}
+
+/** One file per configured language, so no page of the CV silently falls back to another language. */
+function parseDeveloper(value: unknown, languages: readonly string[]): SiteDeveloperConfig {
+    if (!isRecord(value)) throw new Error('gjsify.site.developer must be an object');
+    const resume = value.resume;
+    if (!isRecord(resume)) {
+        throw new Error('gjsify.site.developer.resume must be an object mapping a language to a JSON Resume file');
+    }
+    return {
+        resume: Object.fromEntries(
+            languages.map((lang) => [lang, stringField(resume, lang, 'gjsify.site.developer.resume')]),
+        ),
+        apps: parseRelatedApps(value.apps, 'gjsify.site.developer.apps'),
+    };
+}
+
+function parseCommon(raw: Raw, base: string | undefined): SiteCommonConfig {
     const languages = raw.languages ?? ['en'];
     if (!Array.isArray(languages) || languages.length === 0 || !languages.every((entry) => typeof entry === 'string')) {
         throw new Error('gjsify.site.languages must be a non-empty list of language codes');
@@ -239,25 +294,14 @@ export function parseSiteConfig(manifest: RootManifest): SiteConfig {
     if (!languages.includes(defaultLanguage))
         throw new Error(`gjsify.site.defaultLanguage "${defaultLanguage}" is not in languages`);
 
-    const url = requireString(raw, 'url');
-    const components = parseComponents(raw);
-
+    const url = withSlash(requireString(raw, 'url'));
     return {
-        metainfo: requireString(raw, 'metainfo'),
-        base: normalizeBase(requireString(raw, 'base')),
-        url: withSlash(url),
+        base: normalizeBase(base ?? requireString(raw, 'base')),
+        url,
         languages: languages as string[],
         defaultLanguage,
         sourceLanguage: optionalString(raw, 'sourceLanguage') ?? 'en',
-        repository: requireString(raw, 'repository'),
-        flathub: optionalString(raw, 'flathub'),
-        webApp: optionalString(raw, 'webApp'),
-        translations: optionalString(raw, 'translations'),
         pageTranslations: optionalString(raw, 'pageTranslations'),
-        icon: optionalString(raw, 'icon'),
-        components,
-        downloads: parseDownloads(raw, components),
-        releaseAssets: parseReleaseAssets(raw),
         support: objectList(raw, 'support').map((entry, index) => parseSupport(entry, `gjsify.site.support[${index}]`)),
         privacy: parsePrivacy(raw, languages as string[]),
         legalNotice: parseLegalNotice(raw, languages as string[]),
@@ -267,7 +311,65 @@ export function parseSiteConfig(manifest: RootManifest): SiteConfig {
                 url: stringField(entry, 'url', `gjsify.site.legal[${index}]`),
             }),
         ),
-        relatedApps: parseRelatedApps(raw),
+        blog: parseBlog(raw),
+        theme: parseTheme(raw),
+    };
+}
+
+function siteBlock(manifest: RootManifest): Raw {
+    const raw = manifest.gjsify?.site;
+    if (!isRecord(raw)) throw new Error('The root package.json has no "gjsify.site" object');
+    return raw;
+}
+
+/**
+ * Validates `gjsify.site` of either kind and applies defaults; the error names the offending key.
+ * The kind is the presence of `metainfo` (an app) or `developer` (a person) — exactly one of them.
+ */
+export function parseAnySiteConfig(manifest: RootManifest): AnySiteConfig {
+    const raw = siteBlock(manifest);
+    const isApp = raw.metainfo !== undefined;
+    const isDeveloper = raw.developer !== undefined;
+    if (isApp && isDeveloper) {
+        throw new Error('gjsify.site has both "metainfo" and "developer"; a site is about one app or one person');
+    }
+    if (!isApp && !isDeveloper) {
+        throw new Error('gjsify.site needs "metainfo" (an app site) or "developer" (a developer site)');
+    }
+    if (isApp) return parseSiteConfig(manifest);
+    // The developer site usually owns the host root, so `base` may be left out there.
+    const common = parseCommon(raw, optionalString(raw, 'base') ?? '/');
+    if (raw.relatedApps !== undefined) {
+        throw new Error('gjsify.site.relatedApps is for app sites; a developer site lists apps in developer.apps');
+    }
+    return {
+        kind: 'developer',
+        ...common,
+        developer: parseDeveloper(raw.developer, common.languages),
+        repository: optionalString(raw, 'repository'),
+    };
+}
+
+/** Validates an app's `gjsify.site` and applies defaults; the error names the offending key. */
+export function parseSiteConfig(manifest: RootManifest): SiteConfig {
+    const raw = siteBlock(manifest);
+    if (raw.developer !== undefined) throw new Error('gjsify.site describes a developer site, not an app');
+    const common = parseCommon(raw, undefined);
+    const components = parseComponents(raw);
+
+    return {
+        kind: 'app',
+        ...common,
+        metainfo: requireString(raw, 'metainfo'),
+        repository: requireString(raw, 'repository'),
+        flathub: optionalString(raw, 'flathub'),
+        webApp: optionalString(raw, 'webApp'),
+        translations: optionalString(raw, 'translations'),
+        icon: optionalString(raw, 'icon'),
+        components,
+        downloads: parseDownloads(raw, components),
+        releaseAssets: parseReleaseAssets(raw),
+        relatedApps: parseRelatedApps(raw.relatedApps, 'gjsify.site.relatedApps'),
     };
 }
 

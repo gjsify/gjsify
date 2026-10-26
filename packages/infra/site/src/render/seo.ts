@@ -109,8 +109,71 @@ export function softwareApplicationJsonLd(input: SoftwareApplicationInput): stri
         sameAs: input.repository ? [input.repository] : undefined,
         inLanguage: input.languages,
     };
-    const json = JSON.stringify(data).replace(/</g, '\\u003c');
-    return `<script type="application/ld+json">${json}</script>`;
+    return jsonLdScript(data);
+}
+
+function jsonLdScript(data: Record<string, unknown>): string {
+    return `<script type="application/ld+json">${JSON.stringify(data).replace(/</g, '\\u003c')}</script>`;
+}
+
+export interface PersonInput {
+    name: string;
+    url: string;
+    jobTitle?: string;
+    description?: string;
+    image?: string;
+    email?: string;
+    /** Profiles elsewhere: GitHub, Mastodon, … */
+    sameAs: readonly string[];
+}
+
+/** `ProfilePage` about a `Person`: what a search engine reads from a developer page. */
+export function personJsonLd(input: PersonInput): string {
+    return jsonLdScript({
+        '@context': 'https://schema.org',
+        '@type': 'ProfilePage',
+        mainEntity: {
+            '@type': 'Person',
+            name: input.name,
+            url: input.url,
+            jobTitle: input.jobTitle || undefined,
+            description: input.description || undefined,
+            image: input.image,
+            email: input.email ? `mailto:${input.email}` : undefined,
+            sameAs: input.sameAs.length > 0 ? input.sameAs : undefined,
+        },
+    });
+}
+
+export interface BlogPostingInput {
+    title: string;
+    description: string;
+    url: string;
+    /** ISO dates. */
+    published: string;
+    updated?: string;
+    author: string;
+    authorUrl?: string;
+    image?: string;
+    lang: string;
+    tags: readonly string[];
+}
+
+export function blogPostingJsonLd(input: BlogPostingInput): string {
+    return jsonLdScript({
+        '@context': 'https://schema.org',
+        '@type': 'BlogPosting',
+        headline: input.title,
+        description: input.description,
+        url: input.url,
+        mainEntityOfPage: input.url,
+        datePublished: input.published,
+        dateModified: input.updated ?? input.published,
+        author: { '@type': 'Person', name: input.author, url: input.authorUrl },
+        image: input.image,
+        inLanguage: input.lang,
+        keywords: input.tags.length > 0 ? input.tags.join(', ') : undefined,
+    });
 }
 
 /** One logical page, as its absolute address per language. */

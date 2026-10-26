@@ -12,7 +12,7 @@ import {
     parsePo,
     quotePo,
     type Catalog,
-    type SiteConfig,
+    type AnySiteConfig,
 } from '../site-data/index.js';
 
 // EITHER quote style, because the formatter picks one and this is not its decision. The renderers
@@ -59,8 +59,9 @@ export async function rendererMsgids(renderDir: string): Promise<string[]> {
  * consumer and are translated in the consumer's `pageTranslations`. Screenshot captions are not
  * among them — they live in the metainfo and are translated there.
  */
-export function configMsgids(config: SiteConfig): string[] {
+export function configMsgids(config: AnySiteConfig): string[] {
     const msgids = new Set<string>();
+    if (config.kind !== 'app') return [];
     for (const download of config.downloads) if (download.label) msgids.add(download.label);
     for (const component of config.components) {
         msgids.add(component.name);

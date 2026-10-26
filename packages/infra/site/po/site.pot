@@ -5,13 +5,97 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+msgid "Updated {date}"
+msgstr ""
+
+msgid "Draft"
+msgstr ""
+
+msgid "Subscribe to the feed"
+msgstr ""
+
+msgid "Posts tagged “{tag}”"
+msgstr ""
+
+msgid "Blog"
+msgstr ""
+
+msgid "Posts by {name}"
+msgstr ""
+
+msgid "No posts in this language yet."
+msgstr ""
+
+msgid "All posts"
+msgstr ""
+
+msgid "From the blog"
+msgstr ""
+
+msgid "CV"
+msgstr ""
+
+msgid "Apps"
+msgstr ""
+
+msgid "Support my work"
+msgstr ""
+
+msgid "Read my CV"
+msgstr ""
+
+msgid "Elsewhere"
+msgstr ""
+
+msgid "today"
+msgstr ""
+
+msgid "Experience, projects and skills of {name}."
+msgstr ""
+
+msgid "Experience"
+msgstr ""
+
+msgid "Projects"
+msgstr ""
+
+msgid "Education"
+msgstr ""
+
+msgid "Skills"
+msgstr ""
+
+msgid "Languages"
+msgstr ""
+
+msgid "Back to {app}"
+msgstr ""
+
+msgid "{name} writes free software. Support the work with a transfer or a service."
+msgstr ""
+
 msgid "Support"
 msgstr ""
 
-msgid "These apps are free software. Pick one to see how to support its development."
+msgid "Privacy"
+msgstr ""
+
+msgid "What {app} does with data."
+msgstr ""
+
+msgid "Legal Notice"
+msgstr ""
+
+msgid "Who publishes {app}, and how to reach them."
 msgstr ""
 
 msgid "Language"
+msgstr ""
+
+msgid "Source code"
+msgstr ""
+
+msgid "Made with {project}"
 msgstr ""
 
 msgid "Website"
@@ -21,9 +105,6 @@ msgid "Help"
 msgstr ""
 
 msgid "FAQ"
-msgstr ""
-
-msgid "Source code"
 msgstr ""
 
 msgid "Report an issue"
@@ -209,31 +290,13 @@ msgstr ""
 msgid "by {developer}"
 msgstr ""
 
-msgid "Legal Notice"
-msgstr ""
-
-msgid "Privacy"
+msgid "{app} is free software. Support its development with a transfer or a service."
 msgstr ""
 
 msgid "{app} is licensed under {license}."
 msgstr ""
 
 msgid "This page reproduces text licensed under {license}."
-msgstr ""
-
-msgid "Made with {project}"
-msgstr ""
-
-msgid "{app} is free software. Support its development with a transfer or a service."
-msgstr ""
-
-msgid "What {app} does with data."
-msgstr ""
-
-msgid "Who publishes {app}, and how to reach them."
-msgstr ""
-
-msgid "Back to {app}"
 msgstr ""
 
 msgid "This page is a static file: no cookie, no analytics, nothing from a third party."
