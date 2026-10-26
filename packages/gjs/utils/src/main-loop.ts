@@ -34,6 +34,26 @@ let _holds = 0;
  */
 let _ownsLoop = false;
 
+/**
+ * Referenced timers (`setTimeout`/`setInterval`) pending right now — Node's
+ * active timer handles. Never creates or arms a loop: it only DEFERS the exit
+ * a drained {@link acquireMainLoop} owner would otherwise take, so a timer in
+ * an app without counted holds changes nothing. Independent of the loop's
+ * lifetime (a timer outlives {@link quitMainLoop}), hence not reset by it.
+ */
+let _timers = 0;
+
+/**
+ * The counted holds drained to 0 on a loop we own, but the exit was postponed
+ * (the entry module is still evaluating, or a timer is pending). Keeps
+ * {@link _ownsLoop} from being recomputed by the next {@link acquireMainLoop}:
+ * the loop already exists by then, which would read as "someone else's".
+ */
+let _owed = false;
+
+/** A poller waiting for the parked hook to start is already scheduled. */
+let _polling = false;
+
 /** GJS runtime bootstrap shape we read here. Pre-dates `@girs/*` resolution. */
 interface _GjsImports {
     imports?: { gi?: { GLib?: typeof GLib } };
@@ -164,8 +184,8 @@ export function holdMainLoop(): GLib.MainLoop | undefined {
  * no "run until no sources remain" — so a drain cannot be observed by the loop
  * itself; it has to be counted.
  *
- * Known limit, counted holds are only the `worker_threads` consumer today:
- * `net`/`http`/`dgram`/`ws`/`child_process` park via {@link ensureMainLoop}
+ * Known limit, counted holds are only the `worker_threads` and `child_process` consumers today:
+ * `net`/`http`/`dgram`/`ws` park via {@link ensureMainLoop}
  * forever (their close paths don't release yet), so an app holding BOTH a
  * live server and a worker stays parked when the worker drains — same as on
  * those packages' pre-existent behavior, and the slot for their migration is
@@ -178,44 +198,103 @@ export function acquireMainLoop(): GLib.MainLoop | undefined {
     const wasCreated = _created;
     const loop = createLoop();
     if (!loop) return undefined; // not GJS — Node keeps handles natively
-    if (_holds === 0) _ownsLoop = !wasCreated;
+    if (_holds === 0 && !_owed) _ownsLoop = !wasCreated;
     _holds += 1;
     return loop;
 }
 
 /**
  * Release one hold acquired with {@link acquireMainLoop}. Idempotent beyond
- * the count (calls at 0 are a no-op), no-op on Node.js. At 0 the loop created
- * by this module is quit, which returns from the blocking `run()` that gjs's
- * `eval_module` parked in — the Node "refs drained, process exits" moment.
+ * the count (calls at 0 are a no-op), no-op on Node.js. At 0, with no referenced timer
+ * ({@link trackTimer}) pending and the entry module settled, the loop created
+ * by this module is quit and the process exits — the Node "refs drained" moment.
  */
 export function releaseMainLoop(): void {
     if (_holds === 0 || !_loop) return;
     _holds -= 1;
-    if (_holds === 0 && _ownsLoop) {
-        const parked = _armed;
+    drainIfIdle();
+}
+
+/** Count one referenced timer. See {@link _timers}. */
+export function trackTimer(): void {
+    _timers += 1;
+}
+
+/** Drop one referenced timer; the last one may complete a postponed exit. */
+export function untrackTimer(): void {
+    if (_timers === 0) return;
+    _timers -= 1;
+    if (_timers === 0) drainIfIdle();
+}
+
+/**
+ * End the process once nothing is left to wait for: no counted hold, no
+ * referenced timer, and the entry module has settled. Node's "event loop is
+ * empty" moment, for a loop that {@link acquireMainLoop} owns.
+ */
+function drainIfIdle(): void {
+    if (_holds !== 0 || !_loop || !_ownsLoop) return;
+    const loop = _loop;
+    if (!_armed) {
+        // Unarmed: its owner already drives it and no exit follows, so there is
+        // nothing a pending timer could be lost to — just discard the loop.
         quitMainLoop();
-        // gjs's eval_module hook drives loop.run() and quit() does not lift
-        // it (measured). Exit through process.exit(), which schedules the
-        // syscall on an idle source and drives the default context until it
-        // fires — the only reliable teardown from inside a parked hook.
-        // Only a loop WE parked needs it; an unarmed one is already driven
-        // by its owner.
-        const proc = (globalThis as { process?: { exit?: (code?: number) => void; exitCode?: number } }).process;
-        if (parked && typeof proc?.exit === 'function') {
-            const code = proc.exitCode ?? 0;
-            // Deferred so unref() returns to its caller (which may still
-            // have code to run, e.g. console.log) before the process exits.
-            const GLibModule = glib();
-            if (GLibModule) {
-                GLibModule.timeout_add(GLibModule.PRIORITY_DEFAULT, 0, () => {
-                    proc.exit!(code);
-                    return GLibModule.SOURCE_REMOVE;
-                });
-            } else {
-                proc.exit(code);
-            }
+        return;
+    }
+    if (_timers !== 0) {
+        _owed = true; // the last timer's untrackTimer() finishes the drain
+        return;
+    }
+    // Armed but not running: gjs's eval_module is still evaluating the entry
+    // (a pending top-level await spins the default context, not this loop), so
+    // exiting now would kill work the program has not finished — measured:
+    // `await close; await sleep(300); log('after')` lost 'after'. Wait until
+    // the hook enters `run()`, which is the entry having settled.
+    if (!loop.is_running()) {
+        _owed = true;
+        awaitEntrySettle(loop);
+        return;
+    }
+    exitParked();
+}
+
+function awaitEntrySettle(loop: GLib.MainLoop): void {
+    const GLibModule = glib();
+    if (!GLibModule || _polling) return;
+    _polling = true;
+    GLibModule.timeout_add(GLibModule.PRIORITY_DEFAULT, 20, () => {
+        // Acquired again, a timer appeared, or the loop was replaced: whoever
+        // changed that re-runs the idle check when it drains.
+        if (_loop !== loop || _holds !== 0 || _timers !== 0) {
+            _polling = false;
+            return GLibModule.SOURCE_REMOVE;
         }
+        if (!loop.is_running()) return GLibModule.SOURCE_CONTINUE;
+        _polling = false;
+        exitParked();
+        return GLibModule.SOURCE_REMOVE;
+    });
+}
+
+function exitParked(): void {
+    quitMainLoop();
+    // gjs's eval_module hook drives loop.run() and quit() does not lift it
+    // (measured). Exit through process.exit(), which schedules the syscall on
+    // an idle source and drives the default context until it fires — the only
+    // reliable teardown from inside a parked hook.
+    const proc = (globalThis as { process?: { exit?: (code?: number) => void; exitCode?: number } }).process;
+    if (typeof proc?.exit !== 'function') return;
+    const code = proc.exitCode ?? 0;
+    // Deferred so the releasing call returns to its caller (which may still
+    // have code to run, e.g. console.log) before the process exits.
+    const GLibModule = glib();
+    if (GLibModule) {
+        GLibModule.timeout_add(GLibModule.PRIORITY_DEFAULT, 0, () => {
+            proc.exit!(code);
+            return GLibModule.SOURCE_REMOVE;
+        });
+    } else {
+        proc.exit(code);
     }
 }
 
@@ -234,5 +313,6 @@ export function quitMainLoop(): void {
         _loop = null;
         _holds = 0;
         _ownsLoop = false;
+        _owed = false;
     }
 }

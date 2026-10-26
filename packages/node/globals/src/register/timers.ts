@@ -16,6 +16,7 @@
 // no-ops on keep-alive (GJS apps run their main loop explicitly).
 
 import type GLibNS from '@girs/glib-2.0';
+import { trackTimer, untrackTimer } from '@gjsify/utils/main-loop';
 
 type GjsGlobalThis = typeof globalThis & {
     imports?: { gi?: { GLib?: typeof GLibNS } };
@@ -59,6 +60,8 @@ function reportTimerThrow(GLib: typeof GLibNS, err: unknown): void {
 class GjsifyTimeout {
     _id: number | null = null;
     _refed = true;
+    /** Whether this timer is currently counted in the main-loop's pending-timer count. */
+    _tracked = false;
     readonly _callback: TimerCallback;
     readonly _delay: number;
     readonly _args: readonly unknown[];
@@ -87,6 +90,7 @@ class GjsifyTimeout {
             interval: number,
             fn: () => boolean,
         ) => number;
+        this._track();
         this._id = timeoutAdd(GLib.PRIORITY_DEFAULT, this._delay, () => {
             try {
                 this._callback.apply(globalThis, this._args as unknown[]);
@@ -109,6 +113,7 @@ class GjsifyTimeout {
             }
             if (this._repeat) return GLib.SOURCE_CONTINUE;
             this._id = null;
+            this._untrack();
             return GLib.SOURCE_REMOVE;
         });
     }
@@ -124,11 +129,30 @@ class GjsifyTimeout {
      */
     unref(): this {
         this._refed = false;
+        this._untrack();
         return this;
     }
     ref(): this {
         this._refed = true;
+        if (this._id !== null) this._track();
         return this;
+    }
+
+    /**
+     * Report this timer to the main loop as an active handle, so a counted-hold
+     * exit (child_process, worker_threads) waits for it like Node does. Only
+     * counts; it never creates or arms a loop, so an app without counted holds
+     * behaves exactly as before. An unref'd timer is not counted.
+     */
+    _track(): void {
+        if (this._tracked || !this._refed) return;
+        this._tracked = true;
+        trackTimer();
+    }
+    _untrack(): void {
+        if (!this._tracked) return;
+        this._tracked = false;
+        untrackTimer();
     }
     hasRef(): boolean {
         return this._refed;
@@ -146,6 +170,7 @@ class GjsifyTimeout {
         // source ID logs a GLib CRITICAL and returns false, it never raises.
         getGLib()?.Source.remove(this._id);
         this._id = null;
+        this._untrack();
     }
 
     /** Cancels this timer; returns `this`, matching `@types/node`. */

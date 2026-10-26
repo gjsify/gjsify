@@ -309,6 +309,68 @@ export class ProcessReadStream extends EventEmitter {
         return null;
     }
 
+    // Node's Readable is async-iterable and `for await (const chunk of process.stdin)` is the
+    // idiom for "read all of stdin". This class is not a Readable, so it carries its own
+    // iterator over the 'data'/'end'/'error' events. Attaching the 'data' listener starts the
+    // read; leaving the loop early detaches it again, which pauses stdin (see removeListener).
+    [Symbol.asyncIterator](): AsyncIterableIterator<Buffer | string> {
+        const queue: Array<Buffer | string> = [];
+        let ended = false;
+        let failure: Error | null = null;
+        let wake: (() => void) | null = null;
+        const notify = (): void => {
+            const w = wake;
+            wake = null;
+            w?.();
+        };
+        const onData = (chunk: unknown): void => {
+            queue.push(chunk as Buffer | string);
+            notify();
+        };
+        const onEnd = (): void => {
+            ended = true;
+            notify();
+        };
+        const onError = (err: unknown): void => {
+            failure = err instanceof Error ? err : new Error(String(err));
+            notify();
+        };
+        const stop = (): void => {
+            this.off('data', onData);
+            this.off('end', onEnd);
+            this.off('error', onError);
+        };
+        this.on('error', onError);
+        this.on('end', onEnd);
+        this.on('data', onData);
+
+        return {
+            next: async (): Promise<IteratorResult<Buffer | string>> => {
+                for (;;) {
+                    if (queue.length > 0) return { value: queue.shift()!, done: false };
+                    if (failure) {
+                        stop();
+                        throw failure;
+                    }
+                    if (ended) {
+                        stop();
+                        return { value: undefined, done: true };
+                    }
+                    await new Promise<void>((resolve) => {
+                        wake = resolve;
+                    });
+                }
+            },
+            return: async (): Promise<IteratorResult<Buffer | string>> => {
+                stop();
+                return { value: undefined, done: true };
+            },
+            [Symbol.asyncIterator]() {
+                return this;
+            },
+        };
+    }
+
     private _startReading(): void {
         if (!this._gio || this._reading) return;
 

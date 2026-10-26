@@ -10,7 +10,14 @@
 // This package runs `test:gjs` only — keep this spec within that budget.
 
 import { describe, expect, it, on } from '@gjsify/unit';
-import { acquireMainLoop, ensureMainLoop, quitMainLoop, releaseMainLoop } from './main-loop.js';
+import {
+    acquireMainLoop,
+    ensureMainLoop,
+    quitMainLoop,
+    releaseMainLoop,
+    trackTimer,
+    untrackTimer,
+} from './main-loop.js';
 
 export default async () => {
     await on('Gjs', async () => {
@@ -49,6 +56,18 @@ export default async () => {
                 releaseMainLoop();
                 expect(ensureMainLoop()).toBe(owned);
 
+                quitMainLoop();
+            });
+
+            await it('should count timers without creating or owning a loop', async () => {
+                quitMainLoop();
+
+                trackTimer(); // a timer alone must not park anything
+                const ensured = ensureMainLoop(); // so this is the FIRST loop
+                untrackTimer(); // not the owner (no hold): the last timer leaves it alone
+                expect(ensureMainLoop()).toBe(ensured);
+
+                untrackTimer(); // past zero — must not throw
                 quitMainLoop();
             });
         });

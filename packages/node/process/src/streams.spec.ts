@@ -178,4 +178,57 @@ export default async () => {
             for (const c of received) expect(typeof c).toBe('string');
         });
     });
+
+    await describe('ProcessReadStream: async iteration (Node: Readable is async-iterable)', async () => {
+        await it('for await yields every chunk and ends on "end"', async () => {
+            const stream = new TestableProcessReadStream();
+            stream.feedChunk(new Uint8Array([104, 105]));
+            const seen: string[] = [];
+            const done = (async () => {
+                for await (const chunk of stream) seen.push(Buffer.from(chunk).toString());
+            })();
+            stream.emit('end');
+            await done;
+            expect(seen.join('')).toBe('hi');
+        });
+
+        await it('honours setEncoding: chunks arrive as strings', async () => {
+            const stream = new TestableProcessReadStream();
+            stream.setEncoding('utf-8');
+            stream.feedChunk(new Uint8Array([104, 105]));
+            const seen: unknown[] = [];
+            const done = (async () => {
+                for await (const chunk of stream) seen.push(chunk);
+            })();
+            stream.emit('end');
+            await done;
+            expect(seen[0]).toBe('hi');
+        });
+
+        await it('breaking out of the loop detaches the listeners and pauses', async () => {
+            const stream = new TestableProcessReadStream();
+            stream.feedChunk(new Uint8Array([1]));
+            for await (const _chunk of stream) break;
+            expect(stream.listenerCount('data')).toBe(0);
+            expect(stream.listenerCount('end')).toBe(0);
+            expect(stream.pauseCallCount).toBeGreaterThan(0);
+        });
+
+        await it('an "error" event rejects the pending next()', async () => {
+            const stream = new TestableProcessReadStream();
+            let message = '';
+            const done = (async () => {
+                try {
+                    for await (const _chunk of stream) {
+                        /* drain */
+                    }
+                } catch (err) {
+                    message = (err as Error).message;
+                }
+            })();
+            stream.emit('error', new Error('boom'));
+            await done;
+            expect(message).toBe('boom');
+        });
+    });
 };
