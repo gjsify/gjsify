@@ -58,6 +58,57 @@ await exited;
 console.log('stopped');
 `;
 
+// Node keeps the process for work the entry still has pending after a child closed:
+// a top-level await (AFTER_AWAIT), a timer armed from the close callback (TIMER_AFTER_CLOSE),
+// one armed BEFORE the spawn (TIMER_BEFORE), and a TCP round trip to a local server (HTTP_AFTER_CLOSE; `net`, since `http` needs the soup bridge typelib).
+// PLAIN_TIMER is the control: no child, so no counted hold, and it must still exit by itself
+// (a timer with NO top-level await is dropped by gjs at module settle, with or without this fix).
+const APP_AFTER_AWAIT = `import { spawn } from 'node:child_process';
+const c = spawn('true');
+await new Promise((r) => c.on('close', r));
+console.log('closed');
+await new Promise((r) => setTimeout(r, 300));
+console.log('after');
+`;
+
+const APP_TIMER_AFTER_CLOSE = `import { exec } from 'node:child_process';
+exec('true', () => {
+  console.log('closed');
+  setTimeout(() => console.log('later'), 500);
+});
+`;
+
+const APP_TIMER_BEFORE = `import { spawn } from 'node:child_process';
+setTimeout(() => console.log('timer'), 400);
+const c = spawn('true');
+c.on('close', () => console.log('closed'));
+`;
+
+const APP_HTTP_AFTER_CLOSE = `import { spawn } from 'node:child_process';
+import net from 'node:net';
+const server = net.createServer((sock) => sock.end('pong'));
+await new Promise((r) => server.listen(0, '127.0.0.1', r));
+const c = spawn('true');
+await new Promise((r) => c.on('close', r));
+console.log('closed');
+const body = await new Promise((resolve, reject) => {
+  let b = '';
+  const sock = net.connect(server.address().port, '127.0.0.1');
+  sock.setEncoding('utf8');
+  sock.on('data', (d) => { b += d; });
+  sock.on('end', () => resolve(b));
+  sock.on('error', reject);
+});
+console.log('body', body);
+server.close();
+// net parks the loop for good (uncounted ensureMainLoop, a known limit), so end explicitly
+process.exit(0);
+`;
+
+const APP_PLAIN_TIMER = `await new Promise((r) => setTimeout(r, 100));
+console.log('fired');
+`;
+
 function build(projectDir, entry, app, outfile) {
     const res = spawnSync('node', [CLI, 'build', `src/${entry}`, '--app', app, '--outfile', `dist/${outfile}`], {
         cwd: projectDir,
@@ -129,6 +180,11 @@ describe('child_process keep-alive E2E', { timeout: 10 * 60 * 1000 }, () => {
         writeFileSync(join(projectDir, 'src', 'listeners.mjs'), APP_LISTENERS);
         writeFileSync(join(projectDir, 'src', 'sequential.mjs'), APP_SEQUENTIAL);
         writeFileSync(join(projectDir, 'src', 'kill.mjs'), APP_KILL);
+        writeFileSync(join(projectDir, 'src', 'after-await.mjs'), APP_AFTER_AWAIT);
+        writeFileSync(join(projectDir, 'src', 'timer-after-close.mjs'), APP_TIMER_AFTER_CLOSE);
+        writeFileSync(join(projectDir, 'src', 'timer-before.mjs'), APP_TIMER_BEFORE);
+        writeFileSync(join(projectDir, 'src', 'http-after-close.mjs'), APP_HTTP_AFTER_CLOSE);
+        writeFileSync(join(projectDir, 'src', 'plain-timer.mjs'), APP_PLAIN_TIMER);
     });
 
     after(() => {
@@ -164,6 +220,31 @@ describe('child_process keep-alive E2E', { timeout: 10 * 60 * 1000 }, () => {
         it(`${app}: kill + await exit ends the process`, { skip }, async () => {
             const res = await run(app, 'kill');
             assert.match(res.stdout, /stopped/);
+        });
+
+        it(`${app}: a pending top-level await survives the child's close`, { skip }, async () => {
+            const res = await run(app, 'after-await');
+            assert.match(res.stdout, /closed\nafter/);
+        });
+
+        it(`${app}: a timer armed from the close callback still fires`, { skip }, async () => {
+            const res = await run(app, 'timer-after-close');
+            assert.match(res.stdout, /closed\nlater/);
+        });
+
+        it(`${app}: a timer armed before the spawn still fires`, { skip }, async () => {
+            const res = await run(app, 'timer-before');
+            assert.match(res.stdout, /closed\ntimer/);
+        });
+
+        it(`${app}: a socket round trip after the close completes`, { skip }, async () => {
+            const res = await run(app, 'http-after-close');
+            assert.match(res.stdout, /closed\nbody pong/);
+        });
+
+        it(`${app}: a plain timer script (no child) fires and exits`, { skip }, async () => {
+            const res = await run(app, 'plain-timer');
+            assert.match(res.stdout, /fired/);
         });
     }
 });
