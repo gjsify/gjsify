@@ -181,6 +181,9 @@ wants its own colour on the page adds `<branding>` to its metainfo, which Flathu
 The landing page keeps its section and links to it. The bank-transfer reference defaults to
 `Support <app>` so each app is told apart on the statement.
 
+> Superseded in part by [ADR 0120](0120-a-developer-page-and-a-blog.md): `--overview` is removed;
+> the developer page renders the same apps and support entries.
+
 **The overview takes the smallest input that fits this ADR.** `gjsify site build --overview
 <file>` reads a small JSON file (`url`, `base`, `languages`, `apps`), where each app is a
 repository root whose own `gjsify.site` already holds its address, languages and metainfo. No
