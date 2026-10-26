@@ -278,6 +278,8 @@ interface BlogPages {
     iconUrl?: string;
     /** The site's own card, for the index and tag pages. */
     ogImage: (lang: string) => string;
+    /** Set when the site has a support page: every post ends with a note pointing to it. */
+    supportUrl?: (lang: string) => string;
 }
 
 /** Writes the blog of every language and answers its sitemap entries. */
@@ -316,6 +318,7 @@ async function writeBlog(config: SiteCommonConfig, out: string, pages: BlogPages
                     posts: blog.posts,
                     html,
                     author: { name: pages.author.name, url: pages.author.uri },
+                    supportUrl: pages.supportUrl?.(lang),
                 }),
             );
             const card = ogCardSvg({ ...pages.card, name: post.title, summary: postDescription(post) });
@@ -454,6 +457,7 @@ async function buildAppSite(build: Build): Promise<SiteBuildResult> {
                 card,
                 iconUrl,
                 ogImage: (lang) => `${data.config.base}og-${lang}.png`,
+                supportUrl: hasSupport ? (lang) => supportUrl(data, lang) : undefined,
             })),
         );
     }
@@ -556,6 +560,8 @@ async function buildDeveloperSite(config: DeveloperSiteConfig, build: Build): Pr
                 card,
                 iconUrl: avatarUrl,
                 ogImage: (lang) => `${config.base}og-${lang}.png`,
+                supportUrl:
+                    config.support.length > 0 ? (lang) => developerPageUrl({ data }, lang, 'support') : undefined,
             })),
         );
     }

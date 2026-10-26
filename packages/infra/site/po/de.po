@@ -30,6 +30,12 @@ msgstr "In dieser Sprache gibt es noch keine Beiträge."
 msgid "All posts"
 msgstr "Alle Beiträge"
 
+msgid "If this post was useful to you, you can support my work."
+msgstr "Wenn dir dieser Beitrag geholfen hat, kannst du meine Arbeit unterstützen."
+
+msgid "Support my work"
+msgstr "Meine Arbeit unterstützen"
+
 msgid "From the blog"
 msgstr "Aus dem Blog"
 
@@ -38,9 +44,6 @@ msgstr "Lebenslauf"
 
 msgid "Apps"
 msgstr "Apps"
-
-msgid "Support my work"
-msgstr "Meine Arbeit unterstützen"
 
 msgid "Read my CV"
 msgstr "Zum Lebenslauf"

@@ -177,6 +177,8 @@ export interface BlogPostOptions {
     /** The post's body, rendered — with `postUrlResolver` applied. */
     html: string;
     author: { name: string; url?: string };
+    /** The site's support page in the post's language; without one the post ends with its text. */
+    supportUrl?: string;
 }
 
 /** `/<lang>/blog/<slug>/`. */
@@ -225,10 +227,18 @@ ${postMeta(post, shell)}
 <div class="post-body">
 ${options.html}
 </div>
-</article>
+${options.supportUrl ? postSupport(shell, options.supportUrl) : ''}</article>
 </main>`,
         'blog-post',
     );
+}
+
+function postSupport({ t }: Shell, href: string): string {
+    return `<aside class="post-support">
+<p>${esc(t('If this post was useful to you, you can support my work.'))}</p>
+<a class="button" href="${esc(href)}">${icon('heart')}<span>${esc(t('Support my work'))}</span></a>
+</aside>
+`;
 }
 
 /** The newest posts as a landing-page section; empty when the language has none. */

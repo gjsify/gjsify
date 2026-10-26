@@ -29,6 +29,12 @@ msgstr ""
 msgid "All posts"
 msgstr ""
 
+msgid "If this post was useful to you, you can support my work."
+msgstr ""
+
+msgid "Support my work"
+msgstr ""
+
 msgid "From the blog"
 msgstr ""
 
@@ -36,9 +42,6 @@ msgid "CV"
 msgstr ""
 
 msgid "Apps"
-msgstr ""
-
-msgid "Support my work"
 msgstr ""
 
 msgid "Read my CV"

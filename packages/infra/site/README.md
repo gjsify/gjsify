@@ -282,7 +282,8 @@ Everything else in the directory — images, downloads — is published under `/
 relative path, so `![shot](shot.png)` works in the editor and on the page. A link to another post's
 `.md` file becomes a link to that post's page; one to a post the build does not render (a draft,
 a typo) fails the build, since no Markdown is ever published. Posts are `BlogPosting` JSON-LD with
-`article:*` meta, and the landing page shows the newest three of its language.
+`article:*` meta, and the landing page shows the newest three of its language. On a site with
+`support` entries, every post ends with a note linking to the support page.
 
 ## Theme
 
