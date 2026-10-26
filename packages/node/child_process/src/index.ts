@@ -7,7 +7,9 @@ import { EventEmitter } from 'node:events';
 import { Buffer } from 'node:buffer';
 import { Readable, Writable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
-import { gbytesToUint8Array, deferEmit, ensureMainLoop } from '@gjsify/utils';
+import { gbytesToUint8Array, deferEmit } from '@gjsify/utils';
+// SUBPATH, not the barrel: same Node-safe single-file surface `worker_threads` holds the process with.
+import { acquireMainLoop, releaseMainLoop } from '@gjsify/utils/main-loop';
 import { communicateWithTimeout } from './communicate.js';
 import { applyArgv0, detachedPrefix, killProcess, shellArgv } from './platform/index.js';
 
@@ -344,10 +346,39 @@ export class ChildProcess extends EventEmitter {
         }
     }
 
+    /** A live child holds the process like a Node active handle, from spawn until `close`. */
+    private _holdsProcess = false;
+    private _closed = false;
+
+    /** @internal Armed once the child is spawned and its stdio watched; dropped at `close`. */
+    _holdProcess(): void {
+        this.once('close', () => {
+            this._closed = true;
+            this._dropHold();
+        });
+        this._acquireHold();
+    }
+
+    private _acquireHold(): void {
+        if (this._holdsProcess || this._closed) return;
+        this._holdsProcess = true;
+        acquireMainLoop();
+    }
+
+    private _dropHold(): void {
+        if (!this._holdsProcess) return;
+        this._holdsProcess = false;
+        // One macrotask late: a continuation of `close` (or of the awaiting caller) that spawns the next
+        // child re-holds first, so a chain of sequential children never drains the count in between.
+        setTimeout(releaseMainLoop, 0);
+    }
+
     ref(): this {
+        this._acquireHold();
         return this;
     }
     unref(): this {
+        this._dropHold();
         return this;
     }
 }
@@ -837,10 +868,10 @@ function _execImpl(
         const { proc, pid } = _spawnSubprocess(argv, flags, opts);
         child._setSubprocess(proc, pid);
         _activeProcesses.add(child);
-        ensureMainLoop();
         armTimeout(proc);
         armAbort(proc);
         const onProcessExit = _watchStdioForClose(child);
+        child._holdProcess();
 
         // `child.stdout`/`child.stderr` stay null on an exec-returned child, unlike
         // Node: `communicate_async` owns the pipe and a competing Reader would split
@@ -1219,6 +1250,7 @@ export function spawn(
 
         // Armed once the piped streams exist, so no `close` can be missed.
         const onProcessExit = _watchStdioForClose(child);
+        child._holdProcess();
 
         // `{ once: true }` plus explicit removal on exit, so a late abort cannot
         // fire against an already-gone child.
@@ -1251,7 +1283,6 @@ export function spawn(
             }, options.timeout);
         }
 
-        ensureMainLoop();
         proc.wait_async(null, (_source: Gio.Subprocess | null, result: Gio.AsyncResult) => {
             try {
                 proc.wait_finish(result);

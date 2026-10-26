@@ -164,8 +164,8 @@ export function holdMainLoop(): GLib.MainLoop | undefined {
  * no "run until no sources remain" — so a drain cannot be observed by the loop
  * itself; it has to be counted.
  *
- * Known limit, counted holds are only the `worker_threads` consumer today:
- * `net`/`http`/`dgram`/`ws`/`child_process` park via {@link ensureMainLoop}
+ * Known limit, counted holds are only the `worker_threads` and `child_process` consumers today:
+ * `net`/`http`/`dgram`/`ws` park via {@link ensureMainLoop}
  * forever (their close paths don't release yet), so an app holding BOTH a
  * live server and a worker stays parked when the worker drains — same as on
  * those packages' pre-existent behavior, and the slot for their migration is
