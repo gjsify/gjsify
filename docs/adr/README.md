@@ -140,6 +140,7 @@ the TODO records the *what's left*.
 | [0118](0118-a-glib-variant-subset-runs-on-the-browser-and-nativescript.md) | A `GLib.Variant` subset runs on the browser and NativeScript, and `Gio.Settings` stores arrays with it | Accepted |
 | [0119](0119-gtk-css-from-a-css-provider-applies-on-the-web.md) | GTK CSS loaded through `Gtk.CssProvider` applies on the web, translated through one node table per widget | Accepted |
 | [0120](0120-a-developer-page-and-a-blog.md) | `@gjsify/site` renders a developer page and a blog, from files the developer already keeps | Accepted |
+| [0121](0121-speech-synthesis-on-gjs-via-libspiel.md) | `speechSynthesis` on GJS runs on libspiel, with the system library first and no cloud voices | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

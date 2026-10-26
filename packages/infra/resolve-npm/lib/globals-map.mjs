@@ -98,6 +98,12 @@ export const GJS_GLOBALS_GROUPS = {
         'Audio',
         'HTMLAudioElement',
         'GamepadEvent',
+        'speechSynthesis',
+        'SpeechSynthesis',
+        'SpeechSynthesisUtterance',
+        'SpeechSynthesisVoice',
+        'SpeechSynthesisEvent',
+        'SpeechSynthesisErrorEvent',
         'MediaDevices',
         'RTCPeerConnection',
         'RTCSessionDescription',
@@ -258,6 +264,14 @@ export const GJS_GLOBALS_MAP = {
     // --- Gamepad API (libmanette backend) -----------------------------------
     GamepadEvent: '@gjsify/gamepad/register',
 
+    // --- Web Speech synthesis (libspiel backend) ----------------------------
+    speechSynthesis: '@gjsify/speech-synthesis/register',
+    SpeechSynthesis: '@gjsify/speech-synthesis/register',
+    SpeechSynthesisUtterance: '@gjsify/speech-synthesis/register',
+    SpeechSynthesisVoice: '@gjsify/speech-synthesis/register',
+    SpeechSynthesisEvent: '@gjsify/speech-synthesis/register',
+    SpeechSynthesisErrorEvent: '@gjsify/speech-synthesis/register',
+
     // --- WebRTC (GStreamer webrtcbin backend) -------------------------------
     MediaDevices: '@gjsify/webrtc/register/media-devices',
     RTCPeerConnection: '@gjsify/webrtc/register/peer-connection',
@@ -353,6 +367,7 @@ export const GJS_GI_BACKED_REGISTERS = {
     '@gjsify/webaudio/register': ['Gst', 'GstApp'],
     '@gjsify/webrtc/register': ['Gst', 'GstWebRTC', 'GstSdp'],
     '@gjsify/gamepad/register': ['Manette'],
+    '@gjsify/speech-synthesis/register': ['Spiel'],
     // Imports `@gjsify/dom-elements/register/canvas` (Gdk/GdkPixbuf/Pango/
     // PangoCairo) plus `@gjsify/canvas2d-core`, which uses the `cairo` foreign
     // struct module.
@@ -466,6 +481,12 @@ export const BROWSER_NATIVE_IDENTS = new Set([
     'Audio',
     'HTMLAudioElement',
     'GamepadEvent',
+    'speechSynthesis',
+    'SpeechSynthesis',
+    'SpeechSynthesisUtterance',
+    'SpeechSynthesisVoice',
+    'SpeechSynthesisEvent',
+    'SpeechSynthesisErrorEvent',
     'MediaDevices',
     'RTCPeerConnection',
     'RTCSessionDescription',
