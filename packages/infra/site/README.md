@@ -315,6 +315,7 @@ layout, support, privacy and legal pages, plus a hub and a CV:
   language's résumé is the avatar; `basics.summary` is Markdown.
 - `apps` has the format of `relatedApps`; `relatedApps` itself is rejected here.
 - `base` defaults to `/` and `repository` is optional (it links the site's source).
+- With no metainfo `<branding>` to read, `theme.accent` also paints the masthead and the bar.
 
 The hub `/<lang>/` shows the person, their apps, the newest posts and a link to the CV
 `/<lang>/cv/`, which prints as a plain document. Both carry `ProfilePage` JSON-LD with the

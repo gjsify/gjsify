@@ -149,6 +149,18 @@ export default async () => {
             expect(html).toMatch(/aria-current="page"/);
         });
 
+        await it('links the source of the site from owner/name', async () => {
+            const ctx = context('en');
+            ctx.data.config = { ...ctx.data.config, repository: 'ada/site' };
+            expect(renderCv(ctx)).toMatch(/href="https:\/\/github.com\/ada\/site"/);
+        });
+
+        await it('paints the masthead in the accent, having no metainfo branding', async () => {
+            const ctx = context('en');
+            ctx.data.config = { ...ctx.data.config, theme: { ...ctx.data.config.theme, accent: { light: '#1c7a4a', dark: '#57e389' } } };
+            expect(renderCv(ctx)).toMatch(/--brand-light:#1c7a4a/);
+        });
+
         await it('formats résumé dates as precisely as they were written', async () => {
             expect(formatResumeDate('2015', 'en')).toBe('2015');
             expect(formatResumeDate('2015-03', 'de')).toBe('März 2015');

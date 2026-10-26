@@ -21,6 +21,12 @@ export default async () => {
             expect(renderMarkdown('1. first\n2. second')).toBe('<ol><li>first</li><li>second</li></ol>');
         });
 
+        await it('keeps an indented line wrapped under a list item in that item', async () => {
+            expect(renderMarkdown('- one item\n  wrapped\n- two\n\nafter')).toBe(
+                '<ul><li>one item wrapped</li><li>two</li></ul>\n<p>after</p>',
+            );
+        });
+
         await it('renders a GFM pipe table', async () => {
             expect(renderMarkdown('| A | B |\n|---|---|\n| 1 | 2 |')).toBe(
                 '<table><thead><tr><th>A</th><th>B</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table>',

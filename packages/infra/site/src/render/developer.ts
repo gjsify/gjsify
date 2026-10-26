@@ -17,6 +17,7 @@ import { icon, type IconName } from './icons.js';
 import {
     absoluteUrl,
     documentPage,
+    githubUrl,
     simplePage,
     sitePageUrl,
     type ClientAssets,
@@ -84,8 +85,9 @@ export function developerShell(ctx: DeveloperContext, current?: 'blog' | 'cv'): 
         name,
         home: developerPageUrl(ctx, lang, 'home'),
         iconUrl: ctx.avatarUrl,
-        branding: {},
-        repository: config.repository,
+        // No metainfo `<branding>` to read, so the accent is the developer's colour.
+        branding: config.theme.accent ?? {},
+        repository: githubUrl(config.repository),
         licenses: [],
         nav,
         feeds: config.blog ? [{ title: `${name} – ${t('Blog')}`, href: blogFeedUrl(config, lang) }] : [],

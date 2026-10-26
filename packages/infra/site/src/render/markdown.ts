@@ -194,8 +194,14 @@ function parseBlocks(source: string, options: MarkdownOptions = {}): Block[] {
             const pattern = ordered ? ORDERED : UNORDERED;
             const items: string[] = [];
             while (i < lines.length && pattern.test(lines[i]!)) {
-                items.push(pattern.exec(lines[i]!)![1]!.trim());
+                let item = pattern.exec(lines[i]!)![1]!.trim();
                 i++;
+                // An indented line under an item is that item, wrapped.
+                while (i < lines.length && /^\s+\S/.test(lines[i]!) && !pattern.test(lines[i]!)) {
+                    item += ` ${lines[i]!.trim()}`;
+                    i++;
+                }
+                items.push(item);
             }
             blocks.push({ kind: 'list', ordered, items });
             continue;

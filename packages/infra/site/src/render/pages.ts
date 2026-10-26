@@ -23,6 +23,7 @@ import { icon, type IconName } from './icons.js';
 import {
     absoluteUrl,
     documentPage,
+    githubUrl,
     rootPage,
     simplePage,
     sitePageUrl,
@@ -804,7 +805,7 @@ const VIEW_PATHS: Record<View, string> = {
 };
 
 function repositoryUrl(data: SiteData): string | undefined {
-    return data.app.urls.vcsBrowser ?? (data.config.repository || undefined);
+    return data.app.urls.vcsBrowser ?? githubUrl(data.config.repository);
 }
 
 /** The frame of every page of an app site in one language. */

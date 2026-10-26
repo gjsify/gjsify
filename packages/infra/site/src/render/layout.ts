@@ -41,6 +41,7 @@ export interface Shell {
     iconUrl?: string;
     /** Paints the masthead and the bar; `undefined` keeps the stylesheet's palette. */
     branding: { light?: string; dark?: string };
+    /** Address of the source code, not `owner/name`; see `githubUrl`. */
     repository?: string;
     /** Translated footer sentences about licences. */
     licenses: readonly string[];
@@ -176,6 +177,11 @@ ${page.jsonLd ?? ''}
 ${themeStyle(shell)}
 ${shell.assets.css.map((href) => `<link rel="stylesheet" href="${esc(href)}">`).join('\n')}
 <script type="module" src="${esc(shell.assets.js)}"></script>`;
+}
+
+/** `gjsify.site.repository` is `owner/name`; a link needs the address. */
+export function githubUrl(repository: string | undefined): string | undefined {
+    return repository ? `https://github.com/${repository}` : undefined;
 }
 
 function onGitHub(url: string): boolean {
