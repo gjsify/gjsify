@@ -55,7 +55,7 @@ import {
     type RenderContext,
 } from './render/pages.js';
 import { absoluteUrl, rootPage, type ClientAssets, type Shell } from './render/layout.js';
-import { robotsTxt, seoWarnings, sitemapXml, type SitemapPage } from './render/seo.js';
+import { neighbourSitemaps, robotsTxt, seoWarnings, sitemapXml, type SitemapPage } from './render/seo.js';
 import {
     UI_SOURCE_LANGUAGE,
     loadCatalogs,
@@ -73,6 +73,7 @@ import {
     type DeveloperData,
     type DeveloperSiteConfig,
     type SiteCommonConfig,
+    type SiteRelatedAppConfig,
     type SiteData,
     APP_MANIFEST_FILE,
     buildAppManifest,
@@ -328,15 +329,26 @@ async function writeBlog(config: SiteCommonConfig, out: string, pages: BlogPages
     return sitemap;
 }
 
-function writeSitemap(config: SiteCommonConfig, out: string, pages: SitemapPage[]): Promise<void>[] {
+function writeSitemap(
+    config: SiteCommonConfig,
+    out: string,
+    pages: SitemapPage[],
+    apps: readonly SiteRelatedAppConfig[],
+): Promise<void>[] {
     return [
         writeFile(join(out, 'sitemap.xml'), sitemapXml(pages, config.defaultLanguage)),
         // Only a site served from the host root can own `/robots.txt`; below a path the host does.
         ...(config.base === '/'
-            ? [writeFile(join(out, 'robots.txt'), robotsTxt(absoluteUrl(config, `${config.base}sitemap.xml`)))]
+            ? [
+                  writeFile(
+                      join(out, 'robots.txt'),
+                      robotsTxt([absoluteUrl(config, `${config.base}sitemap.xml`), ...neighbourSitemaps(config.url, apps)]),
+                  ),
+              ]
             : []),
     ];
 }
+
 
 /** Renders one static page per configured language, plus the language-picking root page. */
 export async function buildSite(options: SiteBuildOptions): Promise<SiteBuildResult> {
@@ -443,7 +455,7 @@ async function buildAppSite(build: Build): Promise<SiteBuildResult> {
             })),
         );
     }
-    await Promise.all(writeSitemap(data.config, target.out, pages));
+    await Promise.all(writeSitemap(data.config, target.out, pages, data.config.relatedApps));
     return { languages: [...data.config.languages], screenshots: images.size };
 }
 
@@ -545,7 +557,7 @@ async function buildDeveloperSite(config: DeveloperSiteConfig, build: Build): Pr
             })),
         );
     }
-    await Promise.all(writeSitemap(config, target.out, pages));
+    await Promise.all(writeSitemap(config, target.out, pages, config.developer.apps));
     return { languages: [...config.languages], screenshots: 0 };
 }
 

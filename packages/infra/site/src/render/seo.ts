@@ -1,6 +1,7 @@
 // Everything a crawler or a link preview reads that is not the visible page: locale tags, the
 // title and description, structured data, the sitemap. Pure string work, so it runs on every runtime.
 
+import type { SiteRelatedAppConfig } from '../site-data/index.js';
 import { esc } from './html.js';
 
 /** Facebook's Open Graph wants `language_TERRITORY`; a bare language code is not a valid `og:locale`. */
@@ -200,6 +201,18 @@ ${entries.join('\n')}
 `;
 }
 
-export function robotsTxt(sitemapUrl: string): string {
-    return `User-agent: *\nAllow: /\n\nSitemap: ${sitemapUrl}\n`;
+/**
+ * Crawlers read `robots.txt` at the host root only, so the sitemaps of apps served below this
+ * site on the same host would go unannounced. A site address (not an inline entry) is a site of
+ * this package, which always writes `sitemap.xml` next to its `app.json`.
+ */
+export function neighbourSitemaps(siteUrl: string, apps: readonly SiteRelatedAppConfig[]): string[] {
+    const origin = new URL(siteUrl).origin;
+    return apps
+        .filter((app) => app.name === undefined && new URL(app.url).origin === origin)
+        .map((app) => `${app.url}sitemap.xml`);
+}
+
+export function robotsTxt(sitemapUrls: readonly string[]): string {
+    return `User-agent: *\nAllow: /\n\n${sitemapUrls.map((url) => `Sitemap: ${url}\n`).join('')}`;
 }

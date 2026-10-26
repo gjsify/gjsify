@@ -61,7 +61,8 @@ Every build also writes a 1200×630 link-preview card per language (`og-<lang>.p
 and rasterised by GdkPixbuf), `SoftwareApplication` JSON-LD, `hreflang` alternates with an
 `x-default` that points at the default-language page, a valid `og:locale` (`de_DE`), and a
 `sitemap.xml`. `robots.txt` is written only when `gjsify.site.base` is `/`; below a path the host
-root owns it and must list this sitemap. A page title or meta description that is too short
+root owns it and must list this sitemap. A site at `/` does that for every related app (or
+developer app) given as a site address on the same host. A page title or meta description that is too short
 (or only the app name) is reported as a build warning.
 
 A metainfo URL that points into the site's own `/<lang>/…` pages (it starts with `gjsify.site.url`)
