@@ -59,6 +59,11 @@ const ALLOWED = [
         rule: 'registry-server',
         why: 'its subject is the BOOTSTRAP downloader — SHA-256 digest routes, the content-addressed cache and the retry on a dropped connection — with a packument registry only incidentally beside it. Migrating that half is tracked in status/open-todos/README.md, and is deferred because the suite could not be verified on the machine the migration was written on.',
     },
+    {
+        suite: 'child-process-keepalive',
+        rule: 'registry-server',
+        why: 'not a registry and not run by the harness: the `createServer` call is the SOURCE of a fixture app built for GJS, a `node:net` TCP echo the app talks to after its child has closed — the assertion is that a socket round trip started after the last child closed still completes. No HTTP, no packument, no tarball.',
+    },
 ];
 
 const RULES = [

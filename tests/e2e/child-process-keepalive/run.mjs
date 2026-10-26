@@ -60,7 +60,7 @@ console.log('stopped');
 
 // Node keeps the process for work the entry still has pending after a child closed:
 // a top-level await (AFTER_AWAIT), a timer armed from the close callback (TIMER_AFTER_CLOSE),
-// one armed BEFORE the spawn (TIMER_BEFORE), and a TCP round trip to a local server (HTTP_AFTER_CLOSE; `net`, since `http` needs the soup bridge typelib).
+// one armed BEFORE the spawn (TIMER_BEFORE), and a TCP round trip to a local server (NET_AFTER_CLOSE; `net`, since `http` needs the soup bridge typelib).
 // PLAIN_TIMER is the control: no child, so no counted hold, and it must still exit by itself
 // (a timer with NO top-level await is dropped by gjs at module settle, with or without this fix).
 const APP_AFTER_AWAIT = `import { spawn } from 'node:child_process';
@@ -84,7 +84,7 @@ const c = spawn('true');
 c.on('close', () => console.log('closed'));
 `;
 
-const APP_HTTP_AFTER_CLOSE = `import { spawn } from 'node:child_process';
+const APP_NET_AFTER_CLOSE = `import { spawn } from 'node:child_process';
 import net from 'node:net';
 const server = net.createServer((sock) => sock.end('pong'));
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
@@ -183,7 +183,7 @@ describe('child_process keep-alive E2E', { timeout: 10 * 60 * 1000 }, () => {
         writeFileSync(join(projectDir, 'src', 'after-await.mjs'), APP_AFTER_AWAIT);
         writeFileSync(join(projectDir, 'src', 'timer-after-close.mjs'), APP_TIMER_AFTER_CLOSE);
         writeFileSync(join(projectDir, 'src', 'timer-before.mjs'), APP_TIMER_BEFORE);
-        writeFileSync(join(projectDir, 'src', 'http-after-close.mjs'), APP_HTTP_AFTER_CLOSE);
+        writeFileSync(join(projectDir, 'src', 'net-after-close.mjs'), APP_NET_AFTER_CLOSE);
         writeFileSync(join(projectDir, 'src', 'plain-timer.mjs'), APP_PLAIN_TIMER);
     });
 
@@ -238,7 +238,7 @@ describe('child_process keep-alive E2E', { timeout: 10 * 60 * 1000 }, () => {
         });
 
         it(`${app}: a socket round trip after the close completes`, { skip }, async () => {
-            const res = await run(app, 'http-after-close');
+            const res = await run(app, 'net-after-close');
             assert.match(res.stdout, /closed\nbody pong/);
         });
 
