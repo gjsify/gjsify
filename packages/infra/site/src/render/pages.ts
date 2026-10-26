@@ -713,15 +713,23 @@ function tags(ctx: RenderContext): string {
  * cannot outlive its own containing block — but it is painted in the same colour, so it reads as
  * the top of this header and needs no script to tell whether it has detached.
  */
-function masthead(ctx: RenderContext): string {
-    const { data, lang, t } = ctx;
+/** "by <developer>" under the app name, linking to the developer's site when one is configured. */
+export function heroBy({ data, t }: Pick<RenderContext, 'data' | 't'>): string {
     const developer = data.app.developer.name;
+    if (!developer) return '';
+    const url = data.config.developerUrl;
+    const name = url ? `<a href="${esc(url)}">${esc(developer)}</a>` : esc(developer);
+    return `<p class="hero-by">${esc(t('by {developer}')).replace('{developer}', name)}</p>`;
+}
+
+function masthead(ctx: RenderContext): string {
+    const { data, lang } = ctx;
     return `<header class="masthead">
 <div class="hero-inner">
 ${ctx.iconUrl ? `<div class="hero-icon" style="--icon-url:url(${esc(ctx.iconUrl)})"><img src="${esc(ctx.iconUrl)}" alt="" width="128" height="128"></div>` : ''}
 <div class="hero-text">
 <h1>${esc(localized(data.app.name, lang))}</h1>
-${developer ? `<p class="hero-by">${fmt(t('by {developer}'), { developer })}</p>` : ''}
+${heroBy(ctx)}
 </div>
 ${downloadWidget(ctx)}
 </div>

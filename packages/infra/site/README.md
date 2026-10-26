@@ -150,6 +150,7 @@ Lives in the root `package.json`, next to `ship` and `flatpak`.
 | `downloads` | `[{platform, format, url?, label?, available?, component?}]`: targets the release assets do not cover, e.g. browser stores or a source install. `platform` is an OS or `firefox` / `chromium`; `format` adds `store`, `xpi`, `source`. `url` is required unless `available` is `false`, which lists the target as "Not yet available" and never recommends it. `component` is a `components[].id`. |
 | `releaseAssets` | `false` ignores the GitHub release assets, so `downloads` is the whole list. Default `true`. |
 | `relatedApps` | `[url \| {url, name, summary, icon}]`: sites of other apps, listed in order under "More apps by <developer>" on the landing page, see below. Optional — without it there is no section and nothing is fetched. |
+| `developerUrl` | The developer's own site, e.g. a [developer site](#developer-sites): the "by <developer>" line under the app name links to it. Optional. |
 | `support`, `legal` | `support`: `{kind, url}` links, or `{kind: "sepa", name, iban, bic?, reference?}`, a bank transfer shown as IBAN plus an EPC QR code. `legal`: `{label, url}` links. Both empty by default: nothing is invented. |
 | `privacy` | `{statements: {<lang>: <path>}, hostingPolicyUrl?}`: a privacy page at `/<lang>/privacy/`, see below. Absent: no such page. |
 | `legalNotice` | `{statements: {<lang>: <path>}}`: a Legal Notice/Impressum page at `/<lang>/legal-notice/`, see below. Absent: no such page. |
