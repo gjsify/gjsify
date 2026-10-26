@@ -102,6 +102,8 @@
         "test:e2e:oxc": "node --test tests/e2e/oxc/run.mjs",
         "test:e2e:lint-gjs-launcher": "node --test tests/e2e/lint-gjs-launcher/run.mjs",
         "test:e2e:spawn-gjs-teardown": "node --test tests/e2e/spawn-gjs-teardown/run.mjs",
+        "test:e2e:child-process-keepalive": "node --test tests/e2e/child-process-keepalive/run.mjs",
+        "test:e2e:process-stdin-async-iter": "node --test tests/e2e/process-stdin-async-iter/run.mjs",
         "test:e2e:oxc-plugin": "node --test tests/e2e/oxc-plugin/run.mjs",
         "test:e2e:upgrade": "node --test tests/e2e/upgrade/run.mjs",
         "test:e2e:app-browser": "node --test tests/e2e/app-browser/run.mjs",
