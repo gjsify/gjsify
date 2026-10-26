@@ -157,7 +157,10 @@ export default async () => {
 
         await it('paints the masthead in the accent, having no metainfo branding', async () => {
             const ctx = context('en');
-            ctx.data.config = { ...ctx.data.config, theme: { ...ctx.data.config.theme, accent: { light: '#1c7a4a', dark: '#57e389' } } };
+            ctx.data.config = {
+                ...ctx.data.config,
+                theme: { ...ctx.data.config.theme, accent: { light: '#1c7a4a', dark: '#57e389' } },
+            };
             expect(renderCv(ctx)).toMatch(/--brand-light:#1c7a4a/);
         });
 

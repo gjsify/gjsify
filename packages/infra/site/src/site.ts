@@ -342,13 +342,15 @@ function writeSitemap(
             ? [
                   writeFile(
                       join(out, 'robots.txt'),
-                      robotsTxt([absoluteUrl(config, `${config.base}sitemap.xml`), ...neighbourSitemaps(config.url, apps)]),
+                      robotsTxt([
+                          absoluteUrl(config, `${config.base}sitemap.xml`),
+                          ...neighbourSitemaps(config.url, apps),
+                      ]),
                   ),
               ]
             : []),
     ];
 }
-
 
 /** Renders one static page per configured language, plus the language-picking root page. */
 export async function buildSite(options: SiteBuildOptions): Promise<SiteBuildResult> {
