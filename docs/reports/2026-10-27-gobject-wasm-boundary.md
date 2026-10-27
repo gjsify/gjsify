@@ -89,3 +89,35 @@ PoC build fixes found while rebuilding from a clean tree: `30-emnapi.sh` looked 
 `@emnapi/core-*.tgz` but `npm pack` writes `emnapi-core-*.tgz`; `40-node-gi.sh` compiled
 without `-fPIC`, which `-sMAIN_MODULE=2` rejects at link time. `env.sh` must be sourced
 from bash (under zsh `BASH_SOURCE` is unset and `POC_REPO` resolves to an empty path).
+
+## Follow-up: the C++ fast paths
+
+Three changes in `packages/node-gi/node-gi`, no behaviour change (notify on equal-value writes
+is exactly gjs's: assignment skips an equal value on a materialised custom property,
+`set_property` always notifies; pinned by the `property-write-fastpath` conformance program,
+green on gjs, node, bun and deno).
+
+1. The notify crossing. Diagnosed, not guessed: the dominant cost was `MakeParamSpecHandle`
+   minting a finalizable `napi_external` for the pspec on every emission. One External per
+   GParamSpec is now cached in `NodeGiEnvData::paramSpecHandles` and freed at env teardown.
+2. `MaybeRunJsPropertySetter` memoises (instance GType, pspec) once gi.js answers a literal
+   `false` (no accessor on that prototype chain). Keyed by the instance type, so a subclass
+   accessor still runs. An unknown answer (no wrapper yet) is never memoised.
+3. `setPropertyIfChanged(handle, name, value)` compares and stores in one crossing for
+   bool/int/float/string types and answers 2 for the rest, where gi.js takes the old path.
+
+Per-point splits were not isolated; the numbers are for all three together, ns per operation.
+
+- native Node: set 2180–2500 -> 1420–1460, set_int 1970–2170 -> 1320–1360,
+  set with notify handler 4880–5090 -> 3340–3550, native set 1130 -> 720–800
+- wasm Node: set 5500–5770 -> 3550–3740, set_int 5090–5300 -> 3240–3260,
+  set with notify handler 16300–16700 -> 7750–7780, native set 3000–3250 -> 1940–2000
+- wasm Chromium: set 5844 -> 3554, set_int 4356 -> 2690, notify set 12720 -> 7172
+- wasm Firefox: set 20760 -> 15760, set_int 19320 -> 14060, notify set 44120 -> 33020
+- unchanged: get, emit, built-in paths
+
+Native is the Android case: the same C++ ships in `libnode_gi.so`, so a set is ~35 % and a
+notify-set ~30 % cheaper there. `libnode_gi.so` for arm64-v8a was built once from this tree to
+prove the shared C++ compiles; it was not run on a device.
+
+`run-browser.mjs` takes `POC_PROFILE=1` to run this boundary profile instead of the milestones.

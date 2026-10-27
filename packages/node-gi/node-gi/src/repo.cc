@@ -19,6 +19,7 @@ void NodeGiEnvDataFinalize(napi_env env, void* data, void* /*hint*/) {
   if (d->microtaskDrain != nullptr) napi_delete_reference(env, d->microtaskDrain);
   if (d->constructCallback != nullptr) napi_delete_reference(env, d->constructCallback);
   if (d->propertySetCallback != nullptr) napi_delete_reference(env, d->propertySetCallback);
+  for (auto& kv : d->paramSpecHandles) napi_delete_reference(env, kv.second);
   delete d;
 }
 

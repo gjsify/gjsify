@@ -1190,8 +1190,11 @@ function runJsPropertySetter(handle, propertyName) {
     const up = instance[USER_PROTO];
     if (up === undefined) return;
     const set = findPropertySetter(up, propertyName);
-    if (set === undefined) return; // no JS accessor: the store is the single backing store
+    // No JS accessor: the store is the single backing store. The `false` tells the engine
+    // so, and it stops crossing for this (class, property) — see NodeGiEnvData::noJsSetter.
+    if (set === undefined) return false;
     set.call(instance, wrapReturn(native.getProperty(handle, propertyName)));
+    return true;
 }
 // Guarded because the addon paired with this JS may PREDATE it, and that pairing is
 // deliberate rather than hypothetical: gtk-os-suites.yml's shipped-closure legs run
@@ -1895,6 +1898,12 @@ function wrapInstance(handle, userProto) {
                     // all three spellings onto it.
                     const custom = up !== undefined && customPropertiesByProto.get(up)?.has(propName) === true;
                     if (custom && materialise(propName)) {
+                        if (typeof native.setPropertyIfChanged === 'function') {
+                            // One crossing: the engine compares and stores. 2 = a value type it
+                            // does not decide (objects, enums…), so take the two-call path.
+                            const done = native.setPropertyIfChanged(handle, propName, unwrapArg(value));
+                            if (done !== 2) return true;
+                        }
                         if (wrapReturn(native.getProperty(handle, propName)) === value) return true;
                     }
                     native.setProperty(handle, propName, unwrapArg(value));

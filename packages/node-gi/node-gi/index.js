@@ -67,6 +67,7 @@ export function ensureNative() {
     getTemplateChild = addon.getTemplateChild;
     getProperty = addon.getProperty;
     setProperty = addon.setProperty;
+    setPropertyIfChanged = addon.setPropertyIfChanged;
     hasProperty = addon.hasProperty;
     getTypeName = addon.getTypeName;
     classInfoForTypeName = addon.classInfoForTypeName;
@@ -177,6 +178,7 @@ export let callClassVfunc;
 export let getTemplateChild;
 export let getProperty;
 export let setProperty;
+export let setPropertyIfChanged;
 export let hasProperty;
 export let getTypeName;
 export let classInfoForTypeName;

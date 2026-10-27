@@ -307,6 +307,13 @@ export function getProperty(handle: GObjectHandle, name: string): unknown;
 
 /** Write a GObject property. */
 export function setProperty(handle: GObjectHandle, name: string, value: unknown): void;
+/**
+ * `setProperty` with gi.js's equal-value guard folded in, so a guarded write is one crossing.
+ * Returns 0 when the value was stored, 1 when it equals the current one (nothing stored, no
+ * notify), 2 when the property's type is not decided here (objects, enums, …; nothing done).
+ * Absent from an addon older than this JS.
+ */
+export function setPropertyIfChanged(handle: GObjectHandle, name: string, value: unknown): 0 | 1 | 2;
 
 /**
  * Whether the instance's type has a GObject property by this name (kebab- or
@@ -632,6 +639,7 @@ declare const native: {
     getTemplateChild: typeof getTemplateChild;
     getProperty: typeof getProperty;
     setProperty: typeof setProperty;
+    setPropertyIfChanged?: typeof setPropertyIfChanged;
     hasProperty: typeof hasProperty;
     getTypeName: typeof getTypeName;
     classInfoForTypeName: typeof classInfoForTypeName;

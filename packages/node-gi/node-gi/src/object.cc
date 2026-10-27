@@ -304,7 +304,24 @@ Napi::Value GValueToJs(Napi::Env env, const GValue* v) {
       // .name/.get_name()/.value_type/.nick/.blurb/.flags/.owner_type — matching
       // gjs. g_value_get_param BORROWS (transfer none).
       GParamSpec* p = g_value_get_param(v);
-      return MakeParamSpecHandle(env, p, GI_TRANSFER_NOTHING);
+      if (p == nullptr) return env.Null();
+      NodeGiEnvData* d = EnvData(env);
+      if (d == nullptr) return MakeParamSpecHandle(env, p, GI_TRANSFER_NOTHING);
+      auto hit = d->paramSpecHandles.find(p);
+      if (hit != d->paramSpecHandles.end()) {
+        napi_value cached = nullptr;
+        if (napi_get_reference_value(env, hit->second, &cached) == napi_ok && cached != nullptr) {
+          return Napi::Value(env, cached);
+        }
+      }
+      Napi::Value fresh = MakeParamSpecHandle(env, p, GI_TRANSFER_NOTHING);
+      if (!fresh.IsEmpty() && fresh.IsExternal()) {
+        napi_ref ref = nullptr;
+        if (napi_create_reference(env, fresh, 1, &ref) == napi_ok && ref != nullptr) {
+          d->paramSpecHandles[p] = ref;
+        }
+      }
+      return fresh;
     }
     default:
       Napi::TypeError::New(env, std::string("Unsupported property GType ") +
@@ -765,7 +782,11 @@ Napi::Value GetProperty(const Napi::CallbackInfo& info) {
 }
 
 // setProperty(handle, name, value) -> void
-Napi::Value SetProperty(const Napi::CallbackInfo& info) {
+// setPropertyIfChanged(handle, name, value) -> 0 stored | 1 equal, nothing done | 2 undecided,
+// nothing done. Folds gi.js's equal-value guard (`wrapReturn(getProperty) === value`) into the
+// store so a guarded set is ONE crossing. Only the types whose JS form compares by value are
+// decided here; anything else (objects, boxed, enums…) answers 2 and gi.js takes the two-call path.
+static Napi::Value SetPropertyImpl(const Napi::CallbackInfo& info, bool guarded) {
   Napi::Env env = info.Env();
   if (info.Length() < 3 || !info[1].IsString()) {
     Napi::TypeError::New(env, "setProperty(handle, name: string, value)").ThrowAsJavaScriptException();
@@ -782,6 +803,26 @@ Napi::Value SetProperty(const Napi::CallbackInfo& info) {
   // gjs refuses an out-of-range value for these property types on assignment
   // (object.cpp, with its own text); JsToGValue below now refuses them too, with the
   // gjs_value_to_g_value text.
+  if (guarded) {
+    switch (G_TYPE_FUNDAMENTAL(pspec->value_type)) {
+      case G_TYPE_BOOLEAN: case G_TYPE_CHAR: case G_TYPE_UCHAR: case G_TYPE_INT:
+      case G_TYPE_UINT: case G_TYPE_LONG: case G_TYPE_ULONG: case G_TYPE_INT64:
+      case G_TYPE_UINT64: case G_TYPE_FLOAT: case G_TYPE_DOUBLE: case G_TYPE_STRING:
+        break;
+      default:
+        return Napi::Number::New(env, 2);
+    }
+    GValue cur = G_VALUE_INIT;
+    g_value_init(&cur, pspec->value_type);
+    g_object_get_property(obj, name.c_str(), &cur);
+    Napi::Value curJs = GValueToJs(env, &cur);
+    g_value_unset(&cur);
+    if (env.IsExceptionPending()) return env.Undefined();
+    bool same = false;
+    if (!curJs.IsEmpty() && napi_strict_equals(env, curJs, info[2], &same) == napi_ok && same) {
+      return Napi::Number::New(env, 1);
+    }
+  }
   GITypeTag intTag = GI_TYPE_TAG_VOID;
   switch (G_TYPE_FUNDAMENTAL(pspec->value_type)) {
     case G_TYPE_CHAR: intTag = GI_TYPE_TAG_INT8; break;
@@ -809,7 +850,12 @@ Napi::Value SetProperty(const Napi::CallbackInfo& info) {
     g_object_set_property(obj, name.c_str(), &v);
   }
   g_value_unset(&v);
-  return env.Undefined();
+  return guarded ? Napi::Number::New(env, 0).As<Napi::Value>() : env.Undefined();
+}
+
+Napi::Value SetProperty(const Napi::CallbackInfo& info) { return SetPropertyImpl(info, false); }
+Napi::Value SetPropertyIfChanged(const Napi::CallbackInfo& info) {
+  return SetPropertyImpl(info, true);
 }
 
 // getTypeName(handle) -> string   (the runtime GType name of an instance)
