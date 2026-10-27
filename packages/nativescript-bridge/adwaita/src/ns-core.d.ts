@@ -327,6 +327,8 @@ declare module '@nativescript/core' {
         /** Detach every child at once — `adw_wrap_box_remove_all`'s counterpart. */
         removeChildren(): void;
         getChildAt(index: number): View;
+        /** Position of a child, or `-1` when it is not one — the "is this mine?" test. */
+        getChildIndex(child: View): number;
         getChildrenCount(): number;
     }
 
