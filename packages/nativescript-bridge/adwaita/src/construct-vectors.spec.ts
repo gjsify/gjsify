@@ -52,7 +52,7 @@ function observe(vector: ConstructVector): unknown {
                     },
                 },
             }) as unknown as { getViewById(id: string): GtkButton };
-            root.getViewById('pressed').notify({ eventName: 'clicked', object: root.getViewById('pressed') });
+            root.getViewById('pressed').emit('clicked');
             return [{ handler: 'onClicked', calls }];
         }
         case 'bind': {

@@ -212,21 +212,23 @@ newest child of the suffix box rather than a single evictable slot.
 1751 tests / 4778 assertions (node and gjs), 885 / 2462 trees; device: emulator API 36 and a
 Galaxy S9, 212 real-gio and 112 pure-JS cases each, `specs/rows.ts`.
 
-MIGRATE NEXT: `widgets/gtk-button.ts`, the FOLLOW-UP above — it dispatches `clicked` as a
-NativeScript event and declares no signal, so `emit('clicked')` on it throws. The QUESTION is the
-first about a SIGNAL rather than a property: declaring `clicked` moves it to `connect` and the
-one-door rule then REFUSES `on('clicked')` / `addEventListener('clicked')`, which is the first
-migration that takes away a verb this repo's own callers really use — on the port's most-used
-widget. What to settle there: whether `tap` stays a NativeScript event beside a declared `clicked`
-(upstream has no `tap`, and a gesture is not a GSignal), and whether `activate()` emits. Still not
-`adw-button-content.ts` or `adw-combo-row.ts`: both want an OBJECT-typed property (`hostButton` is
-a `View`, `model`/`selected-item` are objects) and the seam has no ParamSpec kind for one.
+DONE (`widgets/gtk-button.ts`): `GtkButton` declares `clicked` (`Signals: { clicked: {} }`, no
+properties — their setters run `_fill`). A tap does `emit('clicked')`; `tap` stays the platform
+event (upstream has no `tap`, a gesture is not a GSignal). `on('clicked')`,
+`addEventListener('clicked')` and `notify({ eventName: 'clicked' })` are now refused. CONSUMER-VISIBLE:
+`GtkToggleButton` toggles through `connect('clicked')` before any user handler; the conformance
+`click` driver is gone and the five drivers call `emit('clicked')`. Specs: `gtk-button-clicked.spec.ts`
+(both legs), `specs/button.ts` (device). `AdwSplitButton` still dispatches `clicked` through
+`notify` — it is not a GtkButton; migrating it is a follow-up.
+
+MIGRATE NEXT: `widgets/adw-button-content.ts`. The QUESTION: `hostButton` is a `View`, an
+OBJECT-typed property, and the seam has no ParamSpec kind for one — what does `notify::host-button`
+carry, and does the equal-write rule compare by identity? Then `adw-combo-row.ts` (`model`,
+`selected-item` are objects too), then `adw-split-button.ts` (`clicked`).
 
 RESOLVED (owner, 2026-10-27): `emit('<undeclared>')` throws `No signal '<name>' on object '<class>'`,
 as in GJS, on both legs. `emit` is GObject's only; a NativeScript event goes through
-`notify({ eventName, object })`. FOLLOW-UP: the NS `GtkButton` still dispatches `clicked` as a
-NativeScript event and does not declare it, so `emit('clicked')` on it throws; declaring the signal
-is a route-D migration of its own.
+`notify({ eventName, object })`.
 
 CARRY THESE: `vfunc_*` does not work on a foreign-parent class, so a widget that needs one stays
 on the twin. A REFUSAL MAY NOT LIVE IN A `notify::` HANDLER: an exception thrown there is logged

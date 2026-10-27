@@ -21,9 +21,6 @@ const subject: GObjectSubject = {
     isOracle: false,
     GObject: GObject as unknown as GObjectSubject['GObject'],
     Widget: Adw.Bin as unknown as GObjectSubject['Widget'],
-    click: (button) => {
-        button.emit('clicked');
-    },
     template: (source) => source.tree,
     bind: (source, sourceProperty, target, targetProperty, flags) => {
         bindProperties(source, sourceProperty, target, targetProperty, flags);
