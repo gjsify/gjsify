@@ -50,9 +50,7 @@ export class ExpanderRowNsStory extends StoryView {
         this._row.title = this.args.title as string;
         this._row.subtitle = this.args.subtitle as string;
         this._row.expanded = this.args.expanded as boolean;
-        // `showEnableSwitch` has no NS equivalent on Adw.ExpanderRow (no header
-        // enable-switch in the widget set); the arg stays bound but is inert.
-        void (this.args.showEnableSwitch as boolean);
+        this._row.showEnableSwitch = this.args.showEnableSwitch as boolean;
     }
 }
 

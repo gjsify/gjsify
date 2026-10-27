@@ -67,10 +67,16 @@ export { AdwSpinRow, NOTIFY_VALUE, SpinState } from './adw-spin-row.js';
 export type { NotifyValueEventData, SpinStateChange, SpinStateListener } from './adw-spin-row.js';
 export { AdwSliderRow, NOTIFY_SLIDER_VALUE } from './adw-slider-row.js';
 export type { NotifySliderValueEventData } from './adw-slider-row.js';
-// AdwExpanderRow keeps the NS disclosure render; the expanded state machine
-// (ExpanderState) is headless (`@gjsify/adwaita-core`, ADR 0004), re-exported here.
-export { AdwExpanderRow, ExpanderState, NOTIFY_EXPANDED } from './adw-expander-row.js';
-export type { ExpanderStateListener, NotifyExpandedEventData } from './adw-expander-row.js';
+// AdwExpanderRow's three knobs are DECLARED GObject properties (ADR 0105 § 2, route D), so the
+// headless `ExpanderState` is no longer re-exported through here — it stays in
+// `@gjsify/adwaita-core` for the web and react-native surfaces, which still compose it.
+export {
+    AdwExpanderRow,
+    NOTIFY_EXPANDED,
+    NOTIFY_ENABLE_EXPANSION,
+    NOTIFY_SHOW_ENABLE_SWITCH,
+    NS_EXPANDER_ARROW_DISABLED_OPACITY,
+} from './adw-expander-row.js';
 export { GtkButton, GTK_BUTTON_CLICKED, GTK_BUTTON_LABEL_CLASS } from './gtk-button.js';
 export { buttonSlotAfterWrite, buttonSlotDetaches } from './button-slot.js';
 export type { ButtonSlot, ButtonSlotWrite } from './button-slot.js';

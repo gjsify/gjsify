@@ -53,14 +53,14 @@ const NS_WIDGETS = join(ROOT, 'packages/nativescript-bridge/adwaita/src/widgets'
 /**
  * Widgets that reveal nested content, and the receiver their toggle must NOT be on.
  *
- * `state.toggle()` is the call that flips a disclosure; the scan looks at which
+ * The write that flips a disclosure is the call this scans for; the scan looks at which
  * object the listener carrying it was registered on.
  */
 const GUARDED = [
     {
         file: 'adw-expander-row.ts',
-        /** The call that flips the disclosure. */
-        toggle: '_state.toggle()',
+        /** The write that flips the disclosure — the declared `expanded` property (ADR 0105 § 2, route D). */
+        toggle: 'this.expanded = !this.expanded',
         /** Receivers that are ancestors of the revealed content. */
         forbidden: ['this.addEventListener', 'disclosure.addEventListener', 'this._disclosure.addEventListener'],
     },

@@ -469,13 +469,34 @@ Page.adw-window {
  * a 32 tap target it never got. `color` and `font-size` were dead for the other
  * reason: it is an `Image` of a pre-coloured bitmap.
  *
- * The tap target is a separate matter, filed as #1155 — libadwaita toggles from
- * the HEADER ROW ("must be activatable to toggle expansion by clicking or
- * tapping anywhere on it", adw-expander-row.ui:25-27), and this port listens on
- * the chevron alone. */
+ * The tap target is NOT this rule's business either (#1155): the row listens on the
+ * title/subtitle stack as well as the chevron, which is how libadwaita's activatable
+ * header row reads ("tapping anywhere on it", adw-expander-row.ui:25-27). The
+ * chevron's own 16 is upstream's minimum and stays it.
+ *
+ * `opacity` here is the RESTING 70%; the chevron's second opacity — the disabled
+ * 50% of `sensitive` — is assigned by the widget, because the NS CSS subset has no
+ * widget states to select on (`NS_EXPANDER_ARROW_DISABLED_OPACITY`). NS multiplies
+ * neither: a local `opacity` write wins over this one outright. */
 .adw-expander-toggle {
     opacity: 0.7;
     margin: 0;
+}
+
+/* The trailing cluster, in the `.ui`'s order: the suffixes box, the enable switch,
+ * the chevron. `> .suffixes { border-spacing: 6px }` (_lists.scss:155-161) is the 6
+ * between them — a `StackLayout` has no spacing, so it is a leading margin on each
+ * part instead. The suffixes BOX carries none of its own: it collapses while empty
+ * (`adw_expander_row_add_suffix` is what makes it visible), and a margin on a
+ * collapsed view would still be a gap. */
+.adw-expander-row-cluster {
+    vertical-align: center;
+}
+
+.adw-expander-row-cluster .adw-switch,
+.adw-expander-row-cluster .adw-expander-toggle,
+.adw-expander-row-suffixes .adw-row-suffix {
+    margin: 0 0 0 6;
 }
 
 .adw-expander-disclosure {

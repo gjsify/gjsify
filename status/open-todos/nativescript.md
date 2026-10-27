@@ -164,13 +164,63 @@ still describe that setter. The pin was left alone.
 1746 tests / 4764 assertions (node and gjs), 859 / 2368 trees; device: emulator API 36 and a
 Galaxy S9, 194 real-gio and 100 pure-JS cases each, `specs/rows.ts`.
 
-MIGRATE NEXT: `widgets/adw-expander-row.ts`, which `extends AdwActionRow` plainly today with an
-`expanded` get/set and an `add_row(child)` list. The QUESTION it raises is the first one about a
-property that owns a SUBTREE rather than a view's attribute: `expanded` reveals and collapses
-child rows, and upstream pairs it with `enable-expansion` and `show-enable-switch`, where one
-property gates another's effect. Not `adw-button-content.ts` or `adw-combo-row.ts` yet: both want
-an OBJECT-typed property (`hostButton` is a `View`, `model`/`selected-item` are objects) and the
-seam has no ParamSpec kind for one.
+`widgets/adw-expander-row.ts` is the SIXTH, the first property that owns a SUBTREE, and the first
+PAIR that gate each other: three declared (`expanded`, `enable-expansion`, `show-enable-switch`),
+no new signal.
+
+THE SUBTREE COST THE SEAM NOTHING, which is the answer: `expanded` owns no structure. The rows a
+consumer added with `add_row` stay children of the disclosure either way and the reveal is that
+view's `visibility`, exactly as a revealer's hidden child stays its child — so the property is a
+view attribute after all, one level down. Nothing in the seam had to learn about children.
+
+THE GATE IS TWO NORMALIZERS, NOT TWO HANDLERS, and that is where the work was. libadwaita's order
+is not incidental: `adw_expander_row_set_enable_expansion` cross-writes `expanded` and notifies
+ITSELF afterwards (C:303-312), so `notify::expanded` always precedes `notify::enable-expansion` on
+one assignment. Doing the collapse from a `notify::enable-expansion` handler instead renders
+identically and emits in the opposite order forever — so the cross-write lives in
+`enable-expansion`'s `normalize`, which sets a private `_expansionGate` to the in-flight value
+(the property is not stored yet when it cross-writes), writes `row.expanded`, and clears the gate
+in a `finally`. `expanded`'s `normalize` then returns `next && (gate ?? enableExpansion)`, which is
+C:264's coercion BEFORE the equal-return: a write of `true` while expansion is off becomes a write
+of `false` over a stored `false` and emits nothing. One rule, not two that can disagree — the tap
+handlers are ungated for the same reason, as `activate_cb` is (C:94-98).
+
+A HOLE WORTH KNOWING, measured on the device: a silently coerced write leaves a `GBinding` peer
+out of step. A binding only propagates on a notify and the coercion emits none, so a peer that
+writes `expanded = true` while expansion is off keeps `true` while the row stays `false`, until
+something notifies again. libadwaita's binding has the same hole for the same reason; a consumer
+that needs the peer corrected drives `enable-expansion`. `show-enable-switch` gates nothing
+logically — hiding the switch does not re-enable expansion — it only reveals the one affordance
+that writes `enable-expansion` (`.ui:50-52`).
+
+THE SINGLE SUFFIX SLOT had to hold three things, so the row installs ONE horizontal cluster
+(`.adw-expander-row-cluster`) through the inherited `super.add_suffix` once, holding a suffix box,
+the enable switch and the chevron. `add_suffix` PREPENDS into that box (C:449 is `gtk_box_prepend`)
+and the box starts collapsed and re-collapses when it empties, so an expander with no suffix shows
+no gap. NO node-gi CHANGE was needed: route D's equal-write guard is already in `gi.js:3184-3196`.
+
+Two new gates: `check-nativescript-disclosure-toggles.mjs` (a disclosure toggle is HEADER-scoped —
+never on the row, never on the revealed container, or a touch anywhere inside collapses it) and
+`check-nativescript-widget-coverage.mjs`.
+
+CONSUMER-VISIBLE: `ExpanderState` is no longer re-exported from the NS widget or its barrels (it
+stays in `@gjsify/adwaita-core`); `NotifyExpandedEventData` and `ExpanderStateListener` are
+deleted — the three `notify::` names reach GObject through `connect` and the value comes off the
+emitter; `expanded="maybe"` throws where `expanded="true"` takes; and `suffix` now answers the
+newest child of the suffix box rather than a single evictable slot.
+
+1751 tests / 4778 assertions (node and gjs), 885 / 2462 trees; device: emulator API 36 and a
+Galaxy S9, 212 real-gio and 112 pure-JS cases each, `specs/rows.ts`.
+
+MIGRATE NEXT: `widgets/gtk-button.ts`, the FOLLOW-UP above — it dispatches `clicked` as a
+NativeScript event and declares no signal, so `emit('clicked')` on it throws. The QUESTION is the
+first about a SIGNAL rather than a property: declaring `clicked` moves it to `connect` and the
+one-door rule then REFUSES `on('clicked')` / `addEventListener('clicked')`, which is the first
+migration that takes away a verb this repo's own callers really use — on the port's most-used
+widget. What to settle there: whether `tap` stays a NativeScript event beside a declared `clicked`
+(upstream has no `tap`, and a gesture is not a GSignal), and whether `activate()` emits. Still not
+`adw-button-content.ts` or `adw-combo-row.ts`: both want an OBJECT-typed property (`hostButton` is
+a `View`, `model`/`selected-item` are objects) and the seam has no ParamSpec kind for one.
 
 RESOLVED (owner, 2026-10-27): `emit('<undeclared>')` throws `No signal '<name>' on object '<class>'`,
 as in GJS, on both legs. `emit` is GObject's only; a NativeScript event goes through

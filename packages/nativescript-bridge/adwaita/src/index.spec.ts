@@ -84,7 +84,7 @@ import {
 } from '@gjsify/adwaita-core';
 import type { ToastScheduler, ToastTimerHandle } from '@gjsify/adwaita-core';
 // Same for the row interaction state machines, specced in the core's `rows.spec.ts`.
-import { ComboState, ExpanderState, SpinState, ToggleGroupState, parseAdjustment } from '@gjsify/adwaita-core';
+import { ComboState, SpinState, ToggleGroupState, parseAdjustment } from '@gjsify/adwaita-core';
 
 // The XML-registration helper's own module is import-safe, but it lives in the widgets
 // barrel, which DOES pull the classes — so its absent-global no-op contract is
@@ -655,19 +655,9 @@ export default async () => {
         });
     });
 
-    await describe('AdwExpanderRow disclosure (core ExpanderState re-export)', async () => {
-        // The toggle/idempotence matrix is specced in @gjsify/adwaita-core; this pins the
-        // surface the NS `AdwExpanderRow` composes to drive `visibility` + the chevron.
-        await it('toggles expanded idempotently', () => {
-            const state = new ExpanderState();
-            expect(state.expanded).toBe(false);
-            expect(state.toggle()).toBe(true);
-            expect(state.expanded).toBe(true);
-            expect(state.setExpanded(true)).toBe(false); // idempotent
-            expect(state.collapse()).toBe(true);
-            expect(state.expanded).toBe(false);
-        });
-    });
+    // No `AdwExpanderRow` block here any more: its three knobs are declared GObject properties,
+    // so what used to be a re-export check is now a REGISTRATION check and lives on the trees
+    // entry, which can evaluate `@nativescript/core` — `src/expander-row-properties.spec.ts`.
 
     // The REAL derivation, not a mirror: the vectors are the same table
     // `@gjsify/adwaita-web` asserts against, so a divergence between the two renderers —

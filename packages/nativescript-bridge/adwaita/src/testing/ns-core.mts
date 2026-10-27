@@ -532,6 +532,10 @@ export class LayoutBase extends View {
         return this.#children[index];
     }
 
+    getChildIndex(child: View): number {
+        return this.#children.indexOf(child);
+    }
+
     getChildrenCount(): number {
         return this.#children.length;
     }
