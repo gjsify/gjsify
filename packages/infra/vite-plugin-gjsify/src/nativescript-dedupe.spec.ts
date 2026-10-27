@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@gjsify/unit';
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -40,6 +40,29 @@ export default async () => {
                 const app = join(root, 'packages', 'app');
                 mkdirSync(join(app, 'node_modules', '@gjsify', 'cli'), { recursive: true });
                 expect(installedGjsifyPackages(app).join()).toBe('@gjsify/adwaita-core,@gjsify/cli');
+            });
+        });
+
+        await it('lists workspace-linked packages, scoped and unscoped, but not regular installs', () => {
+            withTmp((root) => {
+                const modules = join(root, 'node_modules');
+                mkdirSync(join(root, 'packages', 'common-ui'), { recursive: true });
+                mkdirSync(join(root, 'packages', 'tool'), { recursive: true });
+                mkdirSync(join(modules, '@learn6502'), { recursive: true });
+                symlinkSync(join(root, 'packages', 'common-ui'), join(modules, '@learn6502', 'common-ui'), 'dir');
+                symlinkSync(join(root, 'packages', 'tool'), join(modules, 'tool'), 'dir');
+                mkdirSync(join(modules, '@types', 'node'), { recursive: true });
+                mkdirSync(join(modules, 'lodash'), { recursive: true });
+                expect(installedGjsifyPackages(root).join()).toBe('@learn6502/common-ui,tool');
+            });
+        });
+
+        await it('does not list a link that points into another node_modules', () => {
+            withTmp((root) => {
+                mkdirSync(join(root, 'store', 'node_modules', 'dep'), { recursive: true });
+                mkdirSync(join(root, 'node_modules'), { recursive: true });
+                symlinkSync(join(root, 'store', 'node_modules', 'dep'), join(root, 'node_modules', 'dep'), 'dir');
+                expect(installedGjsifyPackages(root).includes('dep')).toBe(false);
             });
         });
 
