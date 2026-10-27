@@ -77,6 +77,36 @@ export class WindowMemberState<TWidget> {
     }
 }
 
+/** The `Gtk.Window` size properties, in the order GTK notifies them. */
+export type DefaultSizeProperty = 'default-height' | 'default-width';
+
+/** What `gtk_window_set_default_size` does with one call. */
+export interface DefaultSizeStep {
+    readonly width: number;
+    readonly height: number;
+    /** The properties that moved, in notification order: height BEFORE width. */
+    readonly changed: readonly DefaultSizeProperty[];
+}
+
+/**
+ * `gtk_window_set_default_size` (gtkwindow.c:5030, `gtk_window_set_default_size_internal`): `-1`
+ * and `0` both mean "no size asked", anything below `-1` is a `g_return_if_fail` — a CRITICAL and no
+ * change — and a write that equals the held value does not notify. When both move, `default-height`
+ * notifies first. Answers `null` for a refused call, else the sizes to hold and what to notify; the
+ * port stores the sizes and fires the notifications.
+ */
+export function stepDefaultSize(
+    current: readonly [number, number],
+    width: number,
+    height: number,
+): DefaultSizeStep | null {
+    if (!Number.isInteger(width) || !Number.isInteger(height) || width < -1 || height < -1) return null;
+    const changed: DefaultSizeProperty[] = [];
+    if (height !== current[1]) changed.push('default-height');
+    if (width !== current[0]) changed.push('default-width');
+    return { width, height, changed };
+}
+
 /**
  * `_gtk_boolean_handled_accumulator` for `close-request`: the first handler to return something
  * truthy has handled the signal and STOPS the emission — the remaining handlers and the class
@@ -185,6 +215,9 @@ export interface WindowCommon<TWidget = unknown> {
     is_maximized(): boolean;
     maximize(): void;
     unmaximize(): void;
+    /** `Gtk.Window:default-width` / `default-height`; `[0, 0]` until one is set. */
+    get_default_size(): [number, number];
+    set_default_size(width: number, height: number): void;
     present(): void;
     /**
      * `Gtk.Window:application`; writing it is `set_application`, which adds the window to the

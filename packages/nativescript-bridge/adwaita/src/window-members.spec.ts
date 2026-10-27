@@ -462,6 +462,22 @@ export const GtkWindowMembersNsTest = async () => {
             expect(window.maximized).toBe(true);
         });
 
+        await it('get_default_size/set_default_size follow GTK: height notifies first, equal writes are silent', () => {
+            const window = new Gtk.Window();
+            const log: string[] = [];
+            window.connect('notify::default-width', () => void log.push('width'));
+            window.connect('notify::default-height', () => void log.push('height'));
+            expect(JSON.stringify(window.get_default_size())).toBe('[0,0]');
+            window.set_default_size(300, 200);
+            window.set_default_size(300, 200);
+            window.set_default_size(-2, 5);
+            expect(JSON.stringify(log)).toBe('["height","width"]');
+            expect(JSON.stringify(window.get_default_size())).toBe('[300,200]');
+            expect(window.defaultWidth).toBe(300);
+            window.set_default_size(-1, 200);
+            expect(JSON.stringify(window.get_default_size())).toBe('[-1,200]');
+        });
+
         await it('get_focus/set_focus walk the tree and take descendants only', () => {
             const host = fakeHost(true);
             useWindowHost(host);

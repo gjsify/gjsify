@@ -1143,10 +1143,12 @@ export {
     dispatchAccelerator,
     isValidApplicationId,
 } from './application.js';
-export { CloseRequestState, HandledAccumulator, WindowMemberState } from './window-members.js';
+export { CloseRequestState, HandledAccumulator, WindowMemberState, stepDefaultSize } from './window-members.js';
 export type {
     CloseOutcome,
     CloseRequestSteps,
+    DefaultSizeProperty,
+    DefaultSizeStep,
     WindowCommon,
     WindowMemberInit,
     WindowMemberProperty,

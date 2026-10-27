@@ -96,7 +96,7 @@
 // Copyright (c) The GTK Team. LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
-import { CloseRequestState, WindowMemberState, type WindowMemberProperty } from '@gjsify/adwaita-core';
+import { CloseRequestState, WindowMemberState, stepDefaultSize, type WindowMemberProperty } from '@gjsify/adwaita-core';
 
 import { defineWindowApplication, type GtkApplication } from '../application.js';
 import { installElementApi } from '../gobject-elements.js';
@@ -611,6 +611,27 @@ export class GtkWindow extends WidgetElement {
         // `focus()` fires no focusin while the document itself is unfocused, so report what the
         // document now says; an equal write is dropped by the state.
         this._members.reportFocus(this.get_focus());
+    }
+
+    /** `gtk_window_get_default_size`: `[width, height]`, `[0, 0]` while neither attribute is set. */
+    get_default_size(): [number, number] {
+        const read = (name: string): number => {
+            const value = Number.parseInt(this.getAttribute(name) ?? '', 10);
+            return Number.isFinite(value) ? value : 0;
+        };
+        return [read('default-width'), read('default-height')];
+    }
+
+    /**
+     * `gtk_window_set_default_size`: a value below -1 is refused (GTK's `g_return_if_fail`), an
+     * equal one does not notify, and `default-height` notifies before `default-width`.
+     */
+    set_default_size(width: number, height: number): void {
+        const step = stepDefaultSize(this.get_default_size(), width, height);
+        if (step === null) return;
+        for (const property of step.changed) {
+            this._write(property, String(property === 'default-width' ? step.width : step.height));
+        }
     }
 
     /** `gtk_window_is_maximized`: the FRAME's state, not the browser window's. */

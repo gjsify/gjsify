@@ -13,7 +13,14 @@
 
 import type { ConstructHarness } from './constructs.js';
 
-export const WINDOW_ROWS = ['close-request', 'close', 'hide-on-close', 'maximized', 'focus-widget'] as const;
+export const WINDOW_ROWS = [
+    'close-request',
+    'close',
+    'hide-on-close',
+    'maximized',
+    'default-size',
+    'focus-widget',
+] as const;
 export type WindowRow = (typeof WINDOW_ROWS)[number];
 
 type Handler = (...args: unknown[]) => unknown;
@@ -43,6 +50,8 @@ export interface WindowSubject {
     maximize(window: object): void;
     unmaximize(window: object): void;
     isMaximized(window: object): boolean;
+    getDefaultSize(window: object): [number, number];
+    setDefaultSize(window: object, width: number, height: number): void;
     isVisible(window: object): boolean;
     /** Two widgets inside `window` that can take focus. */
     focusables(window: object): [object, object];
@@ -152,6 +161,25 @@ export const WINDOW_VECTORS: readonly WindowVector[] = [
             return { after, undone: { maximized: s.isMaximized(win), notified } };
         },
         shows: { after: { maximized: true, notified: 1 }, undone: { maximized: false, notified: 2 } },
+    },
+    {
+        row: 'default-size',
+        rule:
+            'get_default_size() starts at [0, 0]; set_default_size notifies default-height BEFORE default-width, ' +
+            'and only for the property that moved',
+        observe(s) {
+            const win = s.create({});
+            const log: string[] = [];
+            s.connect(win, 'notify::default-width', () => void log.push('width'));
+            s.connect(win, 'notify::default-height', () => void log.push('height'));
+            const initial = s.getDefaultSize(win);
+            s.setDefaultSize(win, 300, 200);
+            const first = [...log];
+            s.setDefaultSize(win, 300, 200);
+            s.setDefaultSize(win, 400, 200);
+            return { initial, first, log, size: s.getDefaultSize(win) };
+        },
+        shows: { initial: [0, 0], first: ['height', 'width'], log: ['height', 'width', 'width'], size: [400, 200] },
     },
     {
         row: 'focus-widget',
