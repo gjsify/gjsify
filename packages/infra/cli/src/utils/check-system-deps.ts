@@ -270,6 +270,7 @@ interface OptionalDep {
 /** Optional system deps keyed by their DepCheck id. Exported for the spec's declaration invariant. */
 export const OPTIONAL_DEPS: Record<string, OptionalDep> = {
     manette: { id: 'manette', name: 'libmanette', pkgName: 'manette-0.2' },
+    spiel: { id: 'spiel', name: 'libspiel', pkgName: 'spiel-1.0' },
     gstreamer: { id: 'gstreamer', name: 'GStreamer', pkgName: 'gstreamer-1.0' },
     'gst-app': { id: 'gst-app', name: 'GStreamer App', pkgName: 'gstreamer-app-1.0' },
     'gdk-pixbuf': { id: 'gdk-pixbuf', name: 'GdkPixbuf', pkgName: 'gdk-pixbuf-2.0' },
@@ -353,6 +354,7 @@ export function missingSystemDepsFor(packageName: string): DepCheck[] {
  */
 export const PACKAGE_DEPS: Record<string, string[]> = {
     '@gjsify/gamepad': ['manette'],
+    '@gjsify/speech-synthesis': ['spiel'],
     '@gjsify/webaudio': ['gstreamer', 'gst-app'],
     '@gjsify/iframe': ['webkitgtk'],
     '@gjsify/canvas2d': ['gdk-pixbuf', 'pango', 'pangocairo', 'cairo'],

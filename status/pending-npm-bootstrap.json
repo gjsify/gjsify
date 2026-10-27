@@ -6,6 +6,7 @@
     "pending": {
         "@gjsify/spiel-native-linux-x64": "New in #2395. Maintainer action before the next release: `gjsify publish packages/web/spiel-native-linux-x64 --access public --otp <code>` then `gjsify trust @gjsify/spiel-native-linux-x64`. TARGET before BRIDGE — the bridge pins it as an optionalDependency.",
         "@gjsify/spiel-native-linux-arm64": "New in #2395. Maintainer action before the next release: `gjsify publish packages/web/spiel-native-linux-arm64 --access public --otp <code>` then `gjsify trust @gjsify/spiel-native-linux-arm64`. TARGET before BRIDGE — the bridge pins it as an optionalDependency.",
-        "@gjsify/spiel-native": "New in #2395. Maintainer action before the next release, AFTER both per-target names above exist: `gjsify publish packages/web/spiel-native --access public --otp <code>` then `gjsify trust @gjsify/spiel-native`."
+        "@gjsify/spiel-native": "New in #2395. Maintainer action before the next release, AFTER both per-target names above exist: `gjsify publish packages/web/spiel-native --access public --otp <code>` then `gjsify trust @gjsify/spiel-native`.",
+        "@gjsify/speech-synthesis": "New in #2394. Maintainer action before the next release, AFTER @gjsify/spiel-native exists (it is a dependency): `gjsify publish packages/web/speech-synthesis --access public --otp <code>` then `gjsify trust @gjsify/speech-synthesis`."
     }
 }
