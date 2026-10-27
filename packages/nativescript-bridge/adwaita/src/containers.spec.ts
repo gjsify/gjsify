@@ -362,6 +362,29 @@ export const AdwContainersNsTest = async () => {
                 expect(scrollOf(window).content instanceof ContentView).toBe(true);
             }
         });
+
+        await it('hands out one observable adjustment per axis that follows the scroll offset', () => {
+            const window = new Gtk.ScrolledWindow();
+            const adjustment = window.get_vadjustment();
+            expect(window.get_vadjustment() === adjustment).toBe(true);
+            const seen: number[] = [];
+            const id = adjustment.connect('value-changed', () => seen.push(adjustment.get_value()));
+            expect(typeof id).toBe('number');
+
+            const scroll = scrollOf(window);
+            scroll.verticalOffset = 0;
+            scroll.notify({ eventName: 'scroll', object: scroll });
+            expect(seen.length).toBe(0);
+            adjustment.disconnect(id);
+        });
+
+        await it('scrolls the ScrollView when the adjustment value is written', () => {
+            const window = new Gtk.ScrolledWindow();
+            const adjustment = window.get_vadjustment();
+            adjustment.configure(0, 0, 500, 1, 10, 100);
+            adjustment.set_value(40);
+            expect(scrollOf(window).verticalOffset).toBe(40);
+        });
     });
 
     await describe('Gtk.Window', async () => {
