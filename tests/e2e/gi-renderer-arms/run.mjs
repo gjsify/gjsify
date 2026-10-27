@@ -53,12 +53,30 @@ const ARMS = [
     {
         app: 'browser',
         renderer: '@gjsify/adwaita-web',
-        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0', Gdk: '4.0', Graphene: '1.0', GtkSource: '5' },
+        namespaces: {
+            Adw: '1',
+            Gtk: '4.0',
+            GObject: '2.0',
+            Gio: '2.0',
+            GLib: '2.0',
+            Gdk: '4.0',
+            Graphene: '1.0',
+            GtkSource: '5',
+        },
     },
     {
         app: 'nativescript',
         renderer: '@gjsify/adwaita-nativescript',
-        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0', Gdk: '4.0', Graphene: '1.0', GtkSource: '5' },
+        namespaces: {
+            Adw: '1',
+            Gtk: '4.0',
+            GObject: '2.0',
+            Gio: '2.0',
+            GLib: '2.0',
+            Gdk: '4.0',
+            Graphene: '1.0',
+            GtkSource: '5',
+        },
     },
 ];
 
