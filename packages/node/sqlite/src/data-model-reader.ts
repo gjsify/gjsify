@@ -45,43 +45,49 @@ interface BinaryLike {
 }
 
 const BACKSLASH = 0x5c;
+const ZERO = 0x30;
 
-/** The byte an octal escape starting at `start` denotes, or -1 if there is none. */
-function octalEscapeAt(text: string, start: number): number {
-    let value = 0;
-    for (let i = start; i < start + 3; i++) {
-        const digit = text.charCodeAt(i) - 0x30;
-        if (!(digit >= 0 && digit <= 7)) return -1;
-        value = value * 8 + digit;
-    }
-    return value > 0xff ? -1 : value;
-}
-
-function decodeBinaryString(text: string): Uint8Array {
-    const bytes = new Uint8Array(text.length);
+/**
+ * Decodes `gda_binary_to_string()` output straight into a buffer of the known size: one pass, no
+ * slicing, the escape digits read inline. This loop runs once per byte of every BLOB read, so it
+ * dominates a large `SELECT` of BLOBs (gjsify#2415).
+ */
+function decodeBinaryString(text: string, size: number): Uint8Array {
+    const bytes = new Uint8Array(size);
+    const length = text.length;
     let n = 0;
-    for (let i = 0; i < text.length; i++) {
+    let i = 0;
+    while (i < length) {
+        if (n >= size) {
+            throw new SqliteError(`BLOB decoded to more than ${size} bytes`);
+        }
         const code = text.charCodeAt(i);
         if (code !== BACKSLASH) {
             if (code > 0x7f) {
                 throw new SqliteError(`BLOB holds a non-ASCII character at offset ${i}`);
             }
             bytes[n++] = code;
-            continue;
-        }
-        if (text.charCodeAt(i + 1) === BACKSLASH) {
-            bytes[n++] = BACKSLASH;
             i += 1;
             continue;
         }
-        const escaped = octalEscapeAt(text, i + 1);
-        if (escaped < 0) {
+        const a = text.charCodeAt(i + 1) - ZERO;
+        if (a === BACKSLASH - ZERO) {
+            bytes[n++] = BACKSLASH;
+            i += 2;
+            continue;
+        }
+        const b = text.charCodeAt(i + 2) - ZERO;
+        const c = text.charCodeAt(i + 3) - ZERO;
+        if (!(a >= 0 && a <= 3 && b >= 0 && b <= 7 && c >= 0 && c <= 7)) {
             throw new SqliteError(`BLOB holds an unknown escape at offset ${i}`);
         }
-        bytes[n++] = escaped;
-        i += 3;
+        bytes[n++] = (a << 6) | (b << 3) | c;
+        i += 4;
     }
-    return bytes.slice(0, n);
+    if (n !== size) {
+        throw new SqliteError(`BLOB decoded to ${n} bytes, expected ${size}`);
+    }
+    return bytes;
 }
 
 /**
@@ -101,12 +107,7 @@ function decodeBinaryString(text: string): Uint8Array {
  * is held against `get_size()`.
  */
 function readBinary(binary: BinaryLike): Uint8Array {
-    const size = binary.get_size();
-    const bytes = decodeBinaryString(binary.to_string(0));
-    if (bytes.length !== size) {
-        throw new SqliteError(`BLOB decoded to ${bytes.length} bytes, expected ${size}`);
-    }
-    return bytes;
+    return decodeBinaryString(binary.to_string(0), binary.get_size());
 }
 
 function convertValue(value: unknown, readBigInts: boolean, isText = false): unknown {
