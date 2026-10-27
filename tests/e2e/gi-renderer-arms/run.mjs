@@ -53,12 +53,12 @@ const ARMS = [
     {
         app: 'browser',
         renderer: '@gjsify/adwaita-web',
-        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0', Gdk: '4.0', GtkSource: '5' },
+        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0', Gdk: '4.0', Graphene: '1.0', GtkSource: '5' },
     },
     {
         app: 'nativescript',
         renderer: '@gjsify/adwaita-nativescript',
-        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0', Gdk: '4.0', GtkSource: '5' },
+        namespaces: { Adw: '1', Gtk: '4.0', GObject: '2.0', Gio: '2.0', GLib: '2.0', Gdk: '4.0', Graphene: '1.0', GtkSource: '5' },
     },
 ];
 
@@ -271,6 +271,16 @@ describe('gjsify build --gi-renderer: the gi:// arms', { timeout: 15 * 60 * 1000
                 offersString: true,
                 refusesTexture: true,
             });
+        });
+
+        it(`--app ${app} --gi-renderer answers gi://Graphene?version=1.0 with a Point`, () => {
+            const built = build('graphene-point.ts', app, { name: 'graphene-point' });
+            assert.equal(built.status, 0, `build failed\n${built.output}`);
+            const report = evaluate(built.outFile, app, 'application');
+            assert.equal(report.error, null, `bundle failed to evaluate: ${report.error}`);
+            assert.equal(report.kind, 'function', 'Graphene.Point.zero is not a function');
+            assert.equal(report.applicationError, undefined, `the run failed: ${report.applicationError}`);
+            assert.deepEqual(report.application, { zero: [0, 0], made: [3, -4], refusesRect: true });
         });
 
         it(`--app ${app} --gi-renderer opens, reads and saves through Gtk.FileDialog`, () => {
