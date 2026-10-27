@@ -136,7 +136,7 @@ the TODO records the *what's left*.
 | [0114](0114-edition-badges.md) | Edition badges: open source for every build, purchased on top for store builds | Accepted |
 | [0115](0115-web-full-colour-icons.md) | Full-colour icons on the web: one lookup in GThemedIcon order, a separate door (amended) | Proposed |
 | [0116](0116-app-gresources-are-embedded-at-build-time-for-web-and-nativescript.md) | An app's GResources are embedded at build time, and a Gio subset answers them on the web and NativeScript | Accepted |
-| [0117](0117-android-gi-namespaces-are-selected-at-build-time.md) | Which GI namespaces enter an Android APK is selected at build time | Proposed |
+| [0117](0117-android-gi-namespaces-are-selected-at-build-time.md) | Which GI namespaces enter an Android APK is selected at build time | Accepted |
 | [0118](0118-a-glib-variant-subset-runs-on-the-browser-and-nativescript.md) | A `GLib.Variant` subset runs on the browser and NativeScript, and `Gio.Settings` stores arrays with it | Accepted |
 | [0119](0119-gtk-css-from-a-css-provider-applies-on-the-web.md) | GTK CSS loaded through `Gtk.CssProvider` applies on the web, translated through one node table per widget | Accepted |
 | [0120](0120-a-developer-page-and-a-blog.md) | `@gjsify/site` renders a developer page and a blog, from files the developer already keeps | Accepted |

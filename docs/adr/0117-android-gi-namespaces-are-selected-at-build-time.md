@@ -1,6 +1,6 @@
 # 117. Which GI namespaces enter an Android APK is selected at build time
 
-- Status: **Proposed**
+- Status: **Accepted** (2026-10-27)
 - Date: 2026-10-16
 - Deciders: Pascal Garber
 - Related: [ADR 0104](0104-real-gtk-and-gi-on-android-are-opt-in-tracks-beside-the-nativescript-port.md)
@@ -441,4 +441,4 @@ hand-build tree, and the manifest's `tag`/`buildRoot`/`ndkRoot`.
 The workflow uploads a workflow artifact and never creates or edits a release. Releases stay
 manual by choice: the owner's OK per release still applies. Open items live in
 android-sysroot: the pango/freetype2 wraps still float, and a GIR race is worked around. The
-decision above is unchanged and the status stays Proposed.
+decision above is unchanged; the status was still Proposed at that point.
