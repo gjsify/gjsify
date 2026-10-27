@@ -44,8 +44,27 @@ let beforeForce: AdwColorScheme | null = null;
 // through these listeners; the host reports it as `changed(null)`.
 const appearanceListeners = new Set<() => void>();
 
+// libadwaita repaints its stylesheet when the system accent changes; apps never do. The platform half
+// registers the one that can (`Application.addCss`), the pure half calls it on every accent change.
+let paintAccent: ((accent: AdwAccentColorName) => void) | null = null;
+let painted: AdwAccentColorName | null = null;
+
+export function setAccentPainter(next: ((accent: AdwAccentColorName) => void) | null): void {
+    paintAccent = next;
+    painted = null;
+    repaint();
+}
+
+function repaint(): void {
+    const accent = system?.accentColor?.() ?? null;
+    if (accent === null || accent === painted || paintAccent === null) return;
+    painted = accent;
+    paintAccent(accent);
+}
+
 function follow(scheme: AdwColorScheme | null): void {
     if (!forced && scheme !== null) setAdwaitaColorScheme(scheme);
+    repaint();
     for (const listener of Array.from(appearanceListeners)) listener();
 }
 

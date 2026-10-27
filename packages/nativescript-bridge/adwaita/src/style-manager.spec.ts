@@ -5,7 +5,7 @@ import { STYLE_MANAGER_VECTORS, driveStyleManagerVectors, type AdwStyleLike } fr
 import { AccentColor, ColorScheme, setAdwaitaColorScheme, type AdwColorScheme } from '@gjsify/adwaita-core';
 import { describe, expect, it } from '@gjsify/unit';
 
-import { AdwStyleManager, setSystemAppearance } from './widgets/style-manager.js';
+import { AdwStyleManager, setAccentPainter, setSystemAppearance } from './widgets/style-manager.js';
 
 // `namespace/adw.ts` pulls in `@nativescript/core`, which a Node run has not got; the namespace only
 // re-exports this class as `StyleManager` (the e2e `gi://Adw` arm holds that line).
@@ -90,6 +90,27 @@ export default async () => {
                 expect(seen.join(',')).toBe('hc,accent');
                 changed?.(null);
                 expect(seen.length).toBe(2);
+            });
+
+            await it('repaints the stylesheet itself when the system accent changes', () => {
+                let accent: 'blue' | 'orange' | null = 'blue';
+                setSystemAppearance({
+                    current: () => now,
+                    subscribe(next) {
+                        changed = next;
+                        return () => (changed = null);
+                    },
+                    accentColor: () => accent,
+                });
+                const painted: string[] = [];
+                setAccentPainter((value) => void painted.push(value));
+                changed?.(null);
+                expect(painted.join(',')).toBe('blue');
+                accent = 'orange';
+                changed?.(null);
+                changed?.(null);
+                expect(painted.join(',')).toBe('blue,orange');
+                setAccentPainter(null);
             });
 
             await it('stops following once the system is taken away', () => {

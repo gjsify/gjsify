@@ -7,7 +7,8 @@
 import { Application } from '@nativescript/core';
 import { nearestAccent, type AdwAccentColorName, type AdwColorScheme } from '@gjsify/adwaita-core';
 
-import { AdwStyleManager, setSystemAppearance } from './style-manager.js';
+import { applyAdwaitaNsAccent } from './adw-accent.js';
+import { AdwStyleManager, setAccentPainter, setSystemAppearance } from './style-manager.js';
 
 function asScheme(value: unknown): AdwColorScheme | null {
     return value === 'dark' || value === 'light' ? value : null;
@@ -77,5 +78,7 @@ setSystemAppearance({
         };
     },
 });
+
+setAccentPainter(applyAdwaitaNsAccent);
 
 export { AdwStyleManager };
