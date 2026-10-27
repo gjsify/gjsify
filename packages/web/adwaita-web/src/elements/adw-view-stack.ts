@@ -213,6 +213,56 @@ export class AdwViewStack extends WidgetElement {
         return this.add(content, name, title);
     }
 
+    /** `adw_view_stack_add_titled`. */
+    add_titled(child: HTMLElement, name: string, title: string): AdwViewStackPageInfo {
+        return this.add(child, name, title);
+    }
+
+    /** `adw_view_stack_add_named`. */
+    add_named(child: HTMLElement, name: string | null): AdwViewStackPageInfo {
+        return this.add(child, name ?? '');
+    }
+
+    /** `adw_view_stack_add_titled_with_icon`: the same four values as {@link add}, in the same order. */
+    add_titled_with_icon(child: HTMLElement, name: string, title: string, iconName: string): AdwViewStackPageInfo {
+        return this.add(child, name, title, iconName);
+    }
+
+    /**
+     * `adw_view_stack_remove` takes the CHILD. With no argument this is still
+     * `ChildNode.remove()` — the element leaves its parent — because the GIR name and the
+     * DOM name share one spelling here.
+     */
+    override remove(child?: HTMLElement): void {
+        if (child === undefined) {
+            super.remove();
+            return;
+        }
+        const page = this._state.pages.find((held) => held.content === child);
+        if (page) this.removePage(page.name);
+    }
+
+    /** `adw_view_stack_get_visible_child_name`. */
+    get_visible_child_name(): string | null {
+        return this._state.visibleIndex < 0 ? null : this._state.visibleName;
+    }
+
+    /** `adw_view_stack_set_visible_child_name`. */
+    set_visible_child_name(name: string): void {
+        this._state.setVisibleName(name);
+    }
+
+    /** `adw_view_stack_get_visible_child`. */
+    get_visible_child(): HTMLElement | null {
+        return this.visibleChild;
+    }
+
+    /** `adw_view_stack_set_visible_child`; a child that is not a page of this stack selects nothing. */
+    set_visible_child(child: HTMLElement): void {
+        const at = this._state.pages.findIndex((page) => page.content === child);
+        if (at !== -1) this._state.setVisibleIndex(at);
+    }
+
     /**
      * Remove the first page named `name` and detach its content. Returns whether
      * anything was removed. When the removed page was the visible one the stack

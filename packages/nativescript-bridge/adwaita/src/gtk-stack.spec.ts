@@ -195,6 +195,20 @@ export const GtkStackNsTest = async () => {
             );
         });
     });
+
+    await describe('Gtk.Stack GIR accessors', async () => {
+        await it('get/set_visible_child(_name) mirror the properties', () => {
+            const stack = new Gtk.Stack();
+            const [one, two] = [label(), label()];
+            stack.add_named(one, 'one');
+            stack.add_named(two, 'two');
+            expect(stack.get_visible_child_name()).toBe('one');
+            stack.set_visible_child_name('two');
+            expect(stack.get_visible_child() === (two as unknown)).toBe(true);
+            stack.set_visible_child(one);
+            expect(stack.get_visible_child_name()).toBe('one');
+        });
+    });
 };
 
 export default GtkStackNsTest;
