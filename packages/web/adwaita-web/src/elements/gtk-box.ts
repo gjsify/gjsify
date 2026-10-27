@@ -31,7 +31,12 @@
 // Reference: refs/gtk/gtk/gtkbox.c (the three properties, the `box` CSS name)
 // Copyright (c) The GTK Team. LGPLv2.1+.
 
-import { normalizeBoxOrientation, normalizeBoxSpacing, type BoxOrientation } from '@gjsify/adwaita-core';
+import {
+    normalizeBoxOrientation,
+    normalizeBoxSpacing,
+    resolveWrapBoxChildOrder,
+    type BoxOrientation,
+} from '@gjsify/adwaita-core';
 import { WidgetElement } from '../widget-element.js';
 
 import { computeExpand, explicitExpand, type ExpandOrientation } from '../compute-expand.js';
@@ -77,6 +82,49 @@ export class GtkBox extends WidgetElement {
 
     set homogeneous(value: boolean) {
         this.toggleAttribute('homogeneous', !!value);
+    }
+
+    // `gtk_box_append` and `gtk_box_prepend` are deliberately NOT redeclared:
+    // `ParentNode.append` / `.prepend` ARE those two, with the same semantics.
+
+    /**
+     * `gtk_box_remove` under its GIR name. With no argument it stays `ChildNode.remove()`:
+     * the box leaves its own parent. A `child` that is not a direct child is where C warns
+     * (`g_warning ("Trying to remove a widget that is not a child")`) and does nothing.
+     */
+    override remove(child?: Element): void {
+        if (child === undefined) {
+            super.remove();
+            return;
+        }
+        if (child.parentNode !== this) {
+            console.warn('Gtk.Box: trying to remove a widget that is not a child of this box');
+            return;
+        }
+        this.removeChild(child);
+    }
+
+    /**
+     * `gtk_box_insert_child_after`. A NULL/absent `sibling` inserts at the FIRST position,
+     * not the last — `gtk_widget_insert_after`'s rule, pinned by
+     * `WRAP_BOX_CHILD_ORDER_VECTORS`. Returns whether the insert happened; a refusal is where
+     * C would have hit a `g_return_if_fail`.
+     */
+    insert_child_after(child: Element, sibling: Element | null = null): boolean {
+        return this._applyOrder('insert-after', child, sibling);
+    }
+
+    /** `gtk_box_reorder_child_after`. Same NULL rule. */
+    reorder_child_after(child: Element, sibling: Element | null = null): boolean {
+        return this._applyOrder('reorder-after', child, sibling);
+    }
+
+    private _applyOrder(op: 'insert-after' | 'reorder-after', child: Element, sibling: Element | null): boolean {
+        const next = resolveWrapBoxChildOrder({ children: [...this.children], child, sibling, op });
+        if (next === null) return false;
+        // Move exactly the one node, so no sibling is detached and loses focus.
+        this.insertBefore(child, next[next.indexOf(child) + 1] ?? null);
+        return true;
     }
 
     connectedCallback() {

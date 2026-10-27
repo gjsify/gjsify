@@ -33,6 +33,10 @@ function mount(count = 3): { box: GtkBox; kids: HTMLElement[]; host: HTMLElement
     return { box, kids, host };
 }
 
+/** The children by position in `kids`, `x` for the one extra. */
+const order = (box: Element, kids: Element[], extra?: Element): string =>
+    [...box.children].map((el) => (el === extra ? 'x' : kids.indexOf(el))).join(',');
+
 const rect = (el: Element) => el.getBoundingClientRect();
 
 /** Author `value` the way markup does: absent is no attribute at all. */
@@ -137,6 +141,40 @@ export const GtkBoxTest = async () => {
                 { tag: 'GtkLabel', props: { label: 'effect/FileSystem over Gio.File', xalign: 0 } },
             ],
         };
+
+        await it('remove(child) detaches a direct child and leaves a stranger alone', () => {
+            const { box, kids, host } = mount(3);
+            const warn = console.warn;
+            const warnings: unknown[] = [];
+            console.warn = (...args: unknown[]) => void warnings.push(args);
+            try {
+                box.remove(kids[1]);
+                expect(order(box, kids)).toBe('0,2');
+                box.remove(document.createElement('div'));
+                expect(box.children.length).toBe(2);
+                expect(warnings.length).toBe(1);
+                box.remove();
+                expect(box.isConnected).toBe(false);
+            } finally {
+                console.warn = warn;
+                host.remove();
+            }
+        });
+
+        await it('insert_child_after and reorder_child_after follow the NULL = FIRST rule', () => {
+            const { box, kids, host } = mount(3);
+            try {
+                const extra = document.createElement('div');
+                expect(box.insert_child_after(extra, null)).toBe(true);
+                expect(order(box, kids, extra)).toBe('x,0,1,2');
+                expect(box.insert_child_after(extra, kids[0])).toBe(false);
+                expect(box.reorder_child_after(extra, kids[2])).toBe(true);
+                expect(order(box, kids, extra)).toBe('0,1,2,x');
+                expect(box.reorder_child_after(document.createElement('div'), null)).toBe(false);
+            } finally {
+                host.remove();
+            }
+        });
 
         await it('mounts upgraded elements, stacked by the authored orientation and spacing', () => {
             const { root, unmount } = mountSharedTree(tree);
