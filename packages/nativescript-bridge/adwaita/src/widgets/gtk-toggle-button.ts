@@ -48,10 +48,7 @@ const GROUP_WALK_LIMIT = 1024;
 export class GtkToggleButton extends GtkButton {
     static readonly GTypeName: string = 'GtkToggleButton';
 
-    static override readonly emittedSignals: readonly string[] = [
-        GTK_TOGGLE_BUTTON_TOGGLED,
-        NOTIFY_TOGGLE_ACTIVE,
-    ];
+    static override readonly emittedSignals: readonly string[] = [GTK_TOGGLE_BUTTON_TOGGLED, NOTIFY_TOGGLE_ACTIVE];
 
     private _active = false;
     private _groupNext: GtkToggleButton | null = null;

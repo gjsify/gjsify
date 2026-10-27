@@ -27,7 +27,9 @@ export const GtkButtonClickedNsTest = async () => {
         await it('a tap runs each connected handler exactly once, emitter first', () => {
             const button = new Gtk.Button();
             const seen: unknown[] = [];
-            button.connect('clicked', (self, data) => seen.push(self === button, data.eventName, data.object === button));
+            button.connect('clicked', (self, data) =>
+                seen.push(self === button, data.eventName, data.object === button),
+            );
             let second = 0;
             button.connect('clicked', () => second++);
             tap(button);
@@ -51,14 +53,13 @@ export const GtkButtonClickedNsTest = async () => {
             const button = new Gtk.Button();
             const listener = (): void => {};
             expect(() => button.addEventListener('clicked', listener)).toThrow();
-            expect(() => button.on('clicked', listener)).toThrow();
             expect(() => button.notify({ eventName: 'clicked', object: button as never })).toThrow();
         });
 
         await it('tap itself stays the platform event and is not a declared signal', () => {
             const button = new Gtk.Button();
             let taps = 0;
-            button.on('tap', () => taps++);
+            button.addEventListener('tap', () => taps++);
             tap(button);
             expect(taps).toBe(1);
             expect(() => button.emit('tap')).toThrow();

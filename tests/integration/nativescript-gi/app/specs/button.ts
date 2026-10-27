@@ -6,6 +6,7 @@
 // widget — and only the first reads which engine answered. What a device adds over
 // `gtk-button-clicked.spec.ts` is that `emit`, `connect` and the tap listener really meet
 // node-gi's `g_signal_emit` / `g_signal_connect` on the V8/Java runtime.
+import { GestureTypes } from '@nativescript/core';
 import { Gtk } from '@gjsify/adwaita-nativescript';
 
 import { describe, expect, info, it } from '../reporter.js';
@@ -13,11 +14,21 @@ import { describe, expect, info, it } from '../reporter.js';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
 
-const tap = (button: object): void => (button as Any).notify({ eventName: 'tap', object: button });
+// A finger reaches the button through the gesture observer `on('tap')` builds, never through the
+// observable (see `fireTap` in `rows.ts`); its `callback` is the door, and a case that found no
+// observer fails instead of passing on a handler that was never attached.
+const tap = (button: object): void => {
+    const observers = ((button as Any).getGestureObservers(GestureTypes.tap) ?? []) as Any[];
+    expect(observers.length).toBe(1);
+    for (const observer of observers) {
+        observer.callback({ eventName: 'tap', object: button, view: button, type: GestureTypes.tap });
+    }
+};
 
 export const buttonSpec = (engine: 'real-gio' | 'pure-js') => async (): Promise<void> => {
     await describe(`Gtk.Button::clicked on '${engine}' (ADR 0105 § 2, route D)`, async () => {
         await it('is a registered GType on the real engine and the seam otherwise', () => {
+            new Gtk.Button();
             const mixin = Object.getPrototypeOf(Gtk.Button) as Any;
             info(`gtypeName=${mixin.$gtypeName ?? 'none'}`);
             expect(Object.hasOwn(mixin, '$gtype')).toBe(engine === 'real-gio');
