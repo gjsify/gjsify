@@ -46,6 +46,21 @@ interface EntryInternals extends Internals {
 
 const entryInner = (widget: Adw.EntryRow): EntryInternals => widget as unknown as EntryInternals;
 
+/**
+ * The parts an expander row renders into. `_disclosure` is the one that makes this widget a
+ * different question from the three above it: the property owns a SUBTREE, and the reveal is
+ * this view's `visibility` rather than anything structural.
+ */
+interface ExpanderInternals {
+    _toggle: Image & { iconName: string };
+    _enableSwitch: Switch;
+    _suffixes: View;
+    _disclosure: View;
+    _textStack: View;
+}
+
+const expanderInner = (widget: Adw.ExpanderRow): ExpanderInternals => widget as unknown as ExpanderInternals;
+
 /** How many tap GESTURE observers a view carries — `on('tap')` lands here, not in the observer map. */
 const tapObservers = (view: View): number => ((view as Any).getGestureObservers(GestureTypes.tap) ?? []).length;
 
@@ -62,11 +77,30 @@ const emitOn = (view: View, eventName: string): void => {
     view.notify({ eventName, object: view });
 };
 
+/**
+ * Fire the `tap` handlers a view carries, the way a finger does.
+ *
+ * A tap is the one input {@link emitOn} cannot post: `addEventListener('tap')` never reaches the
+ * observable, because NativeScript recognises a gesture name and builds a `GesturesObserver`
+ * instead (which is what {@link tapObservers} counts). Its detector calls the observer's own
+ * `callback` on a real touch, so that callback is the door — and running it is the only way to
+ * exercise a tap handler without a human. Returns how many it found, so a case can tell a
+ * passing no-op from a listener that was never attached.
+ */
+const fireTap = (view: View): number => {
+    const observers = ((view as Any).getGestureObservers(GestureTypes.tap) ?? []) as Any[];
+    for (const observer of observers) {
+        observer.callback({ eventName: 'tap', object: view, view, type: GestureTypes.tap });
+    }
+    return observers.length;
+};
+
 export const rowsSpec = (engine: 'real-gio' | 'pure-js') => async (): Promise<void> => {
     // The MIXIN classes are where the seam registers, so they are where the two GTypes land.
     const rowMixin = Object.getPrototypeOf(Adw.ActionRow) as Any;
     const switchMixin = Object.getPrototypeOf(Adw.SwitchRow) as Any;
     const entryMixin = Object.getPrototypeOf(Adw.EntryRow) as Any;
+    const expanderMixin = Object.getPrototypeOf(Adw.ExpanderRow) as Any;
 
     await describe(`Adw.ActionRow on '${engine}' (ADR 0105 § 2, route D)`, async () => {
         await it('constructs as a real NativeScript GridLayout with two labels', () => {
@@ -505,6 +539,208 @@ export const rowsSpec = (engine: 'real-gio' | 'pure-js') => async (): Promise<vo
         });
     });
 
+    // THE FIRST DECLARED PROPERTY THAT OWNS A SUBTREE, and the first PAIR that gate each other.
+    // Both halves are statements about the widget rather than about an engine, so both legs run
+    // them — and the gate is the half worth running on a device, because the write it refuses
+    // (`expanded = true` while expansion is off) is the one a renderer would otherwise paint.
+    await describe(`Adw.ExpanderRow on '${engine}' (a gated pair over a subtree)`, async () => {
+        await it('is an action row over a GridLayout, with the disclosure as a real view', () => {
+            const row = new Adw.ExpanderRow();
+            info(
+                `ctor=${row.constructor?.name} gtypeName=${expanderMixin.$gtypeName ?? 'none'} ` +
+                    `skipped=[${(expanderMixin.$foreignSkipped ?? []).join(',')}]`,
+            );
+            expect(row instanceof Adw.ActionRow).toBe(true);
+            expect(row instanceof GridLayout).toBe(true);
+            expect(expanderInner(row)._enableSwitch instanceof Switch).toBe(true);
+            expect(expanderInner(row)._disclosure instanceof View).toBe(true);
+        });
+
+        await it("starts at adw_expander_row_init's three defaults, having emitted nothing", () => {
+            const row = new Adw.ExpanderRow();
+            const parts = expanderInner(row);
+            info(
+                `expanded=${row.expanded} enable=${row.enableExpansion} show=${row.showEnableSwitch} ` +
+                    `disclosure=${parts._disclosure.visibility} switch=${parts._enableSwitch.visibility}`,
+            );
+            expect(row.expanded).toBe(false);
+            expect(row.enableExpansion).toBe(true);
+            expect(row.showEnableSwitch).toBe(false);
+            // The defaults EQUAL the declarations, so no notify fires during construction and
+            // the first paint is driven by the constructor instead of observed from a handler.
+            expect(parts._disclosure.visibility).toBe('collapse');
+            expect(parts._enableSwitch.visibility).toBe('collapse');
+            expect(parts._enableSwitch.checked).toBe(true);
+        });
+
+        await it('reveals the disclosure from notify::expanded and keeps the rows either way', () => {
+            const row = new Adw.ExpanderRow();
+            const parts = expanderInner(row);
+            const host = new Adw.EntryRow();
+            const auth = new Adw.SwitchRow();
+            row.add_row(host);
+            row.add_row(auth);
+            const collapsedIcon = parts._toggle.iconName;
+            row.expanded = true;
+            info(`expanded: visibility=${parts._disclosure.visibility} icon=${parts._toggle.iconName}`);
+            expect(parts._disclosure.visibility).toBe('visible');
+            expect(parts._toggle.iconName === collapsedIcon).toBe(false);
+            // What "owns a subtree" costs the seam: nothing. The children stay children while
+            // collapsed, exactly as a revealer's hidden child stays its child.
+            expect(row.disclosureRows.length).toBe(2);
+            row.expanded = false;
+            expect(parts._disclosure.visibility).toBe('collapse');
+            expect(row.disclosureRows.length).toBe(2);
+            expect(row.disclosureRows[0] === host && row.disclosureRows[1] === auth).toBe(true);
+        });
+
+        await it('coerces expanded=true to false while expansion is off, emitting nothing', () => {
+            // `adw_expander_row_set_expanded` coerces BEFORE the equal-return (C:264), so this
+            // is not a refused write — it is a write of `false` over a stored `false`.
+            const row = new Adw.ExpanderRow();
+            row.enableExpansion = false;
+            const seen: boolean[] = [];
+            row.connect('notify::expanded', (self: Adw.ExpanderRow) => seen.push(self.expanded));
+            row.expanded = true;
+            info(`expanded=${row.expanded} notifies=${seen.length}`);
+            expect(row.expanded).toBe(false);
+            expect(seen.length).toBe(0);
+            expect(expanderInner(row)._disclosure.visibility).toBe('collapse');
+        });
+
+        await it('emits notify::expanded BEFORE notify::enable-expansion on one assignment', () => {
+            // `set_enable_expansion` cross-writes `expanded` and notifies itself only after
+            // (C:303-312). Doing the collapse from a `notify::enable-expansion` handler instead
+            // renders identically and emits in the opposite order forever.
+            const row = new Adw.ExpanderRow();
+            const seen: string[] = [];
+            row.connect('notify::expanded', (self: Adw.ExpanderRow) => seen.push(`expanded=${self.expanded}`));
+            row.connect('notify::enable-expansion', (self: Adw.ExpanderRow) =>
+                seen.push(`enable=${self.enableExpansion}`),
+            );
+            row.enableExpansion = false;
+            row.enableExpansion = true;
+            info(`seen=[${seen.join('|')}]`);
+            expect(seen.join('|')).toBe('enable=false|expanded=true|enable=true');
+            expect(row.expanded).toBe(true);
+            expect(expanderInner(row)._disclosure.visibility).toBe('visible');
+        });
+
+        await it('mirrors enable-expansion onto the switch and dims the chevron', () => {
+            const row = new Adw.ExpanderRow();
+            const parts = expanderInner(row);
+            row.enableExpansion = false;
+            info(`off: class='${parts._enableSwitch.className}' opacity=${parts._toggle.opacity}`);
+            expect(parts._enableSwitch.checked).toBe(false);
+            expect(parts._enableSwitch.className).toBe('adw-switch off');
+            expect(parts._toggle.isUserInteractionEnabled).toBe(false);
+            row.enableExpansion = true;
+            expect(parts._enableSwitch.className).toBe('adw-switch');
+            expect(parts._toggle.opacity).toBe(1);
+        });
+
+        await it('follows a flip of the real Switch handle back into enable-expansion', () => {
+            // The one user affordance that writes it, as the `.ui`'s bidirectional binding
+            // (adw-expander-row.ui:50-52). The device is where the host `Switch` is real.
+            const row = new Adw.ExpanderRow({ showEnableSwitch: true, expanded: true });
+            const sw = expanderInner(row)._enableSwitch;
+            expect(sw.visibility).toBe('visible');
+            sw.checked = false;
+            info(`after handle off: enable=${row.enableExpansion} expanded=${row.expanded}`);
+            expect(row.enableExpansion).toBe(false);
+            expect(row.expanded).toBe(false);
+            sw.checked = true;
+            expect(row.enableExpansion).toBe(true);
+            expect(row.expanded).toBe(true);
+        });
+
+        await it('show-enable-switch reveals the switch and gates nothing else', () => {
+            const row = new Adw.ExpanderRow();
+            const parts = expanderInner(row);
+            row.showEnableSwitch = true;
+            expect(parts._enableSwitch.visibility).toBe('visible');
+            // Upstream's asymmetry: hiding the switch does NOT re-enable expansion.
+            row.enableExpansion = false;
+            row.showEnableSwitch = false;
+            info(`hidden again: enable=${row.enableExpansion} visibility=${parts._enableSwitch.visibility}`);
+            expect(row.enableExpansion).toBe(false);
+            expect(parts._enableSwitch.visibility).toBe('collapse');
+        });
+
+        await it('toggles from a header tap, and the tap is a no-op while disabled', () => {
+            // MEASURED ON DEVICE in the first place (#1155): a NativeScript `tap` does not stop
+            // at the child that handled it, so the listeners are header-scoped rather than on
+            // the row. `activate_cb` is ungated (C:94-98) — the refusal is the normalizer's.
+            const row = new Adw.ExpanderRow();
+            const parts = expanderInner(row);
+            // Two listeners, both header-scoped, neither on the row — and the counts are part
+            // of the claim: without them the toggle cases below would pass by doing nothing.
+            info(`tapObservers: textStack=${tapObservers(parts._textStack)} chevron=${tapObservers(parts._toggle)}`);
+            expect(tapObservers(parts._textStack)).toBe(1);
+            expect(tapObservers(parts._toggle)).toBe(1);
+            expect(tapObservers(parts._disclosure)).toBe(0);
+            // The row DOES carry one tap observer, and it is the action row's `activated` — not
+            // a toggle. Firing it is how the two are told apart: a toggle on `this` would also
+            // read as one observer here, and would collapse the row on any touch inside it.
+            expect(tapObservers(row as unknown as View)).toBe(1);
+            fireTap(row as unknown as View);
+            expect(row.expanded).toBe(false);
+
+            expect(fireTap(parts._textStack)).toBe(1);
+            expect(row.expanded).toBe(true);
+            fireTap(parts._toggle);
+            expect(row.expanded).toBe(false);
+            row.enableExpansion = false;
+            fireTap(parts._textStack);
+            info(`tap while disabled: expanded=${row.expanded}`);
+            expect(row.expanded).toBe(false);
+        });
+
+        await it('prepends a suffix into a box that coexists with the affordances', () => {
+            // `adw_expander_row_add_suffix` is `gtk_box_prepend` into `priv->suffixes` (C:449),
+            // and the box starts invisible so an expander with no suffix shows no gap.
+            const row = new Adw.ExpanderRow();
+            const parts = expanderInner(row);
+            expect(parts._suffixes.visibility).toBe('collapse');
+            const first = new Adw.Bin();
+            const second = new Adw.Bin();
+            row.add_suffix(first);
+            expect(parts._suffixes.visibility).toBe('visible');
+            expect(row.suffix === first).toBe(true);
+            row.add_suffix(second);
+            expect(row.suffix === second).toBe(true);
+            // The chevron and the switch survived — the old single slot evicted them.
+            expect(parts._toggle instanceof View).toBe(true);
+            expect(parts._enableSwitch instanceof Switch).toBe(true);
+            row.remove(second);
+            row.remove(first);
+            info(`emptied: visibility=${parts._suffixes.visibility} suffix=${row.suffix}`);
+            expect(parts._suffixes.visibility).toBe('collapse');
+            expect(row.suffix).toBe(null);
+        });
+
+        await it('takes all three beside the inherited ones as construct props, XML strings included', () => {
+            const row = new Adw.ExpanderRow({ title: 'Proxy settings', expanded: true, showEnableSwitch: true });
+            expect(`${row.title}/${row.expanded}/${row.showEnableSwitch}`).toBe('Proxy settings/true/true');
+            const fromXml = new Adw.ExpanderRow({ expanded: 'true', enableExpansion: 'false' } as Any);
+            info(`fromXml expanded=${fromXml.expanded} enable=${fromXml.enableExpansion}`);
+            // The gate runs on the construct path too: `enable-expansion=false` wins.
+            expect(fromXml.enableExpansion).toBe(false);
+            expect(fromXml.expanded).toBe(false);
+            expect(() => new Adw.ExpanderRow({ expanded: 'maybe' } as Any)).toThrow();
+        });
+
+        await it('refuses every NativeScript event verb for its three notifies', () => {
+            const row = new Adw.ExpanderRow() as Any;
+            for (const name of ['notify::expanded', 'notify::enable-expansion', 'notify::show-enable-switch']) {
+                for (const verb of ['addEventListener', 'removeEventListener', 'on', 'once', 'off']) {
+                    expect(() => row[verb](name, () => {})).toThrow();
+                }
+            }
+            expect(() => row.notify({ eventName: 'notify::expanded', object: row })).toThrow();
+        });
+    });
+
     // ONE DOOR PER DECLARED MEMBER, on the device and in both legs. This is the suite that can
     // see what the off-device specs cannot: before it, `addEventListener('notify::active')` added
     // a listener nothing ever called on 'real-gio' — the emission belongs to the GObject — while
@@ -774,6 +1010,101 @@ export const rowsSpec = (engine: 'real-gio' | 'pure-js') => async (): Promise<vo
             const back = store.get_item(0);
             expect(back === row).toBe(true);
             expect(`${back.text}/${back.textLength}/${back.maxLength}`).toBe('Ada/3/5');
+            expect(back instanceof GridLayout).toBe(true);
+        });
+    });
+
+    await describe('the expander row is a GObject whose two gated pspecs cross-write', async () => {
+        await it('registers over the action row, like the two rows beside it', () => {
+            const parent = GObject.type_name(GObject.type_parent(expanderMixin.$gtype));
+            info(`AdwExpanderRow -> ${parent}`);
+            expect(GObject.type_name(expanderMixin.$gtype)).toBe('AdwExpanderRow');
+            expect(parent).toBe('AdwActionRow');
+            expect(new Adw.ExpanderRow() instanceof GObject.Object).toBe(true);
+        });
+
+        await it('lists its three properties as real boolean pspecs', () => {
+            const found: Record<string, string> = {};
+            for (const pspec of GObject.Object.list_properties.call(expanderMixin) as Any[]) {
+                found[pspec.get_name()] = GObject.type_name(pspec.value_type);
+            }
+            info(`pspecs=${JSON.stringify(found)}`);
+            expect(found['expanded']).toBe('gboolean');
+            expect(found['enable-expansion']).toBe('gboolean');
+            expect(found['show-enable-switch']).toBe('gboolean');
+            // …beside the four it inherits from the action row, on the same class.
+            expect(found['title']).toBe('gchararray');
+        });
+
+        await it('gates on the GObject path too — set_property coerces and cross-writes', () => {
+            // The direct C entry point. If node-gi reached the stored value without the seam's
+            // wrapper, both the coercion and the cross-write would vanish here while the JS
+            // accessors kept passing — which is the whole reason this case is on a device.
+            const row = new Adw.ExpanderRow() as Any;
+            row.set_property('enable-expansion', false);
+            row.set_property('expanded', true);
+            info(`expanded=${row.get_property('expanded')} enable=${row.get_property('enable-expansion')}`);
+            expect(row.get_property('expanded')).toBe(false);
+            row.set_property('enable-expansion', true);
+            // The cross-write went through the property, so the GObject door sees it too.
+            expect(row.get_property('expanded')).toBe(true);
+            expect(expanderInner(row as Adw.ExpanderRow)._disclosure.visibility).toBe('visible');
+            // …and the inherited one still resolves to the action row's store.
+            row.set_property('title', 'Proxy settings');
+            expect(row.get_property('title')).toBe('Proxy settings');
+        });
+
+        await it('binds expanded across the inheritance, and the gate survives the binding', () => {
+            const row = new Adw.ExpanderRow();
+            const plain = new Plain();
+            const binding = (row as Any).bind_property('expanded', plain, 'active', GObject.BindingFlags.BIDIRECTIONAL);
+            row.expanded = true;
+            expect(plain.active).toBe(true);
+            // The cross-write travels: disabling expansion collapses the row and the binding
+            // carries the collapse out to the peer.
+            row.enableExpansion = false;
+            expect(plain.active).toBe(false);
+            // MEASURED HERE, and the one place the gate is visible from outside: a bound write
+            // of `true` is refused SILENTLY (coerced to `false` over a stored `false`, so no
+            // notify), and a GBinding only propagates on a notify. The peer therefore keeps the
+            // value the widget rejected — the pair goes out of step until something emits
+            // again. libadwaita's does too, for the same reason (adw-expander-row.c:264); a
+            // consumer that needs the peer corrected has to drive `enable-expansion` instead.
+            plain.active = true;
+            info(`after peer write: expanded=${row.expanded} plain=${plain.active}`);
+            expect(row.expanded).toBe(false);
+            expect(plain.active).toBe(true);
+            // Re-enabling re-expands (upstream's own asymmetry), which notifies, which puts the
+            // pair back in step — and the binding is still live, as the write after it shows.
+            row.enableExpansion = true;
+            info(`after re-enable: expanded=${row.expanded} plain=${plain.active}`);
+            expect(row.expanded).toBe(true);
+            expect(plain.active).toBe(true);
+            row.expanded = false;
+            expect(plain.active).toBe(false);
+            binding.unbind();
+        });
+
+        await it('re-emits notify::expanded through g_object_notify without a write', () => {
+            const row = new Adw.ExpanderRow();
+            const seen: boolean[] = [];
+            row.connect('notify::expanded', (self: Adw.ExpanderRow) => seen.push(self.expanded));
+            (row as Any).notify('expanded');
+            (row as Any).notify('enable-expansion');
+            info(`seen=[${seen.join(',')}]`);
+            expect(seen.join(',')).toBe('false');
+            expect(() => (row as Any).emit('toggled')).toThrow();
+        });
+
+        await it('hands the same widget back out of a Gio.ListStore, subtree intact', () => {
+            const store = new Gio.ListStore({ item_type: GObject.Object.$gtype });
+            const row = new Adw.ExpanderRow({ title: 'Proxy settings', expanded: true });
+            row.add_row(new Adw.SwitchRow({ title: 'Use authentication' }));
+            store.append(row);
+            const back = store.get_item(0);
+            expect(back === row).toBe(true);
+            expect(`${back.title}/${back.expanded}`).toBe('Proxy settings/true');
+            expect(back.disclosureRows.length).toBe(1);
             expect(back instanceof GridLayout).toBe(true);
         });
     });
