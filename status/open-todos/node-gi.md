@@ -536,10 +536,12 @@ gate, or remove it.
 
 ### Property boundary cost (measured, see the [boundary report](../../docs/reports/2026-10-27-gobject-wasm-boundary.md))
 
-Landed: positive `hasProperty` memo in `gi.js` (one crossing fewer per get/set). Open, by size:
+Landed: positive `hasProperty` memo in `gi.js`; then the three C++ follow-ups (see the report's
+"Follow-up: the C++ fast paths"): a per-env cache of the notify pspec External, a memo that skips
+the JS setter callback for (instance type, pspec) pairs with no accessor, and
+`setPropertyIfChanged` folding the equal-value guard into the store. Open:
 
-- the `notify`/closure crossing back into JS costs ~15 µs on Wasm vs ~1.5 µs native; profile
-  `JsClosureMarshalImpl` and emnapi's call path
-- skip `MaybeRunJsPropertySetter` when the class declares no JS accessor for the property
-- fold the equal-value `getProperty` of the set trap into `setProperty` (one crossing per set)
-- the 10–20× target needs a C++ property fast path; `gi.js` trimming alone reaches ~60×
+- the 10–20× target still needs ~1 µs per wasm set; what remains is the two crossings the
+  Proxy trap itself makes (`hasProperty` + the store) and emnapi's ~430 ns per call
+- `setPropertyIfChanged` answers 2 (undecided) for objects/enums/boxed; those keep the
+  two-call path

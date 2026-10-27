@@ -23,7 +23,9 @@ const logs = [];
 page.on('console', (m) => logs.push(`[${m.type()}] ${m.text()}`));
 page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
 
-await page.goto(`${url}docs/poc/gobject-wasm/harness/index.html?n=${process.env.POC_ITERATIONS ?? 200000}`);
+await page.goto(
+    `${url}docs/poc/gobject-wasm/harness/index.html?n=${process.env.POC_ITERATIONS ?? 200000}${process.env.POC_PROFILE ? '&profile=1' : ''}`,
+);
 await page.waitForFunction('globalThis.__pocDone === true', undefined, { timeout: 120000 });
 const results = await page.evaluate('globalThis.__pocResults');
 

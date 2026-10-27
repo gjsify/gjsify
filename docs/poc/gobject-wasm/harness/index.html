@@ -23,6 +23,7 @@
         <script type="module">
             import { startEngine } from './engine.mjs';
             import { runMilestones } from './milestones.mjs';
+            import { profile } from './profile-boundary.mjs';
 
             const out = document.getElementById('out');
             try {
@@ -36,7 +37,9 @@
                     cross_origin_isolated: globalThis.crossOriginIsolated === true,
                     shared_array_buffer: typeof SharedArrayBuffer !== 'undefined',
                     engine_startup_ms: +ms.toFixed(2),
-                    ...(await runMilestones(gi, native, iterations)),
+                    ...(new URLSearchParams(location.search).has('profile')
+                        ? await profile(gi, native, iterations)
+                        : await runMilestones(gi, native, iterations)),
                 };
             } catch (error) {
                 globalThis.__pocResults = { host: 'browser', error: String(error?.stack ?? error) };

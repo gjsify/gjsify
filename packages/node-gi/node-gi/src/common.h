@@ -53,6 +53,8 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <set>
+#include <unordered_map>
 #include <string>
 #include <thread>
 #include <vector>
@@ -114,6 +116,17 @@ struct NodeGiEnvData {
   // setter from its set_property vfunc (refs/gjs/gi/gobject.cpp jsobj_set_gproperty).
   // Per-env for the same reason as errorBuilder (a napi_ref is env-specific).
   napi_ref propertySetCallback = nullptr;
+  // (instance GType, pspec) pairs for which gi.js answered "this class chain declares
+  // no JS accessor" — the store is then the whole write and NodeGiSetProperty skips the
+  // JS crossing. Keyed by the INSTANCE's GType because a subclass may add an accessor
+  // its parent lacks; mirrors gi.js's per-prototype memo, so the answer is as final as
+  // it is there.
+  std::set<std::pair<GType, GParamSpec*>> noJsSetter;
+  // One JS External per GParamSpec handed out by GValueToJs (a `notify` emission passes
+  // the pspec every time). Minting a finalizable External per emission is the dominant
+  // cost of a notify on Wasm; the ref (count 1) keeps the External, which keeps the
+  // pspec ref, until env teardown.
+  std::unordered_map<GParamSpec*, napi_ref> paramSpecHandles;
 };
 
 void NodeGiEnvDataFinalize(napi_env env, void* data, void* hint);
@@ -904,6 +917,7 @@ Napi::Value IsFundamentalHandle(const Napi::CallbackInfo& info);
 Napi::Value NewObject(const Napi::CallbackInfo& info);
 Napi::Value GetProperty(const Napi::CallbackInfo& info);
 Napi::Value SetProperty(const Napi::CallbackInfo& info);
+Napi::Value SetPropertyIfChanged(const Napi::CallbackInfo& info);
 Napi::Value HasProperty(const Napi::CallbackInfo& info);
 Napi::Value GetTypeName(const Napi::CallbackInfo& info);
 Napi::Value ClassInfoForTypeName(const Napi::CallbackInfo& info);

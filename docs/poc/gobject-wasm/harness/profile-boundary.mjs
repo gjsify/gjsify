@@ -85,7 +85,7 @@ export async function profile(gi, native, N = 200000) {
     return r;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (typeof process !== 'undefined' && import.meta.url === `file://${process.argv[1]}`) {
     const { homedir } = await import('node:os');
     const { pathToFileURL } = await import('node:url');
     if (process.env.NODE_GI_WASM_DIR !== undefined || process.execArgv.some((a) => a.includes('wasm'))) {

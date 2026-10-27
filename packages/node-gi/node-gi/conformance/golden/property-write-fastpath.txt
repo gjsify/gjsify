@@ -1,0 +1,6 @@
+assign string: label=a label=b label=a
+assign int: count=1 count=2 count=0
+assign bool: flag=true flag=false
+set_property string: label=a label=a label=b
+read then default: label=y
+parent value: 3 sub value: 13 sub setter runs: 4

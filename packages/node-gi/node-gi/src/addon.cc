@@ -109,6 +109,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("getTemplateChild", Napi::Function::New(env, GetTemplateChild));
   exports.Set("getProperty", Napi::Function::New(env, GetProperty));
   exports.Set("setProperty", Napi::Function::New(env, SetProperty));
+  exports.Set("setPropertyIfChanged", Napi::Function::New(env, SetPropertyIfChanged));
   exports.Set("hasProperty", Napi::Function::New(env, HasProperty));
   exports.Set("getTypeName", Napi::Function::New(env, GetTypeName));
   exports.Set("classInfoForTypeName", Napi::Function::New(env, ClassInfoForTypeName));

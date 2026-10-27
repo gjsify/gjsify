@@ -387,6 +387,10 @@ static void MaybeRunJsPropertySetter(NodeGiClassData* cd, GObject* obj, const ch
   // Never enter JS during GC / env teardown (same gate as the vfunc trampoline and
   // RunJsConstructorForCObject); the property is already stored either way.
   if (!NodeGiJsAvailable(env)) return;
+  NodeGiEnvData* d = EnvData(env);
+  GParamSpec* pspec = g_object_class_find_property(G_OBJECT_GET_CLASS(obj), name);
+  const std::pair<GType, GParamSpec*> memoKey(G_OBJECT_TYPE(obj), pspec);
+  if (d != nullptr && pspec != nullptr && d->noJsSetter.count(memoKey) != 0) return;
   Napi::Env napiEnv(env);
   Napi::HandleScope scope(napiEnv);
   NodeGiPumpJsDispatchScope pumpWindow;
@@ -394,7 +398,6 @@ static void MaybeRunJsPropertySetter(NodeGiClassData* cd, GObject* obj, const ch
   Napi::Value handle = PeekGObjectHandle(napiEnv, obj);
   if (handle.IsEmpty()) return;  // construction has not reached the wrap yet
 
-  NodeGiEnvData* d = EnvData(env);
   napi_value cb = nullptr;
   if (d == nullptr || d->propertySetCallback == nullptr ||
       napi_get_reference_value(env, d->propertySetCallback, &cb) != napi_ok || cb == nullptr) {
@@ -410,7 +413,19 @@ static void MaybeRunJsPropertySetter(NodeGiClassData* cd, GObject* obj, const ch
   // own frame and must not get a microtask checkpoint in the middle of it — the same
   // reasoning as RunJsConstructorForCObject, and gjs's JS_SetProperty takes no
   // checkpoint either.
-  if (napi_call_function(env, undef, cb, 2, args, &ret) != napi_ok) {
+  napi_status callStatus = napi_call_function(env, undef, cb, 2, args, &ret);
+  if (callStatus == napi_ok && pspec != nullptr && ret != nullptr) {
+    // gi.js answers a literal `false` only once the instance's prototype chain has been
+    // searched and holds no accessor; any other answer (no wrapper yet, a setter ran)
+    // keeps the crossing.
+    bool isBool = false;
+    napi_valuetype vt = napi_undefined;
+    if (napi_typeof(env, ret, &vt) == napi_ok && vt == napi_boolean &&
+        napi_get_value_bool(env, ret, &isBool) == napi_ok && !isBool) {
+      d->noJsSetter.insert(memoKey);
+    }
+  }
+  if (callStatus != napi_ok) {
     // The setter threw. A pending JS exception must never cross back into GObject
     // (g_object_set has no way to report one), so fold it into a g_warning — gjs logs
     // the uncaught exception at the same point (gjs_log_exception_uncaught).
