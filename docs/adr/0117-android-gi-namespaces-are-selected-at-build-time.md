@@ -1,6 +1,6 @@
 # 117. Which GI namespaces enter an Android APK is selected at build time
 
-- Status: **Proposed**
+- Status: **Accepted** (2026-10-27)
 - Date: 2026-10-16
 - Deciders: Pascal Garber
 - Related: [ADR 0104](0104-real-gtk-and-gi-on-android-are-opt-in-tracks-beside-the-nativescript-port.md)
