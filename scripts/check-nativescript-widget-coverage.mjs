@@ -160,6 +160,10 @@ const KNOWN_GAPS = {
         ],
         why: 'The port is a true SUBSET of GtkWindow: a title, a default size, one child and the state members (gtk-window.ts; `maximized` is constant true). Android has one activity surface with no frame, icon, stacking or window-manager state, so none of the frame and window-manager properties has anything to read or write.',
     },
+    'gtk-application-window': {
+        gaps: ['showMenubar'],
+        why: 'The window brings the `win.` ActionMap and nothing else: a menubar strip is a desktop-window idea, and the Android activity has no menubar to show (gtk-application-window.ts).',
+    },
     'gtk-popover-menu': {
         gaps: ['visibleSubmenu'],
         why: 'A PopupMenu opens its submenus itself and reports no page, so there is nothing to read or write: Android owns the navigation (ADR 0097 § 2).',

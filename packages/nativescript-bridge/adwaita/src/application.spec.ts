@@ -169,6 +169,25 @@ export const AdwApplicationNsTest = async () => {
                 nativePlatformHost.listenKeys = original;
             }
         });
+        await it('Gtk.ApplicationWindow is a Gio.ActionMap whose actions resolve as win.<name>', () => {
+            const window = new Gtk.ApplicationWindow() as unknown as Gtk.Window & {
+                add_action(a: object): void;
+                lookup_action(name: string): object | null;
+                remove_action(name: string): void;
+            };
+            const hit: string[] = [];
+            const action = new Gio.SimpleAction({ name: 'save' });
+            action.connect('activate', () => hit.push('save'));
+            expect(window.lookup_action('save')).toBe(null);
+            window.add_action(action);
+            expect(window.lookup_action('save')).toBe(action);
+            expect(activateWidgetAction(window as never, 'win.save')).toBe(true);
+            expect(hit).toStrictEqual(['save']);
+            window.remove_action('save');
+            window.remove_action('save');
+            expect(window.lookup_action('save')).toBe(null);
+            expect(activateWidgetAction(window as never, 'win.save')).toBe(false);
+        });
         await it('a button in the window resolves app. and win. through View.parent', async () => {
             const app = new Adw.Application({ application_id: 'org.gjsify.vec.NsResolve' });
             const hit: string[] = [];
