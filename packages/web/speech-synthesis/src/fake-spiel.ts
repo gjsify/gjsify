@@ -17,7 +17,7 @@ class Emitter {
         this.#handlers.delete(id);
     }
     emit(signal: string, ...args: unknown[]): void {
-        for (const h of [...this.#handlers.values()]) if (h.signal === signal) h.cb(this, ...args);
+        for (const h of this.#handlers.values()) if (h.signal === signal) h.cb(this, ...args);
     }
 }
 

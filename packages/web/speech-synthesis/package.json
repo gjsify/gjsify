@@ -45,6 +45,7 @@
     "dependencies": {
         "@gjsify/dom-events": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
+        "@gjsify/spiel-native": "workspace:^",
         "@gjsify/utils": "workspace:^"
     },
     "devDependencies": {

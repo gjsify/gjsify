@@ -43,7 +43,6 @@ export class SpeechSynthesis extends EventTarget {
     #loading: Promise<SpeechBackend> | null = null;
     #speakerIds: number[] = [];
     #startedAt = 0;
-    #generation = 0;
 
     constructor(options: SpeechSynthesisOptions = {}) {
         super();
@@ -89,7 +88,6 @@ export class SpeechSynthesis extends EventTarget {
         // advance the queue a second time.
         this.#current = null;
         this.#paused = false;
-        this.#generation++;
         this.#backend?.speaker?.cancel();
         this.#fireError(current, 'canceled');
     }

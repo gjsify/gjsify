@@ -1,4 +1,4 @@
-// Web Speech synthesis API for GJS — original implementation over libspiel (gi://Spiel)
+// Web Speech synthesis API for GJS — original implementation over libspiel (libspiel)
 // Reference: https://webaudio.github.io/web-speech-api/#tts-section
 
 export { SpeechSynthesis } from './speech-synthesis.js';

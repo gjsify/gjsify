@@ -3,7 +3,12 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { _resetSpeechBackendCache, describeSpeechSynthesisBackend, hasSpeechSynthesisBackend, loadSpeechSynthesisBackend } from './backend.js';
+import {
+    _resetSpeechBackendCache,
+    describeSpeechSynthesisBackend,
+    hasSpeechSynthesisBackend,
+    loadSpeechSynthesisBackend,
+} from './backend.js';
 import { SpeechSynthesis } from './speech-synthesis.js';
 import { SpeechSynthesisUtterance } from './utterance.js';
 import { FakeSpeaker, PROVIDER, fakeNamespace, voice } from './fake-spiel.js';
@@ -12,16 +17,21 @@ const tick = async () => {
     for (let i = 0; i < 8; i++) await Promise.resolve();
 };
 
-const VOICES = [
-    voice('de_DE-kerstin-low', 'Kerstin', ['de-DE']),
-    voice('en_US-amy-low', 'Amy', ['en-US']),
-];
+const VOICES = [voice('de_DE-kerstin-low', 'Kerstin', ['de-DE']), voice('en_US-amy-low', 'Amy', ['en-US'])];
+
+function present(speaker: FakeSpeaker) {
+    return { source: 'system' as const, module: fakeNamespace(speaker) as never, reason: null, error: null };
+}
+
+function absent(error: Error) {
+    return { source: 'absent' as const, module: null, reason: error.message, error };
+}
 
 async function setup(voices = VOICES, providers = [PROVIDER]) {
     _resetSpeechBackendCache();
     const speaker = new FakeSpeaker(voices, providers);
     const synth = new SpeechSynthesis({
-        importer: async () => ({ default: fakeNamespace(speaker) }),
+        probe: () => present(speaker),
         hostOs: () => 'linux',
     });
     synth.getVoices();
@@ -198,9 +208,12 @@ export default async () => {
             _resetSpeechBackendCache();
             const synth = new SpeechSynthesis({
                 hostOs: () => 'linux',
-                importer: async () => {
-                    throw new Error("Requiring Spiel, version 1.0: Typelib file for namespace 'Spiel' (any version) not found");
-                },
+                probe: () =>
+                    absent(
+                        new Error(
+                            "Requiring Spiel, version 1.0: Typelib file for namespace 'Spiel' (any version) not found",
+                        ),
+                    ),
             });
             const { lines } = await quiet(async () => {
                 expect(synth.getVoices()).toStrictEqual([]);
@@ -229,7 +242,7 @@ export default async () => {
             const speaker = new FakeSpeaker([], []);
             const backend = await loadSpeechSynthesisBackend({
                 hostOs: () => 'linux',
-                importer: async () => ({ default: fakeNamespace(speaker) }),
+                probe: () => present(speaker),
             });
             expect(backend.status).toBe('spiel');
             expect(await hasSpeechSynthesisBackend()).toBe(false);
@@ -240,9 +253,12 @@ export default async () => {
             _resetSpeechBackendCache();
             const backend = await loadSpeechSynthesisBackend({
                 hostOs: () => 'linux',
-                importer: async () => {
-                    throw new Error('libspiel.so: cannot open shared object file');
-                },
+                probe: () =>
+                    absent(
+                        Object.assign(new Error('libspiel.so: cannot open shared object file'), {
+                            name: 'NativeLibraryLoadError',
+                        }),
+                    ),
             });
             expect(backend.status).toBe('failed');
         });
@@ -253,9 +269,9 @@ export default async () => {
                 let imported = false;
                 const backend = await loadSpeechSynthesisBackend({
                     hostOs: () => os,
-                    importer: async () => {
+                    probe: () => {
                         imported = true;
-                        return { default: {} };
+                        return absent(new Error('unreachable'));
                     },
                 });
                 expect(backend.status).toBe('absent');

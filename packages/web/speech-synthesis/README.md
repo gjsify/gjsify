@@ -42,7 +42,7 @@ Install voices with the Spiel Installer flatpak `org.project_spiel.SpielInstalle
 - `rate` 0.1–10, `pitch` 0–2, `volume` 0–1 are clamped by this package.
 - `cancel()` fires `error` with `canceled`; Spiel `word-started` becomes a `boundary` event.
 - No cloud voices; apps bring their own.
-- A bundled `@gjsify/spiel-native` fallback plugs into `src/backend.ts` (`SPIEL_NATIVE`); the system typelib always wins.
+- `src/backend.ts` asks `probeSpiel()` from `@gjsify/spiel-native`: the host's libspiel wins, the bundled prebuild is the fallback, and `describeSpeechSynthesisBackend()` says which one answered.
 
 ## License
 

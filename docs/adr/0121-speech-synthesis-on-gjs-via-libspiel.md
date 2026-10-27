@@ -17,10 +17,10 @@ library (`gi://Spiel?version=1.0`) that talks over D-Bus to speech providers (Pi
 
 1. `@gjsify/speech-synthesis` implements the W3C Web Speech synthesis API on GJS, backed by
    `Spiel.Speaker`. It registers the six globals through the usual `globals-map` entries.
-2. **The system library has precedence.** The package imports `gi://Spiel` from the host's
-   typelib. A bundled `@gjsify/spiel-native` (like `gamepad-native`) is only a fallback for hosts
-   without it; it is an integration point in `backend.ts`, not a dependency of this package yet,
-   because the native package lands separately.
+2. **The system library has precedence.** `backend.ts` asks `probeSpiel()` from
+   `@gjsify/spiel-native`, which puts the host's `girepository-1.0` ahead of its own prebuild.
+   The bundled libspiel is only a fallback for hosts without one; `absent` (no typelib) stays
+   separate from `failed` (a typelib whose library will not open).
 3. **Linux only.** On other systems `getVoices()` answers `[]` and `speak()` fires an `error`
    event with code `synthesis-unavailable`.
 4. **No cloud voices in gjsify.** The package speaks what the host's providers offer. An app that

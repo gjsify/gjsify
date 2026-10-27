@@ -7,6 +7,7 @@
 // The W3C surface cannot tell "no voices installed" from "no speech stack at all"; the
 // `has…`/`describe…` pair is the non-standard way to ask.
 
+import { probeSpiel, SPIEL_NAMESPACE, type SpielProbe, type SpielSource } from '@gjsify/spiel-native';
 import { hostOs, type TargetOs } from '@gjsify/utils/core';
 
 import type { SpielNamespace, SpielSpeaker } from './spiel-types.js';
@@ -15,6 +16,8 @@ export type SpeechBackendStatus = 'spiel' | 'absent' | 'failed';
 
 export interface SpeechBackend {
     status: SpeechBackendStatus;
+    /** Where libspiel came from: the host (`system`), `@gjsify/spiel-native` (`prebuild`), or `absent`. */
+    source: SpielSource;
     speaker: SpielSpeaker | null;
     namespace: SpielNamespace | null;
     /** The original load error for `absent`/`failed`; `null` otherwise. */
@@ -24,8 +27,8 @@ export interface SpeechBackend {
 }
 
 export interface LoadSpeechBackendOptions {
-    /** Override the `gi://Spiel` import. Tests only. */
-    importer?: () => Promise<{ default: unknown }>;
+    /** Override `probeSpiel()` from `@gjsify/spiel-native`. Tests only. */
+    probe?: () => Pick<SpielProbe, 'source' | 'module' | 'reason' | 'error'>;
     /** Override the host OS the probe branches on. Tests only. */
     hostOs?: () => TargetOs | undefined;
     /**
@@ -40,23 +43,15 @@ const INSTALLER_HINT =
     'Install a speech provider with the Spiel Installer (flatpak install flathub org.project_spiel.SpielInstaller) ' +
     'and add a voice there.';
 
-// ---------------------------------------------------------------------------------------
-// @gjsify/spiel-native integration point.
-//
-// System libspiel always wins: the import below is a plain `gi://Spiel`, resolved by GI
-// against the system typelib path first. `@gjsify/spiel-native` (optionalDependency, same
-// pattern as `@gjsify/gamepad-native`) contributes NO code here — when installed, the
-// launcher (`gjsify run`) puts its prebuilds/<os>-<arch> directory on GI_TYPELIB_PATH and
-// the library path, so the same import finds the bundled copy when the system has none.
-// The only thing this package says about it is the advice in the text below.
+// `@gjsify/spiel-native` owns finding Spiel: system libspiel first, its own prebuild as the
+// fallback, and the reason when neither exists. This file only classifies the answer.
 const SPIEL_NATIVE = '@gjsify/spiel-native';
-// ---------------------------------------------------------------------------------------
 
 const NO_TYPELIB_TEXT =
     '[@gjsify/speech-synthesis] No speech backend on this host — the Spiel-1.0 typelib (libspiel) is absent, ' +
     'so getVoices() is empty and speak() fires an error event (synthesis-unavailable). ' +
-    `Install libspiel from your distribution, or add ${SPIEL_NATIVE} and start the program through ` +
-    '`gjsify run`. ' +
+    `Install libspiel from your distribution, or the ${SPIEL_NATIVE}-<os>-<arch> package for this machine ` +
+    '(linux-x64 and linux-arm64 only). ' +
     INSTALLER_HINT +
     ' Gate on hasSpeechSynthesisBackend().';
 
@@ -71,60 +66,74 @@ const UNSUPPORTED_OS_TEXT =
     'getVoices() is empty and speak() fires an error event (synthesis-unavailable).';
 
 const LOAD_FAULT_TEXT =
-    '[@gjsify/speech-synthesis] The gi://Spiel speech backend failed to load — a fault on this host, NOT a ' +
+    '[@gjsify/speech-synthesis] The Spiel speech backend failed to load — a fault on this host, NOT a ' +
     'missing libspiel. getVoices() is empty until it is fixed.';
 
 let cached: Promise<SpeechBackend> | null = null;
 let reported = false;
 
-/** GI's wording for "no typelib for this namespace anywhere" (measured, see the gamepad probe). */
-const TYPELIB_ABSENT_NEEDLE = "Typelib file for namespace 'Spiel'";
+/** `NativeLibraryLoadError`: the typelib was found and its library refused to open. */
+const LIBRARY_FAULT = 'NativeLibraryLoadError';
 
-/** `--app browser` maps every `gi://*` to `{}`; nothing to install, nothing to say. */
-function isEmptiedGiModule(module: unknown): boolean {
-    return (
-        typeof module === 'object' &&
-        module !== null &&
-        Object.getPrototypeOf(module) === Object.prototype &&
-        Object.getOwnPropertyNames(module).length === 0
-    );
+/** No GObject-Introspection in the process at all (`--app browser`): nothing to install, nothing to say. */
+function isNoGiError(error: unknown): boolean {
+    return error instanceof Error && error.message.includes('imports.gi');
 }
 
-/** Classify a `gi://Spiel` load failure. Exported (underscored) for the specs. */
-export function _diagnoseSpielLoadError(error: unknown): { status: 'absent' | 'failed'; diagnostic: string } {
-    const message = error instanceof Error ? error.message : String(error);
-    return message.includes(TYPELIB_ABSENT_NEEDLE)
-        ? { status: 'absent', diagnostic: NO_TYPELIB_TEXT }
-        : { status: 'failed', diagnostic: LOAD_FAULT_TEXT };
+/** Classify a failed Spiel probe or `Speaker` creation. Exported (underscored) for the specs. */
+export function _diagnoseSpielLoadError(
+    error: unknown,
+    reason: string | null = null,
+): { status: 'absent' | 'failed'; diagnostic: string | null } {
+    if (isNoGiError(error)) return { status: 'absent', diagnostic: null };
+    if (reason !== null && !(error instanceof Error && error.name === LIBRARY_FAULT)) {
+        return { status: 'absent', diagnostic: `${NO_TYPELIB_TEXT} (${reason})` };
+    }
+    return { status: 'failed', diagnostic: LOAD_FAULT_TEXT };
 }
 
 async function probe(options: LoadSpeechBackendOptions): Promise<SpeechBackend> {
     const os = (options.hostOs ?? hostOs)();
     if (os === 'darwin' || os === 'win32') {
-        return { status: 'absent', speaker: null, namespace: null, error: null, diagnostic: UNSUPPORTED_OS_TEXT };
+        return {
+            status: 'absent',
+            source: 'absent',
+            speaker: null,
+            namespace: null,
+            error: null,
+            diagnostic: UNSUPPORTED_OS_TEXT,
+        };
+    }
+
+    const found = (options.probe ?? probeSpiel)();
+    if (found.module === null) {
+        const { status, diagnostic } = _diagnoseSpielLoadError(found.error, found.reason ?? 'not available');
+        return { status, source: 'absent', speaker: null, namespace: null, error: found.error, diagnostic };
     }
 
     let speaker: SpielSpeaker;
-    let spiel: SpielNamespace;
+    const spiel = found.module as unknown as SpielNamespace;
     try {
-        // A LITERAL specifier: every plugin that claims `gi://*` matches it at build time.
-        const imported = options.importer ? options.importer() : import('gi://Spiel?version=1.0');
-        const module = (await imported).default as SpielNamespace;
-        spiel = module;
-        if (typeof module?.Speaker?.new_sync !== 'function') {
-            if (isEmptiedGiModule(module)) return { status: 'absent', speaker: null, namespace: null, error: null, diagnostic: null };
-            throw new Error('gi://Spiel resolved without a Speaker class — unexpected Spiel ABI');
+        if (typeof spiel.Speaker?.new_sync !== 'function') {
+            throw new Error(`${SPIEL_NAMESPACE} resolved without a Speaker class — unexpected Spiel ABI`);
         }
         // Speaker creation activates the providers over D-Bus (~20 ms warm, ~600 ms cold)
         // and is the second thing that can fail on a host whose typelib loads fine.
-        speaker = module.Speaker.new_sync(null);
+        speaker = spiel.Speaker.new_sync(null);
         options.configureSpeaker?.(speaker);
     } catch (error) {
         const { status, diagnostic } = _diagnoseSpielLoadError(error);
-        return { status, speaker: null, namespace: null, error, diagnostic };
+        return { status, source: found.source, speaker: null, namespace: null, error, diagnostic };
     }
     const noProvider = speaker.providers.get_n_items() === 0;
-    return { status: 'spiel', speaker, namespace: spiel!, error: null, diagnostic: noProvider ? NO_PROVIDER_TEXT : null };
+    return {
+        status: 'spiel',
+        source: found.source,
+        speaker,
+        namespace: spiel,
+        error: null,
+        diagnostic: noProvider ? NO_PROVIDER_TEXT : null,
+    };
 }
 
 /**
@@ -133,7 +142,7 @@ async function probe(options: LoadSpeechBackendOptions): Promise<SpeechBackend> 
  */
 export function loadSpeechSynthesisBackend(options: LoadSpeechBackendOptions = {}): Promise<SpeechBackend> {
     if (cached !== null) {
-        if (options.importer || options.hostOs || options.configureSpeaker) {
+        if (options.probe || options.hostOs || options.configureSpeaker) {
             throw new Error(
                 'loadSpeechSynthesisBackend(options) called after the probe already ran — the probe is cached per ' +
                     'process, so the override would be ignored. Call _resetSpeechBackendCache() first (tests only).',
@@ -178,7 +187,7 @@ export async function describeSpeechSynthesisBackend(): Promise<string> {
     }
     const providers = backend.speaker!.providers.get_n_items();
     if (providers === 0) return `none (no-providers): ${NO_PROVIDER_TEXT}`;
-    return `libspiel (gi://Spiel), ${providers} provider(s), ${backend.speaker!.voices.get_n_items()} voice(s)`;
+    return `libspiel (${backend.source === 'prebuild' ? `gi://Spiel from ${SPIEL_NATIVE}` : 'gi://Spiel, system'}), ${providers} provider(s), ${backend.speaker!.voices.get_n_items()} voice(s)`;
 }
 
 /** Reset the cached probe and its one-time diagnostic — tests only. */

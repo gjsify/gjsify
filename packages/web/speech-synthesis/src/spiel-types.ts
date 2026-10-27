@@ -1,6 +1,6 @@
 // The slice of Spiel-1.0 this package touches, typed by hand until @girs/spiel-1.0 exists
-// (see `spiel-1.0.d.ts`). Structural on purpose: the fake speaker the specs drive satisfies
-// the same interfaces as the real GObject wrappers.
+// (`@gjsify/spiel-native` types the same namespace method-style). Structural on purpose: the
+// fake speaker the specs drive satisfies the same interfaces as the real GObject wrappers.
 
 export interface SpielProvider {
     identifier: string;
@@ -18,7 +18,10 @@ export interface SpielVoice {
 export interface SpielListModel<T> {
     get_n_items(): number;
     get_item(position: number): T | null;
-    connect(signal: 'items-changed', cb: (model: unknown, position: number, removed: number, added: number) => void): number;
+    connect(
+        signal: 'items-changed',
+        cb: (model: unknown, position: number, removed: number, added: number) => void,
+    ): number;
     disconnect(id: number): void;
 }
 
