@@ -281,6 +281,26 @@ export class GtkWindow extends WidgetElement {
         this._write('deletable', String(value));
     }
 
+    /** `Gtk.Window:hide-on-close` — `close()` hides the window instead of destroying it. */
+    get hide_on_close(): boolean {
+        return this._offByDefault('hide-on-close');
+    }
+
+    set hide_on_close(value: boolean) {
+        if (this._offByDefault('hide-on-close') === value) return;
+        this._write('hide-on-close', String(value));
+    }
+
+    /** `gtk_window_get_hide_on_close`. */
+    get_hide_on_close(): boolean {
+        return this.hide_on_close;
+    }
+
+    /** `gtk_window_set_hide_on_close`. */
+    set_hide_on_close(setting: boolean): void {
+        this.hide_on_close = setting;
+    }
+
     /**
      * `setAttribute` for a write that changes nothing. Every GObject setter here returns
      * early when the value is already right (gtkwindow.c:1015-1017, :1045-1046, :894-895),
@@ -540,7 +560,7 @@ export class GtkWindow extends WidgetElement {
     close(): boolean {
         const outcome = this._closing.close({
             realized: this.isConnected,
-            hideOnClose: this._offByDefault('hide-on-close'),
+            hideOnClose: this.hide_on_close,
             emit: () => {
                 const request = new CustomEvent('close-request', { bubbles: true, cancelable: true });
                 this.dispatchEvent(request);

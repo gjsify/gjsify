@@ -36,7 +36,7 @@ export function webWindowSubject(tag: string): { subject: WindowSubject; dispose
         create({ hideOnClose }) {
             // Never in a page: not realized, which is GTK's state for a window before `present()`.
             const el = document.createElement(tag) as GtkWindow;
-            if (hideOnClose) el.setAttribute('hide-on-close', 'true');
+            if (hideOnClose) el.hide_on_close = true;
             el.append(document.createElement('button'), document.createElement('button'));
             return el;
         },
@@ -243,6 +243,38 @@ export const GtkWindowTest = async () => {
             el.close();
             expect(el.isConnected).toBe(true);
             expect(el.hidden).toBe(true);
+            host.remove();
+        });
+
+        await it('`hide_on_close` is the real property, default false, and close() follows it', async () => {
+            const { el, host } = mount();
+            expect(el.hide_on_close).toBe(false);
+            expect(el.get_hide_on_close()).toBe(false);
+            el.set_hide_on_close(true);
+            expect(el.hide_on_close).toBe(true);
+            expect(el.getAttribute('hide-on-close')).toBe('true');
+            el.close();
+            expect(el.isConnected).toBe(true);
+            expect(el.hidden).toBe(true);
+            el.hidden = false;
+            el.hide_on_close = false;
+            expect(el.close()).toBe(true);
+            expect(el.isConnected).toBe(false);
+            host.remove();
+        });
+
+        await it('notify::hide-on-close fires on change only', async () => {
+            const { el, host } = mount();
+            let seen = 0;
+            el.connect('notify::hide-on-close', () => void seen++);
+            el.hide_on_close = false;
+            expect(seen).toBe(0);
+            el.set_hide_on_close(true);
+            expect(seen).toBe(1);
+            el.hide_on_close = true;
+            expect(seen).toBe(1);
+            el.hide_on_close = false;
+            expect(seen).toBe(2);
             host.remove();
         });
 
