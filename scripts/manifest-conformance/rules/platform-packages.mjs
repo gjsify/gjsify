@@ -29,8 +29,11 @@
  * `gjsify.platforms`/`gjsify.prebuilds` are claimed here AND by
  * `platforms-ci`/`prebuild-artifacts`: a field may have several owners, and after the
  * split the pair means something new in combination (which package owns the artifact).
- * `optionalDependencies`, `os` and `cpu` are plain npm fields, listed so the registry's
- * "say what you govern" contract covers what this rule reads.
+ * `optionalDependencies`, `os`, `cpu` and `license` are plain npm fields, listed so the
+ * registry's "say what you govern" contract covers what this rule reads.
+ * `gjsify.prebuildLicense` is read off the BRIDGE and written as the `license` of every
+ * platform package it generates — see `platformManifest` for why the licence of a
+ * prebuild cannot be derived from this repository's own.
  */
 
 import { defineRule } from '../../../packages/infra/manifest-conformance/lib/index.mjs';
@@ -39,7 +42,15 @@ import { auditPlatformPackages } from '../../generate-platform-packages.mjs';
 export const platformPackagesRule = defineRule({
     id: 'platform-packages',
     scope: 'repo',
-    fields: ['gjsify.platforms', 'gjsify.prebuilds', 'optionalDependencies', 'os', 'cpu'],
+    fields: [
+        'gjsify.platforms',
+        'gjsify.prebuilds',
+        'gjsify.prebuildLicense',
+        'optionalDependencies',
+        'os',
+        'cpu',
+        'license',
+    ],
     description:
         'every declared `<os>-<arch>` target has a generated platform package plus a matching `optionalDependencies` entry (ADR 0017)',
     run(ctx) {
