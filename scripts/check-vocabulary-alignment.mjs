@@ -629,6 +629,12 @@ const NS_PROPERTY_ALIGNMENT = {
     'gtk-menu-button.actions': {
         own: "`AdwMenuActions` is the portable stand-in for a `GActionGroup` (ADR 0042 § 2): the map a surface with no action group consults for a menu item's enabled and checked state, which `GMenuModel` does not carry — measured in gtkmenutrackeritem.c, where `sensitive` is the action's `enabled` (c:332) and `role`/`toggled` come from its STATE (c:336-346). GTK needs no counterpart property: a `GtkWidget` reaches its action group through the widget hierarchy (`gtk_widget_insert_action_group` on an ancestor, `gtk_widget_get_action_group`), so there is no GIR key to converge on. Declared and left.",
     },
+    'adw-overlay-split-view.show_sidebar': {
+        own: 'The GIR snake_case spelling of `showSidebar`, the key the counterpart already carries: the property accessor a `GObject` exposes next to `get_show_sidebar()` / `set_show_sidebar()`. A thin delegate, kept beside the camelCase name Learn6502 still writes; the spelling is a second door onto the same state, not a second property.',
+    },
+    'gtk-menu-button.menu_model': {
+        own: 'The GIR snake_case spelling of `menuModel`, the key the counterpart already carries: the property accessor beside `get_menu_model()` / `set_menu_model()`. A thin delegate onto the same normalise-and-refuse door as `menuModel`, so a `custom` item is refused here too.',
+    },
     'gtk-popover-menu.actions': {
         own: 'The same map as `GtkMenuButton.actions` above, on the standalone popover menu: a PopupMenu anchored at its parent reads the registry above the parent unless the application writes this map itself (ADR 0097 § 2).',
     },

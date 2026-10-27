@@ -99,6 +99,23 @@ export class GtkMenuButton extends WidgetElement {
         if (this._initialized) this._renderMenu();
     }
 
+    /** `Gtk.MenuButton:menu-model` — the GIR spelling of {@link menuModel}. */
+    get menu_model(): AdwMenuModel {
+        return this.menuModel;
+    }
+
+    set menu_model(value: AdwMenuInput) {
+        this.menuModel = value;
+    }
+
+    get_menu_model(): AdwMenuModel {
+        return this.menuModel;
+    }
+
+    set_menu_model(value: AdwMenuInput): void {
+        this.menuModel = value;
+    }
+
     /**
      * Normalise, REFUSE, store — the one door every menu comes through.
      *

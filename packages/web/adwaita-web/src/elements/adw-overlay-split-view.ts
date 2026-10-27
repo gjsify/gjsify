@@ -143,6 +143,23 @@ export class AdwOverlaySplitView extends WidgetElement {
         this.setAttribute('show-sidebar', v ? '' : 'false');
     }
 
+    /** `Adw.OverlaySplitView:show-sidebar` — the GIR spelling of {@link showSidebar}. */
+    get show_sidebar(): boolean {
+        return this.showSidebar;
+    }
+
+    set show_sidebar(v: boolean) {
+        this.showSidebar = v;
+    }
+
+    get_show_sidebar(): boolean {
+        return this.showSidebar;
+    }
+
+    set_show_sidebar(v: boolean): void {
+        this.showSidebar = v;
+    }
+
     get collapsed(): boolean {
         return this._state.collapsed;
     }

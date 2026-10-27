@@ -139,6 +139,16 @@ export class AdwViewSwitcherBar extends WidgetElement {
         }
     }
 
+    /** `adw_view_switcher_bar_set_stack` — the GIR spelling of {@link setStack}. */
+    set_stack(stack: AdwViewStack | null): void {
+        this.setStack(stack);
+    }
+
+    /** `adw_view_switcher_bar_get_stack`. */
+    get_stack(): AdwViewStack | null {
+        return this._stack;
+    }
+
     /** Bind to a stack element (or null). Unbinds the previous one and rebuilds. */
     setStack(stack: AdwViewStack | null): void {
         this._unbindStack();
