@@ -1,0 +1,8 @@
+# meson's wrap checkouts — upstream sources, fetched by `meson setup` from the
+# revisions pinned in subprojects/*.wrap. Never committed: they are 20 MB of
+# somebody else's history, and the wrap file is the reproducible statement of
+# which commit this prebuild is built from.
+/subprojects/libspiel/
+/subprojects/libspeechprovider/
+/subprojects/packagecache/
+/subprojects/.wraplock

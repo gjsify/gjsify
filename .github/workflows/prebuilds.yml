@@ -112,6 +112,14 @@ on:
       - 'packages/web/gamepad-native/subprojects/sdl3.wrap'
       - 'packages/web/gamepad-native/meson.build'
       - 'packages/web/gamepad-native/meson_options.txt'
+      # `src/c/**` is the version script and `src/ts/**` is deliberately NOT here:
+      # the TypeScript probe is bundled by the ordinary build, not by this workflow,
+      # and listing it would rebuild libspiel for a comment change.
+      - 'packages/web/spiel-native/src/c/**'
+      - 'packages/web/spiel-native/test/**'
+      - 'packages/web/spiel-native/subprojects/libspiel.wrap'
+      - 'packages/web/spiel-native/subprojects/libspeechprovider.wrap'
+      - 'packages/web/spiel-native/meson.build'
       - 'packages/infra/lightningcss-native/src/**'
       - 'packages/infra/lightningcss-native/meson.build'
       - 'packages/infra/oxfmt-native/src/**'
@@ -215,6 +223,14 @@ on:
       - 'packages/web/gamepad-native/subprojects/sdl3.wrap'
       - 'packages/web/gamepad-native/meson.build'
       - 'packages/web/gamepad-native/meson_options.txt'
+      # `src/c/**` is the version script and `src/ts/**` is deliberately NOT here:
+      # the TypeScript probe is bundled by the ordinary build, not by this workflow,
+      # and listing it would rebuild libspiel for a comment change.
+      - 'packages/web/spiel-native/src/c/**'
+      - 'packages/web/spiel-native/test/**'
+      - 'packages/web/spiel-native/subprojects/libspiel.wrap'
+      - 'packages/web/spiel-native/subprojects/libspeechprovider.wrap'
+      - 'packages/web/spiel-native/meson.build'
       - 'packages/infra/lightningcss-native/src/**'
       - 'packages/infra/lightningcss-native/meson.build'
       - 'packages/infra/oxfmt-native/src/**'
@@ -479,6 +495,15 @@ jobs:
         # `checkPrebuildDir()` on what it wrote. It is a build-time tool here,
         # not a runtime: nothing in this job executes JavaScript otherwise.
         #
+        # python3 → @gjsify/spiel-native: both upstream meson projects and this
+        # repo's `test/check-elf-deps.py` run it. meson's own Fedora package already
+        # pulls it, but a build input that is only ever present as somebody else's
+        # dependency is one a future repackaging removes without a failing job to
+        # notice. `readelf` (binutils) is likewise a hard dependency of `gcc` and is
+        # already load-bearing for gamepad-native's `elf-deps` test on this leg.
+        # git is listed above and is REQUIRED here rather than convenient: spiel's
+        # two wraps are `wrap-git`, so `meson setup` clones them.
+        #
         # `--disablerepo=fedora-cisco-openh264` is AVAILABILITY, not size:
         # gdk-pixbuf2-devel reaches openh264 through a HARD Requires chain
         # (libheif → libopenh264.so.8), the package is served by a separately
@@ -508,6 +533,7 @@ jobs:
           gnutls-devel
           json-glib-devel
           cmake systemd-devel dbus-devel gjs valgrind
+          python3
 
       - name: Install Rust toolchain (rustup, stable)
         # Only the three Rust bridges need it, so it follows the same gate they
@@ -753,6 +779,47 @@ jobs:
         with:
           name: gamepad-native-prebuilds-linux-${{ matrix.arch }}
           path: packages/web/gamepad-native/prebuilds/linux-${{ matrix.arch }}/
+          if-no-files-found: error
+          retention-days: 30
+
+      # -------- @gjsify/spiel-native (Spiel) --------
+      # libspiel itself, shipped as the library (LGPL-2.1-or-later) rather than
+      # wrapped: Spiel's API is already a GObject API, so there is nothing to shim.
+      # `meson setup` CLONES the two pinned upstream checkouts, so this step needs
+      # network access — unlike the wrap-archive packages, whose tarballs are
+      # sha256-checked. The two tests that run here are `elf-deps` (DT_NEEDED,
+      # RUNPATH and the exported symbol table read back off the built file: only
+      # `spiel_*` may be exported, since libspeechprovider is linked statically) and
+      # `load-typelib-gjs`, which imports `gi://Spiel` from the build directory and
+      # is what proves the rewritten GIR and recompiled typelib still match the
+      # library. `speak-fakesink-gjs` SKIPS (exit 77) without
+      # `GJSIFY_SPIEL_LIVE=1`: it needs a session bus with real speech providers
+      # answering, which no container has.
+      - name: Build @gjsify/spiel-native (libspiel + static libspeechprovider)
+        if: ${{ !contains(needs.changes.outputs.skip, '"spiel-native"') }}
+        working-directory: packages/web/spiel-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Test @gjsify/spiel-native (elf-deps, load-typelib under gjs)
+        if: ${{ !contains(needs.changes.outputs.skip, '"spiel-native"') }}
+        working-directory: packages/web/spiel-native
+        run: meson test -C build --print-errorlogs
+
+      - name: Collect @gjsify/spiel-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"spiel-native"') }}
+        working-directory: packages/web/spiel-native
+        run: |
+          node ../../../scripts/stage-prebuild.mjs . --scratch
+          ls -l prebuilds/linux-*/
+
+      - name: Upload @gjsify/spiel-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"spiel-native"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: spiel-native-prebuilds-linux-${{ matrix.arch }}
+          path: packages/web/spiel-native/prebuilds/linux-${{ matrix.arch }}/
           if-no-files-found: error
           retention-days: 30
 
@@ -4195,6 +4262,21 @@ jobs:
         with:
           name: gamepad-native-prebuilds-linux-arm64
           path: packages/web/gamepad-native-linux-arm64/prebuilds/linux-arm64/
+
+      # -------- @gjsify/spiel-native (linux only: Spiel is a session-bus protocol) --------
+      - name: Download spiel-native x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"spiel-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: spiel-native-prebuilds-linux-x64
+          path: packages/web/spiel-native-linux-x64/prebuilds/linux-x64/
+
+      - name: Download spiel-native arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"spiel-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: spiel-native-prebuilds-linux-arm64
+          path: packages/web/spiel-native-linux-arm64/prebuilds/linux-arm64/
 
       - name: Download webrtc-native x64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}

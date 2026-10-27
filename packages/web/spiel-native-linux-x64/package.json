@@ -1,0 +1,40 @@
+{
+    "name": "@gjsify/spiel-native-linux-x64",
+    "version": "0.64.11",
+    "description": "linux-x64 prebuilt native library + GObject-Introspection typelib for @gjsify/spiel-native. Installed automatically on linux/x64 as an optionalDependency of that package (ADR 0017) and skipped everywhere else. Contains no JavaScript.",
+    "license": "MIT AND LGPL-2.1-or-later",
+    "os": [
+        "linux"
+    ],
+    "cpu": [
+        "x64"
+    ],
+    "files": [
+        "prebuilds"
+    ],
+    "gjsify": {
+        "platformsUncommitted": {
+            "linux-x64": "prebuilds.yml builds it in the Fedora container and its `commit-prebuilds` job commits it back; a developer host would bake that host's glibc floor into the artifact instead of the CI baseline"
+        },
+        "platforms": [
+            "linux-x64"
+        ],
+        "prebuilds": "prebuilds",
+        "tier": 3
+    },
+    "scripts": {
+        "clear": "echo 'nothing to do'",
+        "check": "echo 'nothing to do'",
+        "build": "echo 'nothing to do'",
+        "test": "echo 'nothing to do'"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/web/spiel-native-linux-x64"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/web/spiel-native-linux-x64#readme"
+}
