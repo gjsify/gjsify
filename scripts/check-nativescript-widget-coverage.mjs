@@ -197,8 +197,8 @@ const KNOWN_GAPS = {
         why: 'All three are GTK INPUT-METHOD properties on the inner text widget. A NativeScript `TextField` exposes its keyboard through a different vocabulary (`keyboardType`, `autocorrect`, `secure`), so there is no key to write these onto and mapping them would be inventing a translation table rather than a property. `<adw-entry-row>` declares the same three on the web surface.',
     },
     'adw-expander-row': {
-        gaps: ['enableExpansion', 'showEnableSwitch', 'subtitleLines', 'titleLines'],
-        why: "The disclosure is a `visibility` toggle over a second grid row (adw-expander-row.ts:2-8) and carries no ENABLE switch: `enable-expansion` and `show-enable-switch` are the pair that puts a `GtkSwitch` in the header and gates the row on it, which this port does not build. The two label line-counts inherit `AdwActionRow`'s answer above, and so does its closed `icon-name`.",
+        gaps: ['subtitleLines', 'titleLines'],
+        why: "The two label line-counts inherit `AdwActionRow`'s answer above, and so does its closed `icon-name`. `enable-expansion` and `show-enable-switch` were listed here while the disclosure had no enable switch; both are now declared GObject properties with the switch the `.ui` puts in the header (adw-expander-row.ts).",
     },
     'adw-header-bar': {
         gaps: [
