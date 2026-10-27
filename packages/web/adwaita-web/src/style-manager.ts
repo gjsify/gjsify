@@ -14,14 +14,19 @@ export const webStyleSource: StyleSource = {
     subscribe(changed) {
         if (typeof document === 'undefined') return () => {};
         const media = globalThis.matchMedia?.('(prefers-color-scheme: dark)');
+        const contrast = globalThis.matchMedia?.('(prefers-contrast: more)');
         media?.addEventListener('change', changed);
+        contrast?.addEventListener('change', changed);
         const observer = new MutationObserver(changed);
         observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
         return () => {
             media?.removeEventListener('change', changed);
+            contrast?.removeEventListener('change', changed);
             observer.disconnect();
         };
     },
+    highContrast: () => globalThis.matchMedia?.('(prefers-contrast: more)').matches === true,
+    // A page cannot read the desktop's accent (CSS `AccentColor` is uneven, see ADR 0078): no system accent.
     supportsColorSchemes() {
         const matches = (query: string) => globalThis.matchMedia?.(query).matches === true;
         return matches('(prefers-color-scheme: dark)') || matches('(prefers-color-scheme: light)');
