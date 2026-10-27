@@ -127,6 +127,10 @@ costs ~3,700 ns in Chromium. GObject's own signal machinery is therefore about *
 the other 98 % is the N-API boundary — argument marshalling, handle scopes, GValue boxing — and
 none of it is Wasm's fault. A native node-gi build pays the same tax on the same boundary.
 
+A follow-up splits this by layer and measures the cheap fixes:
+[boundary cost](2026-10-27-gobject-wasm-boundary.md). Its finding qualifies the sentence
+above: the notify crossing back into JS is far more expensive on Wasm than natively.
+
 That reframes the result. The prototype's finding is *not* "Wasm is slow". It is that putting
 GObject behind N-API costs ~200× a plain JS property, in any host, and that Wasm makes this visible
 because the 88 ns floor underneath is measurable in the same process.
