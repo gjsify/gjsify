@@ -1,96 +1,213 @@
 // AdwExpanderRow — a Libadwaita-style expander row for NativeScript.
 //
 // Extends {@link AdwActionRow}: the inherited title/subtitle stack is the always-
-// visible header, a chevron sits in the suffix slot, and a second grid row
-// (spanning both columns) holds a `StackLayout` of child rows that is
-// revealed/collapsed by toggling its `visibility`. Mirrors `Adw.ExpanderRow`:
-// `add_row(child)` appends to the disclosure, `expanded` get/set drives the reveal
-// and emits `notify::expanded`. Tapping the HEADER toggles it — see the
+// visible header, a trailing cluster (consumer suffixes, the enable switch, the
+// chevron) sits in the suffix column, and a second grid row (spanning both columns)
+// holds a `StackLayout` of child rows that is revealed/collapsed by toggling its
+// `visibility`. Mirrors `Adw.ExpanderRow`: `add_row(child)` appends to the
+// disclosure, `expanded` drives the reveal. Tapping the HEADER toggles it — see the
 // constructor for which views carry that and the device measurement behind it.
 //
-// The disclosure STATE MACHINE (the expanded/collapsed toggle + notify-on-change)
-// is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as {@link ExpanderState};
-// this class composes it and keeps only the NS render half: the `GridLayout`
-// disclosure box + chevron `GtkImage` + the `notify::expanded` GObject-style signal,
-// all driven by the state object.
+// THE THREE PROPERTIES ARE DECLARED, NOT HELD IN AN `ExpanderState` (ADR 0105 § 2, route D).
+// `expanded`, `enable-expansion` and `show-enable-switch` are GObject properties of this
+// class, so on Android they live in the GObject's own store — which is what `bind_property`
+// binds to and what `NodeGiGetProperty` reads. `ExpanderState` stays in
+// `@gjsify/adwaita-core` for `@gjsify/adwaita-web` and `react-native`; holding it here beside
+// the property would be the defect `adw-switch-row.ts` names: two stores, one of them stale.
+//
+// THE FIRST DECLARED PROPERTY THAT OWNS A SUBTREE. `title` or `active` decide how a view
+// LOOKS; `expanded` decides whether the rows a consumer added with `add_row` are reachable at
+// all. That changes nothing about the seam — the property is still the only store and
+// `notify::expanded` still the only render trigger — and it is worth saying why: the rows live
+// in the tree from construction and the reveal is a `visibility` toggle, so expansion is a
+// REPAINT, never a structural change. A collapsed row therefore still answers
+// {@link disclosureRows}, exactly as `gtk_revealer`'s hidden child stays its child.
+//
+// THE GATING, AND WHY IT LIVES IN THE NORMALIZERS. libadwaita couples two of the three:
+//
+//   * `adw_expander_row_set_expanded` coerces with `expanded && priv->enable_expansion`
+//     (C:264) BEFORE its equal-return, so a write of `true` while expansion is disabled
+//     resolves to `false` and emits nothing at all.
+//   * `adw_expander_row_set_enable_expansion` stores, then calls
+//     `set_expanded (priv->enable_expansion)` (C:310), THEN notifies its own property.
+//     Enabling expands, disabling collapses, and `notify::expanded` always precedes
+//     `notify::enable-expansion`.
+//
+// Both halves are {@link DeclaredProperty.normalize} work, because a normalizer is the only
+// hook that runs on BOTH legs ahead of the store and ahead of the equal-write check — a
+// `notify::` handler runs after the value already landed, and a refusal from one cannot be
+// seen (`signals.ts` on logged handler exceptions). So `enable-expansion`'s normalizer does
+// its own equal-return, arms {@link EXPANSION_GATE}, cross-writes `expanded` (which emits
+// `notify::expanded` first, from inside the still-running write), disarms the gate and returns
+// — and the seam then stores and emits `notify::enable-expansion`. The gate is what lets
+// `expanded`'s own normalizer read the INCOMING `enable-expansion` instead of the stale stored
+// one, which is the C's "store first, then set_expanded" order expressed without a store to
+// write early.
+//
+// `show-enable-switch` gates NOTHING logically — it only reveals the switch, which is the
+// one user affordance that writes `enable-expansion` (the .ui binds them bidirectionally).
+// Hiding it does not re-enable expansion, and that asymmetry is upstream's.
+//
+// WHAT THE OLD EVENT PAYLOAD BECAME. `NotifyExpandedEventData` carried the new value; a real
+// `notify::` carries a `GParamSpec`, never a value, so a handler reads the emitter —
+// `(self) => self.expanded`. It is gone rather than kept as an alias: this port carries no
+// backward compatibility (`status/open-todos/nativescript.md`).
 //
 // NOTE on animation: the NativeScript CSS subset used by this package has no
 // `transform` / height-transition support, so the reveal is an instant
 // `visibility` toggle rather than the animated slide `Adw.ExpanderRow` performs.
-// (A real NS app could animate via `view.animate({...})` in code, but that lives
-// outside the CSS-subset contract this widget set keeps.)
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `_row.scss`.
+// Reference: refs/libadwaita/src/adw-expander-row.c, adw-expander-row.ui
 // Reference: refs/libadwaita/src/stylesheet/widgets/_expanders.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import type { View } from '@nativescript/core';
-import { GridLayout, ItemSpec, StackLayout, type EventData } from '@nativescript/core';
+import { GridLayout, ItemSpec, StackLayout, Switch } from '@nativescript/core';
 import { panDownSymbolic, panUpSymbolic } from '@gjsify/adwaita-icons/ui';
-import { ExpanderState } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';
 import { GtkImage } from './gtk-image.js';
 import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
-import { xmlBoolean } from './xml-values.js';
+import { switchClassName } from './row-state.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
-
-// Re-export the headless state machine so consumers can reach it from
-// `@gjsify/adwaita-nativescript` unchanged.
-export { ExpanderState } from '@gjsify/adwaita-core';
-export type { ExpanderStateListener } from '@gjsify/adwaita-core';
+import { readDeclaredValue, withProperties } from './signals.js';
 
 /** Event name emitted when {@link AdwExpanderRow.expanded} changes. Mirrors GObject `notify::expanded`. */
 export const NOTIFY_EXPANDED = 'notify::expanded';
 
-/** Payload of the `notify::expanded` event. */
-export interface NotifyExpandedEventData extends EventData {
-    /** The new expanded state. */
-    expanded: boolean;
-}
+/** Event name emitted when {@link AdwExpanderRow.enableExpansion} changes. */
+export const NOTIFY_ENABLE_EXPANSION = 'notify::enable-expansion';
 
-/** What an XML child of an expander row can ask for; anything else is a disclosure row. */
+/** Event name emitted when {@link AdwExpanderRow.showEnableSwitch} changes. */
+export const NOTIFY_SHOW_ENABLE_SWITCH = 'notify::show-enable-switch';
+
+/**
+ * Opacity of the chevron while expansion is disabled.
+ *
+ * `.expander-row-arrow:disabled` is not expressible here: the NS CSS subset has no widget
+ * states, so the insensitive look the `.ui`'s `sensitive` binding produces (bound to
+ * `enable-expansion`, adw-expander-row.ui:60) has to be an opacity the row assigns.
+ *
+ * 0.5 is `--disabled-opacity`, which `_expanders.scss:7` takes and which has no dark-scheme
+ * override (`tokens.generated.ts:255`) — so one number covers both schemes. NOT shared with
+ * `NS_INSENSITIVE_OPACITY` (0.3, `entry-row-view.ts`): that is libadwaita's stronger
+ * `$strong_disabled_opacity`, which only the entry row's pencil takes.
+ */
+export const NS_EXPANDER_ARROW_DISABLED_OPACITY = 0.5;
+
+/** What an XML child or an authored tree may ask for; anything else is a disclosure row. */
 const EXPANDER_ROW_SLOTS = ['prefix', 'suffix'] as const;
 
 /**
- * What an AUTHORED TREE may ask for, which is `suffix` short of what XML may.
+ * The row a declared property's {@link DeclaredProperty.normalize} reads its siblings off.
  *
- * The suffix of an expander row is not free: the constructor puts the disclosure chevron
- * there with `add_suffix`, and `AdwActionRow.add_suffix` holds ONE view — a second call
- * runs `this.remove(this._suffix)` first. On this class `remove()` is overridden to
- * `this._disclosure.removeChild(view)`, and the chevron was never in the disclosure
- * container, so an authored `slot: "suffix"` evicts the chevron through a container that
- * never held it. libadwaita's own `adw_expander_row_add_suffix` coexists with the arrow;
- * this port's one-slot rule is what cannot, and widening it is a layout change, not a
- * builder change.
- *
- * So the tree builder is told the truth: `suffix` is REFUSED BY NAME here rather than
- * accepted and quietly destroying the affordance — which is the whole rule this change
- * exists to state. Hand-written XML is unaffected: {@link resolveBuilderSlot} below still
- * routes both names, because that path has always been "land somewhere plausible".
+ * Structural, because `normalize` is handed a bare `object` — the seam knows nothing of this
+ * class, and a cast to `AdwExpanderRow` would be a lie while the instance is still constructing
+ * (the `EntryRowValues` precedent in `adw-entry-row.ts`).
  */
-const EXPANDER_ROW_AUTHORED_SLOTS = ['prefix'] as const;
+interface ExpanderRowValues {
+    /** The in-flight `enable-expansion` write's value, or `undefined` when none is running. */
+    _expansionGate: boolean | undefined;
+    readonly enableExpansion: boolean;
+    expanded: boolean;
+}
 
-export class AdwExpanderRow extends AdwActionRow {
+export class AdwExpanderRow extends withProperties(AdwActionRow, {
+    GTypeName: 'AdwExpanderRow',
+    Properties: {
+        expanded: {
+            kind: 'boolean',
+            default: false,
+            blurb: 'Whether the row is expanded',
+            // `expanded = !!expanded && priv->enable_expansion` (C:264), ahead of the
+            // equal-return — so a write of `true` while expansion is disabled resolves to the
+            // `false` already held and emits nothing, which is what the seam's equal-write rule
+            // then makes of it. `_expansionGate` is the value an `enable-expansion` write is
+            // CURRENTLY installing: the C stores it before calling `set_expanded`, and this is
+            // that ordering without a store to write early.
+            normalize: (value, self) => {
+                const row = self as ExpanderRowValues;
+                const next = readDeclaredValue('expanded', 'boolean', value) as boolean;
+                return next && (row._expansionGate ?? row.enableExpansion);
+            },
+        },
+        'enable-expansion': {
+            kind: 'boolean',
+            default: true,
+            blurb: 'Whether the expansion is enabled',
+            // `adw_expander_row_set_enable_expansion` (C:303-312): equal-return, store,
+            // `set_expanded (priv->enable_expansion)`, notify. Enabling EXPANDS and disabling
+            // COLLAPSES, and `notify::expanded` always comes FIRST — which is why the
+            // cross-write happens here, inside the still-running write, rather than from a
+            // `notify::enable-expansion` handler that could only ever run after it.
+            normalize: (value, self) => {
+                const row = self as ExpanderRowValues;
+                const next = readDeclaredValue('enable-expansion', 'boolean', value) as boolean;
+                // The equal-return is this normalizer's OWN, because the seam's runs after it
+                // and the cross-write must not happen for a write that changes nothing.
+                if (next === row.enableExpansion) return next;
+                row._expansionGate = next;
+                try {
+                    row.expanded = next;
+                } finally {
+                    row._expansionGate = undefined;
+                }
+                return next;
+            },
+        },
+        'show-enable-switch': {
+            kind: 'boolean',
+            default: false,
+            blurb: 'Whether the switch enabling the expansion is visible',
+        },
+    },
+}) {
     static readonly GTypeName: string = 'AdwExpanderRow';
 
     /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
-    static readonly builderSlots: readonly string[] = builderSlotsOf(EXPANDER_ROW_AUTHORED_SLOTS, 'row');
+    static readonly builderSlots: readonly string[] = builderSlotsOf(EXPANDER_ROW_SLOTS, 'row');
 
     /** `AdwExpanderRow` derives from `AdwPreferencesRow` in C
      *  (adw-expander-row.c:72), so the search does not consult a subtitle here. */
     override readonly isActionRow: boolean = false;
 
-    /** The disclosure chevron (suffix) — a plain symbolic icon, like Adw.ExpanderRow. */
+    /** Whether the disclosure is revealed. Coerced to `false` while {@link enableExpansion} is off. */
+    declare expanded: boolean;
+
+    /** `Adw.ExpanderRow:enable-expansion` — whether the row can be expanded at all. */
+    declare enableExpansion: boolean;
+
+    /** `Adw.ExpanderRow:show-enable-switch` — whether the enable switch is visible. */
+    declare showEnableSwitch: boolean;
+
+    /** The disclosure chevron — a plain symbolic icon, like Adw.ExpanderRow's arrow. */
     protected readonly _toggle: GtkImage;
+    /** The switch that writes {@link enableExpansion} (`enable_switch` in the .ui). */
+    protected readonly _enableSwitch: Switch;
+    /** The consumer suffix BOX — `priv->suffixes`, not a slot. */
+    protected readonly _suffixes: StackLayout;
     /** The container of revealed child rows (second grid row). */
     protected readonly _disclosure: StackLayout;
-    /** The headless expanded/collapsed disclosure state machine (ADR 0004). */
-    private readonly _state = new ExpanderState();
+
+    /**
+     * See {@link ExpanderRowValues._expansionGate}. A field and not a declared property because
+     * it is not state at all — it is one write's argument, visible for the length of that write.
+     */
+    private _expansionGate: boolean | undefined = undefined;
+
+    /** The newest suffix installed through {@link add_suffix} — what `suffix` answers. */
+    private _slotSuffix: View | null = null;
 
     constructor(props?: ConstructProps<AdwExpanderRow>) {
         super();
 
         this.className = 'adw-row adw-action-row adw-expander-row';
+
+        // `activatable=False` on the expander itself (adw-expander-row.ui:18) — the inner
+        // header row is the activatable one there, and this port has no inner row, so the
+        // header-scoped tap listeners below stand in for it. Inherited default is already
+        // `false`; stated so the two halves of that decision sit together.
+        this.activatable = false;
 
         // Second grid row holds the disclosure box across both columns.
         this.addRow(new ItemSpec(1, 'auto'));
@@ -105,25 +222,62 @@ export class AdwExpanderRow extends AdwActionRow {
         this.addChild(disclosure);
         this._disclosure = disclosure;
 
+        // THE TRAILING CLUSTER, in the .ui's own order: the suffixes box, then the enable
+        // switch, then the arrow (adw-expander-row.ui:39-62). One horizontal box installed
+        // ONCE through the inherited single-slot `super.add_suffix`, so a consumer suffix
+        // joins it instead of evicting the affordances — the shape `adw-entry-row.ts` uses
+        // for the same reason.
+        const cluster = new StackLayout();
+        cluster.orientation = 'horizontal';
+        cluster.className = 'adw-expander-row-cluster';
+
+        // `priv->suffixes` starts invisible and becomes visible with its first child
+        // (`adw_expander_row_add_suffix`), so an empty box contributes no spacing.
+        const suffixes = new StackLayout();
+        suffixes.orientation = 'horizontal';
+        suffixes.className = 'adw-expander-row-suffixes';
+        suffixes.visibility = 'collapse';
+        cluster.addChild(suffixes);
+        this._suffixes = suffixes;
+
+        const enableSwitch = new Switch();
+        enableSwitch.className = switchClassName(true);
+        enableSwitch.visibility = 'collapse';
+        cluster.addChild(enableSwitch);
+        this._enableSwitch = enableSwitch;
+
         // Adwaita expanders use a plain chevron affordance (pan-down = collapsed,
         // pan-up = expanded) — a REAL symbolic icon, not a `▾` glyph or a button.
         const toggle = new GtkImage();
         toggle.iconName = panDownSymbolic;
         toggle.className = `${toggle.className} adw-expander-toggle`.trim();
-        this.add_suffix(toggle);
+        cluster.addChild(toggle);
         this._toggle = toggle;
 
-        // The core state drives the reveal + chevron + notify.
-        this._state.subscribe((expanded) => {
-            this._disclosure.visibility = expanded ? 'visible' : 'collapse';
-            this._toggle.iconName = expanded ? panUpSymbolic : panDownSymbolic;
-            const data: NotifyExpandedEventData = {
-                eventName: NOTIFY_EXPANDED,
-                object: this,
-                expanded,
-            };
-            this.notify(data);
+        super.add_suffix(cluster);
+
+        // The switch is the one user affordance that writes `enable-expansion`, which the
+        // `.ui` expresses as a bidirectional binding (adw-expander-row.ui:50-52). Here it is
+        // the same single funnel `adw-switch-row.ts` uses: NativeScript fires `checkedChange`
+        // for a programmatic write too, and the property's own equal-write rule is what stops
+        // the re-entry back out of the render below.
+        enableSwitch.addEventListener('checkedChange', () => {
+            this.enableExpansion = enableSwitch.checked;
         });
+
+        // Each property renders from its OWN notify, so an equal write re-paints nothing and
+        // no setter needs a guard. `enable-expansion`'s cross-write means a single assignment
+        // runs the `expanded` handler first — the order libadwaita emits in.
+        this.connect(NOTIFY_EXPANDED, (self) => self._applyExpanded());
+        this.connect(NOTIFY_ENABLE_EXPANSION, (self) => self._applyEnableExpansion());
+        this.connect(NOTIFY_SHOW_ENABLE_SWITCH, (self) => self._applyShowEnableSwitch());
+
+        // `adw_expander_row_init`'s start: enabled, collapsed, switch hidden. Equal to the
+        // declared defaults, so construction emits nothing (C:338-339 does the same) and the
+        // first paint has to be driven rather than observed.
+        this._applyExpanded();
+        this._applyEnableExpansion();
+        this._applyShowEnableSwitch();
 
         // WHAT TOGGLES THE ROW, and why it is wired exactly here (#1155).
         //
@@ -154,13 +308,43 @@ export class AdwExpanderRow extends AdwActionRow {
         //
         // The affordance was previously the chevron alone — a 16-unit square, on the
         // port whose targets are fingers.
+        //
+        // NOTHING GATES IT, and that is the gating: `activate_cb` calls
+        // `set_expanded (!priv->expanded)` unconditionally (C:94-98), and while expansion is
+        // disabled `expanded` is already `false`, so the write of `true` is coerced back to
+        // `false` by the property's own normalizer and emits nothing. The no-op is the
+        // property's, not a branch here — one rule instead of two that can disagree.
         const toggleOnTap = () => {
-            this._state.toggle();
+            this.expanded = !this.expanded;
         };
         this._textStack.addEventListener('tap', toggleOnTap);
         toggle.addEventListener('tap', toggleOnTap);
 
         applyConstructProps(this, props);
+    }
+
+    get_expanded(): boolean {
+        return this.expanded;
+    }
+
+    set_expanded(expanded: boolean): void {
+        this.expanded = expanded;
+    }
+
+    get_enable_expansion(): boolean {
+        return this.enableExpansion;
+    }
+
+    set_enable_expansion(enableExpansion: boolean): void {
+        this.enableExpansion = enableExpansion;
+    }
+
+    get_show_enable_switch(): boolean {
+        return this.showEnableSwitch;
+    }
+
+    set_show_enable_switch(showEnableSwitch: boolean): void {
+        this.showEnableSwitch = showEnableSwitch;
     }
 
     /**
@@ -177,9 +361,48 @@ export class AdwExpanderRow extends AdwActionRow {
         this._disclosure.addChild(view);
     }
 
-    /** Remove a previously-added child row from the disclosure container — `adw_expander_row_remove`. */
+    /**
+     * Install a suffix — `adw_expander_row_add_suffix`, which PREPENDS into `priv->suffixes`
+     * (`gtk_box_prepend`, C:449) and makes that box visible.
+     *
+     * The suffixes box COEXISTS with the enable switch and the arrow, as upstream's does: it
+     * is the first child of the trailing cluster the constructor installed once through the
+     * inherited single-slot `add_suffix`, so a consumer suffix no longer has to evict an
+     * affordance to be placed. That is what retired this class's old refusal of an authored
+     * `slot: "suffix"` — the refusal existed because the one slot held the chevron, and the
+     * cluster is why it no longer does.
+     */
+    override add_suffix(view: View): void {
+        view.className = `${view.className ?? ''} adw-row-suffix`.trim();
+        this._suffixes.insertChild(view, 0);
+        this._suffixes.visibility = 'visible';
+        this._slotSuffix = view;
+    }
+
+    /**
+     * Remove a prefix, a suffix or a disclosure row — `adw_expander_row_remove`, which
+     * dispatches on where the child actually is (C:466-477).
+     *
+     * The box going invisible again when it empties is upstream's own line:
+     * `gtk_widget_set_visible (parent, gtk_widget_get_first_child (parent) != NULL)`.
+     */
     override remove(view: View): void {
+        if (view === this.prefix) {
+            super.remove(view);
+            return;
+        }
+        if (this._suffixes.getChildIndex(view) !== -1) {
+            this._suffixes.removeChild(view);
+            if (this._suffixes.getChildrenCount() === 0) this._suffixes.visibility = 'collapse';
+            if (view === this._slotSuffix) this._slotSuffix = this._lastSuffix();
+            return;
+        }
         this._disclosure.removeChild(view);
+    }
+
+    /** The suffix most recently installed through {@link add_suffix}, or `null`. */
+    override get suffix(): View | null {
+        return this._slotSuffix;
     }
 
     /**
@@ -195,6 +418,9 @@ export class AdwExpanderRow extends AdwActionRow {
 
     /**
      * The rows inside the disclosure, in order — the read-back for `add_row`.
+     *
+     * Answers the same list whether the row is expanded or collapsed: the reveal is a
+     * `visibility` toggle, never a structural change (see the module header).
      *
      * NOT `rows`, which is what it was called first. `GridLayoutBase` declares `rows`
      * as a SETTER-ONLY accessor (its getter is `rowsInternal`), so a getter of that
@@ -212,12 +438,37 @@ export class AdwExpanderRow extends AdwActionRow {
         return out;
     }
 
-    /** Whether the disclosure is revealed. */
-    get expanded(): boolean {
-        return this._state.expanded;
+    /** The suffix box's newest remaining child — what `suffix` falls back to after a removal. */
+    private _lastSuffix(): View | null {
+        return this._suffixes.getChildrenCount() === 0 ? null : this._suffixes.getChildAt(0);
     }
 
-    set expanded(value: boolean | string) {
-        this._state.setExpanded(xmlBoolean(value, false));
+    /** Reveal or collapse the disclosure and turn the chevron. Run from `notify::expanded`. */
+    private _applyExpanded(): void {
+        const expanded = this.expanded;
+        this._disclosure.visibility = expanded ? 'visible' : 'collapse';
+        this._toggle.iconName = expanded ? panUpSymbolic : panDownSymbolic;
+    }
+
+    /**
+     * Mirror `enable-expansion` onto the switch and the arrow's sensitivity.
+     *
+     * The COLLAPSE half is not here: it happens inside the write itself, in the property's
+     * normalizer, because libadwaita emits `notify::expanded` before `notify::enable-expansion`
+     * and a handler cannot run earlier than the write that invoked it.
+     */
+    private _applyEnableExpansion(): void {
+        const enabled = this.enableExpansion;
+        this._enableSwitch.checked = enabled;
+        this._enableSwitch.className = switchClassName(enabled);
+        // `sensitive` on the arrow (adw-expander-row.ui:60), as the one thing the CSS subset
+        // can express for it — see {@link NS_EXPANDER_ARROW_DISABLED_OPACITY}.
+        this._toggle.opacity = enabled ? 1 : NS_EXPANDER_ARROW_DISABLED_OPACITY;
+        this._toggle.isUserInteractionEnabled = enabled;
+    }
+
+    /** Show or hide the enable switch. Run from `notify::show-enable-switch`. */
+    private _applyShowEnableSwitch(): void {
+        this._enableSwitch.visibility = this.showEnableSwitch ? 'visible' : 'collapse';
     }
 }
