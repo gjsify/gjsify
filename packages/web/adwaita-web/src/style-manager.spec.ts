@@ -39,6 +39,20 @@ export const StyleManagerTest = async () => {
                     globalThis.matchMedia = real;
                 }
             });
+            await it('high_contrast follows prefers-contrast: more', () => {
+                const real = globalThis.matchMedia;
+                try {
+                    globalThis.matchMedia = ((query: string) => ({
+                        matches: query.includes('prefers-contrast'),
+                        media: query,
+                    })) as never;
+                    expect(webStyleSource.highContrast?.()).toBe(true);
+                    globalThis.matchMedia = ((query: string) => ({ matches: false, media: query })) as never;
+                    expect(webStyleSource.highContrast?.()).toBe(false);
+                } finally {
+                    globalThis.matchMedia = real;
+                }
+            });
             await it('has a vector row for every vector', () => {
                 expect(STYLE_MANAGER_VECTORS.length > 0).toBe(true);
             });

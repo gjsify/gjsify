@@ -5,6 +5,9 @@
 import { TYPE_INT, TYPE_STRING, Value } from '@gjsify/adwaita-core';
 import {
     driveGdkClipboardVectors,
+    driveRGBAVectors,
+    RGBA_VECTORS,
+    type GdkRGBALike,
     GDK_CLIPBOARD_VECTORS,
     type GdkClipboardNamespaces,
 } from '@gjsify/adwaita-core/conformance';
@@ -32,6 +35,12 @@ export default async () => {
     } finally {
         useClipboardHost(null);
     }
+
+    await driveRGBAVectors(
+        { name: 'adwaita-nativescript', isOracle: false, Gdk: Gdk as unknown as GdkRGBALike },
+        { describe, it, expect },
+        RGBA_VECTORS,
+    );
 
     await describe('adwaita-nativescript: Gdk clipboard door', async () => {
         await it('warns, and keeps the content, on a host with no platform clipboard', () => {

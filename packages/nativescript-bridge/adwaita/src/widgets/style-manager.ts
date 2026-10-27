@@ -13,6 +13,7 @@ import {
     adwaitaColorScheme,
     onAdwaitaColorSchemeChanged,
     setAdwaitaColorScheme,
+    type AdwAccentColorName,
     type AdwColorScheme,
     type StyleSource,
 } from '@gjsify/adwaita-core';
@@ -22,7 +23,11 @@ export interface SystemAppearance {
     /** The current preference, `null` while the platform cannot tell. */
     current(): AdwColorScheme | null;
     /** Calls `changed` with each new preference; returns the unsubscribe. */
-    subscribe(changed: (scheme: AdwColorScheme) => void): () => void;
+    subscribe(changed: (scheme: AdwColorScheme | null) => void): () => void;
+    /** Whether the system asks for more contrast; absent means it cannot. */
+    highContrast?(): boolean;
+    /** The system accent snapped to one of the nine; `null` or absent when it has none. */
+    accentColor?(): AdwAccentColorName | null;
 }
 
 let system: SystemAppearance | null = null;
@@ -35,8 +40,32 @@ let forced = false;
 // DEFAULT hands the scheme back to the system; without one, to what it was before the first force.
 let beforeForce: AdwColorScheme | null = null;
 
+// Contrast and accent are not part of the scheme, so a system change of either reaches the manager
+// through these listeners; the host reports it as `changed(null)`.
+const appearanceListeners = new Set<() => void>();
+
+// libadwaita repaints its stylesheet when the system accent changes; apps never do. The platform half
+// registers the one that can (`Application.addCss`), the pure half calls it on every accent change.
+let paintAccent: ((accent: AdwAccentColorName) => void) | null = null;
+let painted: AdwAccentColorName | null = null;
+
+export function setAccentPainter(next: ((accent: AdwAccentColorName) => void) | null): void {
+    paintAccent = next;
+    painted = null;
+    if (inUse) repaint();
+}
+
+function repaint(): void {
+    const accent = system?.accentColor?.() ?? null;
+    if (accent === null || accent === painted || paintAccent === null) return;
+    painted = accent;
+    paintAccent(accent);
+}
+
 function follow(scheme: AdwColorScheme | null): void {
     if (!forced && scheme !== null) setAdwaitaColorScheme(scheme);
+    repaint();
+    for (const listener of Array.from(appearanceListeners)) listener();
 }
 
 /**
@@ -62,10 +91,16 @@ export const nativeScriptStyleSource: StyleSource = {
     subscribe(changed) {
         // Listen first, so a scheme the system changes on attach still reaches the manager.
         const off = onAdwaitaColorSchemeChanged(changed);
+        appearanceListeners.add(changed);
         inUse = true;
         attach();
-        return off;
+        return () => {
+            off();
+            appearanceListeners.delete(changed);
+        };
     },
+    highContrast: () => system?.highContrast?.() ?? false,
+    accentColor: () => system?.accentColor?.() ?? null,
     force(dark) {
         if (dark === null) {
             if (!forced) return;

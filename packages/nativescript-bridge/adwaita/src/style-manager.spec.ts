@@ -2,10 +2,10 @@
 // oracle, in adwaita-core's `style-manager.gjs.spec.ts`). The scheme is the app's: `setAdwaitaColorScheme`.
 
 import { STYLE_MANAGER_VECTORS, driveStyleManagerVectors, type AdwStyleLike } from '@gjsify/adwaita-core/conformance';
-import { ColorScheme, setAdwaitaColorScheme, type AdwColorScheme } from '@gjsify/adwaita-core';
+import { AccentColor, ColorScheme, setAdwaitaColorScheme, type AdwColorScheme } from '@gjsify/adwaita-core';
 import { describe, expect, it } from '@gjsify/unit';
 
-import { AdwStyleManager, setSystemAppearance } from './widgets/style-manager.js';
+import { AdwStyleManager, setAccentPainter, setSystemAppearance } from './widgets/style-manager.js';
 
 // `namespace/adw.ts` pulls in `@nativescript/core`, which a Node run has not got; the namespace only
 // re-exports this class as `StyleManager` (the e2e `gi://Adw` arm holds that line).
@@ -31,7 +31,7 @@ export default async () => {
         await describe('adwaita-nativescript: Adw.StyleManager follows the system', async () => {
             const manager = AdwStyleManager.get_default();
             let now: AdwColorScheme | null = null;
-            let changed: ((scheme: AdwColorScheme) => void) | null = null;
+            let changed: ((scheme: AdwColorScheme | null) => void) | null = null;
             const flip = (scheme: AdwColorScheme) => {
                 now = scheme;
                 changed?.(scheme);
@@ -62,6 +62,63 @@ export default async () => {
                 expect(manager.get_dark()).toBe(true);
                 flip('light');
                 expect(manager.get_dark()).toBe(false);
+            });
+
+            await it('reads high contrast and the accent from the system and notifies on change', () => {
+                let contrast = false;
+                let accent: 'blue' | 'green' | null = null;
+                setSystemAppearance({
+                    current: () => now,
+                    subscribe(next) {
+                        changed = next;
+                        return () => (changed = null);
+                    },
+                    highContrast: () => contrast,
+                    accentColor: () => accent,
+                });
+                const seen: string[] = [];
+                manager.connect('notify::high-contrast', () => void seen.push('hc'));
+                manager.connect('notify::accent-color', () => void seen.push('accent'));
+                expect(manager.get_high_contrast()).toBe(false);
+                expect(manager.get_system_supports_accent_colors()).toBe(false);
+                contrast = true;
+                accent = 'green';
+                changed?.(null);
+                expect(manager.get_high_contrast()).toBe(true);
+                expect(manager.get_system_supports_accent_colors()).toBe(true);
+                expect(manager.get_accent_color()).toBe(AccentColor.GREEN);
+                expect(seen.join(',')).toBe('hc,accent');
+                changed?.(null);
+                expect(seen.length).toBe(2);
+            });
+
+            await it('repaints the stylesheet itself when the system accent changes', () => {
+                let accent: 'blue' | 'orange' | null = 'blue';
+                setSystemAppearance({
+                    current: () => now,
+                    subscribe(next) {
+                        changed = next;
+                        return () => (changed = null);
+                    },
+                    accentColor: () => accent,
+                });
+                const painted: string[] = [];
+                setAccentPainter((value) => void painted.push(value));
+                changed?.(null);
+                expect(painted.join(',')).toBe('blue');
+                accent = 'orange';
+                changed?.(null);
+                changed?.(null);
+                expect(painted.join(',')).toBe('blue,orange');
+                setAccentPainter(null);
+            });
+
+            await it('a painter without a system accent is never asked to paint', () => {
+                setSystemAppearance(null);
+                let calls = 0;
+                setAccentPainter(() => void calls++);
+                expect(calls).toBe(0);
+                setAccentPainter(null);
             });
 
             await it('stops following once the system is taken away', () => {

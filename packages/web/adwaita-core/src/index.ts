@@ -1202,5 +1202,6 @@ export { unicharIsalpha } from './glib-unichar.js';
 export { GLIB_UNICHAR_UNICODE_VERSION } from './glib-unichar.generated.js';
 export { AppLaunchContext as GioAppLaunchContext, createAppInfo, uriPeekScheme } from './gio-app-info.js';
 export type { GioAppInfo } from './gio-app-info.js';
-export { ColorScheme, StyleManagerBase } from './style-manager.js';
+export { AccentColor, ColorScheme, StyleManagerBase } from './style-manager.js';
+export { RGBA } from './rgba.js';
 export type { StyleSource } from './style-manager.js';
