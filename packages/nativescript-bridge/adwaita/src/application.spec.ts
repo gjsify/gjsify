@@ -104,7 +104,7 @@ export const AdwApplicationNsTest = async () => {
         await it('every window class has application, get_application and set_application', () => {
             const app = new Adw.Application({ application_id: 'org.gjsify.vec.NsWindowApp' });
             const other = new Adw.Application({ application_id: 'org.gjsify.vec.NsWindowOther' });
-            for (const Window of [Gtk.Window, Adw.Window, Adw.ApplicationWindow]) {
+            for (const Window of [Gtk.Window, Gtk.ApplicationWindow, Adw.Window, Adw.ApplicationWindow]) {
                 const window = new Window() as unknown as Gtk.WindowCommon<object>;
                 const notified: unknown[] = [];
                 (window as unknown as Gtk.Window).connect('notify::application', (_self, data) =>
