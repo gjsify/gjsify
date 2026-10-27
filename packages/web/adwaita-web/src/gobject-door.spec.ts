@@ -5,6 +5,7 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import { Adw, GObject } from './index.js';
 import { tagForTypeName } from './gobject-door.js';
+import { listenElement } from './gobject-elements.js';
 import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 import { bindProperties } from '@gjsify/adwaita-core';
 
@@ -158,6 +159,50 @@ export const GObjectDoorTest = async () => {
             expect(el._btn.hasAttribute('disabled')).toBe(false);
             expect(el._lbl.getAttribute('aria-disabled')).toBe(null);
             expect(el._sw.hasAttribute('disabled')).toBe(true);
+        });
+    });
+    await describe('adwaita-web: a signal is per instance, as in GObject', async () => {
+        const nested = (tag: string) => {
+            const parent = document.createElement(tag) as HTMLElement;
+            const child = document.createElement(tag) as HTMLElement;
+            parent.append(child);
+            document.body.append(parent);
+            return { parent, child };
+        };
+        await it('notify::visible-child-name of a child stack is not heard on the parent', () => {
+            const { parent, child } = nested('adw-view-stack');
+            let heard = 0;
+            listenElement(parent, 'notify::visible-child-name', () => heard++);
+            child.dispatchEvent(new CustomEvent('notify::visible-child-name', { bubbles: true }));
+            expect(heard).toBe(0);
+            parent.dispatchEvent(new CustomEvent('notify::visible-child-name', { bubbles: true }));
+            expect(heard).toBe(1);
+            parent.remove();
+        });
+        await it('activated of a child row is not heard on the parent, but still bubbles in the DOM', () => {
+            const { parent, child } = nested('adw-action-row');
+            let heard = 0;
+            let bubbled = 0;
+            listenElement(parent, 'activated', () => heard++);
+            parent.addEventListener('activated', () => bubbled++);
+            child.dispatchEvent(new CustomEvent('activated', { bubbles: true }));
+            expect(heard).toBe(0);
+            expect(bubbled).toBe(1);
+            parent.dispatchEvent(new CustomEvent('activated', { bubbles: true }));
+            expect(heard).toBe(1);
+            parent.remove();
+        });
+        await it('clicked of a nested button is not heard on the outer one; a click on plain content is', () => {
+            const { parent, child } = nested('gtk-button');
+            const inner = document.createElement('span');
+            parent.append(inner);
+            let heard = 0;
+            listenElement(parent, 'clicked', () => heard++);
+            child.dispatchEvent(new Event('click', { bubbles: true }));
+            expect(heard).toBe(0);
+            inner.dispatchEvent(new Event('click', { bubbles: true }));
+            expect(heard).toBe(1);
+            parent.remove();
         });
     });
 };
