@@ -18,6 +18,8 @@ interface WidgetLike extends HTMLElement {
     get_next_sibling(): Element | null;
     get_prev_sibling(): Element | null;
     get_parent(): Element | null;
+    get_width(): number;
+    get_height(): number;
     compute_point(target: Element, point: Graphene.Point): [boolean, Graphene.Point];
     insert_action_group(name: string, group: unknown): void;
 }
@@ -103,6 +105,46 @@ export const WidgetMembersTest = async () => {
             expect(shifted.x).toBe(3);
             expect(shifted.y).toBe(8);
             scrolled.remove();
+        });
+
+        await it('measures a real layout: size, offset inside a scrolled window, and the offset after scrolling', async () => {
+            const host = document.createElement('div');
+            host.style.width = '200px';
+            host.style.height = '100px';
+            document.body.append(host);
+            const scrolled = new Gtk.ScrolledWindow();
+            scrolled.style.height = '100px';
+            host.append(scrolled);
+            const labels: Gtk.Label[] = [];
+            for (let i = 0; i < 10; i++) {
+                const label = new Gtk.Label();
+                label.style.height = '40px';
+                scrolled.append(label);
+                labels.push(label);
+            }
+            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+            expect(scrolled.get_height()).toBe(100);
+            expect(scrolled.get_width()).toBe(200);
+            expect(labels[0].get_height()).toBe(40);
+
+            const label = labels[5];
+            const [ok, before] = label.compute_point(scrolled, Graphene.Point.zero());
+            expect(ok).toBe(true);
+            scrolled.viewport.scrollAxis('vertical', 80);
+            const [okAfter, after] = label.compute_point(scrolled, Graphene.Point.zero());
+            expect(okAfter).toBe(true);
+            expect(before.y - after.y).toBe(80);
+            host.remove();
+        });
+
+        await it('reports 0 for width and height while a widget is not rendered', () => {
+            const loose = new Gtk.Label();
+            expect(loose.get_width()).toBe(0);
+            expect(loose.get_height()).toBe(0);
+            const registered = make('WidgetMembersSize');
+            expect(registered.get_width()).toBe(0);
+            expect(registered.get_height()).toBe(0);
         });
 
         await it('computes no point between widgets that share no tree', () => {
