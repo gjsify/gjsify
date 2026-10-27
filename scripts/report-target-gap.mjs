@@ -329,20 +329,36 @@ const declaredSignals = (file, className, depth = 0) => {
             member.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.StaticKeyword) &&
             SIGNAL_MEMBERS.includes(nameOf(member.name)),
     );
-    if (own?.initializer !== undefined) {
-        collect(own.initializer);
-        return { names, complete };
-    }
+    if (own?.initializer !== undefined) collect(own.initializer);
     let base = found.node.heritageClauses?.find((clause) => clause.token === ts.SyntaxKind.ExtendsKeyword)?.types[0]
         ?.expression;
     if (base === undefined) return { names, complete };
+    // `extends withSignals(Base, { Signals: { … } })`: the declared signals are the call's own.
+    if (ts.isCallExpression(base) && base.arguments.length === 2) {
+        const meta = unwrap(base.arguments[1]);
+        const declared = ts.isObjectLiteralExpression(meta)
+            ? meta.properties.find(
+                  (property) => ts.isPropertyAssignment(property) && nameOf(property.name) === 'Signals',
+              )
+            : undefined;
+        if (declared !== undefined) collect(declared.initializer);
+        else if (ts.isObjectLiteralExpression(meta) && !meta.properties.every((p) => ts.isPropertyAssignment(p)))
+            complete = false;
+        base = unwrap(base.arguments[0]);
+    }
     // `extends withSignals(GridLayout)`: a mixin that declares nothing is followed to its argument.
-    if (ts.isCallExpression(base) && base.arguments.length === 1 && mixinAddsNoSignals(found.file, base.expression)) {
+    else if (
+        ts.isCallExpression(base) &&
+        base.arguments.length === 1 &&
+        mixinAddsNoSignals(found.file, base.expression)
+    ) {
         base = unwrap(base.arguments[0]);
     }
     if (!ts.isIdentifier(base)) return { names, complete: false };
+    // Inherited, and added to the own: a runtime walk (`emittedSignalsOf`) is the union up the chain.
     const inherited = declaredSignals(found.file, base.text, depth + 1);
-    return { names: inherited.names, complete: inherited.complete };
+    inherited.names.forEach((name) => names.add(name));
+    return { names, complete: complete && inherited.complete };
 };
 
 const loadRenderer = async (target, { renderer, namespaces, specifiers = {} }) => {
