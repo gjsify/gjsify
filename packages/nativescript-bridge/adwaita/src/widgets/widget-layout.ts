@@ -88,7 +88,7 @@ import { insertActionGroup } from './actions.js';
 import { focusView, isViewFocused } from '../window-source.js';
 import { applyNativeTooltip } from './native-tooltip.js';
 import { isMapped } from './widget-mapping.js';
-import type { ActionGroupLike } from '@gjsify/adwaita-core';
+import { Point, type ActionGroupLike } from '@gjsify/adwaita-core';
 
 /**
  * The slice of a NativeScript `View` these accessors read and write — what makes a class
@@ -151,6 +151,8 @@ interface TreeNode {
     parent?: TreeNode | null;
     eachChildView?(callback: (child: TreeNode) => boolean): void;
     style?: { direction?: string };
+    getLocationInWindow?(): { x: number; y: number };
+    getActualSize?(): { width: number; height: number };
 }
 
 /** `Gtk.TextDirection`: NONE, LTR, RTL. */
@@ -176,6 +178,28 @@ function parentOf(widget: object): TreeNode | null {
     let parent = (widget as TreeNode).parent ?? null;
     while (parent !== null && !isWidget(parent)) parent = parent.parent ?? null;
     return parent;
+}
+
+/** The view at the top of `view`'s parent chain: two views with the same top share a common ancestor. */
+function topOf(view: TreeNode): TreeNode {
+    let top = view;
+    while (top.parent) top = top.parent;
+    return top;
+}
+
+/**
+ * `gtk_widget_compute_point`: the window locations NativeScript reports are DIPs, the unit
+ * `getActualSize()` answers in. A view with no window location, or one whose tree does not reach
+ * the target's, gives `[false, (0, 0)]` as GTK does for widgets without a common ancestor.
+ */
+function computePointOf(source: object, target: object, point: Point): [boolean, Point] {
+    const from = source as TreeNode;
+    const to = target as TreeNode;
+    if (topOf(from) !== topOf(to)) return [false, new Point()];
+    const here = from.getLocationInWindow?.();
+    const there = to.getLocationInWindow?.();
+    if (!here || !there) return [false, new Point()];
+    return [true, new Point({ x: point.x + (here.x - there.x), y: point.y + (here.y - there.y) })];
 }
 
 function siblingOf(widget: object, offset: 1 | -1): TreeNode | null {
@@ -353,6 +377,12 @@ export declare abstract class GtkWidgetLayoutMembers {
     get_next_sibling(): object | null;
     get_prev_sibling(): object | null;
     get_parent(): object | null;
+    /** `gtk_widget_get_width`: the allocated width in DIPs; 0 until a layout pass ran. */
+    get_width(): number;
+    /** `gtk_widget_get_height`: the allocated height in DIPs; 0 until a layout pass ran. */
+    get_height(): number;
+    /** `gtk_widget_compute_point`: `[false, (0, 0)]` when the two views share no tree. */
+    compute_point(target: object, point: Point): [boolean, Point];
     /** `gtk_widget_insert_action_group`: `null` removes the group of `prefix`. */
     insert_action_group(prefix: string, group: ActionGroupLike | null): void;
     get focusable(): boolean;
@@ -534,6 +564,18 @@ export function withGtkWidgetLayout<TBase extends ObservableConstructor>(
 
         get_parent(): object | null {
             return parentOf(this);
+        }
+
+        get_width(): number {
+            return Math.round((this as unknown as TreeNode).getActualSize?.().width ?? 0);
+        }
+
+        get_height(): number {
+            return Math.round((this as unknown as TreeNode).getActualSize?.().height ?? 0);
+        }
+
+        compute_point(target: object, point: Point): [boolean, Point] {
+            return computePointOf(this, target, point);
         }
 
         /** `gtk_widget_insert_action_group`: `null` removes the group of `prefix`. */

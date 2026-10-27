@@ -265,6 +265,8 @@ declare module '@nativescript/core' {
         animate(options: AnimationDefinition): AnimationPromise;
         /** Post-layout actual size in DIPs (`{ width, height }`). */
         getActualSize(): { width: number; height: number };
+        /** Location of the view in the window's coordinate system, in DIPs. */
+        getLocationInWindow(): { x: number; y: number };
         /** Add a CSS pseudo-class (e.g. `'highlighted'`) and reapply matching
          *  style. NS aliases `highlighted` → `active`/`pressed`. */
         addPseudoClass(name: string): void;

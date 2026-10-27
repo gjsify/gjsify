@@ -9,15 +9,18 @@
 // gtk_widget_insert_action_group)
 // Copyright (c) GNOME contributors (GTK). LGPLv2.1+.
 
+import { Point, computePoint, type PointNode } from './graphene.js';
 import { insertActionGroup, type ActionGroupLike } from './gio-actions.js';
 
 /** `Gtk.TextDirection`: NONE, LTR, RTL. */
 const DIRECTIONS = [0, 1, 2];
 
 /** The slice of a DOM element these members read; core has no DOM lib. */
-interface WidgetNode {
+interface WidgetNode extends PointNode {
     dir: string;
     readonly isConnected: boolean;
+    readonly offsetWidth: number;
+    readonly offsetHeight: number;
     removeAttribute(name: string): void;
     hasAttribute(name: string): boolean;
     toggleAttribute(name: string, force?: boolean): boolean;
@@ -80,6 +83,18 @@ export function widgetTreeMembers(): Record<string, (this: WidgetNode, ...args: 
         },
         get_parent(this: WidgetNode) {
             return this.parentElement;
+        },
+        /** `gtk_widget_get_width`: the layout box in CSS px; 0 until the widget is rendered. */
+        get_width(this: WidgetNode) {
+            return this.offsetWidth;
+        },
+        /** `gtk_widget_get_height`: the layout box in CSS px; 0 until the widget is rendered. */
+        get_height(this: WidgetNode) {
+            return this.offsetHeight;
+        },
+        /** `gtk_widget_compute_point`: `[false, (0, 0)]` when the two share no tree. */
+        compute_point(this: WidgetNode, target: PointNode, point: Point) {
+            return computePoint(this, target, point);
         },
         /** `gtk_widget_add_css_class`: the CSS class is a DOM class. */
         add_css_class(this: WidgetNode, css_class: string) {

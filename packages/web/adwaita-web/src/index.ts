@@ -120,6 +120,8 @@ export * as Gio from './namespace/gio.js';
 
 // Gdk's clipboard (`Display`, `Clipboard`, `ContentProvider`): `./namespace/gdk.ts` says what is absent.
 export * as Gdk from './namespace/gdk.js';
+// Graphene's `Point`, what `Gtk.Widget.compute_point` takes and returns: `./namespace/graphene.ts`.
+export * as Graphene from './namespace/graphene.js';
 // GLib's timers (`idle_add`, `timeout_add`, `source_remove`): `./namespace/glib.ts` says what is absent.
 export * as GLib from './namespace/glib.js';
 

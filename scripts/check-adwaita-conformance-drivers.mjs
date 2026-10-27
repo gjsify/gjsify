@@ -249,6 +249,9 @@ const MODULE_REASONS = {
     // renderers drive is the open item.
     'breakpoint-driver': { gap: NO_TABLE_LEDGER },
     'color-scheme': { gap: NO_TABLE_LEDGER },
+    // `Graphene.Point` and the `compute_point` geometry: `graphene.spec.ts` holds them in core,
+    // each port's widget spec drives the real classes. No GTK-oracle vector table yet.
+    graphene: { gap: NO_TABLE_LEDGER },
     easing: { table: 'SPINNER_ARC_PHASE_VECTORS', gap: NO_DRIVER_LEDGER },
     // The `GObjectEngine` type plus the process-global SLOT an app writes to opt into a
     // different engine (ADR 0105 stage 4). The engine CONTRACT is tabled — every engine is

@@ -41,6 +41,14 @@ export class WidgetElement extends HTMLElement {
     set_visible(visible: boolean): void {
         this.visible = visible;
     }
+    /** `gtk_widget_get_width`: the layout box in CSS px; 0 until the widget is rendered. */
+    get_width(): number {
+        return this.offsetWidth;
+    }
+    /** `gtk_widget_get_height`: the layout box in CSS px; 0 until the widget is rendered. */
+    get_height(): number {
+        return this.offsetHeight;
+    }
     /** `gtk_widget_get_mapped`: on screen, which is in the document and rendered. */
     get_mapped(): boolean {
         return isMapped(this);
