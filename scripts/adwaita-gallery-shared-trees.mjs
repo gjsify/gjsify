@@ -171,11 +171,14 @@ export const ADWAITA_GALLERY_SHARED_TREES = [
                         // `tag`/`props`/`children` until a real `.blp` authored a placement
                         // and nothing in this corpus could see it.
                         //
-                        // NOT the suffix, measured rather than chosen: an expander row's
-                        // suffix already HOLDS the disclosure chevron on the NativeScript
-                        // port, whose one-slot `add_suffix` then tries to remove a view it
-                        // never parented and throws. A shared block may not need a renderer
-                        // to change to build it.
+                        // NOT the suffix, and it stays the prefix now that it COULD be one:
+                        // the NativeScript port's `add_suffix` used to be the single slot
+                        // that already held the chevron, so a suffix here threw. It now
+                        // prepends into a suffixes box beside the affordances, like
+                        // `adw_expander_row_add_suffix`. The placement still differs per
+                        // renderer in where it reads, and this corpus exists to compare
+                        // renderers on ONE tree — so changing the tree would retire the
+                        // comparison, not improve it.
                         { tag: 'GtkButton', slot: 'prefix', props: { label: 'Test' } },
                         { tag: 'AdwEntryRow', props: { title: 'Host', text: 'proxy.example.com' } },
                         { tag: 'AdwSwitchRow', props: { title: 'Use authentication' } },
