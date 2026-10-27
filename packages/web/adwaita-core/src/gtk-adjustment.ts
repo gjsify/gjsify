@@ -29,11 +29,14 @@
 // plain object the same write. `refs/gtk` is empty in this tree, so nothing below quotes a
 // C line; the documented sentences `adjustment.ts` implements are quoted in its header.
 //
+// IT IS A REAL OBJECT, not only a value: a `GObjectObject` registered as `GtkAdjustment`
+// with the six properties as `ParamSpec`s, so `connect('value-changed' | 'changed' |
+// 'notify::value' …)` and `disconnect` behave as on GTK. A scrollable hands out ONE of these
+// per axis and keeps it in step with the real scroll position in both directions. The six
+// camelCase fields stay, as accessors, so it is still an `AdwAdjustment`.
+//
 // WHAT IS DELIBERATELY ABSENT. `clamp_page` moves the value so a given range sits inside
-// the page — a scrolling operation, and no surface here has a scrollable that reaches an
-// adjustment. The two signals are absent too: `SpinState` in `adjustment.ts` already
-// publishes `value-changed` and `changed`, and a second observable would be two places a
-// widget could subscribe to.
+// the page; nothing here needs it yet, and an absent method is louder than a wrong one.
 //
 // Reference: @girs/gtk-4.0 5.4.0 — `Gtk.Adjustment` ConstructorProps and its
 // `configure`, `get_*`/`set_*` and `get_minimum_increment` methods.
@@ -41,6 +44,19 @@
 
 import { normalizeAdjustment } from './adjustment.js';
 import type { AdwAdjustment, AdwAdjustmentInput } from './adjustment.js';
+import { GObjectObject, ParamFlags, ParamSpec, registerBaseClass } from './gobject.js';
+
+/** The six numbers of each adjustment. State lives here, never in class fields (see `application.ts`). */
+const STATE = new WeakMap<object, AdwAdjustment>();
+
+const FIELDS = [
+    ['lower', 'lower'],
+    ['upper', 'upper'],
+    ['stepIncrement', 'step-increment'],
+    ['pageIncrement', 'page-increment'],
+    ['pageSize', 'page-size'],
+    ['value', 'value'],
+] as const;
 
 /**
  * What `new Gtk.Adjustment({ … })` takes: the GJS construct bag, which is exactly
@@ -58,44 +74,90 @@ export type GtkAdjustmentProps = AdwAdjustmentInput;
  * `new GtkAdjustment()` is `ADW_ADJUSTMENT_DEFAULTS` (0…100 step 1), which is the
  * package's own default and NOT GTK's 0…0 step 0 — `adjustment.ts` says why in its header.
  */
-export class GtkAdjustment implements AdwAdjustment {
-    /** The current value, within {@link adjustmentRange}. */
-    value: number;
-    /** The minimum value. */
-    lower: number;
-    /** The maximum value. */
-    upper: number;
-    /** How far one stepper press moves the value. */
-    stepIncrement: number;
-    /** How far one page press (Page Up/Down) moves the value. */
-    pageIncrement: number;
-    /** The size of the visible page; zero for a scalar value such as a spin row's. */
-    pageSize: number;
-
+export class GtkAdjustment extends GObjectObject implements AdwAdjustment {
     constructor(props?: GtkAdjustmentProps | null) {
-        const adjustment = normalizeAdjustment(props);
-        this.value = adjustment.value;
-        this.lower = adjustment.lower;
-        this.upper = adjustment.upper;
-        this.stepIncrement = adjustment.stepIncrement;
-        this.pageIncrement = adjustment.pageIncrement;
-        this.pageSize = adjustment.pageSize;
+        super();
+        STATE.set(this, normalizeAdjustment(props));
+    }
+
+    /** The current value, within {@link adjustmentRange}. */
+    get value(): number {
+        return STATE.get(this)!.value;
+    }
+    set value(value: number) {
+        this._write({ value });
+    }
+
+    /** The minimum value. */
+    get lower(): number {
+        return STATE.get(this)!.lower;
+    }
+    set lower(lower: number) {
+        this._write({ lower });
+    }
+
+    /** The maximum value. */
+    get upper(): number {
+        return STATE.get(this)!.upper;
+    }
+    set upper(upper: number) {
+        this._write({ upper });
+    }
+
+    /** How far one stepper press moves the value. */
+    get stepIncrement(): number {
+        return STATE.get(this)!.stepIncrement;
+    }
+    set stepIncrement(stepIncrement: number) {
+        this._write({ stepIncrement });
+    }
+
+    /** How far one page press (Page Up/Down) moves the value. */
+    get pageIncrement(): number {
+        return STATE.get(this)!.pageIncrement;
+    }
+    set pageIncrement(pageIncrement: number) {
+        this._write({ pageIncrement });
+    }
+
+    /** The size of the visible page; zero for a scalar value such as a spin row's. */
+    get pageSize(): number {
+        return STATE.get(this)!.pageSize;
+    }
+    set pageSize(pageSize: number) {
+        this._write({ pageSize });
+    }
+
+    /** The six fields, so `JSON.stringify` and a copy see what an object literal would show. */
+    toJSON(): AdwAdjustment {
+        return { ...STATE.get(this)! };
     }
 
     /**
-     * Re-establish the invariants around one authored change.
+     * Re-establish the invariants around one authored change, then announce it the way GTK
+     * does: `notify::<property>` for each number that moved, `changed` when the range moved
+     * (or `configure` moved any increment), `value-changed` when the value did.
      *
      * The current six are the BASE, so a field nobody wrote keeps what it held instead of
      * falling back to the package default — the same contract `SpinState.configure` has.
      */
-    private _write(input: AdwAdjustmentInput): void {
-        const next = normalizeAdjustment(input, this);
-        this.value = next.value;
-        this.lower = next.lower;
-        this.upper = next.upper;
-        this.stepIncrement = next.stepIncrement;
-        this.pageIncrement = next.pageIncrement;
-        this.pageSize = next.pageSize;
+    private _write(input: AdwAdjustmentInput, configuring = false): void {
+        const before = STATE.get(this)!;
+        const next = normalizeAdjustment(input, before);
+        STATE.set(this, next);
+        let changed = false;
+        let valueChanged = false;
+        const moved: string[] = [];
+        for (const [field, property] of FIELDS) {
+            if (Object.is(before[field], next[field])) continue;
+            moved.push(property);
+            if (field === 'value') valueChanged = true;
+            else if (field === 'lower' || field === 'upper' || field === 'pageSize') changed = true;
+            else if (configuring) changed = true;
+        }
+        for (const property of moved) this.notify(property);
+        if (changed) this.emit('changed');
+        if (valueChanged) this.emit('value-changed');
     }
 
     /** `gtk_adjustment_configure` — all six at once, which is what C compresses into one. */
@@ -107,14 +169,17 @@ export class GtkAdjustment implements AdwAdjustment {
         page_increment: number,
         page_size: number,
     ): void {
-        this._write({
-            value,
-            lower,
-            upper,
-            stepIncrement: step_increment,
-            pageIncrement: page_increment,
-            pageSize: page_size,
-        });
+        this._write(
+            {
+                value,
+                lower,
+                upper,
+                stepIncrement: step_increment,
+                pageIncrement: page_increment,
+                pageSize: page_size,
+            },
+            true,
+        );
     }
 
     /** `gtk_adjustment_get_value`. */
@@ -189,3 +254,12 @@ export class GtkAdjustment implements AdwAdjustment {
         return Math.min(this.stepIncrement, this.pageIncrement);
     }
 }
+
+registerBaseClass(GtkAdjustment as never, 'GtkAdjustment', { changed: [], 'value-changed': [] }, [
+    ParamSpec.double('value', '', '', ParamFlags.READWRITE, -Number.MAX_VALUE, Number.MAX_VALUE, 0),
+    ParamSpec.double('lower', '', '', ParamFlags.READWRITE, -Number.MAX_VALUE, Number.MAX_VALUE, 0),
+    ParamSpec.double('upper', '', '', ParamFlags.READWRITE, -Number.MAX_VALUE, Number.MAX_VALUE, 0),
+    ParamSpec.double('step-increment', '', '', ParamFlags.READWRITE, -Number.MAX_VALUE, Number.MAX_VALUE, 0),
+    ParamSpec.double('page-increment', '', '', ParamFlags.READWRITE, -Number.MAX_VALUE, Number.MAX_VALUE, 0),
+    ParamSpec.double('page-size', '', '', ParamFlags.READWRITE, -Number.MAX_VALUE, Number.MAX_VALUE, 0),
+]);
