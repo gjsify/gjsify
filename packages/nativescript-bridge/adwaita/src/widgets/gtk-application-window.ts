@@ -10,12 +10,19 @@
 // Reference: refs/gtk/gtk/gtkapplicationwindow.c (GtkApplicationWindow)
 // Copyright (c) The GTK Team. LGPLv2.1+.
 
-import { installActionMap } from '@gjsify/adwaita-core';
+import { type ActionLike, installActionMap } from '@gjsify/adwaita-core';
 
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { GtkWindow } from './gtk-window.js';
 
 export class GtkApplicationWindow extends GtkWindow {
+    /** `Gio.ActionMap.add_action`: installed by `installActionMap`; reachable as `win.<name>`. */
+    declare add_action: (action: ActionLike) => void;
+    /** `Gio.ActionMap.lookup_action`: the window's own action, or `null`. */
+    declare lookup_action: (action_name: string) => ActionLike | null;
+    /** `Gio.ActionMap.remove_action`: an unknown name does nothing. */
+    declare remove_action: (action_name: string) => void;
+
     static override readonly GTypeName: string = 'GtkApplicationWindow';
 
     constructor(props?: ConstructProps<GtkApplicationWindow>) {
