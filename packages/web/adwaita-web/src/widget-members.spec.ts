@@ -73,6 +73,21 @@ export const WidgetMembersTest = async () => {
             expect(parent.get_parent()).toBe(null);
         });
 
+        await it('walks the element tree of a built-in widget with the GTK link names', () => {
+            const box = new Gtk.Box() as unknown as WidgetLike;
+            const a = new Gtk.Label() as unknown as WidgetLike;
+            const b = new Gtk.Label() as unknown as WidgetLike;
+            expect(box.get_first_child()).toBe(null);
+            box.append(a, b);
+            expect(box.get_first_child()).toBe(a);
+            expect(box.get_last_child()).toBe(b);
+            expect(a.get_next_sibling()).toBe(b);
+            expect(b.get_prev_sibling()).toBe(a);
+            expect(b.get_next_sibling()).toBe(null);
+            expect(a.get_parent()).toBe(box);
+            expect(box.get_parent()).toBe(null);
+        });
+
         await it('adds, tests and removes a CSS class with the GTK names', () => {
             const widget = make('WidgetMembersCss') as unknown as {
                 add_css_class(c: string): void;
