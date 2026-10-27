@@ -28,6 +28,11 @@ function withToggle(node: SharedTreeNode): SharedTreeNode {
     };
 }
 
+/** The NativeScript half of a widget: `notify` dispatches an event, where GObject's takes a property. */
+interface ClickTarget {
+    notify(data: { eventName: string; object: unknown }): void;
+}
+
 export const AdwGObjectDoorNsTest = async () => {
     await driveGObjectVectors(
         {
@@ -35,6 +40,10 @@ export const AdwGObjectDoorNsTest = async () => {
             isOracle: false,
             GObject: GObject as unknown as GObjectNamespace,
             Widget: Gtk.Box as unknown as GObjectConstructor,
+            click: (button) => {
+                const target = button as unknown as ClickTarget;
+                target.notify({ eventName: 'clicked', object: target });
+            },
             template: (source) => withToggle(source.tree),
             bind: (source, sourceProperty, target, targetProperty, flags) => {
                 bindProperties(source, sourceProperty, target, targetProperty, flags);
@@ -83,7 +92,8 @@ export const AdwGObjectDoorNsTest = async () => {
             hexdump._toggle.active = false;
             expect(hexdump.enabled).toBe(false);
 
-            (hexdump._copyButton as unknown as GObjectInstance).emit('clicked');
+            const copy = hexdump._copyButton as unknown as ClickTarget;
+            copy.notify({ eventName: 'clicked', object: copy });
             expect(seen.join()).toBe('after super:object,copy');
         });
 

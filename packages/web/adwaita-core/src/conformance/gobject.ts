@@ -51,6 +51,12 @@ export interface GObjectSubject {
     readonly Widget?: GObjectConstructor;
     /** The value to put in `Template`. */
     template(source: GObjectTemplateSource): unknown;
+    /**
+     * Press a button the way its user does. GJS and the browser port emit the `clicked` signal;
+     * a NativeScript port dispatches the `clicked` event, because `emit` there is GObject's and
+     * takes only a declared signal.
+     */
+    click(button: GObjectInstance): void;
     /** The binding engine; `bind_property` on GJS, which is not exported by the ports. */
     bind(
         source: GObjectInstance,
@@ -630,7 +636,7 @@ export const GOBJECT_VECTORS: readonly GObjectVector[] = [
             );
             const o = new K();
             host = o;
-            (o._btn as GObjectInstance).emit('clicked');
+            s.click(o._btn as GObjectInstance);
             return calls;
         },
         shows: [[true, true]],

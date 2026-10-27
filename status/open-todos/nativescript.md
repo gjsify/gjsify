@@ -172,11 +172,11 @@ property gates another's effect. Not `adw-button-content.ts` or `adw-combo-row.t
 an OBJECT-typed property (`hostButton` is a `View`, `model`/`selected-item` are objects) and the
 seam has no ParamSpec kind for one.
 
-ALSO OPEN, from the device run: `emit('<undeclared>')` does NOT throw. The seam's `emit` is also
-this port's NativeScript dispatch door, so a name no class declared goes to the observable
-instead, where GJS would throw. The refusal `addEventListener` gained in #2325 has no counterpart
-on `emit`, and giving it one would make a consumer's own invented event name throw — a decision
-with a trade-off, left for the owner.
+RESOLVED (owner, 2026-10-27): `emit('<undeclared>')` throws `No signal '<name>' on object '<class>'`,
+as in GJS, on both legs. `emit` is GObject's only; a NativeScript event goes through
+`notify({ eventName, object })`. FOLLOW-UP: the NS `GtkButton` still dispatches `clicked` as a
+NativeScript event and does not declare it, so `emit('clicked')` on it throws; declaring the signal
+is a route-D migration of its own.
 
 CARRY THESE: `vfunc_*` does not work on a foreign-parent class, so a widget that needs one stays
 on the twin. A REFUSAL MAY NOT LIVE IN A `notify::` HANDLER: an exception thrown there is logged

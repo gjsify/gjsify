@@ -85,6 +85,11 @@ none of the native bytes above.
 with `engine` defaulting to today's pure-JS functions. The engine owns instance state, signal
 connect/emit, notify, binding and class registration. The door keeps owning widgets.
 
+**`emit` is GObject's only (owner, 2026-10-27).** It takes a declared signal or a declared
+property's `notify::<prop>` and throws `No signal '<name>' on object '<class>'` for anything
+else, as GJS does, on both legs. A NativeScript event is dispatched with
+`notify({ eventName, object })`; there is no `emit` fallback to the observable.
+
 **The twin is a bridge; a real subclass is the goal.** A NativeScript widget is a `View`, and a
 class has one prototype chain: today it cannot also extend `GObject.Object`. Until it can, the
 real backend gives each registered instance a GObject twin (a `GObject.registerClass` object
