@@ -121,6 +121,21 @@ export default async () => {
                 setAccentPainter(null);
             });
 
+            await it('a platform that throws is no preference, never an error', () => {
+                setSystemAppearance({
+                    current: () => now,
+                    subscribe: () => () => {},
+                    highContrast: () => {
+                        throw new TypeError('boom');
+                    },
+                    accentColor: () => {
+                        throw new TypeError('boom');
+                    },
+                });
+                expect(manager.get_high_contrast()).toBe(false);
+                expect(manager.get_accent_color()).toBe(AccentColor.BLUE);
+            });
+
             await it('stops following once the system is taken away', () => {
                 setSystemAppearance(null);
                 expect(changed).toBe(null);
