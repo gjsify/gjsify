@@ -34,14 +34,14 @@ function androidContext(): AndroidContext | null {
 
 // `UiModeManager.getContrast()` is 0, 0.5 or 1; `Adw.StyleManager:high-contrast` is the top level.
 function highContrast(): boolean {
-    if (android === undefined || android.os.Build.VERSION.SDK_INT < 34) return false;
+    if (typeof android === 'undefined' || android.os.Build.VERSION.SDK_INT < 34) return false;
     const manager = androidContext()?.getSystemService(android.content.Context.UI_MODE_SERVICE);
     return (manager?.getContrast?.() ?? 0) >= 1;
 }
 
 // Material You's `system_accent1_500`, snapped to the nearest of the nine like libadwaita does.
 function accentColor(): AdwAccentColorName | null {
-    if (android === undefined || android.os.Build.VERSION.SDK_INT < 31) return null;
+    if (typeof android === 'undefined' || android.os.Build.VERSION.SDK_INT < 31) return null;
     const id = android.R.color.system_accent1_500;
     const argb = id === undefined ? undefined : androidContext()?.getColor(id);
     if (argb === undefined) return null;

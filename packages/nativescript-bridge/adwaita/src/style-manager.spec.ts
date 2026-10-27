@@ -113,6 +113,14 @@ export default async () => {
                 setAccentPainter(null);
             });
 
+            await it('a painter without a system accent is never asked to paint', () => {
+                setSystemAppearance(null);
+                let calls = 0;
+                setAccentPainter(() => void calls++);
+                expect(calls).toBe(0);
+                setAccentPainter(null);
+            });
+
             await it('stops following once the system is taken away', () => {
                 setSystemAppearance(null);
                 expect(changed).toBe(null);

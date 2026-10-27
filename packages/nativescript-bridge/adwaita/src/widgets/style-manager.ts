@@ -52,7 +52,7 @@ let painted: AdwAccentColorName | null = null;
 export function setAccentPainter(next: ((accent: AdwAccentColorName) => void) | null): void {
     paintAccent = next;
     painted = null;
-    repaint();
+    if (inUse) repaint();
 }
 
 function repaint(): void {
