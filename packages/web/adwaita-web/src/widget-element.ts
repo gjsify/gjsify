@@ -41,6 +41,26 @@ export class WidgetElement extends HTMLElement {
     set_visible(visible: boolean): void {
         this.visible = visible;
     }
+    /** `gtk_widget_get_first_child`: the first child element, `null` for a leaf. */
+    get_first_child(): Element | null {
+        return this.firstElementChild;
+    }
+    /** `gtk_widget_get_last_child`. */
+    get_last_child(): Element | null {
+        return this.lastElementChild;
+    }
+    /** `gtk_widget_get_next_sibling`. */
+    get_next_sibling(): Element | null {
+        return this.nextElementSibling;
+    }
+    /** `gtk_widget_get_prev_sibling`. */
+    get_prev_sibling(): Element | null {
+        return this.previousElementSibling;
+    }
+    /** `gtk_widget_get_parent`. */
+    get_parent(): Element | null {
+        return this.parentElement;
+    }
     /** `gtk_widget_get_width`: the layout box in CSS px; 0 until the widget is rendered. */
     get_width(): number {
         return this.offsetWidth;
