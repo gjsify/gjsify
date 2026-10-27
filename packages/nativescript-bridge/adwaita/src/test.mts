@@ -50,6 +50,7 @@ import gdkTestSuite from './gdk.spec.js';
 import glibTestSuite from './glib.spec.js';
 import fileChooserTestSuite from './file-chooser.spec.js';
 import styleManagerTestSuite from './style-manager.spec.js';
+import systemAccentTestSuite from './system-accent.spec.js';
 import transitionTypeTestSuite from './transition-type.spec.js';
 import scrolledWindowPolicyTestSuite from './scrolled-window-policy.spec.js';
 import revealerStateTestSuite from './revealer-state.spec.js';
@@ -71,6 +72,7 @@ run({
     glibTestSuite,
     fileChooserTestSuite,
     styleManagerTestSuite,
+    systemAccentTestSuite,
     transitionTypeTestSuite,
     scrolledWindowPolicyTestSuite,
     revealerStateTestSuite,

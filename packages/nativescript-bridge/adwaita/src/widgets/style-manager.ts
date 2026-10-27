@@ -55,8 +55,25 @@ export function setAccentPainter(next: ((accent: AdwAccentColorName) => void) | 
     if (inUse) repaint();
 }
 
+// libadwaita's `get_default()` never throws: a platform that fails to answer is "no preference".
+function systemAccent(): AdwAccentColorName | null {
+    try {
+        return system?.accentColor?.() ?? null;
+    } catch {
+        return null;
+    }
+}
+
+function systemHighContrast(): boolean {
+    try {
+        return system?.highContrast?.() ?? false;
+    } catch {
+        return false;
+    }
+}
+
 function repaint(): void {
-    const accent = system?.accentColor?.() ?? null;
+    const accent = systemAccent();
     if (accent === null || accent === painted || paintAccent === null) return;
     painted = accent;
     paintAccent(accent);
@@ -99,8 +116,8 @@ export const nativeScriptStyleSource: StyleSource = {
             appearanceListeners.delete(changed);
         };
     },
-    highContrast: () => system?.highContrast?.() ?? false,
-    accentColor: () => system?.accentColor?.() ?? null,
+    highContrast: systemHighContrast,
+    accentColor: systemAccent,
     force(dark) {
         if (dark === null) {
             if (!forced) return;
