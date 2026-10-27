@@ -104,6 +104,9 @@ export const gobjectNodeGiSuite = (requireGi: RequireGi) => async () => {
         isOracle: true,
         GObject,
         Widget: hasDisplay ? Gtk?.Box : undefined,
+        click: (button) => {
+            button.emit('clicked');
+        },
         template: (source) => source.xml,
         bind: (source, sourceProperty, target, targetProperty, flags) => {
             const bits = flags.reduce(

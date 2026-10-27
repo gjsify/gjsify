@@ -273,12 +273,12 @@ export const AdwWidgetBaseNsTest = async () => {
             const dialog = confirmDialog();
             const seen: unknown[][] = [];
             const id = dialog.connect('response', (self, response: string) => seen.push([self, response]));
-            dialog.emit('response', 'confirm');
+            dialog.notify({ eventName: 'response', object: dialog, args: ['confirm'] });
             expect(seen.length).toBe(1);
             expect(seen[0]![0]).toBe(dialog);
             expect(seen[0]![1]).toBe('confirm');
             dialog.disconnect(id);
-            dialog.emit('response', 'cancel');
+            dialog.notify({ eventName: 'response', object: dialog, args: ['cancel'] });
             expect(seen.length).toBe(1);
         });
     });

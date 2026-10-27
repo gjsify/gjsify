@@ -338,10 +338,6 @@ function pureDisconnect(self: Observable, handlerId: number): void {
     HANDLERS.get(self)?.delete(handlerId);
 }
 
-function pureEmit(self: Observable, eventName: string, args: readonly unknown[]): void {
-    self.notify({ eventName, object: self, args });
-}
-
 function declaredConnect(
     self: Observable,
     key: string,
@@ -454,7 +450,12 @@ export interface GObjectSignals {
     connect(eventName: string, callback: (self: this, data: EventData) => unknown): number;
     /** Remove exactly the handler `connect` returned this id for. Throws on an id nothing holds. */
     disconnect(handlerId: number): void;
-    /** `g_signal_emit_by_name`: run every handler `connect` added for `eventName`, with `args` in the payload. */
+    /**
+     * `g_signal_emit_by_name`: run every handler `connect` added for `eventName`, with `args` in the
+     * payload. Valid ONLY for a signal the class declares, or `notify::<declared prop>`; any other
+     * name throws as GJS does for an unknown signal. NativeScript's own events go through
+     * `notify({ eventName, object })`.
+     */
     emit(eventName: string, ...args: unknown[]): void;
     /**
      * `g_object_get_property`: the GTK property `name` (`'can-close'` or camel case). A
@@ -959,7 +960,12 @@ export function withSignals<TBase extends ObservableConstructor>(Base: TBase, me
                 else emitDeclared(this, key, args);
                 return;
             }
-            pureEmit(this, eventName, args);
+            // GJS's own refusal, worded as GJS words it. NativeScript's dispatch is `notify`.
+            throw new Error(
+                `No signal '${eventName}' on object '${this.constructor.name}'. emit() is GObject's ` +
+                    "and takes a declared signal or a declared property's notify::<prop>; to dispatch " +
+                    `a NativeScript event use notify({ eventName: '${eventName}', object: this }).`,
+            );
         }
 
         get_property(name: string): unknown {

@@ -214,7 +214,7 @@ export class AdwAlertDialog extends withSignals(Observable) {
     present(_parent?: unknown): void {
         const choice = this._responses.usesActionSheet ? this._presentAction() : this._presentConfirm();
         choice.then(
-            (chosen) => this.emit('response', chosen),
+            (chosen) => this.notify({ eventName: 'response', object: this, args: [chosen] }),
             (error: unknown) => console.error('[AdwAlertDialog] the native dialog failed:', error),
         );
     }

@@ -750,15 +750,20 @@ export const rowsSpec = (engine: 'real-gio' | 'pure-js') => async (): Promise<vo
             info(`seen=[${seen.join('|')}]`);
             expect(seen.join('|')).toBe('apply|entry-activated');
 
-            // A name no class DECLARED does not reach `g_signal_emit_by_name` at all: `emit` is
-            // also this port's NativeScript dispatch door, so it goes to the observable instead.
-            // GJS would throw on it. That difference is the seam's, not this widget's — the
-            // refusal `addEventListener` gained in #2325 has no counterpart on `emit` yet, and
-            // it is the open question recorded beside the next widget in the todo.
+            // `emit` is GObject's: a name no class DECLARED throws, as in GJS. A NativeScript event
+            // goes through `notify({ eventName })` and reaches the observable.
             const heard: string[] = [];
             (row as Any).on('custom-host-event', () => heard.push('host'));
-            (row as Any).emit('custom-host-event');
-            info(`undeclared emit reached the observable: [${heard.join('|')}]`);
+            let refused = '';
+            try {
+                (row as Any).emit('custom-host-event');
+            } catch (error) {
+                refused = String((error as Error).message);
+            }
+            expect(refused.startsWith("No signal 'custom-host-event' on object '")).toBe(true);
+            expect(heard.length).toBe(0);
+            (row as Any).notify({ eventName: 'custom-host-event', object: row });
+            info(`notify reached the observable: [${heard.join('|')}]`);
             expect(heard.join('|')).toBe('host');
         });
 

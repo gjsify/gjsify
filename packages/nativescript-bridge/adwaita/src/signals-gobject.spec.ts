@@ -287,6 +287,46 @@ async function oneDoorVectors(leg: string, engineSetup: () => void): Promise<voi
             }
         });
 
+        await it("emit of an undeclared name throws as GJS does, whatever the name's origin", () => {
+            const widget = widgetWith();
+            // A NativeScript event, a name nothing declares, and a notify:: of a property nothing declares.
+            for (const name of ['tap', 'no-such-signal', 'notify::no-such-prop']) {
+                let message = '';
+                try {
+                    widget.emit(name);
+                } catch (error) {
+                    expect(error instanceof Error).toBe(true);
+                    message = (error as Error).message;
+                }
+                expect(message.startsWith(`No signal '${name}' on object '`)).toBe(true);
+            }
+        });
+
+        await it('a refused emit reaches no handler, and the declared emissions still do', async () => {
+            const widget = widgetWith();
+            const seen: string[] = [];
+            widget.connect('tap', () => seen.push('tap'));
+            widget.connect('closed', () => seen.push('closed'));
+            widget.connect('notify::can-close', () => seen.push('notify'));
+            expect(() => widget.emit('tap')).toThrow();
+            expect(seen.length).toBe(0);
+            widget.emit('closed', 'by-user');
+            widget.emit('notify::can_close');
+            expect(seen.join()).toBe('closed,notify');
+        });
+
+        await it("a NativeScript event is dispatched by notify({ eventName }), with the caller's payload", () => {
+            const widget = widgetWith();
+            const seen: unknown[] = [];
+            widget.connect('tap', (self, data) => seen.push(self === widget, (data as { args?: unknown[] }).args));
+            (widget as unknown as { notify(data: object): void }).notify({
+                eventName: 'tap',
+                object: widget,
+                args: ['x'],
+            });
+            expect(seen).toStrictEqual([true, ['x']]);
+        });
+
         await it('names connect in the refusal, so the message carries the fix', () => {
             const widget = widgetWith();
             let message = '';
