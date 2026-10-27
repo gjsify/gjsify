@@ -28,7 +28,10 @@ GObject.registerClass(
 
 class ProbeHexdump extends Adw.Bin {
     declare _toggle: { active: boolean };
-    declare _copyButton: { emit(signal: string): void };
+    declare _copyButton: {
+        emit(signal: string): void;
+        notify(data: { eventName: string; object: unknown }): void;
+    };
     declare enabled: boolean;
     copies = 0;
     onCopy(): void {
@@ -56,6 +59,10 @@ export function exercise(): Record<string, unknown> {
     const propertyToChild = instance._toggle.active;
     instance._toggle.active = false;
     const childToProperty = instance.enabled;
-    instance._copyButton.emit('clicked');
+    // A NativeScript widget (not a DOM element) dispatches `clicked` as an event; `emit` is GObject's.
+    const button = instance._copyButton;
+    const dom = (globalThis as { HTMLElement?: new () => unknown }).HTMLElement;
+    if (dom === undefined || !(button instanceof dom)) button.notify({ eventName: 'clicked', object: button });
+    else button.emit('clicked');
     return { initial, propertyToChild, childToProperty, copies: instance.copies };
 }
