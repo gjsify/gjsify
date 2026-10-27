@@ -49,3 +49,7 @@ Inputs the ADR needs, all in the prototype:
 - iOS does **not** want this: the NativeScript iOS 9.x engine is jitless JSC, and an iOS
   app can link static native GLib anyway. Two backends behind one binding layer, not one
   technique stretched over both. (Reasoned, not measured.)
+
+The [boundary report](../../docs/reports/2026-10-27-gobject-wasm-boundary.md) splits the
+per-call cost by layer: cheap fixes give ~20 %, not 10×; the notify crossing into JS is the
+big Wasm-specific item. Todos in [node-gi.md](node-gi.md).

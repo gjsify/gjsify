@@ -28,27 +28,59 @@ export async function profile(gi, native, N = 200000) {
         return Math.round(((performance.now() - s) / N) * 1e6);
     };
     const r = {};
-    r.wrapped_set = t((n) => { for (let i = 0; i < n; i++) o.caption = i & 1 ? 'a' : 'b'; });
-    r.wrapped_get = t((n) => { for (let i = 0; i < n; i++) void o.caption; });
-    r.wrapped_emit = t((n) => { for (let i = 0; i < n; i++) o.emit('bumped', 1); });
-    r.wrapped_set_int = t((n) => { for (let i = 0; i < n; i++) o.count = i & 1023; });
+    r.wrapped_set = t((n) => {
+        for (let i = 0; i < n; i++) o.caption = i & 1 ? 'a' : 'b';
+    });
+    r.wrapped_get = t((n) => {
+        for (let i = 0; i < n; i++) void o.caption;
+    });
+    r.wrapped_emit = t((n) => {
+        for (let i = 0; i < n; i++) o.emit('bumped', 1);
+    });
+    r.wrapped_set_int = t((n) => {
+        for (let i = 0; i < n; i++) o.count = i & 1023;
+    });
     if (handle) {
-        r.native_set = t((n) => { for (let i = 0; i < n; i++) nat.setProperty(handle, 'caption', i & 1 ? 'a' : 'b'); });
-        r.native_set_int = t((n) => { for (let i = 0; i < n; i++) nat.setProperty(handle, 'count', i & 1023); });
-        r.native_get = t((n) => { for (let i = 0; i < n; i++) nat.getProperty(handle, 'caption'); });
-        r.native_has = t((n) => { for (let i = 0; i < n; i++) nat.hasProperty(handle, 'caption'); });
-        r.native_emit = t((n) => { for (let i = 0; i < n; i++) nat.emitSignal(handle, 'bumped', [1]); });
-        r.native_typename = t((n) => { for (let i = 0; i < n; i++) nat.getTypeName(handle); });
+        r.native_set = t((n) => {
+            for (let i = 0; i < n; i++) nat.setProperty(handle, 'caption', i & 1 ? 'a' : 'b');
+        });
+        r.native_set_int = t((n) => {
+            for (let i = 0; i < n; i++) nat.setProperty(handle, 'count', i & 1023);
+        });
+        r.native_get = t((n) => {
+            for (let i = 0; i < n; i++) nat.getProperty(handle, 'caption');
+        });
+        r.native_has = t((n) => {
+            for (let i = 0; i < n; i++) nat.hasProperty(handle, 'caption');
+        });
+        r.native_emit = t((n) => {
+            for (let i = 0; i < n; i++) nat.emitSignal(handle, 'bumped', [1]);
+        });
+        r.native_typename = t((n) => {
+            for (let i = 0; i < n; i++) nat.getTypeName(handle);
+        });
     }
     // Built-in property: no engine store, no JS setter callback -> isolates that crossing.
     const Gio = requireGi('Gio', '2.0');
     const act = new Gio.SimpleAction({ name: 'x' });
     const ah = gi.unwrap(act);
-    r.builtin_native_set = t((n) => { for (let i = 0; i < n; i++) nat.setProperty(ah, 'enabled', !!(i & 1)); });
-    r.builtin_native_get = t((n) => { for (let i = 0; i < n; i++) nat.getProperty(ah, 'enabled'); });
+    r.builtin_native_set = t((n) => {
+        for (let i = 0; i < n; i++) nat.setProperty(ah, 'enabled', !!(i & 1));
+    });
+    r.builtin_native_get = t((n) => {
+        for (let i = 0; i < n; i++) nat.getProperty(ah, 'enabled');
+    });
     const o2 = new C();
     const h2 = gi.unwrap(o2);
-    r.native_emit_nohandler = t((n) => { for (let i = 0; i < n; i++) nat.emitSignal(h2, 'bumped', [1]); });
+    r.native_emit_nohandler = t((n) => {
+        for (let i = 0; i < n; i++) nat.emitSignal(h2, 'bumped', [1]);
+    });
+    // Same set with a notify::caption handler connected: the engine's notify crosses back into JS.
+    const o3 = new C();
+    o3.connect('notify::caption', () => {});
+    r.wrapped_set_notify = t((n) => {
+        for (let i = 0; i < n; i++) o3.caption = i & 1 ? 'a' : 'b';
+    });
     r.handle_found = !!handle;
     return r;
 }

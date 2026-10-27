@@ -533,3 +533,13 @@ neither is a fork — the prototype shimmed both under `docs/poc/gobject-wasm/sr
 
 Decide the seam's fate with the ADR (see `roadmap.md`): either give it a build and a
 gate, or remove it.
+
+### Property boundary cost (measured, see the [boundary report](../../docs/reports/2026-10-27-gobject-wasm-boundary.md))
+
+Landed: positive `hasProperty` memo in `gi.js` (one crossing fewer per get/set). Open, by size:
+
+- the `notify`/closure crossing back into JS costs ~15 µs on Wasm vs ~1.5 µs native; profile
+  `JsClosureMarshalImpl` and emnapi's call path
+- skip `MaybeRunJsPropertySetter` when the class declares no JS accessor for the property
+- fold the equal-value `getProperty` of the set trap into `setProperty` (one crossing per set)
+- the 10–20× target needs a C++ property fast path; `gi.js` trimming alone reaches ~60×
