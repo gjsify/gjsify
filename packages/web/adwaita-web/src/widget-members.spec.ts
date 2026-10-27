@@ -3,6 +3,8 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
+import * as Graphene from './namespace/graphene.js';
+import * as Gtk from './namespace/gtk.js';
 import * as GObject from './namespace/gobject.js';
 import * as Gio from './namespace/gio.js';
 import { writeProp } from './shared-tree-builder.js';
@@ -16,6 +18,7 @@ interface WidgetLike extends HTMLElement {
     get_next_sibling(): Element | null;
     get_prev_sibling(): Element | null;
     get_parent(): Element | null;
+    compute_point(target: Element, point: Graphene.Point): [boolean, Graphene.Point];
     insert_action_group(name: string, group: unknown): void;
 }
 
@@ -78,6 +81,39 @@ export const WidgetMembersTest = async () => {
             expect(widget.has_css_class('dim-label')).toBe(true);
             widget.remove_css_class('dim-label');
             expect(widget.has_css_class('dim-label')).toBe(false);
+        });
+
+        await it('computes a point from the bounding boxes, on a registered class and a built-in element', () => {
+            const placed = <T extends Element>(element: T, left: number, top: number): T => {
+                element.getBoundingClientRect = () => ({ left, top }) as DOMRect;
+                return element;
+            };
+            const scrolled = placed(new Gtk.ScrolledWindow(), 10, 100);
+            const registered = placed(make('WidgetMembersPoint'), 14, 130);
+            const builtIn = placed(new Gtk.Label(), 11, 105);
+            scrolled.append(registered, builtIn);
+            document.body.append(scrolled);
+
+            const [ok, point] = registered.compute_point(scrolled, Graphene.Point.zero());
+            expect(ok).toBe(true);
+            expect(point.x).toBe(4);
+            expect(point.y).toBe(30);
+            const [okBuiltIn, shifted] = builtIn.compute_point(scrolled, new Graphene.Point({ x: 2, y: 3 }));
+            expect(okBuiltIn).toBe(true);
+            expect(shifted.x).toBe(3);
+            expect(shifted.y).toBe(8);
+            scrolled.remove();
+        });
+
+        await it('computes no point between widgets that share no tree', () => {
+            const attached = make('WidgetMembersPointAttached');
+            const loose = make('WidgetMembersPointLoose');
+            document.body.append(attached);
+            const [ok, point] = loose.compute_point(attached, new Graphene.Point({ x: 5, y: 5 }));
+            expect(ok).toBe(false);
+            expect(point.x).toBe(0);
+            expect(point.y).toBe(0);
+            attached.remove();
         });
 
         await it('takes an action group and drops it again with null', () => {

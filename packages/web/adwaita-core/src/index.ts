@@ -482,6 +482,8 @@ export { iconLookupNames, lookupResourceIcon } from './icon-theme-resources.js';
 export type { IconDirection, ResourceIconMatch, ResourceIconRequest } from './icon-theme-resources.js';
 export { syncDirection, widgetTreeMembers } from './widget-members.js';
 export type { ClipboardHost, GdkClipboard } from './gdk.js';
+export { Point, computePoint } from './graphene.js';
+export type { PointNode } from './graphene.js';
 export { createGLibTimers } from './glib-timers.js';
 export type { GLibTimers, SourceFunc, TimerHost } from './glib-timers.js';
 
