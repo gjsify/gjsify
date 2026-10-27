@@ -77,7 +77,7 @@ const LIBRARY_FAULT = 'NativeLibraryLoadError';
 
 /** No GObject-Introspection in the process at all (`--app browser`): nothing to install, nothing to say. */
 function isNoGiError(error: unknown): boolean {
-    return error instanceof Error && error.message.includes('imports.gi');
+    return error instanceof Error && error.message.includes('GObject-Introspection');
 }
 
 /** Classify a failed Spiel probe or `Speaker` creation. Exported (underscored) for the specs. */

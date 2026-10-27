@@ -72,7 +72,7 @@
             "darwin": "libspiel is a Linux/GNOME speech stack; getVoices() answers [] and speak() fires an error event with code synthesis-unavailable. describeSpeechSynthesisBackend() says why.",
             "win32": "libspiel is a Linux/GNOME speech stack; getVoices() answers [] and speak() fires an error event with code synthesis-unavailable. describeSpeechSynthesisBackend() says why."
         },
-        "tier": 1
+        "tier": 3
     },
     "license": "MIT",
     "repository": {

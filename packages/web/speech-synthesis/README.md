@@ -1,6 +1,6 @@
 # @gjsify/speech-synthesis
 
-The W3C Web Speech synthesis API for GJS: `speechSynthesis`, `SpeechSynthesis`, `SpeechSynthesisUtterance`, `SpeechSynthesisVoice`, `SpeechSynthesisEvent`, `SpeechSynthesisErrorEvent`. The backend is [libspiel](https://project-spiel.org) (`gi://Spiel?version=1.0`) and its speech providers. Linux only. See [ADR 0121](../../../docs/adr/0121-speech-synthesis-on-gjs-via-libspiel.md).
+The W3C Web Speech synthesis API for GJS: `speechSynthesis`, `SpeechSynthesis`, `SpeechSynthesisUtterance`, `SpeechSynthesisVoice`, `SpeechSynthesisEvent`, `SpeechSynthesisErrorEvent`. The backend is [libspiel](https://project-spiel.org) (`gi://Spiel?version=1.0`) and its speech providers. Linux only. Tier 3 (experimental, [ADR 0003](../../../docs/adr/0003-package-tiering.md)) until promoted. See [ADR 0121](../../../docs/adr/0121-speech-synthesis-on-gjs-via-libspiel.md).
 
 Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
 
