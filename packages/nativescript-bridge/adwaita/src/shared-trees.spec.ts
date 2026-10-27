@@ -129,10 +129,10 @@ type TreeNode = object;
  */
 function descendants(root: TreeNode, into: TreeNode[] = []): TreeNode[] {
     into.push(root);
-    if (root instanceof LayoutBase) {
+    if (root instanceof ScrollView) {
+        if (root.content !== null) descendants(root.content, into);
+    } else if (root instanceof LayoutBase) {
         for (let index = 0; index < root.getChildrenCount(); index++) descendants(root.getChildAt(index), into);
-    } else if (root instanceof ScrollView && root.content !== null) {
-        descendants(root.content, into);
     }
     return into;
 }

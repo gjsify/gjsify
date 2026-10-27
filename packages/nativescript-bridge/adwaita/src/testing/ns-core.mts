@@ -738,21 +738,6 @@ export class Button extends View {
     text = '';
 }
 
-export class ScrollView extends View {
-    orientation: 'horizontal' | 'vertical' = 'vertical';
-    content: View = null;
-    readonly horizontalOffset: number = 0;
-    readonly verticalOffset: number = 0;
-
-    scrollToHorizontalOffset(_value: number, _animated: boolean): void {}
-
-    scrollToVerticalOffset(_value: number, _animated: boolean): void {}
-
-    eachChildView(callback: (child: View) => boolean): void {
-        if (this.content) callback(this.content);
-    }
-}
-
 /**
  * Upstream's `content` setter (`ui/content-view/index.ts`) `_removeView`s the old view and
  * `_addView`s the new one, and `eachChildView` answers that one view — so the tree members see
@@ -787,6 +772,17 @@ export class ContentView extends LayoutBase {
     eachChildView(callback: (child: View) => boolean): void {
         if (this.#content !== null) callback(this.#content);
     }
+}
+
+/** Upstream's `ScrollView` is a `ContentView`: its content is `_addView`ed, so it has the scroller as its parent. */
+export class ScrollView extends ContentView {
+    orientation: 'horizontal' | 'vertical' = 'vertical';
+    readonly horizontalOffset: number = 0;
+    readonly verticalOffset: number = 0;
+
+    scrollToHorizontalOffset(_value: number, _animated: boolean): void {}
+
+    scrollToVerticalOffset(_value: number, _animated: boolean): void {}
 }
 
 export class WrapLayout extends LayoutBase {

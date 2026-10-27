@@ -152,6 +152,7 @@ interface TreeNode {
     eachChildView?(callback: (child: TreeNode) => boolean): void;
     style?: { direction?: string };
     getLocationInWindow?(): { x: number; y: number };
+    getActualSize?(): { width: number; height: number };
 }
 
 /** `Gtk.TextDirection`: NONE, LTR, RTL. */
@@ -376,6 +377,10 @@ export declare abstract class GtkWidgetLayoutMembers {
     get_next_sibling(): object | null;
     get_prev_sibling(): object | null;
     get_parent(): object | null;
+    /** `gtk_widget_get_width`: the allocated width in DIPs; 0 until a layout pass ran. */
+    get_width(): number;
+    /** `gtk_widget_get_height`: the allocated height in DIPs; 0 until a layout pass ran. */
+    get_height(): number;
     /** `gtk_widget_compute_point`: `[false, (0, 0)]` when the two views share no tree. */
     compute_point(target: object, point: Point): [boolean, Point];
     /** `gtk_widget_insert_action_group`: `null` removes the group of `prefix`. */
@@ -559,6 +564,14 @@ export function withGtkWidgetLayout<TBase extends ObservableConstructor>(
 
         get_parent(): object | null {
             return parentOf(this);
+        }
+
+        get_width(): number {
+            return Math.round((this as unknown as TreeNode).getActualSize?.().width ?? 0);
+        }
+
+        get_height(): number {
+            return Math.round((this as unknown as TreeNode).getActualSize?.().height ?? 0);
         }
 
         compute_point(target: object, point: Point): [boolean, Point] {
