@@ -1,0 +1,76 @@
+diff --git a/glib/gwakeup.c b/glib/gwakeup.c
+index 1f6140e..6e2ca39 100644
+--- a/glib/gwakeup.c
++++ b/glib/gwakeup.c
+@@ -113,6 +113,8 @@ g_wakeup_free (GWakeup *wakeup)
+ #ifdef G_PLATFORM_WASM
+ #ifdef GLIB_COMPILATION
+ #include "gmessages.h"
++#include "gslice.h"
++#include "giochannel.h"
+ #endif
+ #else /* !G_PLATFORM_WASM */
+ #include "glib-unix.h"
+@@ -125,7 +127,12 @@ g_wakeup_free (GWakeup *wakeup)
+ 
+ struct _GWakeup
+ {
+-#ifndef G_PLATFORM_WASM
++#ifdef G_PLATFORM_WASM
++  /* Single-threaded Wasm: nothing can interrupt the one thread while it is
++   * inside g_poll(), so a wakeup only ever has to remember that it was
++   * signalled. The GPollFD it hands out is fd == -1, which poll() ignores. */
++  gboolean signalled;
++#else
+   gint fds[2];
+ #endif
+ };
+@@ -145,8 +152,9 @@ GWakeup *
+ g_wakeup_new (void)
+ {
+ #ifdef G_PLATFORM_WASM
+-  g_error ("g_wakeup_new is no-op on WebAssembly");
+-  return NULL;
++  GWakeup *wakeup = g_slice_new0 (GWakeup);
++
++  return wakeup;
+ #else
+   GError *error = NULL;
+   GWakeup *wakeup;
+@@ -198,7 +206,8 @@ g_wakeup_get_pollfd (GWakeup *wakeup,
+                      GPollFD *poll_fd)
+ {
+ #ifdef G_PLATFORM_WASM
+-  g_error ("g_wakeup_get_pollfd is no-op on WebAssembly");
++  poll_fd->fd = -1;
++  poll_fd->events = G_IO_IN;
+ #else
+   poll_fd->fd = wakeup->fds[0];
+   poll_fd->events = G_IO_IN;
+@@ -223,7 +232,7 @@ void
+ g_wakeup_acknowledge (GWakeup *wakeup)
+ {
+ #ifdef G_PLATFORM_WASM
+-  g_error ("g_wakeup_acknowledge is no-op on WebAssembly");
++  wakeup->signalled = FALSE;
+ #else
+   int res;
+ 
+@@ -266,7 +275,7 @@ void
+ g_wakeup_signal (GWakeup *wakeup)
+ {
+ #ifdef G_PLATFORM_WASM
+-  g_error ("g_wakeup_signal is no-op on WebAssembly");
++  wakeup->signalled = TRUE;
+ #else
+   int res;
+ 
+@@ -306,7 +315,7 @@ void
+ g_wakeup_free (GWakeup *wakeup)
+ {
+ #ifdef G_PLATFORM_WASM
+-  g_error ("g_wakeup_free is no-op on WebAssembly");
++  g_slice_free (GWakeup, wakeup);
+ #else
+   close (wakeup->fds[0]);
+ 

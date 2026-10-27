@@ -1,0 +1,48 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<!--
+  PoC harness — the browser leg. Served by scripts/serve.mjs, driven headless by
+  run-browser.mjs. Runs the SAME milestones.mjs as the Node leg; the only thing that
+  differs is this file, because a browser has no package.json `imports` resolution and
+  needs the `#host` specifier spelled out in an import map.
+-->
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>GObject in WebAssembly — PoC</title>
+        <script type="importmap">
+            {
+                "imports": {
+                    "#host": "/packages/node-gi/node-gi/host.wasm.js"
+                }
+            }
+        </script>
+    </head>
+    <body>
+        <pre id="out">running…</pre>
+        <script type="module">
+            import { startEngine } from './engine.mjs';
+            import { runMilestones } from './milestones.mjs';
+
+            const out = document.getElementById('out');
+            try {
+                const { ms } = await startEngine('/engine/node_gi.mjs');
+                const gi = await import('/packages/node-gi/node-gi/gi.js');
+                const native = await import('/packages/node-gi/node-gi/index.js');
+                const iterations = Number(new URLSearchParams(location.search).get('n') ?? 200000);
+                globalThis.__pocResults = {
+                    host: 'browser',
+                    user_agent: navigator.userAgent,
+                    cross_origin_isolated: globalThis.crossOriginIsolated === true,
+                    shared_array_buffer: typeof SharedArrayBuffer !== 'undefined',
+                    engine_startup_ms: +ms.toFixed(2),
+                    ...(await runMilestones(gi, native, iterations)),
+                };
+            } catch (error) {
+                globalThis.__pocResults = { host: 'browser', error: String(error?.stack ?? error) };
+            }
+            out.textContent = JSON.stringify(globalThis.__pocResults, null, 2);
+            globalThis.__pocDone = true;
+        </script>
+    </body>
+</html>
