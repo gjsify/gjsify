@@ -50,8 +50,8 @@ export class AdwOverlaySplitView extends AdwSplitViewBase<NsOverlaySplitViewStat
         return this.showSidebar;
     }
 
-    set show_sidebar(v: boolean | string) {
-        this.showSidebar = v;
+    set show_sidebar(raw: boolean | string) {
+        this.showSidebar = xmlBoolean(raw, this.showSidebar);
     }
 
     get_show_sidebar(): boolean {
