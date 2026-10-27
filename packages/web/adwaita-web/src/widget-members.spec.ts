@@ -118,6 +118,8 @@ export const WidgetMembersTest = async () => {
             const labels: Gtk.Label[] = [];
             for (let i = 0; i < 10; i++) {
                 const label = new Gtk.Label();
+                // An empty label has no content for the viewport to overflow, so Firefox does not scroll it.
+                label.setAttribute('label', `Row ${i}`);
                 label.style.height = '40px';
                 scrolled.append(label);
                 labels.push(label);
