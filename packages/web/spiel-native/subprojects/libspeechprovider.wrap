@@ -1,0 +1,23 @@
+# libspeechprovider (LGPL-2.1-or-later, docs/attribution.md) — the D-Bus
+# interface and audio-stream format shared by libspiel and every speech provider.
+# Linked STATICALLY into libspiel-1.0.so here, so this wrap produces no shipped
+# artifact of its own; see meson.build § ONE library.
+#
+# OUR OWN COPY, at the TOP LEVEL, and both halves of that are load-bearing:
+#
+#   · Top level, because libspiel resolves the interface XML through
+#     `meson.global_source_root() / 'subprojects' / 'libspeechprovider'`
+#     (libspiel/meson.build:111 at the pinned revision). A nested
+#     subprojects/libspiel/subprojects/libspeechprovider would need meson's
+#     subproject promotion to land in that path; declaring it here is the same
+#     result with nothing implicit.
+#   · Ours, because upstream's wrap says `revision = main` — an unpinned
+#     dependency makes the prebuild un-reproducible, which docs/prebuilds.md
+#     forbids. This is 1.0.3, the floor libspiel's `dependency()` requires.
+[wrap-git]
+directory = libspeechprovider
+url = https://github.com/project-spiel/libspeechprovider.git
+revision = 54b6013c2529e208e6a3385076e686fa1c71ef93
+
+[provide]
+dependency_names = speech-provider-1.0

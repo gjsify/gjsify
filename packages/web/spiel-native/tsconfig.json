@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "types": ["node", "@girs/gjs", "@girs/glib-2.0", "@girs/gobject-2.0"],
+    "target": "ESNext",
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "outDir": "lib",
+    "rootDir": "src/ts",
+    "declarationDir": "lib/types",
+    "composite": true,
+    // `composite` derives the buildinfo path from outDir + the rootDir-relative
+    // config path, which with outDir "lib" (1 level) and rootDir "src/ts" (2)
+    // resolves OUTSIDE this package, where `clear` cannot reach it and siblings
+    // collide on one file. See webrtc-native/tsconfig.json for the incident.
+    "tsBuildInfoFile": "lib/tsconfig.tsbuildinfo",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "strict": true
+  },
+  "include": ["src/ts/**/*.ts"]
+}

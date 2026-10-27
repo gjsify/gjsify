@@ -1,0 +1,17 @@
+/* What leaves libspiel-1.0.so: the spiel_* API and nothing else.
+ *
+ * ELF has ONE flat symbol namespace, so this is not cosmetic. libspeechprovider
+ * is linked statically into this library (meson.build § ONE library), and
+ * without this script its seven speech_provider_* functions are exported — where
+ * they would interpose on (or be interposed by) the real libspeechprovider.so
+ * that a speech PROVIDER in the same process links. Measured: 89 spiel_* and 0
+ * speech_provider_* exported with this script, 89 and 7 without it. The Spiel
+ * typelib names no speech_provider_* symbol, so nothing introspectable is lost
+ * (test/check-elf-deps.py reads both facts back from the built file).
+ */
+{
+  global:
+    spiel_*;
+  local:
+    *;
+};

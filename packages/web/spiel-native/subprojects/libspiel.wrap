@@ -1,0 +1,19 @@
+# libspiel — the Spiel speech-synthesis CLIENT library (LGPL-2.1-or-later,
+# docs/attribution.md). It talks D-Bus to speech providers, so this build exists
+# on Linux only; see README.md § What this is.
+#
+# PINNED TO A COMMIT, not a tag, and that is a measured choice rather than a
+# preference: the newest upstream tag is SPIEL_1_0_4 (2025-04-03), while
+# `meson.build` has said `version: '1.0.5'` since, and 1.0.4 predates the
+# subproject-tracking fix this build needs (libspiel's own meson.build copies the
+# provider interface XML through a custom_target for meson < 1.14.0). There is no
+# SPIEL_1_0_5 to pin. Bumping it: change `revision`, rebuild, re-run
+# `meson test -C build` (the ELF read-back asserts the exported symbol set) and
+# re-measure the prebuild size in README.md § Updating libspiel.
+#
+# No `depth`: a shallow clone can only fetch a commit the server offers as a tip,
+# and this revision is not one.
+[wrap-git]
+directory = libspiel
+url = https://github.com/project-spiel/libspiel.git
+revision = 7c88081b03ebb2903817cf101e4b9906052155c9

@@ -1,0 +1,92 @@
+{
+    "name": "@gjsify/spiel-native",
+    "version": "0.64.11",
+    "description": "libspiel, the GNOME Spiel speech-synthesis client library, built as one relocatable shared library plus its typelib so `gi://Spiel` can be imported without a system libspiel — the backend of @gjsify/speech-synthesis. The prebuilt library arrives through per-target optionalDependencies; this package adds only the probe that says where Spiel came from.",
+    "type": "module",
+    "main": "lib/esm/index.js",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        }
+    },
+    "files": [
+        "lib",
+        "meson.build",
+        "src",
+        "subprojects",
+        "test"
+    ],
+    "gjsify": {
+        "platforms": [
+            "linux-x64",
+            "linux-arm64"
+        ],
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "none"
+        },
+        "os": {
+            "linux": "partial",
+            "darwin": "none",
+            "win32": "none"
+        },
+        "osNotes": {
+            "linux": "Builds for linux-x64 and linux-arm64 against the host GLib, GObject, Gio and GStreamer; libspeechprovider is linked statically, so the prebuild is one `.so` with no RUNPATH. `gi://Spiel` loads from the staged directory and `Speaker.new_sync()` reaches the session bus — measured on Fedora 44 / x86_64 with two providers answering. arm64 is built by CI only.",
+            "darwin": "Not built. Spiel is a D-Bus protocol: a client finds providers by their `*.Speech.Provider` well-known names on the session bus and plays their audio through GStreamer. macOS has no session bus and no provider implementation, so a prebuild would load and then find nothing, permanently.",
+            "win32": "Not built, for the same reason as darwin."
+        },
+        "prebuildLicense": "MIT AND LGPL-2.1-or-later",
+        "tier": 3
+    },
+    "scripts": {
+        "clear": "gjsify clear lib build tsconfig.tsbuildinfo",
+        "check": "gjsify tsc --noEmit",
+        "init:meson": "meson setup build .",
+        "init:meson:wipe": "gjsify run init:meson --wipe",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}'",
+        "build:types": "gjsify tsc -b --force",
+        "build:meson": "gjsify run init:meson && meson compile -C build",
+        "build:prebuilds": "gjsify run build:meson && node ../../../scripts/stage-prebuild.mjs .",
+        "test": "echo 'native only — see test:meson (runs on every prebuild leg)'",
+        "test:meson": "meson test -C build --print-errorlogs"
+    },
+    "keywords": [
+        "gjs",
+        "spiel",
+        "speech-synthesis",
+        "tts",
+        "gnome",
+        "linux"
+    ],
+    "dependencies": {
+        "@girs/gjs": "5.4.0",
+        "@girs/glib-2.0": "5.4.0",
+        "@girs/gobject-2.0": "5.4.0",
+        "@gjsify/utils": "workspace:^"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/web/spiel-native"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/web/spiel-native#readme",
+    "optionalDependencies": {
+        "@gjsify/spiel-native-linux-arm64": "workspace:*",
+        "@gjsify/spiel-native-linux-x64": "workspace:*"
+    }
+}

@@ -14,3 +14,5 @@ Templates — **A** direct adaptation: `SPDX-License-Identifier: MIT` + `Adapted
 ### Linked into a shipped binary (not in `refs/`)
 
 |SDL3 → Sam Lantinga + SDL contributors, zlib — statically linked into `@gjsify/gamepad-native`'s prebuilds, pinned by `packages/web/gamepad-native/subprojects/sdl3.wrap`
+|libspiel → Spiel contributors (Eitan Isaacson et al.), LGPL-2.1-or-later — SHIPPED AS THE SHARED LIBRARY of `@gjsify/spiel-native`'s prebuilds, pinned by commit in `packages/web/spiel-native/subprojects/libspiel.wrap`. Those per-target packages therefore declare `MIT AND LGPL-2.1-or-later` (`gjsify.prebuildLicense`), and the pinned commit is the corresponding source; the library is replaceable in place, so a recipient can relink a modified libspiel
+|libspeechprovider → Spiel contributors, LGPL-2.1-or-later — statically linked into that same library, pinned by commit in `packages/web/spiel-native/subprojects/libspeechprovider.wrap`
