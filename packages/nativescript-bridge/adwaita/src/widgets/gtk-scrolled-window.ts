@@ -78,6 +78,8 @@ export class GtkScrolledWindow extends AdwSingleChildBase {
     private _hasFrame = false;
     private _hadjustment: GtkAdjustment | null = null;
     private _vadjustment: GtkAdjustment | null = null;
+    private _listening = false;
+    private _syncing = false;
 
     constructor(props?: ConstructProps<GtkScrolledWindow>) {
         super();
@@ -128,13 +130,18 @@ export class GtkScrolledWindow extends AdwSingleChildBase {
         this.vscrollbarPolicy = GTK_POLICY_TYPES[vscrollbar_policy]!;
     }
 
-    /** `Gtk.ScrolledWindow:hadjustment` — the one it was given, else a window-owned one. */
+    /**
+     * `Gtk.ScrolledWindow:hadjustment` — the one it was given, else a window-owned one.
+     *
+     * Observable and kept in step with the `ScrollView` both ways: the scroll offset and the
+     * content/viewport sizes are configured into it, and a write to its value scrolls.
+     */
     get hadjustment(): GtkAdjustment {
-        return (this._hadjustment ??= new GtkAdjustment());
+        return (this._hadjustment ??= this._track('horizontal', new GtkAdjustment()));
     }
 
     get vadjustment(): GtkAdjustment {
-        return (this._vadjustment ??= new GtkAdjustment());
+        return (this._vadjustment ??= this._track('vertical', new GtkAdjustment()));
     }
 
     get_hadjustment(): GtkAdjustment {
@@ -146,11 +153,50 @@ export class GtkScrolledWindow extends AdwSingleChildBase {
     }
 
     set_hadjustment(adjustment: GtkAdjustment): void {
-        this._hadjustment = adjustment;
+        this._hadjustment = this._track('horizontal', adjustment);
     }
 
     set_vadjustment(adjustment: GtkAdjustment): void {
-        this._vadjustment = adjustment;
+        this._vadjustment = this._track('vertical', adjustment);
+    }
+
+    private _track(axis: 'horizontal' | 'vertical', adjustment: GtkAdjustment): GtkAdjustment {
+        if (!this._listening) {
+            this._listening = true;
+            // The platform scroll view reports no window-resize, so the post-layout sizes and
+            // the scroll event are the sources the adjustments are configured from.
+            this._scroll.addEventListener('scroll', this._syncAdjustments);
+            this._scroll.addEventListener('layoutChanged', this._syncAdjustments);
+            this._viewport.addEventListener('layoutChanged', this._syncAdjustments);
+        }
+        adjustment.connect('value-changed', () => {
+            const current = axis === 'horizontal' ? this._hadjustment : this._vadjustment;
+            if (this._syncing || current !== adjustment) return;
+            if (axis === 'horizontal') this._scroll.scrollToHorizontalOffset(adjustment.value, false);
+            else this._scroll.scrollToVerticalOffset(adjustment.value, false);
+        });
+        this._syncAxis(axis, adjustment);
+        return adjustment;
+    }
+
+    private readonly _syncAdjustments = (): void => {
+        if (this._hadjustment) this._syncAxis('horizontal', this._hadjustment);
+        if (this._vadjustment) this._syncAxis('vertical', this._vadjustment);
+    };
+
+    private _syncAxis(axis: 'horizontal' | 'vertical', adjustment: GtkAdjustment): void {
+        const vertical = axis === 'vertical';
+        const page = this._scroll.getActualSize();
+        const content = this._viewport.getActualSize();
+        const pageSize = vertical ? page.height : page.width;
+        const upper = Math.max(vertical ? content.height : content.width, pageSize);
+        const value = vertical ? this._scroll.verticalOffset : this._scroll.horizontalOffset;
+        this._syncing = true;
+        try {
+            adjustment.configure(value, 0, upper, pageSize * 0.1, pageSize * 0.9, pageSize);
+        } finally {
+            this._syncing = false;
+        }
     }
 
     /** `Gtk.ScrolledWindow:has-frame` — held and read back; no frame is drawn (see the header). */

@@ -210,7 +210,9 @@ export class GtkScrolledWindow extends WidgetElement {
     private _fadeTimer: ReturnType<typeof setTimeout> | null = null;
     private _built = false;
     /** What an unbuilt window answers before it has a viewport to read. */
-    private readonly _standIn: { hadjustment?: AdwAdjustment; vadjustment?: AdwAdjustment } = {};
+    private readonly _standIn: { hadjustment?: GtkAdjustment; vadjustment?: GtkAdjustment } = {};
+    private readonly _heard = new WeakSet<object>();
+    private _pushing = false;
     private readonly _adopted: { hadjustment?: AdwAdjustment; vadjustment?: AdwAdjustment } = {};
 
     static get observedAttributes() {
@@ -265,21 +267,18 @@ export class GtkScrolledWindow extends WidgetElement {
         this.vscrollbarPolicy = v;
     }
 
-    /** `GtkScrollable:hadjustment` as the window reports it: the one it was given, else the viewport's. */
+    /**
+     * `GtkScrollable:hadjustment` as the window reports it: the one it was given, else its own.
+     *
+     * Either is ONE object for the window's life, observable like GTK's: the viewport's
+     * numbers are configured into it, and a write to its value scrolls the content.
+     */
     get hadjustment(): AdwAdjustment {
-        return (
-            this._adopted.hadjustment ??
-            (this._viewport as GtkViewport | undefined)?.hadjustment ??
-            (this._standIn.hadjustment ??= new GtkAdjustment())
-        );
+        return this._adjustmentOf('hadjustment');
     }
 
     get vadjustment(): AdwAdjustment {
-        return (
-            this._adopted.vadjustment ??
-            (this._viewport as GtkViewport | undefined)?.vadjustment ??
-            (this._standIn.vadjustment ??= new GtkAdjustment())
-        );
+        return this._adjustmentOf('vadjustment');
     }
 
     get_hadjustment(): AdwAdjustment {
@@ -290,13 +289,55 @@ export class GtkScrolledWindow extends WidgetElement {
         return this.vadjustment;
     }
 
-    /** Adopts `adjustment` as what `get_hadjustment` answers; the scroll position keeps following the viewport. */
+    /** Adopts `adjustment` as what `get_hadjustment` answers; it is kept in step with the viewport both ways. */
     set_hadjustment(adjustment: AdwAdjustment): void {
-        this._adopted.hadjustment = adjustment;
+        this._adopt('hadjustment', adjustment);
     }
 
     set_vadjustment(adjustment: AdwAdjustment): void {
-        this._adopted.vadjustment = adjustment;
+        this._adopt('vadjustment', adjustment);
+    }
+
+    private _adjustmentOf(key: 'hadjustment' | 'vadjustment'): AdwAdjustment {
+        const adopted = this._adopted[key];
+        if (adopted !== undefined) return adopted;
+        let own = this._standIn[key];
+        if (own === undefined) {
+            own = this._standIn[key] = new GtkAdjustment();
+            this._listen(key, own);
+            this._push(key);
+        }
+        return own;
+    }
+
+    private _adopt(key: 'hadjustment' | 'vadjustment', adjustment: AdwAdjustment): void {
+        this._adopted[key] = adjustment;
+        this._listen(key, adjustment);
+        this._push(key);
+    }
+
+    /** A write to the adjustment's value moves the scrollport; a plain object has no signal to hear. */
+    private _listen(key: 'hadjustment' | 'vadjustment', adjustment: AdwAdjustment): void {
+        if (!(adjustment instanceof GtkAdjustment) || this._heard.has(adjustment)) return;
+        this._heard.add(adjustment);
+        adjustment.connect('value-changed', () => {
+            if (this._pushing || this._adjustmentOf(key) !== adjustment || !this._viewport) return;
+            this._viewport.scrollAxis(key === 'hadjustment' ? 'horizontal' : 'vertical', adjustment.value);
+        });
+    }
+
+    /** Configures the window's adjustment of one axis from the viewport's numbers. */
+    private _push(key: 'hadjustment' | 'vadjustment'): void {
+        const viewport = this._viewport as GtkViewport | undefined;
+        const adjustment = this._adopted[key] ?? this._standIn[key];
+        if (!viewport?.isConnected || !(adjustment instanceof GtkAdjustment)) return;
+        const v = viewport[key];
+        this._pushing = true;
+        try {
+            adjustment.configure(v.value, v.lower, v.upper, v.stepIncrement, v.pageIncrement, v.pageSize);
+        } finally {
+            this._pushing = false;
+        }
     }
 
     /** `GtkScrolledWindow:window-placement` — where the contents sit against the bars. */
@@ -533,6 +574,8 @@ export class GtkScrolledWindow extends WidgetElement {
         // bars are not connected, so this pass has no adjustment to read and no geometry to
         // decide — `connectedCallback` ends with a `_sync()` of its own, once they are.
         if (bars === null || !this._viewport.isConnected || !bars.vertical.isConnected) return;
+        this._push('hadjustment');
+        this._push('vadjustment');
         const placement = this.windowPlacement;
         const indicators = this._useIndicators;
         this.classList.toggle('frame', this.hasFrame);
@@ -621,6 +664,8 @@ export class GtkScrolledWindow extends WidgetElement {
         const bars = this._bars;
         if (bars === null) return;
         const detail = (event as CustomEvent<{ hadjustment: AdwAdjustment; vadjustment: AdwAdjustment }>).detail;
+        this._push('hadjustment');
+        this._push('vadjustment');
         for (const axis of AXES) {
             const adjustment = detail[axis.key];
             (bars[axis.bar] as HTMLElement & { adjustment: AdwAdjustment }).adjustment = adjustment;

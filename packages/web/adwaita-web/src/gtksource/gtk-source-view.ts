@@ -168,12 +168,27 @@ export class GtkSourceView extends WidgetElement {
         });
         this.session = new EditorSession(this.driver, undefined, adwaitaColorScheme());
         this.session.bindGutters(this.gutters);
+        // A write to an adjustment's value scrolls the textarea, as on GTK; the sync below is
+        // guarded so the scroll it causes does not write the value back.
+        this.vadj.connect('value-changed', () => {
+            if (!this.syncing) this.area.scrollTop = this.vadj.value;
+        });
+        this.hadj.connect('value-changed', () => {
+            if (!this.syncing) this.area.scrollLeft = this.hadj.value;
+        });
     }
+
+    private syncing = false;
 
     private syncAdjustments(): void {
         const { area } = this;
-        this.vadj.configure(area.scrollTop, 0, area.scrollHeight, 20, area.clientHeight, area.clientHeight);
-        this.hadj.configure(area.scrollLeft, 0, area.scrollWidth, 20, area.clientWidth, area.clientWidth);
+        this.syncing = true;
+        try {
+            this.vadj.configure(area.scrollTop, 0, area.scrollHeight, 20, area.clientHeight, area.clientHeight);
+            this.hadj.configure(area.scrollLeft, 0, area.scrollWidth, 20, area.clientWidth, area.clientWidth);
+        } finally {
+            this.syncing = false;
+        }
     }
 
     private readonly onAreaScroll = (): void => this.syncAdjustments();

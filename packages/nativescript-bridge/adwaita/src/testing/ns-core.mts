@@ -777,12 +777,18 @@ export class ContentView extends LayoutBase {
 /** Upstream's `ScrollView` is a `ContentView`: its content is `_addView`ed, so it has the scroller as its parent. */
 export class ScrollView extends ContentView {
     orientation: 'horizontal' | 'vertical' = 'vertical';
-    readonly horizontalOffset: number = 0;
-    readonly verticalOffset: number = 0;
+    horizontalOffset: number = 0;
+    verticalOffset: number = 0;
 
-    scrollToHorizontalOffset(_value: number, _animated: boolean): void {}
+    scrollToHorizontalOffset(value: number, _animated: boolean): void {
+        this.horizontalOffset = value;
+        this.notify({ eventName: 'scroll', object: this, scrollX: value, scrollY: this.verticalOffset });
+    }
 
-    scrollToVerticalOffset(_value: number, _animated: boolean): void {}
+    scrollToVerticalOffset(value: number, _animated: boolean): void {
+        this.verticalOffset = value;
+        this.notify({ eventName: 'scroll', object: this, scrollX: this.horizontalOffset, scrollY: value });
+    }
 }
 
 export class WrapLayout extends LayoutBase {

@@ -128,4 +128,61 @@ export default async () => {
             expect(new GtkAdjustment({ stepIncrement: 25, pageIncrement: 5 }).get_minimum_increment()).toBe(5);
         });
     });
+
+    await describe('Gtk.Adjustment is an observable GObject', async () => {
+        await it('emits value-changed once per real change and none for a no-op write', () => {
+            const adjustment = new GtkAdjustment({ lower: 0, upper: 100, value: 5 });
+            let count = 0;
+            const id = adjustment.connect('value-changed', () => count++);
+
+            adjustment.set_value(5);
+            expect(count).toBe(0);
+            adjustment.set_value(20);
+            expect(count).toBe(1);
+            adjustment.disconnect(id);
+            adjustment.set_value(30);
+            expect(count).toBe(1);
+        });
+
+        await it('emits notify::value and notify::upper for the properties that moved', () => {
+            const adjustment = new GtkAdjustment({ lower: 0, upper: 100, value: 5 });
+            const seen: string[] = [];
+            adjustment.connect('notify::value', () => seen.push('value'));
+            adjustment.connect('notify::upper', () => seen.push('upper'));
+
+            adjustment.set_upper(200);
+            adjustment.set_value(7);
+
+            expect(seen.join()).toBe('upper,value');
+        });
+
+        await it('emits changed for a range change and not for a value change', () => {
+            const adjustment = new GtkAdjustment({ lower: 0, upper: 100, value: 5 });
+            let changed = 0;
+            adjustment.connect('changed', () => changed++);
+
+            adjustment.set_value(9);
+            expect(changed).toBe(0);
+            adjustment.set_upper(50);
+            adjustment.set_page_size(10);
+            expect(changed).toBe(2);
+        });
+
+        await it('configure announces one changed and one value-changed', () => {
+            const adjustment = new GtkAdjustment();
+            let changed = 0;
+            let valueChanged = 0;
+            adjustment.connect('changed', () => changed++);
+            adjustment.connect('value-changed', () => valueChanged++);
+
+            adjustment.configure(30, 0, 500, 1, 50, 100);
+
+            expect(changed).toBe(1);
+            expect(valueChanged).toBe(1);
+        });
+
+        await it('serialises as its six fields', () => {
+            expect(JSON.stringify(new GtkAdjustment(FONT_SIZE))).toBe(range(FONT_SIZE));
+        });
+    });
 };
