@@ -441,4 +441,4 @@ hand-build tree, and the manifest's `tag`/`buildRoot`/`ndkRoot`.
 The workflow uploads a workflow artifact and never creates or edits a release. Releases stay
 manual by choice: the owner's OK per release still applies. Open items live in
 android-sysroot: the pango/freetype2 wraps still float, and a GIR race is worked around. The
-decision above is unchanged and the status stays Proposed.
+decision above is unchanged; the status was still Proposed at that point.
