@@ -619,7 +619,6 @@ set **and** the model has at least one item.
 
     app.connect('activate', () => {
         const window = new Gtk.ApplicationWindow({ application: app, default_width: 440, default_height: 180 });
-        window.set_titlebar(new Gtk.HeaderBar());
         window.set_child(new Gtk.Box());
         window.present();
     });

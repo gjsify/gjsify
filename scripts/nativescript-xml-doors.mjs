@@ -1063,6 +1063,8 @@ export function membersOf(sources, tag) {
     for (const text of chainOf(sources, tag)) {
         for (const [, name] of text.matchAll(/^ {4}(?:get|set) (\w+)[(<]/gm)) members.add(name);
         for (const [, name] of text.matchAll(/^ {4}(?:async )?(\w+)\(/gm)) members.add(name);
+        // `declare name: …` is a member the seam installs onto the prototype (`defineWindowApplication`).
+        for (const [, name] of text.matchAll(/^ {4}declare (\w+)[:?]/gm)) members.add(name);
         // Both spellings: the seam installs `icon-name` and `iconName` alike, so a reader
         // asking for the camel one is asking about the declared property ({@link camelOf}).
         for (const { name } of declaredGObjectProperties(text)) {
