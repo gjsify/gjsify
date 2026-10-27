@@ -9,6 +9,8 @@ import { CURRENT_TIME as GDK_PLATFORM_CURRENT_TIME, GDK_KEYS, createGdk } from '
 
 import { webClipboardHost } from '../clipboard-host.js';
 
+export { RGBA } from '@gjsify/adwaita-core';
+
 export const gdk = createGdk(webClipboardHost);
 
 export const Display = gdk.Display;

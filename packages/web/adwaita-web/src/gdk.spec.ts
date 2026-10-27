@@ -6,6 +6,9 @@
 
 import {
     driveGdkClipboardVectors,
+    driveRGBAVectors,
+    RGBA_VECTORS,
+    type GdkRGBALike,
     GDK_CLIPBOARD_VECTORS,
     type GdkClipboardNamespaces,
 } from '@gjsify/adwaita-core/conformance';
@@ -49,6 +52,12 @@ export const GdkTest = async () => {
             { describe, it, expect },
             GDK_CLIPBOARD_VECTORS,
         ),
+    );
+
+    await driveRGBAVectors(
+        { name: 'adwaita-web', isOracle: false, Gdk: Gdk as unknown as GdkRGBALike },
+        { describe, it, expect },
+        RGBA_VECTORS,
     );
 
     await describe('adwaita-web: Gdk clipboard door', async () => {

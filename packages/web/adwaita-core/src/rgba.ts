@@ -37,6 +37,6 @@ export class RGBA {
     to_string(): string {
         const channel = (value: number) => Math.round(Math.min(1, Math.max(0, value)) * 255);
         const rgb = `${channel(this.red)},${channel(this.green)},${channel(this.blue)}`;
-        return this.alpha === 1 ? `rgb(${rgb})` : `rgba(${rgb},${Number(this.alpha.toFixed(3))})`;
+        return this.alpha === 1 ? `rgb(${rgb})` : `rgba(${rgb},${Number(this.alpha.toPrecision(6))})`;
     }
 }

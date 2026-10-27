@@ -85,6 +85,8 @@ import glibLanguageTestSuite from './glib-language.spec.js';
 import glibLanguageOracleTestSuite from './glib-language.gjs.spec.js';
 import glibVariantTestSuite from './glib-variant.spec.js';
 import glibVariantOracleTestSuite from './glib-variant.gjs.spec.js';
+import rgbaTestSuite from './rgba.spec.js';
+import rgbaOracleTestSuite from './rgba.gjs.spec.js';
 import glibUnicharTestSuite from './glib-unichar.spec.js';
 import glibUnicharOracleTestSuite from './glib-unichar.gjs.spec.js';
 import gioAppInfoTestSuite from './gio-app-info.spec.js';
@@ -190,6 +192,8 @@ run({
     glibLanguageOracleTestSuite,
     glibVariantTestSuite,
     glibVariantOracleTestSuite,
+    rgbaTestSuite,
+    rgbaOracleTestSuite,
     glibUnicharTestSuite,
     glibUnicharOracleTestSuite,
     gioAppInfoTestSuite,
