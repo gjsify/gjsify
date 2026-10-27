@@ -32,7 +32,7 @@
 // Reference: refs/gtk/gtk/gtkwindow.c (GtkWindow)
 // Copyright (c) GNOME contributors (GTK). LGPLv2.1+.
 
-import { CloseRequestState, HandledAccumulator, WindowMemberState } from '@gjsify/adwaita-core';
+import { CloseRequestState, HandledAccumulator, WindowMemberState, stepDefaultSize } from '@gjsify/adwaita-core';
 import type { EventData, View } from '@nativescript/core';
 
 import { windowHost } from '../window-host.js';
@@ -257,6 +257,26 @@ export class GtkWindow extends AdwSingleChildBase {
 
     set defaultHeight(value: number | string) {
         this._defaultHeight = surfaceSize(xmlNumber(value, Number.NaN), value, this._defaultHeight, 'defaultHeight');
+    }
+
+    /** `gtk_window_get_default_size`: `[width, height]`, `[0, 0]` until one is set. */
+    get_default_size(): [number, number] {
+        return [this._defaultWidth, this._defaultHeight];
+    }
+
+    /**
+     * `gtk_window_set_default_size`: a value below -1 is refused as in GTK, an equal one does not
+     * notify, and `default-height` notifies before `default-width`.
+     */
+    set_default_size(width: number, height: number): void {
+        const step = stepDefaultSize(this.get_default_size(), width, height);
+        if (step === null) return;
+        this._defaultWidth = step.width;
+        this._defaultHeight = step.height;
+        for (const property of step.changed) {
+            const value = property === 'default-width' ? step.width : step.height;
+            this.notify({ eventName: `notify::${property}`, object: this, value });
+        }
     }
 }
 

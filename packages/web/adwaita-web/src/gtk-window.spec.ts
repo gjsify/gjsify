@@ -65,6 +65,8 @@ export function webWindowSubject(tag: string): { subject: WindowSubject; dispose
         maximize: (w) => (w as GtkWindow).maximize(),
         unmaximize: (w) => (w as GtkWindow).unmaximize(),
         isMaximized: (w) => (w as GtkWindow).is_maximized(),
+        getDefaultSize: (w) => (w as GtkWindow).get_default_size(),
+        setDefaultSize: (w, width, height) => (w as GtkWindow).set_default_size(width, height),
         isVisible: (w) => (w as GtkWindow).isConnected && !(w as GtkWindow).hidden,
         focusables: (w) => [...(w as GtkWindow).querySelectorAll('button')] as unknown as [Element, Element],
         setFocus: (w, widget) => (w as GtkWindow).set_focus(widget as Element | null),

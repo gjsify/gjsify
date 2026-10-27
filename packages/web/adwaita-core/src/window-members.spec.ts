@@ -5,7 +5,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import { driveWindowVectors, WINDOW_VECTORS, type WindowSubject } from './conformance/window-members.js';
-import { CloseRequestState, HandledAccumulator, WindowMemberState } from './window-members.js';
+import { CloseRequestState, HandledAccumulator, stepDefaultSize, WindowMemberState } from './window-members.js';
 
 type Handler = (...args: unknown[]) => unknown;
 
@@ -17,6 +17,14 @@ class FakeWindow {
     visible = false;
     hideOnClose = false;
     readonly widgets: [object, object] = [{}, {}];
+    size: [number, number] = [0, 0];
+
+    setDefaultSize(width: number, height: number): void {
+        const step = stepDefaultSize(this.size, width, height);
+        if (step === null) return;
+        this.size = [step.width, step.height];
+        for (const property of step.changed) this.emit(`notify::${property}`);
+    }
 
     emit(signal: string, ...args: unknown[]): void {
         for (const handler of this.handlers.get(signal) ?? []) handler(...args);
@@ -61,6 +69,8 @@ const subject: WindowSubject = {
     maximize: (w) => void win(w).state.reportMaximized(true),
     unmaximize: (w) => void win(w).state.reportMaximized(false),
     isMaximized: (w) => win(w).state.maximized,
+    getDefaultSize: (w) => win(w).size,
+    setDefaultSize: (w, width, height) => win(w).setDefaultSize(width, height),
     isVisible: (w) => win(w).visible,
     focusables: (w) => win(w).widgets,
     setFocus: (w, widget) => void win(w).state.reportFocus(widget),
@@ -69,6 +79,17 @@ const subject: WindowSubject = {
 
 export default async () => {
     await driveWindowVectors(subject, { describe, it, expect }, WINDOW_VECTORS);
+
+    await describe('stepDefaultSize', async () => {
+        await it('refuses below -1 and non-integers, allows -1', async () => {
+            expect(stepDefaultSize([0, 0], -2, 1)).toBe(null);
+            expect(stepDefaultSize([0, 0], 1, -2)).toBe(null);
+            expect(stepDefaultSize([0, 0], 1.5, 1)).toBe(null);
+            expect(JSON.stringify(stepDefaultSize([0, 0], -1, 0))).toBe(
+                '{"width":-1,"height":0,"changed":["default-width"]}',
+            );
+        });
+    });
 
     await describe('WindowMemberState', async () => {
         await it('notifies is-active only when the value moves', async () => {
