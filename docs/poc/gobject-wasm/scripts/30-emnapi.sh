@@ -25,7 +25,8 @@ poc_log "emnapi $POC_EMNAPI_VERSION -> $EN"
 mkdir -p "$EN" && cd "$EN"
 
 fetch_pkg() { # <npm-name> <version> <dest-dir>
-    local tgz="$1-$2.tgz"
+    local base="${1#@}"
+    local tgz="${base//\//-}-$2.tgz" # npm pack names @scope/name as scope-name
     [ -f "$tgz" ] || npm pack "$1@$2" --silent >/dev/null
     [ -d "$3" ] || { mkdir -p "$3" && tar -C "$3" --strip-components=1 -xf "$tgz"; }
 }

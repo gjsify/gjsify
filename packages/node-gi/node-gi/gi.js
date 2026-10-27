@@ -1704,6 +1704,15 @@ function wrapInstance(handle, userProto) {
     // Built fresh, every `obj.m(…)` in a loop allocated a closure and re-asked for
     // the type name across the N-API boundary. Null prototype: `constructor` and
     // friends must not read as a cached thunk.
+    // Positive answers only: a GObject class never loses a property, so a hit is final
+    // and saves one boundary crossing per get/set; a miss stays a live lookup.
+    const knownProps = new Set();
+    const hasProp = (name) => {
+        if (knownProps.has(name)) return true;
+        if (!native.hasProperty(handle, name)) return false;
+        knownProps.add(name);
+        return true;
+    };
     const giMethodThunks = Object.create(null);
     const giMethodThunk = (prop) => {
         let thunk = giMethodThunks[prop];
@@ -1815,7 +1824,7 @@ function wrapInstance(handle, userProto) {
             const shim = objectPrototypeShim(prop);
             if (shim !== undefined) return (...args) => shim(handle, args);
             const propName = toKebab(prop);
-            if (native.hasProperty(handle, propName)) {
+            if (hasProp(propName)) {
                 // A READ materialises a custom property's value, exactly as GJS's generated
                 // getter writes the default into its private field on first look-up — which
                 // is what makes a LATER assignment of that same default silent. See the
@@ -1864,7 +1873,7 @@ function wrapInstance(handle, userProto) {
                     }
                 }
                 const propName = toKebab(prop);
-                if (native.hasProperty(handle, propName)) {
+                if (hasProp(propName)) {
                     // Equal-value guard, GJS's `_generateAccessors` setter verbatim:
                     // `if (value !== this[privateName]) { …; this.notify(name) }`
                     // (refs/gjs/modules/core/_common.js). GJS puts it in the accessor it
@@ -1903,7 +1912,7 @@ function wrapInstance(handle, userProto) {
                 // GI methods are resolved dynamically and are intentionally not reported.)
                 const up = t[USER_PROTO];
                 if (up !== undefined && findProtoDescriptor(up, prop) !== undefined) return true;
-                if (native.hasProperty(handle, toKebab(prop))) return true;
+                if (hasProp(toKebab(prop))) return true;
             }
             return false;
         },

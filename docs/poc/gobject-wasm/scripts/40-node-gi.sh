@@ -20,7 +20,7 @@ LDFLAGS=$(poc_pkgconfig --libs --static girepository-2.0 gobject-2.0 gio-2.0 gmo
 
 # NODE_GI_HAS_LIBUV=0 is the one define the shipping sources already understand;
 # it is what makes the unmodified 14 compile.
-COMMON=(-O1 -std=c++17 -fexceptions
+COMMON=(-O1 -fPIC -std=c++17 -fexceptions
         -DNODE_GI_HAS_LIBUV=0 -DNAPI_VERSION=8 -DNAPI_DISABLE_CPP_EXCEPTIONS
         -I"$POC_NODE_GI/src" -I"$EN/emnapi/include/node" -I"$EN/node-addon-api")
 
