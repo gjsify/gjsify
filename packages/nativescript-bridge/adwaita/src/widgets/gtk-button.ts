@@ -35,11 +35,14 @@
 //     name and is the only one now, which is a breaking change in the same shape as the
 //     methods-and-signals one before it.
 //
-// `clicked` IS THE SIGNAL, and `tap` still is too. NativeScript emits `tap`; a GJS snippet
-// writes `button.connect('clicked', …)`, and `withSignals` turns that into an
-// `addEventListener` for whatever name it is given — so the button re-emits its own `tap`
-// under GTK's name and both lines reach the same handler. `AdwSplitButton` already emits
-// `clicked` for its action half, which is where the name comes from.
+// `clicked` IS A DECLARED GObject SIGNAL, and `tap` is only what raises it. NativeScript emits
+// `tap`; the button turns that into `emit('clicked')`, which on Android with the real engine is
+// `g_signal_emit` on a registered GType and on the pure-JS leg the seam's own handler table —
+// one dispatch either way, so `button.connect('clicked', …)` runs once per tap and
+// `button.emit('clicked')` from code behaves as in GJS. It is NOT a NativeScript event any
+// more: `addEventListener('clicked')` and `notify({ eventName: 'clicked' })` are refused like
+// every declared member's (`signals.ts`). `tap` stays the platform's own event and is not
+// declared. `AdwSplitButton` still dispatches `clicked` for its action half as an event.
 //
 // THE ICON GOES THROUGH `GtkImage`, WHICH IS WHY IT TAKES A THEME NAME. `iconName` accepts
 // `'list-add-symbolic'` and an Adwaita symbolic SVG string alike, and neither spelling is
@@ -76,11 +79,14 @@ export const GTK_BUTTON_IMAGE_CLASS = 'image-button';
 /** The class the button's own label carries, so the theme can give it Adwaita's type. */
 export const GTK_BUTTON_LABEL_CLASS = 'adw-button-label';
 
-export class GtkButton extends withSignals(GridLayout) {
+export class GtkButton extends withSignals(GridLayout, {
+    GTypeName: 'GtkButton',
+    // `G_SIGNAL_RUN_FIRST | G_SIGNAL_ACTION`, no arguments. Declared, so on Android with the real
+    // engine it is a real GObject signal and `emit('clicked')` / `connect('clicked', …)` are
+    // GObject's, as in GJS (`emit` takes declared signals only — see `signals.ts`).
+    Signals: { clicked: {} },
+}) {
     static readonly GTypeName: string = 'GtkButton';
-
-    /** The GTK signals this widget emits through `connect` — read by the shared-tree builder (ADR 0093). */
-    static readonly emittedSignals: readonly string[] = [GTK_BUTTON_CLICKED];
 
     /**
      * The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`.
@@ -114,8 +120,9 @@ export class GtkButton extends withSignals(GridLayout) {
         // longer. Same helper, same shades in the theme.
         attachRowPressFeedback(this);
 
+        // A tap IS the user's click: one GObject emission, so each handler runs once on both legs.
         this.addEventListener('tap', () => {
-            this.notify({ eventName: GTK_BUTTON_CLICKED, object: this });
+            this.emit(GTK_BUTTON_CLICKED);
             if (this.actionName) activateWidgetAction(this, this.actionName);
         });
         // The native view exists only once loaded, and a tooltip written before that is lost.

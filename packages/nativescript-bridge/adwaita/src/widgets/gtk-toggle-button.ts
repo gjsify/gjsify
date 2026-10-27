@@ -49,7 +49,6 @@ export class GtkToggleButton extends GtkButton {
     static readonly GTypeName: string = 'GtkToggleButton';
 
     static override readonly emittedSignals: readonly string[] = [
-        ...GtkButton.emittedSignals,
         GTK_TOGGLE_BUTTON_TOGGLED,
         NOTIFY_TOGGLE_ACTIVE,
     ];
@@ -61,10 +60,11 @@ export class GtkToggleButton extends GtkButton {
     constructor(props?: ConstructProps<GtkToggleButton>) {
         super();
 
-        this.addEventListener('clicked', () => {
+        // Connected first, so it runs first: GObject runs handlers in connection order.
+        this.connect('clicked', (self) => {
             // `gtk_toggle_button_clicked` refuses to release an active member that has a link.
-            if (this._active && this._grouped) return;
-            this.active = !this._active;
+            if (self._active && self._grouped) return;
+            self.active = !self._active;
         });
 
         applyConstructProps(this, props);

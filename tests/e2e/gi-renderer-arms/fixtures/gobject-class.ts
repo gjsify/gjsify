@@ -59,10 +59,6 @@ export function exercise(): Record<string, unknown> {
     const propertyToChild = instance._toggle.active;
     instance._toggle.active = false;
     const childToProperty = instance.enabled;
-    // A NativeScript widget (not a DOM element) dispatches `clicked` as an event; `emit` is GObject's.
-    const button = instance._copyButton;
-    const dom = (globalThis as { HTMLElement?: new () => unknown }).HTMLElement;
-    if (dom === undefined || !(button instanceof dom)) button.notify({ eventName: 'clicked', object: button });
-    else button.emit('clicked');
+    instance._copyButton.emit('clicked');
     return { initial, propertyToChild, childToProperty, copies: instance.copies };
 }

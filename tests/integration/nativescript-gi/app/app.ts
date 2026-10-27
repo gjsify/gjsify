@@ -20,6 +20,7 @@ import settingsVectors from './specs/settings.js';
 import fileChooserVectors from './specs/file-chooser.js';
 import { viewsSpec } from './specs/views.js';
 import { storybookSpec } from './specs/storybook.js';
+import { buttonSpec } from './specs/button.js';
 import { spinnerSpec } from './specs/spinner.js';
 import { windowTitleSpec } from './specs/window-title.js';
 import { rowsSpec } from './specs/rows.js';
@@ -91,6 +92,8 @@ async function runSuite(): Promise<void> {
                 // The third and fourth, and the first PAIR: a GType registered over another
                 // registered GType, with a plain NativeScript class between the two.
                 await rowsSpec(engine)();
+                // A signal-only migration: `clicked` of a button the apps tap.
+                await buttonSpec(engine)();
             }
             if (optedIn) await inversionSpec();
             if (optedIn) await foreignParentSpec();

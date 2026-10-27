@@ -79,9 +79,6 @@ const subject: GObjectSubject = {
     isOracle: false,
     GObject: G,
     Widget: G.Object,
-    click: (button) => {
-        button.emit('clicked');
-    },
     template: (source) => source.tree,
     bind: (source, sourceProperty, target, targetProperty, flags) => {
         bindProperties(source, sourceProperty, target, targetProperty, flags);

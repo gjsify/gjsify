@@ -98,9 +98,6 @@ export function createSubsetSubject(engine: GObjectEngine, name: string = SUBSET
         isOracle: false,
         GObject: G,
         Widget: G.Object,
-        click: (button) => {
-            button.emit('clicked');
-        },
         template: (source) => source.tree,
         // The ENGINE's binding engine, not `bindProperties`: on this subject the two differ, and
         // the binding rows are about what the engine does.
