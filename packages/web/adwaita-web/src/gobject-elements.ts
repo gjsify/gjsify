@@ -106,6 +106,18 @@ export function ensureNotifying(el: HTMLElement, property: string): void {
     });
 }
 
+/**
+ * The element a bubbled DOM event is the GTK signal of: the nearest one from `target` up that
+ * declares `signal` as `event`. A click on plain content inside a button is the button's `clicked`;
+ * a click on a nested button is that button's, and a signal is per instance in GObject.
+ */
+function signalOwner(target: EventTarget | null, signal: string, event: string): Element | null {
+    for (let at = target instanceof Element ? target : null; at !== null; at = at.parentElement) {
+        if (dispatchedSignalsOf(at)[signal] === event) return at;
+    }
+    return null;
+}
+
 /** Calls `handler(el, ...args)` for `signal`; returns the disconnect. */
 export function listenElement(el: HTMLElement, signal: string, handler: Handler): () => void {
     const event = eventOf(el, signal);
@@ -114,6 +126,7 @@ export function listenElement(el: HTMLElement, signal: string, handler: Handler)
     const listener = (domEvent: Event) => {
         // A notification bubbles, and a parent must not hear its child's property as its own.
         if (notification && domEvent.target !== el) return;
+        if (!notification && !EMITTED.has(domEvent) && signalOwner(domEvent.target, signal, event) !== el) return;
         const handled = handler(el, ...(EMITTED.has(domEvent) ? ((domEvent as CustomEvent).detail as unknown[]) : []));
         // A GTK handler of a boolean-handled signal (`close-request`) returns true to take it over,
         // which on a cancelable DOM event is `preventDefault()`; the handlers after it do not run.
