@@ -109,7 +109,7 @@ static GLogWriterOutput NodeGiLogWriterWrapper(GLogLevelFlags log_level, const G
   napi_get_global(env, &global);
   napi_value args[2] = {Napi::Number::New(napiEnv, static_cast<double>(log_level)), obj};
   napi_value ret = nullptr;
-  napi_status st = napi_make_callback(env, nullptr, global, fn, 2, args, &ret);
+  napi_status st = NodeGiCallIntoJs(env, global, fn, 2, args, &ret);
   if (st != napi_ok || napiEnv.IsExceptionPending()) {
     // A throwing writer must never wedge the logging path (nor leave a pending
     // exception across the C boundary): surface + clear, then default-write.
@@ -209,7 +209,7 @@ static gboolean NodeGiBindingTransformInvoke(GBinding* binding, const GValue* fr
   napi_value global = nullptr;
   napi_get_global(env, &global);
   napi_value ret = nullptr;
-  napi_status st = napi_make_callback(env, nullptr, global, fn, 2, args, &ret);
+  napi_status st = NodeGiCallIntoJs(env, global, fn, 2, args, &ret);
   if (st != napi_ok || napiEnv.IsExceptionPending()) {
     SurfacePendingException(env, "property binding transform");
     return FALSE;

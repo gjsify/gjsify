@@ -250,7 +250,7 @@ static void NodeGiCallbackTrampoline(ffi_cif* /*cif*/, void* result, void** args
       // napi_make_callback drains nextTick/microtasks around the call (Node; on
       // Bun/Deno the checkpoint is run by NodeGiMaybeDrainMicrotasks below).
       g_loopDispatchDepth++;
-      napi_status st = napi_make_callback(env, nullptr, global, fn, jsArgs.size(), jsArgs.data(), &ret);
+      napi_status st = NodeGiCallIntoJs(env, global, fn, jsArgs.size(), jsArgs.data(), &ret);
       g_loopDispatchDepth--;
       if (st != napi_ok) ret = nullptr;
     }

@@ -702,6 +702,27 @@ extern int g_syncEmitDepth;
 // InternalCallbackScopes and GJS's "drain when the last JS frame exits" do.
 extern int g_loopDispatchDepth;
 
+// Enter JS at a loop-dispatched callback boundary (signals.cc / calls.cc /
+// class.cc / loop.cc / private.cc). On a real Node-API host this is
+// napi_make_callback, which runs the nextTick + microtask checkpoint at the
+// boundary. Under Emscripten the Node-API host is emnapi, whose
+// napi_make_callback is a thin forward to @emnapi/node-binding and returns
+// napi_generic_failure whenever that binding is absent — which it always is
+// outside Node, i.e. in every browser. The call then fails SILENTLY: the GI
+// callback returns FALSE, the GSource is removed, and no handler ever runs.
+// napi_call_function is the portable entry; the checkpoint it skips is the one
+// NodeGiMaybeDrainMicrotasks already performs for Bun/Deno, and the wasm host
+// registers the same drain (host.wasm.js).
+static inline napi_status NodeGiCallIntoJs(napi_env env, napi_value recv, napi_value fn,
+                                           size_t argc, const napi_value* argv,
+                                           napi_value* result) {
+#ifdef __EMSCRIPTEN__
+  return napi_call_function(env, recv, fn, argc, argv, result);
+#else
+  return napi_make_callback(env, nullptr, recv, fn, argc, argv, result);
+#endif
+}
+
 // Cross-runtime microtask checkpoint (Bun/Deno — see loop.cc). Invokes the
 // runtime-native drain registered via setMicrotaskDrain after an outermost
 // loop-dispatched callback returns; a no-op on Node (never registered), with a

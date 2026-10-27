@@ -142,7 +142,7 @@ static void JsClosureMarshalImpl(GClosure* closure, GValue* return_value, guint 
     napi_value global = nullptr;
     napi_get_global(jc->env, &global);
     g_loopDispatchDepth++;
-    st = napi_make_callback(jc->env, nullptr, global, cbv, args.size(), args.data(), &result);
+    st = NodeGiCallIntoJs(jc->env, global, cbv, args.size(), args.data(), &result);
     g_loopDispatchDepth--;
   }
   if (st != napi_ok) {

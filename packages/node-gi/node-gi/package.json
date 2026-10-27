@@ -10,6 +10,7 @@
   "imports": {
     "#host": {
       "nativescript": "./host.nativescript.js",
+      "wasm": "./host.wasm.js",
       "default": "./host.node.js"
     }
   },
