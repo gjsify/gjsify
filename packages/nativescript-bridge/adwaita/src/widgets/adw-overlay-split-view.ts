@@ -45,6 +45,23 @@ export class AdwOverlaySplitView extends AdwSplitViewBase<NsOverlaySplitViewStat
         applyConstructProps(this, props);
     }
 
+    /** `Adw.OverlaySplitView:show-sidebar` — the GIR spelling of {@link showSidebar}. */
+    get show_sidebar(): boolean {
+        return this.showSidebar;
+    }
+
+    set show_sidebar(v: boolean | string) {
+        this.showSidebar = v;
+    }
+
+    get_show_sidebar(): boolean {
+        return this.showSidebar;
+    }
+
+    set_show_sidebar(v: boolean): void {
+        this.showSidebar = v;
+    }
+
     /**
      * `Adw.OverlaySplitView:pin-sidebar` (adw-overlay-split-view.c:990-992,
      * default FALSE) — whether collapsing leaves the sidebar's visibility alone.

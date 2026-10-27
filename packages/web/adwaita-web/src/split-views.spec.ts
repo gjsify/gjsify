@@ -110,6 +110,17 @@ export const AdwSplitViewsTest = async () => {
             host.remove();
         });
 
+        await it('show_sidebar / get_show_sidebar / set_show_sidebar mirror showSidebar', () => {
+            const { view, host } = mount();
+            expect(view.get_show_sidebar()).toBe(true);
+            view.set_show_sidebar(false);
+            expect(view.showSidebar).toBe(false);
+            expect(view.show_sidebar).toBe(false);
+            view.show_sidebar = true;
+            expect(view.showSidebar).toBe(true);
+            host.remove();
+        });
+
         await it('round-trips the property setter through the attribute', () => {
             const { view, host } = mount();
             view.showSidebar = false;

@@ -103,6 +103,26 @@ export const PopupMenuWidgetsNsTest = async () => {
             }
         });
 
+        await it('menu_model is the GIR spelling of menuModel, getter, setter and accessors', () => {
+            const button = new Gtk.MenuButton();
+            button.menu_model = ['Save'];
+            expect(button.menuModel).toBe(button.menu_model);
+            button.set_menu_model(['Save', 'Quit']);
+            expect(button.get_menu_model().length).toBe(2);
+            expect(button.get_menu_model()).toBe(button.menuModel);
+            expect(() => button.set_menu_model([{ label: 'Zoom', custom: 'zoom' }])).toThrow('custom');
+        });
+
+        await it('show_sidebar is the GIR spelling of showSidebar on Adw.OverlaySplitView', () => {
+            const view = new Adw.OverlaySplitView();
+            expect(view.get_show_sidebar()).toBe(true);
+            view.set_show_sidebar(false);
+            expect(view.showSidebar).toBe(false);
+            expect(view.show_sidebar).toBe(false);
+            view.show_sidebar = true;
+            expect(view.get_show_sidebar()).toBe(true);
+        });
+
         await it('a custom item or a section label is refused at the assignment, naming it', () => {
             const button = new Gtk.MenuButton();
             expect(() => (button.menuModel = [{ label: 'Zoom', custom: 'zoom' }])).toThrow('custom');

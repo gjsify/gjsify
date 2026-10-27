@@ -177,6 +177,21 @@ export const GtkMenuButtonTest = async () => {
             unmountAll();
         });
 
+        await it('menu_model / get_menu_model / set_menu_model mirror menuModel', () => {
+            const el = document.createElement('gtk-menu-button') as MenuButtonElement & {
+                menu_model: AdwMenuInput;
+                get_menu_model(): unknown;
+                set_menu_model(v: AdwMenuInput): void;
+            };
+            document.body.appendChild(el);
+            el.set_menu_model(['Save', 'Quit']);
+            expect(el.get_menu_model()).toBe(el.menuModel);
+            expect(el.querySelectorAll('.adw-popover-item').length).toBe(2);
+            el.menu_model = ['Save'];
+            expect(el.querySelectorAll('.adw-popover-item').length).toBe(1);
+            unmountAll();
+        });
+
         await it('a malformed attribute is NOT a refusal — a typo may not stop the upgrade', () => {
             // The other half of the same rule: `parseMenuModel` stays total, so this
             // element upgrades with no menu instead of throwing.

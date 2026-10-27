@@ -90,6 +90,23 @@ export class GtkMenuButton extends AdwImageButton {
         this._model = model;
     }
 
+    /** `Gtk.MenuButton:menu-model` — the GIR spelling of {@link menuModel}. */
+    get menu_model(): AdwMenuModel {
+        return this.menuModel;
+    }
+
+    set menu_model(value: AdwMenuInput) {
+        this.menuModel = value;
+    }
+
+    get_menu_model(): AdwMenuModel {
+        return this.menuModel;
+    }
+
+    set_menu_model(value: AdwMenuInput): void {
+        this.menuModel = value;
+    }
+
     /**
      * What the action group publishes about the actions this menu names — the portable
      * stand-in for a `GActionGroup`. Left `null`, the registry above the button answers

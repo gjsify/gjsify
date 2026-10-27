@@ -53,6 +53,18 @@ export const AdwViewSwitcherBarTest = async () => {
             host.remove();
         });
 
+        await it('set_stack / get_stack are the GIR spelling of setStack', () => {
+            const { bar, host } = mountBar(2);
+            const stack = bar.get_stack();
+            expect(stack).not.toBeNull();
+            bar.set_stack(null);
+            expect(bar.get_stack()).toBeNull();
+            expect(bar.stack).toBeNull();
+            bar.set_stack(stack);
+            expect(bar.stack).toBe(stack);
+            host.remove();
+        });
+
         await it('still accepts the legacy `revealed` attribute as the request', () => {
             const { bar, host } = mountBar(2);
             bar.setAttribute('revealed', '');
