@@ -388,6 +388,48 @@ export class GtkStack extends WidgetElement {
     }
 
     /**
+     * `gtk_stack_remove` under its GIR name. With no argument it stays `ChildNode.remove()`:
+     * the stack leaves its own parent.
+     */
+    override remove(child?: HTMLElement): void {
+        if (child === undefined) {
+            super.remove();
+            return;
+        }
+        this.removePage(child);
+    }
+
+    /** `gtk_stack_add_titled` under its GIR name. */
+    add_titled(child: HTMLElement, name: string | null, title: string | null): HTMLElement {
+        return this.addTitled(child, name, title);
+    }
+
+    /** `gtk_stack_add_named` under its GIR name. */
+    add_named(child: HTMLElement, name: string | null): HTMLElement {
+        return this.addNamed(child, name);
+    }
+
+    /** `gtk_stack_get_visible_child_name`. */
+    get_visible_child_name(): string | null {
+        return this.visibleChildName;
+    }
+
+    /** `gtk_stack_set_visible_child_name`. */
+    set_visible_child_name(name: string): void {
+        this.setVisibleChildName(name);
+    }
+
+    /** `gtk_stack_get_visible_child`. */
+    get_visible_child(): HTMLElement | null {
+        return this.visibleChild;
+    }
+
+    /** `gtk_stack_set_visible_child`. */
+    set_visible_child(child: HTMLElement): void {
+        this.setVisibleChild(child);
+    }
+
+    /**
      * `gtk_stack_set_visible_child` (gtkstack.c:2244-2281), with `gtk_stack_set_visible_
      * child_full`'s per-call transition (gtkstack.c:2306-2334). A child that is not in
      * this stack, or whose page is not visible, changes nothing — C warns and returns.

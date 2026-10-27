@@ -181,6 +181,26 @@ export class GtkStack extends withSignals(GridLayout) {
         if (at !== -1) this._state.setVisibleIndex(at);
     }
 
+    /** `gtk_stack_get_visible_child_name`. */
+    get_visible_child_name(): string | null {
+        return this.visibleChildName;
+    }
+
+    /** `gtk_stack_set_visible_child_name`. */
+    set_visible_child_name(name: string): void {
+        this.visibleChildName = name;
+    }
+
+    /** `gtk_stack_get_visible_child`. */
+    get_visible_child(): View | null {
+        return this.visibleChild;
+    }
+
+    /** `gtk_stack_set_visible_child`. */
+    set_visible_child(child: View): void {
+        this.visibleChild = child;
+    }
+
     // --- properties held but not rendered ---
 
     /** `Gtk.Stack:transition-type` — held and validated, never rendered. */

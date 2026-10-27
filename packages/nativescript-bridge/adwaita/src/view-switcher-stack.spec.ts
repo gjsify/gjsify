@@ -146,4 +146,20 @@ export const AdwViewSwitcherStackNsTest = async () => {
             expect(stack.visibleChildName).toBe('starred');
         });
     });
+
+    await describe('Adw.ViewStack GIR method names', async () => {
+        await it('add_named, remove(child) and the visible-child accessors', () => {
+            const stack = new Adw.ViewStack();
+            const [one, two] = [new Gtk.Box(), new Gtk.Box()];
+            stack.add_named(one, 'one');
+            stack.add_titled(two, 'two', 'Two');
+            expect(stack.get_visible_child_name()).toBe('one');
+            stack.set_visible_child_name('two');
+            expect(stack.get_visible_child() === (two as unknown)).toBe(true);
+            stack.set_visible_child(one);
+            expect(stack.get_visible_child_name()).toBe('one');
+            expect(stack.remove(two)).toBe(true);
+            expect(stack.pages.length).toBe(1);
+        });
+    });
 };

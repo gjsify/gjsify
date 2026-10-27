@@ -260,4 +260,45 @@ export const AdwViewStackTest = async () => {
             host.remove();
         });
     });
+
+    await describe('<adw-view-stack> GIR method names', async () => {
+        await it('add_titled_with_icon, add_titled and add_named add pages in order', () => {
+            const { stack, host } = mountStack([]);
+            const [a, b, c] = [1, 2, 3].map(() => document.createElement('div'));
+            stack.add_titled_with_icon(a!, 'a', 'A', 'folder-symbolic');
+            stack.add_titled(b!, 'b', 'B');
+            stack.add_named(c!, 'c');
+            expect(stack.pages.map((page) => page.name)).toStrictEqual(['a', 'b', 'c']);
+            expect(stack.pages[0]!.icon).toBe('folder');
+            expect(stack.pages[1]!.title).toBe('B');
+            expect(stack.get_visible_child_name()).toBe('a');
+            host.remove();
+        });
+
+        await it('remove(child) takes the CHILD, and no argument is still ChildNode.remove()', () => {
+            const { stack, host } = mountStack([]);
+            const [a, b] = [1, 2].map(() => document.createElement('div'));
+            stack.add_titled(a!, 'a', 'A');
+            stack.add_titled(b!, 'b', 'B');
+            stack.remove(b!);
+            expect(stack.pages.map((page) => page.name)).toStrictEqual(['a']);
+            expect(b!.parentElement).toBe(null);
+            stack.remove();
+            expect(stack.parentElement).toBe(null);
+            host.remove();
+        });
+
+        await it('get/set_visible_child(_name) select, and get_visible_child_name is null for none', () => {
+            const { stack, host } = mountStack([]);
+            expect(stack.get_visible_child_name()).toBe(null);
+            const [a, b] = [1, 2].map(() => document.createElement('div'));
+            stack.add_titled(a!, 'a', 'A');
+            stack.add_titled(b!, 'b', 'B');
+            stack.set_visible_child_name('b');
+            expect(stack.get_visible_child()).toBe(b!);
+            stack.set_visible_child(a!);
+            expect(stack.get_visible_child_name()).toBe('a');
+            host.remove();
+        });
+    });
 };

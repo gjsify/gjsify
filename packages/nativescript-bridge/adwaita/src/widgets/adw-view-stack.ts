@@ -273,4 +273,30 @@ export class AdwViewStack extends withSignals(GridLayout) {
     get visibleChild(): View | null {
         return this._state.visiblePage?.content ?? null;
     }
+
+    /** `adw_view_stack_add_named`. */
+    add_named(content: View, name: string | null): AdwViewStackPageInfo {
+        return this.add(content, name ?? '');
+    }
+
+    /** `adw_view_stack_get_visible_child_name` — `null` when nothing is selected. */
+    get_visible_child_name(): string | null {
+        return this._state.visibleIndex < 0 ? null : this._state.visibleName;
+    }
+
+    /** `adw_view_stack_set_visible_child_name`. */
+    set_visible_child_name(name: string): void {
+        this._state.setVisibleName(name);
+    }
+
+    /** `adw_view_stack_get_visible_child`. */
+    get_visible_child(): View | null {
+        return this.visibleChild;
+    }
+
+    /** `adw_view_stack_set_visible_child`; a view that is not a page of this stack selects nothing. */
+    set_visible_child(child: View): void {
+        const at = this._state.pages.findIndex((page) => page.content === child);
+        if (at !== -1) this._state.setVisibleIndex(at);
+    }
 }

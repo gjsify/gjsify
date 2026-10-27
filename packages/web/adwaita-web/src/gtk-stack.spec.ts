@@ -599,4 +599,30 @@ export const GtkStackTest = async () => {
             }
         });
     });
+
+    await describe('<gtk-stack> GIR method names', async () => {
+        await it('add_named / add_titled / the visible-child accessors follow the C functions', () => {
+            const { el, host } = mount();
+            const [a, b] = [1, 2].map(() => document.createElement('div'));
+            el.add_named(a!, 'a');
+            el.add_titled(b!, 'b', 'Beta');
+            expect(el.get_visible_child_name()).toBe('a');
+            el.set_visible_child_name('b');
+            expect(el.get_visible_child()).toBe(b!);
+            el.set_visible_child(a!);
+            expect(el.get_visible_child_name()).toBe('a');
+            host.remove();
+        });
+
+        await it('remove(child) removes the page; remove() still detaches the stack', () => {
+            const { el, host } = mount();
+            const a = document.createElement('div');
+            el.add_named(a, 'a');
+            el.remove(a);
+            expect(a.parentElement).toBe(null);
+            el.remove();
+            expect(el.parentElement).toBe(null);
+            host.remove();
+        });
+    });
 };
