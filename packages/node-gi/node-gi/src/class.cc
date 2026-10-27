@@ -264,7 +264,7 @@ static void NodeGiVFuncTrampoline(ffi_cif* /*cif*/, void* result, void** args,
       // wrapped instance is the receiver (`this`).
       g_loopDispatchDepth++;
       napi_status st =
-          napi_make_callback(env, nullptr, recv, fn, jsArgs.size(), jsArgs.data(), &ret);
+          NodeGiCallIntoJs(env, recv, fn, jsArgs.size(), jsArgs.data(), &ret);
       g_loopDispatchDepth--;
       if (st != napi_ok) ret = nullptr;
     }

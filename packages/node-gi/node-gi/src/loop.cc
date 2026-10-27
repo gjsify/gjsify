@@ -107,7 +107,7 @@ static void DrainMicrotasks() {
   if (napi_get_reference_value(env, g_process_ref, &process_v) == napi_ok &&
       napi_get_reference_value(env, g_tick_callback_ref, &tick) == napi_ok &&
       process_v != nullptr && tick != nullptr) {
-    napi_make_callback(env, nullptr, process_v, tick, 0, nullptr, &result);
+    NodeGiCallIntoJs(env, process_v, tick, 0, nullptr, &result);
   }
   napi_close_handle_scope(env, scope);
 }

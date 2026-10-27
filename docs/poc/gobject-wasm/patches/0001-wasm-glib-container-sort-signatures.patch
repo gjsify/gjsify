@@ -1,0 +1,154 @@
+diff --git a/glib/garray.c b/glib/garray.c
+index 208f30d..43f80e8 100644
+--- a/glib/garray.c
++++ b/glib/garray.c
+@@ -47,6 +47,23 @@
+ #include "grefcount.h"
+ #include "gutilsprivate.h"
+ 
++#ifdef __EMSCRIPTEN__
++/* WebAssembly type-checks every indirect call against the callee's declared
++ * signature, so GLib's habit of invoking a two-argument #GCompareFunc through a
++ * three-argument #GCompareDataFunc pointer traps ("null function or function
++ * signature mismatch") instead of harmlessly ignoring the extra argument as it
++ * does on every native ABI. Route those calls through a real three-argument
++ * adapter that carries the original function as its user_data.
++ */
++static int
++g_compare_func_wasm_adapter (gconstpointer a,
++                             gconstpointer b,
++                             gpointer      user_data)
++{
++  return ((GCompareFunc) user_data) (a, b);
++}
++#endif
++
+ #define MIN_ARRAY_SIZE  16
+ 
+ typedef struct _GRealArray  GRealArray;
+@@ -948,8 +965,13 @@ g_array_sort (GArray       *farray,
+     g_sort_array (array->data,
+                   array->len,
+                   array->elt_size,
++#ifdef __EMSCRIPTEN__
++                  g_compare_func_wasm_adapter,
++                  (gpointer) compare_func);
++#else
+                   (GCompareDataFunc) compare_func,
+                   NULL);
++#endif
+ }
+ 
+ /**
+@@ -2435,8 +2457,13 @@ g_ptr_array_sort (GPtrArray    *array,
+     g_sort_array (array->pdata,
+                   array->len,
+                   sizeof (gpointer),
++#ifdef __EMSCRIPTEN__
++                  g_compare_func_wasm_adapter,
++                  (gpointer) compare_func);
++#else
+                   (GCompareDataFunc) compare_func,
+                   NULL);
++#endif
+ }
+ 
+ /* Please keep this doc-comment in sync with
+diff --git a/glib/glist.c b/glib/glist.c
+index 8ba2f84..b829285 100644
+--- a/glib/glist.c
++++ b/glib/glist.c
+@@ -36,6 +36,20 @@
+ 
+ #include "gtestutils.h"
+ 
++#ifdef __EMSCRIPTEN__
++/* See the note on g_compare_func_wasm_adapter in garray.c: WebAssembly rejects
++ * the GCompareFunc-called-as-GCompareDataFunc cast that the sort/insert paths
++ * below rely on, so the two-argument function travels as user_data instead.
++ */
++static int
++g_compare_func_wasm_adapter (gconstpointer a,
++                             gconstpointer b,
++                             gpointer      user_data)
++{
++  return ((GCompareFunc) user_data) (a, b);
++}
++#endif
++
+ /**
+  * GList:
+  * @data: holds the element's data, which can be a pointer to any kind
+@@ -1086,7 +1100,11 @@ g_list_insert_sorted (GList        *list,
+                       gpointer      data,
+                       GCompareFunc  func)
+ {
++#ifdef __EMSCRIPTEN__
++  return g_list_insert_sorted_real (list, data, (GFunc) g_compare_func_wasm_adapter, (gpointer) func);
++#else
+   return g_list_insert_sorted_real (list, data, (GFunc) func, NULL);
++#endif
+ }
+ 
+ /**
+@@ -1217,7 +1235,11 @@ GList *
+ g_list_sort (GList        *list,
+              GCompareFunc  compare_func)
+ {
++#ifdef __EMSCRIPTEN__
++  return g_list_sort_real (list, (GFunc) g_compare_func_wasm_adapter, (gpointer) compare_func);
++#else
+   return g_list_sort_real (list, (GFunc) compare_func, NULL);
++#endif
+ }
+ 
+ /**
+diff --git a/glib/gslist.c b/glib/gslist.c
+index 4ca7338..badc85d 100644
+--- a/glib/gslist.c
++++ b/glib/gslist.c
+@@ -35,6 +35,20 @@
+ #include "gtestutils.h"
+ #include "gslice.h"
+ 
++#ifdef __EMSCRIPTEN__
++/* See the note on g_compare_func_wasm_adapter in garray.c: WebAssembly rejects
++ * the GCompareFunc-called-as-GCompareDataFunc cast that the sort/insert paths
++ * below rely on, so the two-argument function travels as user_data instead.
++ */
++static int
++g_compare_func_wasm_adapter (gconstpointer a,
++                             gconstpointer b,
++                             gpointer      user_data)
++{
++  return ((GCompareFunc) user_data) (a, b);
++}
++#endif
++
+ /**
+  * GSList:
+  * @data: holds the element's data, which can be a pointer to any kind
+@@ -911,7 +925,11 @@ g_slist_insert_sorted (GSList       *list,
+                        gpointer      data,
+                        GCompareFunc  func)
+ {
++#ifdef __EMSCRIPTEN__
++  return g_slist_insert_sorted_real (list, data, (GFunc) g_compare_func_wasm_adapter, (gpointer) func);
++#else
+   return g_slist_insert_sorted_real (list, data, (GFunc) func, NULL);
++#endif
+ }
+ 
+ /**
+@@ -1018,7 +1036,11 @@ GSList *
+ g_slist_sort (GSList       *list,
+               GCompareFunc  compare_func)
+ {
++#ifdef __EMSCRIPTEN__
++  return g_slist_sort_real (list, (GFunc) g_compare_func_wasm_adapter, (gpointer) compare_func);
++#else
+   return g_slist_sort_real (list, (GFunc) compare_func, NULL);
++#endif
+ }
+ 
+ /**

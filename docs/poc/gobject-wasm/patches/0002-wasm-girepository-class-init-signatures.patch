@@ -1,0 +1,52 @@
+diff --git a/girepository/gibaseinfo.c b/girepository/gibaseinfo.c
+index 1b3d3b8..778310e 100644
+--- a/girepository/gibaseinfo.c
++++ b/girepository/gibaseinfo.c
+@@ -128,16 +128,28 @@ gi_base_info_finalize (GIBaseInfo *self)
+     gi_base_info_unref (self->container);
+ }
+ 
++/* These two take the signatures GType actually calls them with, rather than the
++ * narrower ones that are then cast away at the registration site below. On every
++ * native ABI the cast is harmless — the extra argument is simply ignored — but
++ * WebAssembly type-checks each indirect call against the callee's declared
++ * signature and traps ("null function or function signature mismatch") the first
++ * time a GIBaseInfo class is initialised. */
+ static void
+-gi_base_info_class_init (GIBaseInfoClass *klass)
++gi_base_info_class_init (gpointer klass_ptr,
++                         gpointer class_data)
+ {
++  GIBaseInfoClass *klass = (GIBaseInfoClass *) klass_ptr;
++
+   klass->info_type = GI_INFO_TYPE_INVALID;
+   klass->finalize = gi_base_info_finalize;
+ }
+ 
+ static void
+-gi_base_info_init (GIBaseInfo *self)
++gi_base_info_init (GTypeInstance *instance,
++                   gpointer       g_class)
+ {
++  GIBaseInfo *self = (GIBaseInfo *) instance;
++
+   /* Initialise a dynamically allocated #GIBaseInfo’s members.
+    *
+    * This function *must* be kept in sync with gi_info_init(). */
+@@ -174,14 +186,14 @@ gi_base_info_get_type (void)
+         sizeof (GIBaseInfoClass),
+         (GBaseInitFunc) NULL,
+         (GBaseFinalizeFunc) NULL,
+-        (GClassInitFunc) gi_base_info_class_init,
++        gi_base_info_class_init,
+         (GClassFinalizeFunc) NULL,
+         NULL,
+ 
+         /* Instance */
+         sizeof (GIBaseInfo),
+         0,
+-        (GInstanceInitFunc) gi_base_info_init,
++        gi_base_info_init,
+ 
+         /* GValue */
+         &value_table,

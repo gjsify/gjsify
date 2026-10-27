@@ -22,3 +22,30 @@ Decisions in [docs/adr/](../docs/adr/README.md), prioritized backlog in [docs/re
 
 (ADRs 0004, 0005 and 0008 are fully implemented.)
 
+
+### Decide whether a WebAssembly backend gets an ADR
+
+The [GObject-in-Wasm prototype](../../docs/reports/2026-10-27-gobject-wasm-prototype.md)
+answered the feasibility question and hit no wall: `registerClass`, `notify::`, `connect`,
+`emit` and a typelib namespace all work through the shipping `gi.js`, on Node, headless
+Chromium 149 and headless Firefox 151, single-threaded and with **no cross-origin
+isolation** (both browser runs report `cross_origin_isolated: false`). ~1.4 MB gzipped for
+the whole engine; ~90 ms startup; ~3 ms per namespace.
+
+What is open is not *can we* but *what is it for*. `emit` costs ~3,700 ns against ~16 ns
+for a plain-JS object — but the same `emit` measured in C inside the same wasm module
+costs **88 ns**, so ~98 % of that is the N-API boundary and not Wasm. That rules out
+driving a UI at frame rate and rules in tooling, test harnesses, executable docs and a
+playground. It also says the boundary cost is worth its own thread of work, since the
+native build pays it too.
+
+Inputs the ADR needs, all in the prototype:
+
+- four GLib patches (111 insertions / 6 files) on top of wasm-vips' series —
+  `docs/poc/gobject-wasm/patches/README.md`. **0002 is correct on every platform** and is
+  the one worth sending upstream as written; per the third-party rule, none were filed.
+- the node-gi side is nearly free: 14 of 16 `.cc` unchanged, 2 shimmed, one host file,
+  one `#ifdef` helper. See `node-gi.md` for what the seam still owes.
+- iOS does **not** want this: the NativeScript iOS 9.x engine is jitless JSC, and an iOS
+  app can link static native GLib anyway. Two backends behind one binding layer, not one
+  technique stretched over both. (Reasoned, not measured.)

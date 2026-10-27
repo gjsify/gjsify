@@ -502,3 +502,34 @@ none of it needed for input:
 - **Input on hardware.** IME composition (`setComposingText`, predictions) and the arm64 touch path
   are unmeasured. The arm64 report's "tap does not focus" has not reproduced; re-check it with
   `window.get_focus()`, not `entry.has_focus()`.
+
+### The `wasm` host seam is EXPERIMENTAL and has no build in this repo
+
+`host.wasm.js` and the `"wasm"` condition in `packages/node-gi/node-gi/package.json`'s
+`imports` landed with the GObject-in-Wasm prototype
+([report](../../docs/reports/2026-10-27-gobject-wasm-prototype.md)), along with one
+shared helper in `src/common.h`:
+
+    NodeGiCallIntoJs()   // napi_call_function under __EMSCRIPTEN__, else napi_make_callback
+
+`napi_make_callback` cannot work outside Node — emnapi forwards it to
+`@emnapi/node-binding` and returns `napi_generic_failure` when that is absent, which
+node-gi reads as "the callback returned FALSE", so a GSource is removed and the handler
+never runs **with no error anywhere**. The helper is the fix and is used at all six call
+sites.
+
+Nothing in this repo builds the engine those files load. The prototype's scripts do
+(`docs/poc/gobject-wasm/scripts/run-all.sh`) and they are not wired into any gate, so
+this seam is unexercised by CI and can rot silently.
+
+Two translation units still need wasm implementations before a real backend exists, and
+neither is a fork — the prototype shimmed both under `docs/poc/gobject-wasm/src/`:
+
+- **`loop.cc`** — libuv. `NODE_GI_HAS_LIBUV=0` already exists for exactly this, and
+  `gi.js` already has the portable pump for Bun/Deno. Wants a `loop.wasm.cc` beside
+  `loop.cc`, the same shape as `host.wasm.js` beside `host.node.js`.
+- **`cairo.cc`** — needs a cairo built for wasm, or to be compiled out. A missing
+  dependency, not a portability problem.
+
+Decide the seam's fate with the ADR (see `roadmap.md`): either give it a build and a
+gate, or remove it.

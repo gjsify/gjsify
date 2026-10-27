@@ -1,0 +1,19 @@
+diff --git a/girepository/gitypelib.c b/girepository/gitypelib.c
+index 184ffd0..7c68978 100644
+--- a/girepository/gitypelib.c
++++ b/girepository/gitypelib.c
+@@ -2278,6 +2278,14 @@ gi_typelib_do_dlopen (GITypelib *typelib)
+   else
+     shlib_str = NULL;
+ 
++#ifdef __EMSCRIPTEN__
++  /* Under Emscripten every library the typelib could name is statically linked
++   * into the main module, and there is no filesystem to dlopen them from.
++   * Resolve every symbol against the main module instead.
++   */
++  shlib_str = NULL;
++#endif
++
+   if (shlib_str != NULL && shlib_str[0] != '\0')
+     {
+       char **shlibs;
