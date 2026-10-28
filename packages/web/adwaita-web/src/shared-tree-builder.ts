@@ -101,6 +101,8 @@ interface BuildRecord {
     menus?: SharedTreeNode['menus'];
     /** Present when the tree is the template of a registered class (ADR 0096): handlers and binds go through it. */
     template?: TemplateScope;
+    /** A template's handler connections, made once every id exists: `object=` may name a node built later. */
+    connects?: (() => void)[];
 }
 
 /** Calls `onSize` with the host's measured size, now and on every change; returns its disposer. */
@@ -229,13 +231,8 @@ function refuseSiblings(node: SharedTreeNode, door: string): void {
     );
 }
 
-/** Every node, its siblings in the same id scope, then the binds and breakpoints that name them. */
-function buildTree(node: SharedTreeNode, record: BuildRecord): BuiltTree {
-    // ADR 0093 § 2: the whole tree is checked against the capability table before an element is
-    // created. A refused `layout` is named with its node and the reason the table gives.
-    assertTreeConstructs('adwaita-web', capabilities, node, Object.keys(ARIA_OF));
-    if (node.menus !== undefined) record.menus = node.menus;
-    const root = buildNode(node, record);
+/** The sibling objects of `node` built in `record`'s id scope, by id; each has to have one, or nothing could ask for it. */
+function buildSiblings(node: SharedTreeNode, record: BuildRecord): Map<string, HTMLElement> {
     const siblings = new Map<string, HTMLElement>();
     for (const sibling of node.siblings ?? []) {
         if (sibling.id === undefined) {
@@ -245,6 +242,17 @@ function buildTree(node: SharedTreeNode, record: BuildRecord): BuiltTree {
         }
         siblings.set(sibling.id, buildNode(sibling, record));
     }
+    return siblings;
+}
+
+/** Every node, its siblings in the same id scope, then the binds and breakpoints that name them. */
+function buildTree(node: SharedTreeNode, record: BuildRecord): BuiltTree {
+    // ADR 0093 § 2: the whole tree is checked against the capability table before an element is
+    // created. A refused `layout` is named with its node and the reason the table gives.
+    assertTreeConstructs('adwaita-web', capabilities, node, Object.keys(ARIA_OF));
+    if (node.menus !== undefined) record.menus = node.menus;
+    const root = buildNode(node, record);
+    const siblings = buildSiblings(node, record);
     for (const bind of record.binds) bindProperty(bind, record);
     for (const host of record.breakpointHosts) bindBreakpoints(host.el, host.node, record);
     return { root, siblings, objects: new Map(record.ids) };
@@ -265,7 +273,7 @@ function newRecord(
         disposers: [],
         ...(scope === undefined ? {} : { scope }),
         ...(observeSize === undefined ? {} : { observeSize }),
-        ...(template === undefined ? {} : { template }),
+        ...(template === undefined ? {} : { template, connects: [] }),
     };
 }
 
@@ -606,9 +614,13 @@ export interface BuiltTemplateTree {
  * to their handlers and binds through `scope`, none appended and nothing written to `host`'s
  * attributes, because `host` is still inside its constructor. `finish` and the caller's own append
  * belong to the first `connectedCallback`.
+ *
+ * Objects written beside the template (`Adw.AlertDialog dialog { }`, `$Learn learn { }`) are built in
+ * the same id scope and named in `objects`, which is what `InternalChildren` and `Children` read —
+ * `gtk_widget_class_bind_template_child` reaches any object id of the template's builder. They are
+ * not in `children`: a sibling is an independent object, placed by the class or not at all.
  */
 export function buildTemplateTree(tree: SharedTreeNode, scope: TemplateScope, host: HTMLElement): BuiltTemplateTree {
-    refuseSiblings(tree, 'buildTemplateTree');
     assertTreeConstructs('adwaita-web', capabilities, tree, Object.keys(ARIA_OF));
     const record = newRecord(undefined, undefined, scope);
     record.menus = tree.menus;
@@ -616,6 +628,8 @@ export function buildTemplateTree(tree: SharedTreeNode, scope: TemplateScope, ho
     collectNode(host, tree, record);
     bindSignals(host, tree, record);
     const children = buildChildren(host, tree, record);
+    buildSiblings(tree, record);
+    for (const connect of record.connects ?? []) connect();
     for (const bind of record.binds) bindProperty(bind, record);
     for (const breakpointHost of record.breakpointHosts) {
         bindBreakpoints(breakpointHost.el, breakpointHost.node, record);
@@ -648,21 +662,26 @@ function bindSignals(el: HTMLElement, node: SharedTreeNode, record: BuildRecord)
                     `the handler '${signal.handler}' for '${name}' uses after, which is not in the GObject subset.`,
                 );
             }
-            const object =
-                signal.object === undefined
-                    ? undefined
-                    : signal.object === 'template'
-                      ? record.template.instance
-                      : record.ids.get(signal.object);
-            if (signal.object !== undefined && object === undefined) {
-                throw new Error(
-                    `the handler '${signal.handler}' for '${name}' names the object '${signal.object}', which nothing in this tree has.`,
+            const template = record.template;
+            // `object=` is resolved when the whole tree exists, as `gtk_builder_connect_signals` does: it may
+            // name a node built after this one, or a sibling object written beside the template.
+            record.connects!.push(() => {
+                const object =
+                    signal.object === undefined
+                        ? undefined
+                        : signal.object === 'template'
+                          ? template.instance
+                          : record.ids.get(signal.object);
+                if (signal.object !== undefined && object === undefined) {
+                    throw new Error(
+                        `the handler '${signal.handler}' for '${name}' names the object '${signal.object}', which nothing in this tree has.`,
+                    );
+                }
+                (el as unknown as GObjectInstance).connect(
+                    name,
+                    template.handler(signal.handler, { object, flags: signal.flags }),
                 );
-            }
-            (el as unknown as GObjectInstance).connect(
-                name,
-                record.template.handler(signal.handler, { object, flags: signal.flags }),
-            );
+            });
             continue;
         }
         if (signal.object !== undefined || (signal.flags?.length ?? 0) > 0) {

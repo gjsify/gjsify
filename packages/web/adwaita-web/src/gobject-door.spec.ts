@@ -91,12 +91,69 @@ GObject.registerClass(
     GoWebSensitive as never,
 );
 
+const SiblingsTemplate = tree(`template $GoWebSiblings : Adw.Bin {
+    child: Gtk.Box {
+        Gtk.Label caption { label: bind peer.title; }
+    };
+}
+
+Adw.AlertDialog unsavedChangesDialog { heading: "Save changes?"; }
+
+$GoWebPeer peer { }`);
+
+class GoWebPeer extends Adw.Bin {
+    declare title: string;
+}
+GObject.registerClass(
+    {
+        GTypeName: 'GoWebPeer',
+        Properties: { title: GObject.ParamSpec.string('title', '', '', GObject.ParamFlags.READWRITE, 'first') },
+    },
+    GoWebPeer as never,
+);
+
+class GoWebSiblings extends Adw.Bin {
+    declare _unsavedChangesDialog: HTMLElement & { heading: string };
+    declare _peer: GoWebPeer;
+    declare _caption: HTMLElement & { label: string };
+    constructor(params?: Record<string, unknown>) {
+        // @ts-expect-error the element's own constructor takes none; the registered class's takes the params
+        super(params);
+    }
+}
+GObject.registerClass(
+    {
+        GTypeName: 'GoWebSiblings',
+        Template: SiblingsTemplate,
+        InternalChildren: ['unsavedChangesDialog', 'peer', 'caption'],
+    },
+    GoWebSiblings as never,
+);
+
 export const GObjectDoorTest = async () => {
     await driveGObjectVectors(subject, { describe, it, expect }, GOBJECT_VECTORS);
     await describe('adwaita-web: GObject.registerClass end to end (ADR 0096)', async () => {
         await it('derives the tag from the GTypeName', () => {
             expect(tagForTypeName('Hexdump')).toBe('gjsify-hexdump');
             expect(customElements.get('gjsify-go-web-hexdump')).toBe(GoWebHexdump);
+        });
+        await it('reaches the objects written beside the template through InternalChildren, outside its children', () => {
+            const el = new GoWebSiblings();
+            expect(el._unsavedChangesDialog.localName).toBe('adw-alert-dialog');
+            expect(el._peer instanceof GoWebPeer).toBe(true);
+            document.body.append(el);
+            try {
+                // Independent objects, as in GTK: neither is a child of the template widget.
+                expect(el.contains(el._unsavedChangesDialog)).toBe(false);
+                expect(el.contains(el._peer)).toBe(false);
+                expect(el.contains(el._caption)).toBe(true);
+                // A template child names a sibling by id, and follows it.
+                expect(el._caption.label).toBe('first');
+                el._peer.title = 'second';
+                expect(el._caption.label).toBe('second');
+            } finally {
+                el.remove();
+            }
         });
         await it('refuses a second class under the same tag', () => {
             expect(() =>

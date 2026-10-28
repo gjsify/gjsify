@@ -371,11 +371,13 @@ export function buildWithSiblings(node: SharedTreeNode, options: BuildOptions = 
  * `root`, whose class has to be the one the root names (or a subclass of it): a template of an
  * `Adw.Bin` built into a `Gtk.Box` would be a different widget wearing the wrong tree. The ids of
  * the tree stay reachable through `root.getViewById`, and the returned map holds every object the
- * tree names by id (what `InternalChildren` installs). A tree with siblings is refused, as it is
- * by {@link build}.
+ * tree names by id (what `InternalChildren` installs). The objects written beside the template in
+ * the same file (`Adw.AlertDialog dialog { }`) are built in that id scope and are in the map too,
+ * as `gtk_widget_class_bind_template_child` reaches any object id of the template's builder; they
+ * are no children of `root`. A value object's id (a dialog, a `Gtk.StackPage`) is reachable here
+ * for the same reason.
  */
 export function buildInto(root: View, node: SharedTreeNode, options: BuildOptions = {}): ReadonlyMap<string, object> {
-    refuseSiblings(node, 'buildInto');
     const element = elementOf(node);
     if (!(root instanceof element.ctor)) {
         throw new Error(
@@ -383,7 +385,7 @@ export function buildInto(root: View, node: SharedTreeNode, options: BuildOption
                 `a template builds into an instance of the class it extends (<${element.xmlName}>).`,
         );
     }
-    return buildTree(node, options, false, root).objects;
+    return buildTree(node, options, true, root).objects;
 }
 
 function refuseSiblings(node: SharedTreeNode, door: string): void {
