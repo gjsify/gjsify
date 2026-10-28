@@ -85,6 +85,7 @@ const KIND_NAMES: Readonly<Record<ParamSpec['kind'], string>> = {
     int: 'integer',
     uint: 'unsigned integer',
     double: 'double',
+    object: 'object',
 };
 
 /**
