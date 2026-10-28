@@ -39,3 +39,15 @@ export type SQLiteValue = null | number | bigint | string | Uint8Array;
 
 /** One result row, an object by default and an array under `returnArrays`. */
 export type StatementRow = Record<string, unknown> | unknown[];
+
+/**
+ * What `StatementSync.iterate()` hands back.
+ *
+ * An iterator AND an iterable — `for…of` needs the second — whose `return()` is
+ * declared because the contract includes resetting the statement when a loop is left
+ * early, not only when it runs out.
+ */
+export interface StatementIterator extends Iterator<StatementRow, null> {
+    [Symbol.iterator](): StatementIterator;
+    return(): IteratorResult<StatementRow, null>;
+}

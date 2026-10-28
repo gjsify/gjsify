@@ -17,7 +17,7 @@ import {
     toSqliteError,
 } from './errors.ts';
 import { nativeSqlite } from './native.ts';
-import type { RunResult, StatementRow, StatementSyncOptions } from './types.ts';
+import type { RunResult, StatementIterator, StatementRow, StatementSyncOptions } from './types.ts';
 
 const MAX_INT64 = 9223372036854775807n;
 const MIN_INT64 = -9223372036854775808n;
@@ -62,6 +62,18 @@ function viewBytes(view: ArrayBufferView): Uint8Array {
     return view instanceof Uint8Array ? view : new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
 }
 
+/**
+ * The prototype a `for…of`-able iterator should chain to, or null on a host without one.
+ *
+ * `Iterator.prototype` is what gives the returned object `map`/`take`/`toArray`, and
+ * node:sqlite's iterator has them. Reached off `globalThis` rather than by naming
+ * `Iterator`, so the package does not need the ES2025 lib declaration to compile.
+ */
+function iteratorPrototype(): object | null {
+    const ctor = (globalThis as { Iterator?: { prototype: object } }).Iterator;
+    return ctor ? ctor.prototype : null;
+}
+
 export class StatementSync {
     #database: NativeDatabase;
     #statement: NativeStatement;
@@ -78,6 +90,11 @@ export class StatementSync {
      * tell that apart.
      */
     #bareNamedParams: Map<string, string> | null = null;
+    /**
+     * Bumped by every reset, so a live iterator can see that something else moved the
+     * cursor out from under it.
+     */
+    #resetGeneration = 0;
 
     constructor(
         sentinel: symbol,
@@ -177,6 +194,71 @@ export class StatementSync {
         return rows;
     }
 
+    /**
+     * Step the statement one row at a time.
+     *
+     * Nothing is read until `next()` asks, which is the whole point: `all()` materialises
+     * every row before the caller sees the first one, and a table of BLOBs does not fit
+     * twice. The statement is reset when the rows run out and when a loop is left early
+     * (`break`, `return`, a throw) — the latter through the iterator protocol's own
+     * `return()`, which `for…of` calls for exactly this.
+     */
+    iterate(...args: unknown[]): StatementIterator {
+        const { StepResult } = nativeSqlite();
+        this.#ensureValid();
+        try {
+            this.#reset();
+            this.#bindParams(args);
+        } catch (e: unknown) {
+            this.#reset();
+            throw toSqliteError(e);
+        }
+
+        // Captured once: the iteration is one execution of one statement, and Node reads
+        // the names off that execution. get()/all() ask per call instead, because between
+        // two of those the schema can have changed under the statement.
+        const names = this.#columnNames();
+        const generation = this.#resetGeneration;
+        let done = false;
+
+        const stop = (): IteratorResult<StatementRow, null> => {
+            if (!done) {
+                done = true;
+                // Only if nothing else has taken the statement over in the meantime —
+                // resetting then would rewind an execution that is not ours.
+                if (this.#resetGeneration === generation) this.#reset();
+            }
+            return { done: true, value: null };
+        };
+
+        const iterator: StatementIterator = {
+            next: (): IteratorResult<StatementRow, null> => {
+                if (done) return { done: true, value: null };
+                if (this.#resetGeneration !== generation) {
+                    throw new InvalidStateError('iterator was invalidated');
+                }
+                this.#ensureValid();
+
+                let stepped;
+                try {
+                    stepped = this.#statement.step();
+                } catch (e: unknown) {
+                    done = true;
+                    this.#reset();
+                    throw toSqliteError(e);
+                }
+                if (stepped !== StepResult.ROW) return stop();
+                return { done: false, value: this.#readRow(this.#returnArrays ? null : names) };
+            },
+            return: stop,
+            [Symbol.iterator]: () => iterator,
+        };
+
+        const proto = iteratorPrototype();
+        if (proto) Object.setPrototypeOf(iterator, proto);
+        return iterator;
+    }
+
     setReadBigInts(enabled: unknown): undefined {
         if (typeof enabled !== 'boolean') {
             throw new InvalidArgTypeError('The "readBigInts" argument must be a boolean.');
@@ -216,6 +298,7 @@ export class StatementSync {
     }
 
     #reset(): void {
+        this.#resetGeneration++;
         this.#statement.reset();
     }
 
