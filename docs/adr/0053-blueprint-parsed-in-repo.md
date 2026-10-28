@@ -22,9 +22,9 @@ NOTATIONS over that vocabulary. `adw-*` elements and GtkBuilder XML are the runt
 underneath them. Blueprint is not a runtime format: it compiles TO GtkBuilder XML, which
 puts it on `SharedNode`'s level rather than one below it.
 
-### What the 50 `.blp` files actually use
+### What the 51 `.blp` files actually use
 
-Measured over the 50 real `.blp` in this tree by
+Measured over the 51 real `.blp` in this tree by
 `node scripts/report-blueprint-census.mjs`, which derives its file list from `git ls-tree` at
 the revision it is given. This whole section is EMITTED by that script — heading, table and
 the two paragraphs below it — and `scripts/check-blueprint-census.mjs` fails when the ADR and
@@ -32,34 +32,34 @@ the tree disagree, so a thirteenth `.blp` cannot leave any of it quietly wrong.
 
 | Blueprint | count | `SharedNode` | GIR-derived? |
 |---|---|---|---|
-| `using Gtk 4.0;` and `using Adw 1;` — EVERY import line | 98 | carried by the class name | yes — namespace and version |
-| `Adw.HeaderBar { }` — an object as its own statement | 230 | `tag: 'AdwHeaderBar'` | yes — the GIR type |
-| `title: "…"` — every property whose value is not an anonymous object | 559 | `props: { title: '…' }` | yes — a ParamSpec |
+| `using Gtk 4.0;` and `using Adw 1;` — EVERY import line | 100 | carried by the class name | yes — namespace and version |
+| `Adw.HeaderBar { }` — an object as its own statement | 234 | `tag: 'AdwHeaderBar'` | yes — the GIR type |
+| `title: "…"` — every property whose value is not an anonymous object | 561 | `props: { title: '…' }` | yes — a ParamSpec |
 | `[start]`, `[end]`, `[top]`, `[bottom]`, `[center]`, `[breakpoint]` | 49 | `slot: 'start'` | yes — ADR 0029 § 4 derives slot candidates from GIR |
 | `content: Adw.ToolbarView { }` — an ANONYMOUS object as a property value | 49 | a child carrying `slot: 'content'` | yes — a ParamSpec, read as a slot |
 | `styles ["flat"]` | 42 | `cssClasses: ['flat']` | yes — ADR 0049 decided style classes are a list |
-| `template $Foo: Adw.Bin` | 15 | — | **no** — a GtkBuilder composite-template declaration |
-| `Gtk.Box canvasContainer { }` | 97 of those 230 | — | **no** — a GtkBuilder object id |
+| `template $Foo: Adw.Bin` | 16 | — | **no** — a GtkBuilder composite-template declaration |
+| `Gtk.Box canvasContainer { }` | 100 of those 234 | — | **no** — a GtkBuilder object id |
 | `_("Back")` | 151 | — | **no** — a `translatable` attribute on the emitted XML |
-| `bind …` | 10 | — | **no** — a GObject property binding, addressed by id |
+| `bind …` | 11 | — | **no** — a GObject property binding, addressed by id |
 | `condition (…)` + `setters { }` | 7 + 7 | — | **no** — `Adw.Breakpoint`'s own grammar |
 
 **8** signal handlers (`=>`), zero `menu` blocks and **1** inline `Gtk.Adjustment` objects.
 
 Three labels say what they count, because the old ones undersold it. The `using` row counts
-EVERY import line — 47 `using Adw 1;` and 51 `using Gtk 4.0;`, since not every file
-imports both — where reading it as the Adw one alone gives 47. The object row is anchored at
+EVERY import line — 48 `using Adw 1;` and 52 `using Gtk 4.0;`, since not every file
+imports both — where reading it as the Adw one alone gives 48. The object row is anchored at
 the start of a line and so excludes an object in property-value position, which the row below
 it counts instead. The object-id row is the subset of that object row which names its object,
 which is what its "of those" means and what `bind` resolves against.
 
 The two property rows are a PARTITION, and that is the one thing to carry away from this
-table: 559 + 49 = 608, every property assignment in the tree. The 49 are the ones whose
-value is an ANONYMOUS object. The other 559 are not one thing: 539 have no object value at
+table: 561 + 49 = 610, every property assignment in the tree. The 49 are the ones whose
+value is an ANONYMOUS object. The other 561 are not one thing: 541 have no object value at
 all, and 20 have an object value that carries a GtkBuilder id — `content: Gtk.Box
 canvasContainer { }`, which the anonymous row's `{` excludes. That split was nearly declared
 unreproducible during a recount, because both halves were measured against a guess instead of
-against their own total: 559 + 49 was sitting beside the 608 that was already known. Two orphan
+against their own total: 561 + 49 was sitting beside the 610 that was already known. Two orphan
 numbers that sum to a number you already have are a partition, not noise.
 
 ### What the external compiler costs

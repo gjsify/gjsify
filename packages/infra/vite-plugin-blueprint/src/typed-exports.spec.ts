@@ -55,10 +55,18 @@ export default async () => {
             for (const { source } of CORPUS_REAL_FILES) {
                 const file = join(repoRoot, source);
                 const derived = deriveExports(parseBlueprint(readFileSync(file, 'utf8'), file));
-                // A file is one shape or the other, never both: a template's ids are internal
-                // children and reached through `_name`, a builder's are reached through
-                // `get_object`. Exporting both would give one id two meanings.
-                if (derived.template !== undefined) expect(derived.objects.length).toBe(0);
+                // A file is exported as one shape or the other, never both: a template's ids are
+                // internal children and reached through `_name`, a builder's through
+                // `get_object`. A template file may now carry sibling objects (ADR 0093), which
+                // `derived.objects` holds; the emitter exports none of them beside a template.
+                if (derived.template !== undefined) {
+                    const sidecar = emitTypedSidecar(
+                        parseBlueprint(readFileSync(file, 'utf8'), file),
+                        file,
+                        repoFormat,
+                    );
+                    expect(sidecar.includes('get_object')).toBe(false);
+                }
                 for (const one of [...derived.objects, ...(derived.template?.children ?? [])]) {
                     // Namespace-qualified, always — an unqualified `Box` is a Gtk type and a
                     // bare `Box` in a sidecar resolves to nothing.

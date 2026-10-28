@@ -18,6 +18,7 @@ import * as Gdk from './namespace/gdk.js';
 import * as Gtk from './namespace/gtk.js';
 
 import hexdumpTree from './gobject-door.blp?shared-tree';
+import siblingsTree from './gobject-siblings.blp?shared-tree';
 
 /** This port has no `Gtk.Switch`; `Gtk.ToggleButton` is the widget with `active` and `notify::active`. */
 function withToggle(node: SharedTreeNode): SharedTreeNode {
@@ -85,6 +86,46 @@ export const AdwGObjectDoorNsTest = async () => {
 
             hexdump._copyButton.emit('clicked');
             expect(seen.join()).toBe('after super:object,copy');
+        });
+
+        await it('reaches the objects written beside the template through InternalChildren, outside its children', () => {
+            class GoNsPeer extends Adw.Bin {
+                declare title: string;
+            }
+            GObject.registerClass(
+                {
+                    GTypeName: 'GoNsPeer',
+                    Properties: {
+                        title: GObject.ParamSpec.string('title', '', '', GObject.ParamFlags.READWRITE, 'first'),
+                    },
+                },
+                GoNsPeer,
+            );
+            class GoNsSiblings extends Adw.Bin {
+                declare _unsavedChangesDialog: Adw.AlertDialog;
+                declare _peer: GoNsPeer;
+                declare _caption: Gtk.Label;
+            }
+            GObject.registerClass(
+                {
+                    GTypeName: 'GoNsSiblings',
+                    Template: siblingsTree,
+                    InternalChildren: ['unsavedChangesDialog', 'peer', 'caption'],
+                },
+                GoNsSiblings,
+            );
+
+            const host = new GoNsSiblings();
+            expect(host._unsavedChangesDialog instanceof Adw.AlertDialog).toBe(true);
+            expect(host._unsavedChangesDialog.heading).toBe('Save changes?');
+            expect(host._peer instanceof GoNsPeer).toBe(true);
+            // Independent objects, as in GTK: neither is a child of the template widget.
+            expect(host.getViewById('peer')).toBe(undefined);
+            expect(host._peer.parent == null).toBe(true);
+            // A template child names a sibling by id, and follows it.
+            expect(host._caption.label).toBe('first');
+            host._peer.title = 'second';
+            expect(host._caption.label).toBe('second');
         });
 
         await it('exports the string Value of the subset', () => {

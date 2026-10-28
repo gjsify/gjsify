@@ -36,7 +36,7 @@
 // README and not here because they are findings about the corpus rather than facts about
 // this table, and a second copy of them beside the data is what would drift.
 //
-// WHAT THE FIFTY REAL FILES DO NOT REACH
+// WHAT THE FIFTY-ONE REAL FILES DO NOT REACH
 //
 // They are a probe against reality, not a measure of breadth, and citing "thirty-three real
 // files" as coverage would be wrong twice over. What they still reach is `binding`,
@@ -72,7 +72,7 @@
 //
 // WHY THE REAL FILES ARE REFERENCED AND NOT COPIED
 //
-// The fifty `.blp` files this repo already builds are the reality probe ADR 0053
+// The fifty-one `.blp` files this repo already builds are the reality probe ADR 0053
 // clause 6 asks for. They are listed here BY PATH and read from where they live: a
 // copy would be a second transcript that drifts from the file the build actually
 // compiles, and the drift would be invisible precisely because the copy would keep
@@ -730,6 +730,10 @@ export const CORPUS_REAL_FILES = [
     {
         slug: 'packages_nativescript-bridge_adwaita_src_gobject-door',
         source: 'packages/nativescript-bridge/adwaita/src/gobject-door.blp',
+    },
+    {
+        slug: 'packages_nativescript-bridge_adwaita_src_gobject-siblings',
+        source: 'packages/nativescript-bridge/adwaita/src/gobject-siblings.blp',
     },
     {
         slug: 'packages_nativescript-bridge_gtksource_src_fixtures_source-view',
