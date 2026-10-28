@@ -129,6 +129,7 @@ if command -v dnf > /dev/null 2>&1; then
         libsoup3-devel \
         libnghttp2-devel \
         gnutls-devel \
+        sqlite-devel \
         json-glib-devel
 elif command -v apt-get > /dev/null 2>&1; then
     apt-get update
@@ -144,6 +145,7 @@ elif command -v apt-get > /dev/null 2>&1; then
         libsoup-3.0-dev \
         libnghttp2-dev \
         libgnutls28-dev \
+        libsqlite3-dev \
         libjson-glib-dev
 else
     # Name the host instead of failing later inside a command it does not have.
@@ -254,6 +256,11 @@ build_pkg packages/node/http2-native
 
 # -------- @gjsify/sab-native --------
 build_pkg packages/node/sab-native
+
+# -------- @gjsify/sqlite-native --------
+# System libsqlite3, linked by name (no .pc file). meson asserts
+# sqlite3_changes64, so an image below 3.37 fails at setup with a name.
+build_pkg packages/node/sqlite-native
 
 # -------- @gjsify/tls-native --------
 # GnuTLS OCSP-response parser. Pure C lib link via gnutls.pc; no Rust deps.
