@@ -259,6 +259,7 @@ RUN mkdir -p /usr/local/share/gjsify/appimage-runtime \
 RUN dnf install -y \
     meson \
     vala \
+    sqlite-devel \
     gcc \
     pkgconf \
     blueprint-compiler \

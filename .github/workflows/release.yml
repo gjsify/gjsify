@@ -545,7 +545,7 @@ jobs:
       # fixed it; a frozen index is how 4.24.0 would have shipped past that fix.
       - name: Install GTK4 + Adwaita + GtkSource + icons + GObject-Introspection (build-time closure source)
         run: |
-          formulae=(gtk4 libadwaita gtksourceview5 adwaita-icon-theme gobject-introspection cairo pango gdk-pixbuf graphene pkg-config gstreamer glib-networking libgda)
+          formulae=(gtk4 libadwaita gtksourceview5 adwaita-icon-theme gobject-introspection cairo pango gdk-pixbuf graphene pkg-config gstreamer glib-networking)
           # The runner image ships openssl@1.1 linked; openssl@3 (a gstreamer dep) then fails
           # `brew link` on bin/openssl (run 37276615185). Unlink so the bottle links cleanly.
           # On 2026-10-07 (run 37604359759) unlink printed '0 symlinks removed': the runner
