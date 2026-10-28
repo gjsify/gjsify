@@ -1,12 +1,11 @@
 # 122. A string list is a REAL list model, and `registerClass` learns `Implements`
 
-- Status: **Proposed** — §§ 1–5 are decided (owner, 2026-10-28, Option A); § 6 is one open
-  consumer-visible question and nothing may be built on it until it is answered
+- Status: **Accepted** (owner, 2026-10-28 — Option A, and § 6 option (a))
 - Date: 2026-10-28
 - Deciders: Pascal Garber
 - Amends: [ADR 0046 (portable list model)](0046-portable-list-model.md) § 2 and § 3 — the
-  authoring door's SHAPE, not the portable value, and not § 1's scope (see § 0 below for why
-  this amends rather than supersedes)
+  authoring door's SHAPE, not the portable value, and not § 1's scope — and NARROWS § 5: the
+  name `model` survives on every surface, what the PROPERTY accepts does not (see § 0 and § 6)
 - Depends on: [ADR 0105 (real GObject backs the NativeScript subset)](0105-real-gobject-backs-the-nativescript-subset-on-android.md)
   § 2 (the engine seam, route D),
   [ADR 0096 (a GObject subset on the browser and NativeScript)](0096-a-gobject-subset-runs-on-the-browser-and-nativescript.md),
@@ -69,10 +68,15 @@ reason to want it.
 Every load-bearing clause of 0046 survives verbatim. § 1's scope (the widgets GTK gives a `model`
 property, and nothing else) is untouched. § 3's choice of `Gio.ListModel::items-changed` as the
 positional signal is not merely kept — it is what this ADR makes literal, so superseding the ADR
-that chose it would delete the reasoning for the thing being built. § 5 (`model` on every
-surface) and § 6 (selection stays in `ComboState`; only its rule moved) are untouched, and the
-2026-09-09 amendment's `gtk-host` seam keeps building a real `Gtk.StringList` of labels exactly as
-it does today.
+that chose it would delete the reasoning for the thing being built. § 6 (selection stays in
+`ComboState`; only its rule moved) is untouched, and the 2026-09-09 amendment's `gtk-host` seam
+keeps building a real `Gtk.StringList` of labels exactly as it does today.
+
+§ 5 is the one clause this ADR narrows, and only in its second half. Its DECISION — one name,
+`model`, on every surface, with `options` and `items` not kept as aliases — is ADR 0034 clause 1
+and survives whole. What § 6 below changes is what that one name ACCEPTS as a property write: a
+`Gio.ListModel`, not an array. The name is still the GObject property's own name, which is the
+reason 0046 § 5 gave for choosing it.
 
 What changes is narrower than the ADR: the SHAPE of the authoring door § 2 introduced. 0046 § 3
 already named the cost of the array shape without calling it that — "a splice is computed by
@@ -80,9 +84,12 @@ comparing the assigned model against the stored one", which is the workaround a 
 `items-changed` does not need.
 
 The portable VALUE is not touched either. `AdwListModel` / `AdwListModelInput` stay a readonly
-array of `{ value, label }`, `normalizeComboOptions` stays total, and `model: ['a', 'b']` stays a
-valid write on every surface. That is 0046's decision about OUR vocabulary; this ADR is about the
-GIR-named class that authors reach for when they want GJS's spelling.
+array of `{ value, label }` and `normalizeComboOptions` stays total — that is 0046's decision
+about OUR vocabulary, and it is what the markup door still parses into. What § 6 takes away is one
+ENTRANCE to that value: assigning the bare array to the `model` PROPERTY. The value keeps every
+other door it has — the `model` attribute, `parseListModel`, the `{ strings }` construct bag,
+`normalizeComboOptions` — and `new Gtk.StringList({ strings: ['a', 'b'] })` is the one line that
+replaces the one write that goes.
 
 ### 1. `Implements` is accepted on both legs, for interfaces the subset has
 
@@ -277,43 +284,48 @@ subscription on one signal, not a selection model, and it keeps 0046 § 6 intact
 `Gtk.ListItemFactory`, neither of which exists on Android (ADR 0117) or on the browser, and
 0046 § 7 already declined item factories for `ListController`'s reasons.
 
-### 6. THE OPEN QUESTION — what `model` ACCEPTS, and on which surfaces
+### 6. `model` is a `Gio.ListModel` property, and an array is refused BY NAME
 
-**This section is not decided, and it is why this ADR is not Accepted yet.** It is a
-consumer-visible choice that neither "GJS-identical", nor "no backward compatibility", nor the
-owner's choice of Option A settles, because the three pull in different directions:
+Three rules of this repository pull in different directions on one property, and the owner
+decided it on 2026-10-28 in favour of GJS:
 
 - GJS says `Adw.ComboRow:model` is a `Gio.ListModel` property. `row.model = ['a', 'b']` throws.
-- ADR 0046 § 5 says `model` takes `AdwListModelInput` — a plain array — on all four surfaces,
-  and that decision is about OUR portable vocabulary, which Option A did not touch.
+- ADR 0046 § 5 named the property `model` and gave it `AdwListModelInput` — a plain array.
 - § 4 above says an object-kind property refuses a non-GObject by name, with no silent coercion.
 
-An array written to a declared object-kind `model` cannot satisfy all three. The options:
+An array written to a declared object-kind `model` cannot satisfy all three, so **the GJS
+semantics win**: `model` is a declared object-kind property whose value GType is `Gio.ListModel`,
+and a plain array written to it is a `TypeError` naming the type it got — the same refusal every
+other object-kind property gives, with no array branch anywhere in the setter. The widgets this
+reaches are 0046 § 1's scope: `Adw.ComboRow` and `Gtk.DropDown`.
 
-**(a) GJS-identical `model`.** `model` is a declared object-kind property taking only a
-`Gio.ListModel`; a plain array is refused by name. The markup door is unaffected — a `model`
-ATTRIBUTE is JSON text, the element parses it and builds a `Gtk.StringList` itself, which is the
-element's own door and not a property write (0046 already separates `parseListModel` from the
-setter for this reason). COST: every `model: [...]` property write in the tree changes — the
-storybook stories, the three gallery showcases, `adwaita-react-native`'s `AdwComboRowProps`,
-the NativeScript builder, and the published `AdwListModelInput` type on the `model` slot. It also
-partly reverses 0046 § 5, which would need saying in this ADR rather than being discovered later.
+**The markup door is NOT a property write and does not change.** A `model` ATTRIBUTE is JSON
+text; the element parses it with `parseListModel` and builds the `Gtk.StringList` itself. 0046
+already separates the parser from the setter, and this is the separation paying for itself:
+`<adw-combo-row model='["a","b"]'>` keeps working letter for letter, as does the `{ strings }`
+construct bag (ADR 0072 § 2) and the NativeScript builder's attribute path.
 
-**(b) `model` stays portable, `selected-item` goes GObject.** `model` keeps
-`AdwListModelInput | Gio.ListModel` as a port-level accessor and is NOT a declared GObject
-property; `selected-item` is declared object-kind and hands back a `Gtk.StringObject`. 0046 § 5
-survives untouched and no consumer changes. COST: one property diverges from GJS, and the
-widget's `notify::model` is then ours rather than GObject's — which the seam can still emit, but
-it is a divergence that has to be written down and held by a vector.
+What a PROPERTY write looks like after this, on every surface:
 
-**(c) Both doors, named.** `model` is declared object-kind (GJS's semantics), and the portable
-array keeps a door of its own under a name that says what it does. COST: two spellings for one
-property, which is the thing ADR 0034 clause 1 exists to stop — listed for completeness, not
-recommended.
+```ts
+// before
+row.model = ['a', 'b'];
+// after
+row.model = new Gtk.StringList({ strings: ['a', 'b'] });
+```
 
-Nothing in `main` depends on the answer today, and § 1–§ 5 are independent of it: interface
-support, the item class, the real `Gtk.StringList` and the object kind are all needed under every
-option. Only the widget migration § 5 describes is blocked.
+**This is the consumer-visible cost, and it is paid in the implementation PR, not deferred.**
+Every `model: [...]` property write in the tree changes: the storybook stories, the three gallery
+showcases, `@gjsify/adwaita-react-native`'s `AdwComboRowProps`, the NativeScript builder's
+property path, and the published type on the `model` slot, which goes from `AdwListModelInput` to
+`Gio.ListModel`. There is no deprecation window and no array fallback — ADR 0030's oracle and
+this repository's no-compat rule both say the wrong shape should fail at the write, not be
+coerced at it.
+
+**`selected-item` goes with it.** It is a declared object-kind read-only property handing back the
+`Gtk.StringObject` at `selected`, or `null`, exactly as the probe measured — identity-equal to
+what `model.get_item(selected)` returns, which is § 2's stable-identity rule being load-bearing
+rather than decorative.
 
 ## Consequences
 
@@ -337,10 +349,12 @@ capability.
 FOREIGN parent class section, including what is refused (every interface but `Gio.ListModel`,
 and `Implements` on a foreign-parent class).
 
-**One signal replaces one comparison, where the widget holds its own model.** 0046 § 3's
-compare-and-splice (`listItemsChanged`, the getter/setter copies in `ComboState`) is NOT removed:
-it is what the portable ARRAY path still needs, and `LIST_MODEL_OWNERSHIP_VECTORS` still holds
-both doors. What changes is that a widget holding a real `Gtk.StringList` no longer needs it.
+**One signal replaces one comparison, and the comparison stays for the door that still has no
+signal.** 0046 § 3's compare-and-splice (`listItemsChanged`) is NOT removed: the markup door
+re-parses a `model` ATTRIBUTE into a plain `AdwListModel` with no identity and no
+`items-changed`, so reconciling that against the held list is still a comparison, and
+`LIST_MODEL_OWNERSHIP_VECTORS` still holds both doors. What goes is the comparison on the
+PROPERTY path — a widget handed a real `Gtk.StringList` subscribes instead.
 
 **The `gtk-host` seam is untouched.** It builds a real `Gtk.StringList` from GI and splices it
 through `reconcileStringList` (0046's 2026-09-09 amendment). It never imports the twin's class,
@@ -348,7 +362,6 @@ so § 3 cannot reach it.
 
 ## What this does NOT decide
 
-- **§ 6.** What `model` accepts, on which surfaces. Open.
 - **A portable selection model.** 0046 § 6 and its amendment both declined `Gtk.SelectionModel`;
   this ADR declines it again. `Gtk.SingleSelection`'s one behaviour the combo row needs is a
   subscription, not a layering.
@@ -383,5 +396,10 @@ so § 3 cannot reach it.
    `packages/nativescript-bridge/adwaita/src/{builder/index.ts,widgets/construct-props.ts}`,
    `packages/framework/storybook`, the storybook stories and the three gallery showcases that
    construct a `Gtk.StringList`, and the docs that print its API.
-8. `docs/node-gi-gjs-surface.md` and `status/open-todos/nativescript.md` — the new surface, the
+8. § 6's property narrowing, in the same PR as the widget (stage 3): every `model: [...]`
+   PROPERTY write becomes `new Gtk.StringList({ strings: [...] })` — storybook stories, the three
+   gallery showcases, `@gjsify/adwaita-react-native`'s `AdwComboRowProps`, the NativeScript
+   builder's property path — and the published type on the `model` slot goes from
+   `AdwListModelInput` to `Gio.ListModel`. The `model` ATTRIBUTE path is not touched.
+9. `docs/node-gi-gjs-surface.md` and `status/open-todos/nativescript.md` — the new surface, the
    refusals, and the MIGRATE NEXT entry for `adw-combo-row`.
