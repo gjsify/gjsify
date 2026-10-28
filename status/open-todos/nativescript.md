@@ -221,10 +221,21 @@ event (upstream has no `tap`, a gesture is not a GSignal). `on('clicked')`,
 (both legs), `specs/button.ts` (device). `AdwSplitButton` still dispatches `clicked` through
 `notify` — it is not a GtkButton; migrating it is a follow-up.
 
-MIGRATE NEXT: `widgets/adw-button-content.ts`. The QUESTION: `hostButton` is a `View`, an
-OBJECT-typed property, and the seam has no ParamSpec kind for one — what does `notify::host-button`
-carry, and does the equal-write rule compare by identity? Then `adw-combo-row.ts` (`model`,
-`selected-item` are objects too), then `adw-split-button.ts` (`clicked`).
+DONE (`widgets/adw-button-content.ts`): `icon-name`, `label`, `use-underline`, `can-shrink` are declared
+through `withSignals(StackLayout, …)`; each renders from its own `notify::`. `hostButton` is a
+NATIVESCRIPT-ONLY accessor, deliberately NOT declared: `Adw.ButtonContent` has no `host-button` in C
+(it uses `gtk_widget_get_ancestor`), and a NS `View` is not a GObject. It is a plain accessor on both
+legs: identity equality, no `notify::host-button`. CONSUMER-VISIBLE: `useUnderline`/`canShrink` strings
+go through the seam's coercion, so `'maybe'` throws (it used to keep the old value silently); the four
+notifies now fire. Specs: `button-content-properties.spec.ts` (pure-JS), `specs/button-content.ts` (device).
+
+MIGRATE NEXT: `widgets/adw-combo-row.ts`. The QUESTION: `model` and `selected-item` ARE real GObject
+properties in GJS, so the object-kind question arises here for real. Option A: GObject-only values,
+identity compare. GJS probe (registered subclass, `ParamSpec.object`, `Gio.ListStore` values):
+
+- write object A: 1 notify; A again: 0; object B: 1; `null`: 1; `null` again: 0; A: 1.
+
+So GJS compares by identity. Then `adw-split-button.ts` (`clicked`).
 
 RESOLVED (owner, 2026-10-27): `emit('<undeclared>')` throws `No signal '<name>' on object '<class>'`,
 as in GJS, on both legs. `emit` is GObject's only; a NativeScript event goes through
