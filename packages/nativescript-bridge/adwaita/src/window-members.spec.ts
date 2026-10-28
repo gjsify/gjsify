@@ -285,6 +285,31 @@ export const GtkWindowMembersNsTest = async () => {
             }
         });
 
+        await it('back closes an open bottom sheet that can close, skipping closed and can-close=false ones', () => {
+            const host = fakeHost(true);
+            useWindowHost(host);
+            try {
+                const sheet = new Adw.BottomSheet();
+                const { window, asked } = backWindow(host, sheet);
+                void window;
+                host.pressBack();
+                expect(asked()).toBe(1);
+                sheet.open = true;
+                sheet.canClose = false;
+                host.pressBack();
+                expect(sheet.open).toBe(true);
+                expect(asked()).toBe(2);
+                sheet.canClose = true;
+                host.pressBack();
+                expect(sheet.open).toBe(false);
+                expect(asked()).toBe(2);
+                host.pressBack();
+                expect(asked()).toBe(3);
+            } finally {
+                useWindowHost(null);
+            }
+        });
+
         await it('a window inside another window does not watch back', () => {
             const host = fakeHost(true);
             useWindowHost(host);
