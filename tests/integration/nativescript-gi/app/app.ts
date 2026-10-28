@@ -22,6 +22,7 @@ import { viewsSpec } from './specs/views.js';
 import { storybookSpec } from './specs/storybook.js';
 import { buttonSpec } from './specs/button.js';
 import { buttonContentSpec } from './specs/button-content.js';
+import { splitButtonSpec } from './specs/split-button.js';
 import { spinnerSpec } from './specs/spinner.js';
 import { windowTitleSpec } from './specs/window-title.js';
 import { rowsSpec } from './specs/rows.js';
@@ -97,6 +98,8 @@ async function runSuite(): Promise<void> {
                 await buttonSpec(engine)();
                 // Four properties of a container, and a NativeScript-only accessor beside them.
                 await buttonContentSpec(engine)();
+                // Two signals and five properties of a split button.
+                await splitButtonSpec(engine)();
             }
             if (optedIn) await inversionSpec();
             if (optedIn) await foreignParentSpec();
