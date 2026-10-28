@@ -71,12 +71,41 @@ const FLAGS = {
  *
  * Keyed by the `${row}: ${rule}` prefix the driver builds, which is the row name plus a colon.
  */
-const KNOWN_DIVERGENT: Readonly<Record<string, string>> = {
+const KNOWN_DIVERGENT: Record<string, string> = {
     'field-form:':
         '$gtype.name is undefined on node-gi (gjs answers the GType name): the GType is a napi ' +
         'External, which is not extensible, so the name slot needs a representation change — ' +
         'gjsify/gjsify#2151. Registration itself is correct; only the `.name` read differs.',
 };
+
+const NO_INTERFACES =
+    'node-gi\u2019s registerClass registers no interface for `Implements` (it is ignored), so the ' +
+    'methods, the emitter and `instanceof` are missing \u2014 gjsify/gjsify#2433.';
+for (const rule of [
+    'Implements installs',
+    'an implementor passes instanceof',
+    'the installed methods call through',
+    'items_changed emits',
+    'a short items_changed call',
+]) {
+    KNOWN_DIVERGENT[`interface: ${rule}`] = NO_INTERFACES;
+}
+
+const OBJECT_PROPERTY_MESSAGES =
+    'node-gi\u2019s marshaller words the refusal of an object-kind property value its own way, and ' +
+    'accepts `undefined` \u2014 gjsify/gjsify#2433.';
+for (const rule of [
+    'an array is refused',
+    'a plain object is refused',
+    'a function is refused',
+    'a string is refused',
+    'a number is refused',
+    'a boolean is refused',
+    'undefined is refused',
+    'a GObject that is not a list model',
+]) {
+    KNOWN_DIVERGENT[`object property: ${rule}`] = OBJECT_PROPERTY_MESSAGES;
+}
 
 function reasonFor(name: string): string | undefined {
     for (const [prefix, reason] of Object.entries(KNOWN_DIVERGENT)) {
