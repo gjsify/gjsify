@@ -39,9 +39,28 @@
 //
 // Copyright (c) GNOME contributors (GLib/GTK). LGPLv2.1+.
 
-import type { AdwComboOption, AdwListItemsChanged, AdwListModel, AdwListModelInput } from '../list.js';
+import type {
+    AdwComboOption,
+    AdwListItemsChanged,
+    AdwListModel,
+    AdwListModelInput,
+    AdwListModelSource,
+} from '../list.js';
 import { tabViewItemsChanged } from '../tab-view.js';
 import type { TabViewPagesChange } from '../tab-view.js';
+
+/** A `Gtk.StringObject`-shaped item: the one item shape the normaliser unwraps. */
+function stringItem(value: string): { string: string } {
+    return { string: value };
+}
+
+/** A `Gio.ListModel` over the items given, by the two methods the normaliser calls. */
+function listSource(...items: readonly unknown[]): AdwListModelSource {
+    return {
+        get_n_items: () => items.length,
+        get_item: (position) => items[position] ?? null,
+    };
+}
 
 /** One {@link normalizeComboOptions} expectation. */
 export interface ListNormalizeVector {
@@ -105,6 +124,35 @@ export const LIST_NORMALIZE_VECTORS: ReadonlyArray<ListNormalizeVector> = [
         input: [],
         model: [],
         rule: 'the empty model normalises to the empty model, which is the state a placeholder is drawn from',
+    },
+    // --- a REAL list model as input (ADR 0122) -----------------------------------------------
+    //
+    // `Gtk.StringList` stopped being an `Array` subclass, so a model no longer satisfies the
+    // array arm by accident: it is read by position. These four build a source by hand rather
+    // than importing the class, because what the normaliser requires of its input is exactly
+    // `get_n_items` + `get_item` and nothing about who implements them.
+    {
+        input: listSource(stringItem('Cyan'), stringItem('Magenta')),
+        model: [
+            { value: 'Cyan', label: 'Cyan' },
+            { value: 'Magenta', label: 'Magenta' },
+        ],
+        rule: 'a model of `Gtk.StringObject`s reads as its strings — the same model an array of those strings makes',
+    },
+    {
+        input: listSource(),
+        model: [],
+        rule: 'an EMPTY model is the empty model, not a model the normaliser declines to read',
+    },
+    {
+        input: listSource({ value: 'a', label: 'One' }),
+        model: [{ value: 'a', label: 'One' }],
+        rule: 'an item that is no string object meets the descriptor rule, the one an array entry meets',
+    },
+    {
+        input: listSource({}),
+        model: [{ value: '', label: '' }],
+        rule: 'an item with neither half is the empty descriptor `{}` already is — drawing it would need `expression`, which ADR 0122 leaves out',
     },
 ];
 

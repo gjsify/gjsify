@@ -712,7 +712,7 @@ if (nsSources.size === 0) {
      *
      * A JSON DOOR is a string in the template and `json` to the classifier, so the spelling
      * alone cannot tell the two apart — the CONTENT does: a string that parses to a plain
-     * object is the door's, any other string is a plain `string` attribute. That is a real
+     * object or an array is the door's, any other string is a plain `string` attribute. That is a real
      * test rather than a widening, and it is the one a reader of the template needs: an
      * `adjustment='{"lower":1}'` that stopped being JSON would author nothing at all, in
      * silence, because the door is total by construction.
@@ -721,7 +721,7 @@ if (nsSources.size === 0) {
         if (typeof value !== 'string') return false;
         try {
             const parsed = JSON.parse(value);
-            return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed);
+            return typeof parsed === 'object' && parsed !== null;
         } catch {
             return false;
         }

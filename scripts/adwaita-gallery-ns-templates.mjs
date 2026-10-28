@@ -101,6 +101,26 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
         },
     },
     {
+        widget: 'Adw.ComboRow',
+        page: 'boxed-lists',
+        // The attribute carries the item list as JSON text, which is the door
+        // `adw-combo-row.ts`'s `model` setter opens (`AdwListModelInput | string`).
+        root: {
+            tag: 'AdwPreferencesGroup',
+            children: [
+                {
+                    tag: 'AdwComboRow',
+                    props: {
+                        title: 'Accent colour',
+                        subtitle: 'Used to highlight selected items',
+                        model: JSON.stringify(['Blue', 'Teal', 'Green', 'Orange', 'Purple']),
+                        selected: 1,
+                    },
+                },
+            ],
+        },
+    },
+    {
         widget: 'Adw.SpinRow',
         page: 'boxed-lists',
         // A refusal in the framework trees, and a template here: the range is a
@@ -158,6 +178,15 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
         widget: 'Gtk.Entry',
         page: 'controls',
         root: { tag: 'GtkEntry', props: { placeholderText: 'Search files…' } },
+    },
+    {
+        widget: 'Gtk.DropDown',
+        page: 'controls',
+        // The item list is JSON text in the attribute, as on `AdwComboRow`.
+        root: {
+            tag: 'GtkDropDown',
+            props: { model: JSON.stringify(['Automatic', 'Always', 'Never', 'When busy']), selected: 0 },
+        },
     },
     // ------------------------------------------------------------------ layout
     {
@@ -503,8 +532,6 @@ export const ADWAITA_GALLERY_NS_TEMPLATES = [
  */
 export const ADWAITA_GALLERY_NS_REFUSALS = {
     // --- a property XML cannot carry ---
-    'Gtk.DropDown': 'GtkDropDown.model is a list of items; an XML attribute is a string.',
-    'Adw.ComboRow': 'AdwComboRow.model is a list of items; an XML attribute is a string.',
     'Gtk.MenuButton': 'GtkMenuButton.menuModel is a portable menu model; an XML attribute is a string.',
     'Gtk.PopoverMenu':
         'The NativeScript port builds its menus through GtkMenuButton.menuModel, a portable menu model; ' +
@@ -570,8 +597,9 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
         'day, a six-by-seven grid, a marked day or the four navigation arrows from ' +
         '(status/open-todos/adwaita-ports.md).',
     'Gtk.TreeExpander':
-        'The NativeScript port has no tree expander, and GtkDropDown.model is its only list-model widget: a ' +
-        'flat one, with no depth for an expander to indent (status/open-todos/adwaita-ports.md).',
+        'The NativeScript port has no tree expander, and its only list-model widgets (GtkDropDown, ' +
+        'AdwComboRow) are flat ones, with no depth for an expander to indent ' +
+        '(status/open-todos/adwaita-ports.md).',
     'Gtk.Notebook':
         "The NativeScript port has no notebook: @nativescript/core's TabView (ui/tab-view) owns its own tab " +
         'strip, which is exactly what Gtk.Notebook IS, and it has no separate content-only stack to hold its ' +

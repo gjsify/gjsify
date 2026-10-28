@@ -102,6 +102,7 @@ export const ELEMENT_CLASSES: Record<string, new () => View> = {
     'adw:Carousel': Adw.Carousel,
     'adw:CarouselIndicatorDots': Adw.CarouselIndicatorDots,
     'adw:Clamp': Adw.Clamp,
+    'adw:ComboRow': Adw.ComboRow,
     'adw:EntryRow': Adw.EntryRow,
     'adw:ExpanderRow': Adw.ExpanderRow,
     'adw:HeaderBar': Adw.HeaderBar,
@@ -122,6 +123,7 @@ export const ELEMENT_CLASSES: Record<string, new () => View> = {
     'adw:WrapBox': Adw.WrapBox,
     'gtk:Box': Gtk.Box,
     'gtk:Button': Gtk.Button,
+    'gtk:DropDown': Gtk.DropDown,
     'gtk:Entry': Gtk.Entry,
     'gtk:Label': Gtk.Label,
     Label,
@@ -155,6 +157,11 @@ export const EXPECTED: readonly ExpectView[] = [
                 { tag: 'adw:PasswordEntryRow', props: {"title":"Password","text":"correct-horse-battery","revealed":false} }
             ] }
     },
+    { widget: 'Adw.ComboRow', view: 'AdwComboRow', root:
+        { tag: 'adw:PreferencesGroup', children: [
+                { tag: 'adw:ComboRow', props: {"title":"Accent colour","subtitle":"Used to highlight selected items","model":"[\"Blue\",\"Teal\",\"Green\",\"Orange\",\"Purple\"]","selected":1} }
+            ] }
+    },
     { widget: 'Adw.SpinRow', view: 'AdwSpinRow', root:
         { tag: 'adw:PreferencesGroup', children: [
                 { tag: 'adw:SpinRow', props: {"title":"Copies","value":3,"adjustment":"{\"lower\":1,\"upper\":20,\"stepIncrement\":1}"} }
@@ -178,6 +185,9 @@ export const EXPECTED: readonly ExpectView[] = [
     },
     { widget: 'Gtk.Entry', view: 'GtkEntry', root:
         { tag: 'gtk:Entry', props: {"placeholderText":"Search files…"} }
+    },
+    { widget: 'Gtk.DropDown', view: 'GtkDropDown', root:
+        { tag: 'gtk:DropDown', props: {"model":"[\"Automatic\",\"Always\",\"Never\",\"When busy\"]","selected":0} }
     },
     { widget: 'Adw.Clamp', view: 'AdwClamp', root:
         { tag: 'adw:Clamp', props: {"maximumSize":400,"tighteningThreshold":300}, children: [

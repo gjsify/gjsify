@@ -33,6 +33,9 @@ import { createAppInfo } from '@gjsify/adwaita-core';
 import { nativePlatformHost } from '../platform-host.js';
 
 export { GioMenu as Menu, GioMenuItem as MenuItem } from '@gjsify/adwaita-core';
+// ADR 0122 § 2: the interface a `Gtk.StringList` implements and an `Implements: [Gio.ListModel]`
+// names. It is a token, not a class — the whole of the subset's interface support.
+export { ListModel } from '@gjsify/adwaita-core';
 export {
     GioFile as File,
     GioListStore as ListStore,

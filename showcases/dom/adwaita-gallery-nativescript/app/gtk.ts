@@ -17,6 +17,7 @@
 export {
     Box,
     Button,
+    DropDown,
     Entry,
     Label,
 } from '@gjsify/adwaita-nativescript/gtk';

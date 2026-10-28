@@ -172,6 +172,27 @@ export default async () => {
             );
         });
 
+        await it("writes a string list at a `model` slot as the parent's `model` attribute", async () => {
+            const list: SharedTreeNode = {
+                tag: 'GtkStringList',
+                slot: 'model',
+                extensions: { strings: [{ value: 'Blue' }, { value: 'Teal' }] },
+            };
+            expect(sharedTreeNativeScriptXml({ tag: 'AdwComboRow', children: [list] })).toBe(
+                ['<adw:ComboRow', `  xmlns="${NS}"`, '  xmlns:adw="~/adw"', `  model='["Blue","Teal"]'`, '/>'].join(
+                    '\n',
+                ),
+            );
+        });
+
+        await it('refuses a string list with no `model` slot — `strings` is construct-only', () => {
+            const list: SharedTreeNode = { tag: 'GtkStringList', extensions: { strings: [{ value: 'a' }] } };
+            expect(() => sharedTreeNativeScriptXml(list)).toThrow('strings have no XML spelling');
+            expect(() => sharedTreeNativeScriptXml({ tag: 'GtkBox', children: [list] })).toThrow(
+                'strings have no XML spelling',
+            );
+        });
+
         await it('refuses a class outside the two barrels', async () => {
             let caught: unknown;
             try {

@@ -142,7 +142,18 @@ export const CONSTRUCTIBLE_VALUES = [
     {
         member: 'Gtk.StringList',
         gir: 'StringList',
-        why: 'GJS writes `model: new Gtk.StringList({ strings: [...] })`, and ADR 0046 already made the VALUE behind it portable. An `Array` subclass like `Gio.Menu`, so the array spelling and this one are the same write — it closed the `Adw.ComboRow` pane divergence outright.',
+        why: 'GJS writes `model: new Gtk.StringList({ strings: [...] })`, and ADR 0046 already made the VALUE behind it portable. ADR 0122 made it what GTK ships: a real `Gio.ListModel` of `Gtk.StringObject` items, not the `Array` subclass the first version was — an array and this are no longer the same write, and the model a consumer holds answers `get_n_items` / `get_item` like the C one.',
+    },
+    {
+        member: 'Gtk.StringObject',
+        gir: 'StringObject',
+        why: 'The ITEM a `Gtk.StringList` holds (ADR 0122 § 4): GJS writes `list.get_item(0).string`, and a factory binding a row reads that property. An object with a read-only `string`, constructed by the list or by `new Gtk.StringObject({ string })`. A GObject, not a widget.',
+    },
+    {
+        member: 'Gio.ListModel',
+        gir: 'ListModel',
+        interface: true,
+        why: "The interface a `Gtk.StringList` implements and `Implements: [Gio.ListModel]` names (ADR 0122 § 2) — the whole of the subset's interface support. An author writes `x instanceof Gio.ListModel` and declares a model property with it. An interface, not a widget.",
     },
     {
         member: 'Adw.SidebarSection',

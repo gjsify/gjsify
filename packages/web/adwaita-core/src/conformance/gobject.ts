@@ -30,6 +30,8 @@ export const GOBJECT_ROWS = [
     'vfunc',
     'binding engine',
     'template',
+    'interface',
+    'object property',
 ] as const;
 
 export type GObjectRow = (typeof GOBJECT_ROWS)[number];
@@ -51,6 +53,21 @@ export interface GObjectSubject {
     readonly Widget?: GObjectConstructor;
     /** The value to put in `Template`. */
     template(source: GObjectTemplateSource): unknown;
+    /**
+     * The `Gio.ListModel` token a vector puts in `Implements` — the real interface on an oracle,
+     * the core's token on the subset. Absent where no Gio is reachable, which skips those rows.
+     */
+    readonly ListModel?: unknown;
+    /**
+     * Something carrying a READ-WRITE object-kind property called `model` whose value type is
+     * `Gio.ListModel`, and a value that property accepts.
+     *
+     * A REAL C object (`Gtk.DropDown` + `Gtk.StringList`) on the oracles, because a JS-registered
+     * class is not one for this row: GJS's auto-accessors store without a GValue conversion, so a
+     * JS class would accept every value the C property refuses and the refusal vectors would
+     * measure nothing. It needs a display, so an oracle offers it only where Gtk initialised.
+     */
+    objectProperty?(): { readonly instance: GObjectInstance; readonly accepted: GObjectInstance };
     /** The binding engine; `bind_property` on GJS, which is not exported by the ports. */
     bind(
         source: GObjectInstance,
@@ -66,6 +83,10 @@ export interface GObjectVector {
     readonly rule: string;
     readonly holds: 'oracle' | 'subset';
     readonly widget?: true;
+    /** Needs {@link GObjectSubject.ListModel}; skipped where the subject has no Gio. */
+    readonly iface?: true;
+    /** Needs {@link GObjectSubject.objectProperty}; skipped where the subject cannot build one. */
+    readonly objectProperty?: true;
     readonly observe: (subject: GObjectSubject) => unknown;
     readonly shows: unknown;
 }
@@ -108,6 +129,42 @@ function boxTemplate(className: string, handler = 'onClicked'): GObjectTemplateS
             `<child><object class="GtkButton" id="btn"><signal name="clicked" handler="${handler}"/></object></child>` +
             `</template></interface>`,
     };
+}
+
+/**
+ * The one shape every interface vector registers: a `Gio.ListModel` implementor of three items,
+ * written with the vfunc names GJS wants (`vfunc_` + the C method). Each vector needs its OWN
+ * `GTypeName` because a GType name may be registered once per process, hence the `name` argument.
+ */
+function listModelClass(subject: GObjectSubject, name: string): GObjectConstructor {
+    const { GObject: G } = subject;
+    return G.registerClass(
+        { GTypeName: name, Implements: [subject.ListModel] },
+        class extends G.Object {
+            vfunc_get_item_type(): unknown {
+                return G.TYPE_OBJECT;
+            }
+            vfunc_get_n_items(): number {
+                return 3;
+            }
+            // An item is a GObject, not a string: `get_item` marshals its return through a
+            // `GObject*`, so a JS string comes back as `null` on GJS. The implementor hands back
+            // ITSELF, which is the one GObject every subject has to hand.
+            vfunc_get_item(position: number): unknown {
+                return position < 3 ? this : null;
+            }
+        },
+    ) as GObjectConstructor;
+}
+
+/** Reads the object-kind `model` property of {@link GObjectSubject.objectProperty}'s instance. */
+function read(instance: GObjectInstance): unknown {
+    return (instance as unknown as Record<string, unknown>)['model'] ?? null;
+}
+
+/** Writes it. Separate from {@link read} so the refusal vectors can wrap one in {@link attempt}. */
+function write(instance: GObjectInstance, value: unknown): void {
+    (instance as unknown as Record<string, unknown>)['model'] = value;
 }
 
 export const GOBJECT_VECTORS: readonly GObjectVector[] = [
@@ -656,7 +713,9 @@ export const GOBJECT_VECTORS: readonly GObjectVector[] = [
         },
         shows: true,
     },
-    ...(['Children', 'Implements', 'Requires', 'GTypeFlags'] as const).map(
+    // `Implements` LEFT this list in ADR 0122: it is now accepted as a key and judged by its
+    // entries, which is the `interface` row below. The other three stay refused outright.
+    ...(['Children', 'Requires', 'GTypeFlags'] as const).map(
         (key): GObjectVector => ({
             row: 'registerClass',
             rule: `the meta key ${key} is refused at registration, by name`,
@@ -706,6 +765,249 @@ export const GOBJECT_VECTORS: readonly GObjectVector[] = [
         },
         shows: true,
     },
+
+    // --- interface (ADR 0122 § 2) -------------------------------------------------------------
+    //
+    // `Gio.ListModel` is the WHOLE of the subset's interface support, so these rows describe one
+    // interface rather than a mechanism. Everything but the last one holds on real GJS, which is
+    // the point: the subset's `Implements` had to be measured against the real thing before a
+    // `Gtk.StringList` could claim to be a model.
+    {
+        row: 'interface',
+        rule: 'Implements installs the interface methods and the emitter on the prototype',
+        holds: 'oracle',
+        iface: true,
+        observe(s) {
+            const o = new (listModelClass(s, 'GoVecIfaceInstall'))() as unknown as Record<string, unknown>;
+            return ['get_item', 'get_n_items', 'get_item_type', 'items_changed'].map((name) => typeof o[name]);
+        },
+        shows: ['function', 'function', 'function', 'function'],
+    },
+    {
+        row: 'interface',
+        rule: 'an implementor passes instanceof the interface, and a class without it does not',
+        holds: 'oracle',
+        iface: true,
+        observe(s) {
+            const { GObject: G } = s;
+            const Plain = G.registerClass({ GTypeName: 'GoVecIfacePlain' }, class extends G.Object {});
+            const iface = s.ListModel as unknown as abstract new () => object;
+            return [new (listModelClass(s, 'GoVecIfaceInstanceof'))() instanceof iface, new Plain() instanceof iface];
+        },
+        shows: [true, false],
+    },
+    {
+        row: 'interface',
+        rule: 'the installed methods call through to the class’s own vfunc_*',
+        holds: 'oracle',
+        iface: true,
+        observe(s) {
+            const o = new (listModelClass(s, 'GoVecIfaceRoute'))() as unknown as {
+                get_n_items(): number;
+                get_item(position: number): unknown;
+            };
+            return [o.get_n_items(), o.get_item(0) === o, o.get_item(9)];
+        },
+        shows: [3, true, null],
+    },
+    {
+        row: 'interface',
+        rule: 'the interface’s PROPERTIES are NOT installed — a JS implementor has no n_items',
+        holds: 'oracle',
+        iface: true,
+        observe(s) {
+            const o = new (listModelClass(s, 'GoVecIfaceNoProps'))() as unknown as Record<string, unknown>;
+            return [o['n_items'], o['item_type']];
+        },
+        shows: [undefined, undefined],
+    },
+    {
+        row: 'interface',
+        rule: 'an implementor is not iterable — a list model is read by position, not by spread',
+        holds: 'oracle',
+        iface: true,
+        observe(s) {
+            const o = new (listModelClass(s, 'GoVecIfaceSpread'))();
+            return attempt(() => void [...(o as unknown as Iterable<unknown>)]) !== null;
+        },
+        shows: true,
+    },
+    {
+        row: 'interface',
+        rule: 'items_changed emits the interface’s signal, which an implementor can connect to',
+        holds: 'oracle',
+        iface: true,
+        observe(s) {
+            const o = new (listModelClass(s, 'GoVecIfaceEmit'))() as unknown as GObjectInstance & {
+                items_changed(position: number, removed: number, added: number): void;
+            };
+            const seen: unknown[][] = [];
+            o.connect('items-changed', (_source: unknown, ...args: unknown[]) => void seen.push(args));
+            o.items_changed(1, 2, 3);
+            return seen;
+        },
+        shows: [[1, 2, 3]],
+    },
+    {
+        row: 'interface',
+        rule: 'a short items_changed call names the interface method and the arity it wanted',
+        holds: 'oracle',
+        iface: true,
+        observe(s) {
+            const o = new (listModelClass(s, 'GoVecIfaceArity'))() as unknown as Record<string, unknown>;
+            const message = attempt(() => (o['items_changed'] as (...args: number[]) => void)(0, 0));
+            return (message ?? '').includes(
+                'method Gio.ListModel.items_changed: At least 3 arguments required, but only 2 passed',
+            );
+        },
+        shows: true,
+    },
+    {
+        // The one interface row GJS does NOT hold, and the reason it cannot: measured on GJS
+        // 1.88.01 / GTK 4.22.5, this class REGISTERS, and the first `get_n_items()` call
+        // segfaults the process through the null vtable slot. A crash is not behaviour to copy,
+        // so the subset refuses at registration — see `requireInterfaceVfuncs`.
+        row: 'interface',
+        rule: 'an implementor that does not define every vfunc is refused, naming it and the interface',
+        holds: 'subset',
+        iface: true,
+        observe(s) {
+            const { GObject: G } = s;
+            const message = attempt(() =>
+                G.registerClass(
+                    { GTypeName: 'GoVecIfaceNoVfunc', Implements: [s.ListModel] },
+                    class extends G.Object {
+                        vfunc_get_item_type(): unknown {
+                            return G.TYPE_OBJECT;
+                        }
+                        vfunc_get_item(): unknown {
+                            return null;
+                        }
+                    },
+                ),
+            );
+            return [(message ?? '').includes('vfunc_get_n_items'), (message ?? '').includes('Gio.ListModel')];
+        },
+        shows: [true, true],
+    },
+    {
+        row: 'interface',
+        rule: 'an interface outside the subset is refused at registration, by name',
+        holds: 'subset',
+        observe(s) {
+            const { GObject: G } = s;
+            const outside = { name: 'Gtk.Buildable' };
+            const message = attempt(() =>
+                G.registerClass({ GTypeName: 'GoVecIfaceOutside', Implements: [outside] }, class extends G.Object {}),
+            );
+            return [(message ?? '').includes('Gtk.Buildable'), (message ?? '').includes('Gio.ListModel')];
+        },
+        shows: [true, true],
+    },
+    {
+        row: 'interface',
+        rule: 'an Implements that is not an array is refused, naming the key',
+        holds: 'subset',
+        observe(s) {
+            const { GObject: G } = s;
+            const message = attempt(() =>
+                G.registerClass(
+                    { GTypeName: 'GoVecIfaceNotArray', Implements: 'Gio.ListModel' as unknown as unknown[] },
+                    class extends G.Object {},
+                ),
+            );
+            return (message ?? '').includes('Implements');
+        },
+        shows: true,
+    },
+
+    // --- object property (ADR 0122 § 6) -------------------------------------------------------
+    //
+    // What `Adw.ComboRow:model` does with a value, measured on the C property that already does
+    // it — `Gtk.DropDown:model`. These are the rows that say a plain array is a TypeError rather
+    // than a second shape the setter branches on, so the messages are quoted exactly, minus the
+    // pointer GJS prints and nothing can match.
+    {
+        row: 'object property',
+        rule: 'the default is null, which is the only default g_param_spec_object has',
+        holds: 'oracle',
+        objectProperty: true,
+        observe(s) {
+            return read(s.objectProperty!().instance);
+        },
+        shows: null,
+    },
+    {
+        row: 'object property',
+        rule: 'a model is stored and notified once; writing the SAME one again notifies nothing',
+        holds: 'oracle',
+        objectProperty: true,
+        observe(s) {
+            const { instance, accepted } = s.objectProperty!();
+            const notifies = count(instance, 'notify::model');
+            write(instance, accepted);
+            const first = notifies.n;
+            write(instance, accepted);
+            return [first, notifies.n, read(instance) === accepted];
+        },
+        shows: [1, 1, true],
+    },
+    {
+        row: 'object property',
+        rule: 'null clears it and notifies, because null is a value the property takes',
+        holds: 'oracle',
+        objectProperty: true,
+        observe(s) {
+            const { instance, accepted } = s.objectProperty!();
+            write(instance, accepted);
+            const notifies = count(instance, 'notify::model');
+            write(instance, null);
+            return [notifies.n, read(instance)];
+        },
+        shows: [1, null],
+    },
+    ...(
+        [
+            ['an array', ['Blue', 'Teal'], "is not a subclass of GObject_Object, it's a Array"],
+            ['a plain object', {}, "is not a subclass of GObject_Object, it's a Object"],
+            ['a function', () => undefined, "is not a subclass of GObject_Object, it's a Function"],
+            ['a string', 'abc', 'Wrong type string; object GListModel expected'],
+            ['a number', 7, 'Wrong type number; object GListModel expected'],
+            ['a boolean', true, 'Wrong type boolean; object GListModel expected'],
+            ['undefined', undefined, 'Wrong type undefined; object GListModel expected'],
+        ] as const
+    ).map(
+        ([what, value, says]): GObjectVector => ({
+            row: 'object property',
+            rule: `${what} is refused, and the value stays what it was`,
+            holds: 'oracle',
+            objectProperty: true,
+            observe(s) {
+                const { instance, accepted } = s.objectProperty!();
+                write(instance, accepted);
+                const message = attempt(() => write(instance, value));
+                return [(message ?? '').includes(says), read(instance) === accepted];
+            },
+            shows: [true, true],
+        }),
+    ),
+    {
+        row: 'object property',
+        rule: 'a GObject that is not a list model is refused by the interface it does not implement',
+        holds: 'oracle',
+        objectProperty: true,
+        observe(s) {
+            const { GObject: G } = s;
+            const Plain = G.registerClass({ GTypeName: 'GoVecObjPlain' }, class extends G.Object {});
+            const { instance } = s.objectProperty!();
+            const message = attempt(() => write(instance, new Plain()));
+            return [
+                (message ?? '').startsWith('Object is of type '),
+                (message ?? '').includes('cannot convert to GListModel'),
+            ];
+        },
+        shows: [true, true],
+    },
 ];
 
 /** Holds a subject to the vectors. Widget vectors need `subject.Widget`; the caller reports their absence. */
@@ -719,6 +1021,8 @@ export async function driveGObjectVectors(
         for (const vector of vectors) {
             if (vector.holds === 'subset' && subject.isOracle) continue;
             if (vector.widget && subject.Widget === undefined) continue;
+            if (vector.iface && subject.ListModel === undefined) continue;
+            if (vector.objectProperty && subject.objectProperty === undefined) continue;
             await it(`${vector.row}: ${vector.rule}`, () => {
                 expect(JSON.stringify(vector.observe(subject))).toBe(JSON.stringify(vector.shows));
             });

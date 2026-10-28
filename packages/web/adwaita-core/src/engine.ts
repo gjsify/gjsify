@@ -76,6 +76,16 @@ export interface ForeignClassMeta {
     readonly GTypeName: string;
     readonly Properties?: Readonly<Record<string, ForeignProperty>>;
     readonly Signals?: Readonly<Record<string, ForeignSignal>>;
+    /**
+     * REFUSED, by name, and declared here so the refusal is findable from the call site.
+     *
+     * `Implements` is the one meta key route D cannot carry (ADR 0122 § 4): a foreign-parent class
+     * is registered over a `@nativescript/core` base that is not a GObject, so there is no GType
+     * to add an interface to. A widget that needs `Gio.ListModel` holds one instead of being one —
+     * which is what `Adw.ComboRow:model` does. Ignoring the key would leave a class that says it
+     * implements the interface and does not, which is the silent outcome ADR 0105 refuses.
+     */
+    readonly Implements?: readonly unknown[];
 }
 
 export interface GObjectEngine {

@@ -399,7 +399,7 @@ export type {
 // `Gtk.StringList` / `Gtk.Adjustment`, which is the name an author writes.
 export { GtkAdjustment } from './gtk-adjustment.js';
 export type { GtkAdjustmentProps } from './gtk-adjustment.js';
-export { GtkStringList } from './gtk-string-list.js';
+export { GtkStringList, GtkStringObject, INVALID_LIST_POSITION } from './gtk-string-list.js';
 export type { GtkStringListProps } from './gtk-string-list.js';
 
 // --- Row interaction state machines (Adw.ExpanderRow/ComboRow/ToggleGroup) ---
@@ -1105,6 +1105,7 @@ export type { AdwSourcePalette, AdwSourceSyntaxRole, AdwSourceTokenClass, AdwSou
 // --- The GObject subset (ADR 0096): property store, signals, bindings, registerClass ---
 export {
     GObjectObject,
+    ListModel,
     META_SYMBOLS,
     ParamFlags,
     ParamSpec,
@@ -1112,6 +1113,7 @@ export {
     TYPE_BOOLEAN,
     TYPE_DOUBLE,
     TYPE_INT,
+    TYPE_OBJECT,
     TYPE_STRING,
     TYPE_UINT,
     UnsupportedGObjectError,
@@ -1125,6 +1127,7 @@ export {
     gobjectEngineName,
     notifyInstance,
     PURE_JS_ENGINE,
+    refuseForeignInterfaces,
     registeredClassOf,
     registerBaseClass,
     STOP_EMISSION,
@@ -1176,6 +1179,7 @@ export type {
     BuiltTemplate,
     ClassLike,
     ClassMeta,
+    GInterface,
     GObjectConstructor,
     GObjectDoor,
     GObjectInstance,

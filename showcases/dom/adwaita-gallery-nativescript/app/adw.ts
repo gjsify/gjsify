@@ -25,6 +25,7 @@ export {
     Carousel,
     CarouselIndicatorDots,
     Clamp,
+    ComboRow,
     EntryRow,
     ExpanderRow,
     HeaderBar,

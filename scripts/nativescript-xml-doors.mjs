@@ -116,6 +116,7 @@ export const STRING_TOLERANT = {
  */
 export const JSON_DOORS = {
     parseAdjustment: 'packages/web/adwaita-core/src/adjustment.ts',
+    parseListModel: 'packages/web/adwaita-core/src/list.ts',
 };
 
 /**

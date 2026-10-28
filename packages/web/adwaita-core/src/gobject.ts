@@ -19,7 +19,7 @@
 
 import type { SharedTreeNode } from './conformance/shared-trees.js';
 import { registerGObjectEngine, registeredEngine } from './engine.js';
-import type { GObjectEngine } from './engine.js';
+import type { ForeignClassMeta, GObjectEngine } from './engine.js';
 
 /** What `registerClass` accepts as `Template`: the projected tree of a `?template` import (ADR 0096 § 4). */
 export type BlueprintTemplate = SharedTreeNode;
@@ -55,6 +55,110 @@ export const TYPE_BOOLEAN = makeType('gboolean');
 export const TYPE_INT = makeType('gint');
 export const TYPE_UINT = makeType('guint');
 export const TYPE_DOUBLE = makeType('gdouble');
+/**
+ * `G_TYPE_OBJECT` — the value type of an object-kind property that takes ANY GObject
+ * ({@link ParamSpec.object}). A property that takes one interface names the interface instead.
+ */
+export const TYPE_OBJECT = makeType('GObject');
+
+// --- Interfaces: a NAMED subset, not a mechanism (ADR 0122 § 2) -------------------------------
+//
+// `Implements` is the one meta key whose value decides whether it is in the subset: a class may
+// implement `Gio.ListModel` and NOTHING else, and a second interface is refused BY NAME at
+// registration, where GJS would accept it. The reason is the same one ADR 0096 § 2 gives for
+// every other boundary — what is not in `ACCEPTED_INTERFACES` has no vector, and a mechanism that
+// would accept any interface would be claiming behaviour nobody measured against real GJS.
+//
+// AN INTERFACE IS DATA HERE, NOT A TYPE. GJS installs an interface's methods on the implementor's
+// prototype, routed to the `vfunc_*` the class defines, and its signals into the class's signal
+// table; `instanceof` answers from the interface list. That is all a token below says, and all
+// this file does with one. Measured against GJS 1.88.01: the methods and the emitter ARE
+// installed, the interface's PROPERTIES are not, and a class that lists an interface without
+// defining every one of its vfuncs throws at registration.
+
+/** What an interface token carries; the token itself is {@link GInterface}. */
+export interface GInterfaceInfo {
+    /** The GIR spelling, as it reads in a refusal and in `items_changed`'s arity message. */
+    readonly name: string;
+    readonly gtype: GType;
+    /** The `vfunc_*` an implementor MUST define. */
+    readonly vfuncs: readonly string[];
+    /** Instance method → the `vfunc_*` it calls through. */
+    readonly methods: Readonly<Record<string, string>>;
+    /** Instance method → the signal it emits, with that signal's arity enforced. */
+    readonly emitters: Readonly<Record<string, string>>;
+    /** The signals the interface brings into the implementor's own signal table. */
+    readonly signals: Readonly<Record<string, readonly GType[]>>;
+}
+
+/**
+ * One interface of the subset — the value a class puts in `Implements`, and the right-hand side
+ * of `instanceof`.
+ *
+ * It is callable-shaped so `x instanceof ListModel` type-checks like any other `instanceof`;
+ * calling or constructing it throws, because an interface is not a class.
+ */
+export type GInterface = GInterfaceInfo & (abstract new (...args: never[]) => object);
+
+const INTERFACES = new WeakSet<object>();
+
+function makeInterface(info: GInterfaceInfo): GInterface {
+    const token = function () {
+        throw new TypeError(`${info.name} is an interface; it cannot be constructed`);
+    } as unknown as GInterface;
+    for (const [key, value] of Object.entries(info)) {
+        Object.defineProperty(token, key, { value, enumerable: true });
+    }
+    Object.defineProperty(token, Symbol.hasInstance, {
+        value: (value: unknown): boolean =>
+            typeof value === 'object' && value !== null && implementsInterface(value, token),
+    });
+    INTERFACES.add(token);
+    return Object.freeze(token);
+}
+
+function isInterface(value: unknown): value is GInterface {
+    return typeof value === 'function' && INTERFACES.has(value);
+}
+
+/**
+ * `Gio.ListModel` — the portable list model's interface, and the whole of the subset's interface
+ * support (ADR 0122 § 2).
+ *
+ * `items-changed` is an ordinary declared signal of every implementor, so an engine that knows
+ * nothing about interfaces registers and emits it like any other; `items_changed()` is the
+ * emitter GIR gives it, down to the arity message real GJS produces for a short call.
+ */
+export const ListModel: GInterface = makeInterface({
+    name: 'Gio.ListModel',
+    gtype: makeType('GListModel'),
+    vfuncs: ['vfunc_get_item_type', 'vfunc_get_n_items', 'vfunc_get_item'],
+    methods: {
+        get_item_type: 'vfunc_get_item_type',
+        get_n_items: 'vfunc_get_n_items',
+        get_item: 'vfunc_get_item',
+    },
+    emitters: { items_changed: 'items-changed' },
+    signals: { 'items-changed': [TYPE_UINT, TYPE_UINT, TYPE_UINT] },
+});
+
+/** Every interface a registered class may implement. One entry; the rest is refused by name. */
+const ACCEPTED_INTERFACES: readonly GInterface[] = [ListModel];
+
+/** Whether `instance`'s class chain declares `iface` — what `instanceof ListModel` answers. */
+export function implementsInterface(instance: object, iface: GInterface): boolean {
+    for (const info of chainOfInstance(instance)) {
+        if (info.interfaces.includes(iface)) return true;
+    }
+    return false;
+}
+
+/** What a `Implements` entry is called in a refusal: the token's GIR name, else whatever it is. */
+function describeInterface(value: unknown): string {
+    if (isInterface(value)) return value.name;
+    const named = (value as { name?: unknown } | null | undefined)?.name;
+    return typeof named === 'string' && named.length > 0 ? named : String(value);
+}
 
 /** What a `Value` holds, readable by the other modules of this subset (`gdk.ts`) and by no port. */
 const VALUE_STATE = new WeakMap<object, { type: GType; string: string | null }>();
@@ -105,7 +209,7 @@ export const ParamFlags = {
     CONSTRUCT_ONLY: 8,
 } as const;
 
-export type ParamKind = 'boolean' | 'string' | 'int' | 'uint' | 'double';
+export type ParamKind = 'boolean' | 'string' | 'int' | 'uint' | 'double' | 'object';
 
 export class ParamSpec {
     readonly kind: ParamKind;
@@ -115,6 +219,8 @@ export class ParamSpec {
     readonly flags: number;
     readonly minimum?: number;
     readonly maximum?: number;
+    /** An object-kind property's value type: {@link TYPE_OBJECT} or the one interface it takes. */
+    readonly valueType?: GType | GInterface;
     private readonly defaultValue: unknown;
 
     private constructor(
@@ -126,6 +232,7 @@ export class ParamSpec {
         defaultValue: unknown,
         minimum?: number,
         maximum?: number,
+        valueType?: GType | GInterface,
     ) {
         this.kind = kind;
         this.name = name;
@@ -135,6 +242,7 @@ export class ParamSpec {
         this.defaultValue = defaultValue;
         this.minimum = minimum;
         this.maximum = maximum;
+        this.valueType = valueType;
     }
 
     static boolean(name: string, nick: string, blurb: string, flags: number, defaultValue: boolean): ParamSpec {
@@ -181,8 +289,61 @@ export class ParamSpec {
         return new ParamSpec('double', name, nick, blurb, flags, defaultValue, minimum, maximum);
     }
 
+    /**
+     * `GObject.ParamSpec.object` — a property that holds another GObject, or `null`.
+     *
+     * `valueType` is {@link TYPE_OBJECT} for "any GObject" or an interface token for a property
+     * that takes only implementors of it (`Adw.ComboRow:model`, which takes a `Gio.ListModel`).
+     * The default is ALWAYS `null`: `g_param_spec_object` has no other, and a write that does
+     * not satisfy `valueType` throws rather than being stored (ADR 0122 § 6).
+     */
+    static object(name: string, nick: string, blurb: string, flags: number, valueType: GType | GInterface): ParamSpec {
+        if (valueType !== TYPE_OBJECT && !isInterface(valueType)) {
+            throw new UnsupportedGObjectError(
+                'ParamSpec.object',
+                `GObject.ParamSpec.object('${name}'): the value type '${describeInterface(valueType)}' is outside the ` +
+                    'GObject subset; an object property takes TYPE_OBJECT or one interface of the subset (ADR 0122 § 2).',
+            );
+        }
+        return new ParamSpec('object', name, nick, blurb, flags, null, undefined, undefined, valueType);
+    }
+
     get_default_value(): unknown {
         return this.defaultValue;
+    }
+}
+
+/** How a `valueType` reads in GJS's own "expected" message: an interface by its GType name. */
+function valueTypeName(valueType: GType | GInterface): string {
+    return isInterface(valueType) ? valueType.gtype.name : valueType.name;
+}
+
+/**
+ * The type check `g_object_set_property` does before a value reaches the store — the ONE place a
+ * declared property refuses a value, so every object-kind property refuses the same way.
+ *
+ * Only object-kind specs have anything to check: the other five kinds take what GJS's generated
+ * accessors take, which is anything (`_generateAccessors` stores without converting, and the
+ * subset's vectors hold it to that). The messages are the ones real GJS produces for a C object
+ * property, measured on `Gtk.DropDown:model` under GJS 1.88.01 / GTK 4.22.5 — a JS-registered
+ * class is NOT an oracle for them, because GJS's auto-accessors skip the GValue conversion that
+ * raises them. The pointer GJS prints in the "not a subclass" message is left out; nothing can
+ * match it.
+ */
+export function checkPropertyValue(spec: ParamSpec, value: unknown): void {
+    if (spec.kind !== 'object' || value === null) return;
+    const expected = valueTypeName(spec.valueType ?? TYPE_OBJECT);
+    if (typeof value !== 'object' && typeof value !== 'function') {
+        throw new TypeError(`Wrong type ${typeof value}; object ${expected} expected`);
+    }
+    const chain = chainOfInstance(value as object);
+    if (chain.length === 0) {
+        const kind = (value as { constructor?: { name?: string } }).constructor?.name ?? 'Object';
+        throw new TypeError(`Object is not a subclass of GObject_Object, it's a ${kind}`);
+    }
+    const valueType = spec.valueType ?? TYPE_OBJECT;
+    if (isInterface(valueType) && !implementsInterface(value as object, valueType)) {
+        throw new TypeError(`Object is of type ${chain[0]!.typeName} - cannot convert to ${expected}`);
     }
 }
 
@@ -207,11 +368,12 @@ const ACCEPTED_META: Readonly<Record<string, symbol>> = {
     Properties: META_SYMBOLS.properties,
     Signals: META_SYMBOLS.signals,
     CssName: META_SYMBOLS.cssName,
+    // Accepted as a KEY; its entries are held to ACCEPTED_INTERFACES one by one (ADR 0122 § 2).
+    Implements: META_SYMBOLS.interfaces,
 };
 
 const REFUSED_META: Readonly<Record<string, symbol>> = {
     Children: META_SYMBOLS.children,
-    Implements: META_SYMBOLS.interfaces,
     Requires: META_SYMBOLS.requires,
     GTypeFlags: META_SYMBOLS.GTypeFlags,
 };
@@ -271,8 +433,10 @@ export interface RegisteredClass {
     readonly typeName: string;
     readonly gtype: GType;
     readonly properties: readonly ParamSpec[];
-    /** Signal name → its parameter types. */
+    /** Signal name → its parameter types; an implemented interface's are merged in. */
     readonly signals: Readonly<Record<string, readonly GType[]>>;
+    /** The interfaces of `Implements`, each one of {@link ACCEPTED_INTERFACES}. */
+    readonly interfaces: readonly GInterface[];
     readonly template?: BlueprintTemplate;
     readonly internalChildren: readonly string[];
     readonly cssName?: string;
@@ -386,6 +550,21 @@ function runHandlers(instance: GObjectInstance, key: string, args: readonly unkn
 }
 
 /**
+ * `Implements` on a foreign-parent class: refused by name, on EVERY engine (ADR 0122 § 4). It is
+ * the core's refusal rather than each engine's so that route D says the same thing on the engine
+ * that could never do it and on the one that merely does not.
+ */
+export function refuseForeignInterfaces(meta: ForeignClassMeta): void {
+    if (meta.Implements === undefined) return;
+    throw new UnsupportedGObjectError(
+        'Implements',
+        `GObject.registerClass: ${meta.GTypeName} uses 'Implements' over a foreign parent class, which route D ` +
+            'does not have (ADR 0122 § 4): there is no GType of its own to add an interface to. A widget that ' +
+            'needs a Gio.ListModel takes one as a property instead of implementing it.',
+    );
+}
+
+/**
  * The default {@link GObjectEngine}: per-instance `Map`s behind a `WeakMap`, the only one the
  * browser can have. Registration needs nothing of it — a `$gtype` here is a token, not a GType.
  */
@@ -395,6 +574,7 @@ export const PURE_JS_ENGINE: GObjectEngine = {
     supportsForeignParentClasses: false,
 
     registerForeignClass(klass, meta) {
+        refuseForeignInterfaces(meta);
         throw new TypeError(
             `The pure-JS GObject engine cannot register '${meta.GTypeName}' (${(klass as { name?: string }).name ?? 'anonymous'}) ` +
                 'over a foreign parent class: there is no GType to register it as. Check ' +
@@ -652,6 +832,7 @@ function generateAccessors(spec: ParamSpec, existing: PropertyDescriptor | undef
                 return engineOf(this).getValue(this, spec);
             };
             descriptor.set = function (this: GObjectInstance, value: unknown) {
+                checkPropertyValue(spec, value);
                 // The engine answers whether that CHANGED anything; one notify per change.
                 if (engineOf(this).setValue(this, spec, value)) this.notify(name);
             };
@@ -710,6 +891,7 @@ function checkAccessors(proto: object, spec: ParamSpec): void {
 /** A construct-only property has no accessor on the class; the instance carries the value it was built with. */
 function defineConstructOnly(instance: object, spec: ParamSpec, value: unknown): void {
     const engine = engineOf(instance);
+    checkPropertyValue(spec, value);
     // The write itself notifies nothing: construction is not a change anyone could have seen.
     engine.setValue(instance, spec, value);
     for (const alias of new Set(aliasesOf(spec.name))) {
@@ -921,6 +1103,87 @@ function describeType(type: unknown): string {
     return (type as { name?: unknown } | null | undefined)?.name?.toString() ?? String(type);
 }
 
+/** `Implements` → the interfaces of the subset, refusing every other entry BY NAME. */
+function readInterfaces(className: string, declared: unknown): readonly GInterface[] {
+    if (declared === undefined) return [];
+    if (!Array.isArray(declared)) {
+        throw refusal(className, 'Implements', ' with a value that is not an array of interfaces');
+    }
+    const accepted = ACCEPTED_INTERFACES.map((each) => each.name).join(', ');
+    return declared.map((entry: unknown) => {
+        if (!ACCEPTED_INTERFACES.includes(entry as GInterface)) {
+            throw refusal(
+                className,
+                'Implements',
+                ` with the interface '${describeInterface(entry)}' (only ${accepted})`,
+            );
+        }
+        return entry as GInterface;
+    });
+}
+
+/**
+ * An implementor must DEFINE every vfunc of the interface it lists — the subset's own check, and
+ * one of the few places it is deliberately NOT GJS-identical.
+ *
+ * Measured on GJS 1.88.01 / GTK 4.22.5: a class that lists `Gio.ListModel` and omits
+ * `vfunc_get_n_items` REGISTERS, and the first `get_n_items()` call SEGFAULTS the process — the
+ * interface vtable slot stays null and the C caller jumps through it. There is no behaviour there
+ * to be identical to, so the subset refuses at registration instead, naming the interface and the
+ * vfunc.
+ *
+ * Not GJS's `Could not find definition of virtual function X` either, which reads like this one
+ * and means the opposite: GJS raises THAT when a class declares a `vfunc_X` no virtual function X
+ * matches (measured on a plain `GObject.Object` with `vfunc_get_n_items` and no `Implements`).
+ * {@link registerWith}'s UNLOCKED_VFUNCS check is the one that speaks those words here.
+ */
+function requireInterfaceVfuncs(className: string, proto: object, interfaces: readonly GInterface[]): void {
+    for (const iface of interfaces) {
+        for (const vfunc of iface.vfuncs) {
+            if (typeof (proto as Record<string, unknown>)[vfunc] !== 'function') {
+                throw new TypeError(
+                    `GObject.registerClass: ${className} implements ${iface.name} without defining ${vfunc}; ` +
+                        'every vfunc of an implemented interface must be defined (ADR 0122 § 2).',
+                );
+            }
+        }
+    }
+}
+
+/**
+ * The interface surface on the implementor's prototype: each method calling through to the class's
+ * own `vfunc_*`, each emitter emitting the interface's signal with the arity GIR gives it. A class
+ * that already has a member of that name keeps it, as GJS's own installation does.
+ *
+ * The interface's PROPERTIES are deliberately absent — measured on GJS 1.88.01, a JS implementor
+ * of `Gio.ListModel` has neither `n_items` nor `item_type`. A type that wants them declares them,
+ * which is what `Gtk.StringList` does.
+ */
+function installInterfaces(proto: object, interfaces: readonly GInterface[]): void {
+    const define = (name: string, value: (...args: never[]) => unknown) => {
+        if (own(proto, name)) return;
+        Object.defineProperty(proto, name, { value, writable: true, configurable: true, enumerable: false });
+    };
+    for (const iface of interfaces) {
+        for (const [method, vfunc] of Object.entries(iface.methods)) {
+            define(method, function (this: Record<string, unknown>, ...args: unknown[]) {
+                return (this[vfunc] as (...rest: unknown[]) => unknown).apply(this, args);
+            } as (...args: never[]) => unknown);
+        }
+        for (const [method, signal] of Object.entries(iface.emitters)) {
+            const arity = iface.signals[signal]?.length ?? 0;
+            define(method, function (this: GObjectInstance, ...args: unknown[]) {
+                if (args.length < arity) {
+                    throw new Error(
+                        `method ${iface.name}.${method}: At least ${arity} arguments required, but only ${args.length} passed`,
+                    );
+                }
+                this.emit(signal, ...args.slice(0, arity));
+            } as (...args: never[]) => unknown);
+        }
+    }
+}
+
 let anonymousClasses = 0;
 
 function registerWith(door: GObjectDoor, engine: GObjectEngine, args: readonly unknown[]): ClassLike {
@@ -941,7 +1204,12 @@ function registerWith(door: GObjectDoor, engine: GObjectEngine, args: readonly u
     for (const [feature, symbol] of Object.entries(REFUSED_META)) {
         if (own(klass, symbol)) throw refusal(className, feature);
     }
+    const interfaces = readInterfaces(
+        className,
+        own(klass, META_SYMBOLS.interfaces) ? klass[META_SYMBOLS.interfaces] : undefined,
+    );
     const unlocked = unlockedVfuncsOf(klass);
+    for (const iface of interfaces) for (const name of iface.vfuncs) unlocked.add(name);
     for (const target of [klass as object, klass.prototype]) {
         for (const key of Object.getOwnPropertyNames(target)) {
             if (
@@ -957,6 +1225,8 @@ function registerWith(door: GObjectDoor, engine: GObjectEngine, args: readonly u
             }
         }
     }
+
+    requireInterfaceVfuncs(className, klass.prototype, interfaces);
 
     const declared = (symbol: symbol) => (own(klass, symbol) ? klass[symbol] : undefined);
 
@@ -975,7 +1245,10 @@ function registerWith(door: GObjectDoor, engine: GObjectEngine, args: readonly u
         },
     );
 
+    // An interface's signals are the implementor's own, so they resolve through the registry and
+    // the engine registers them like any other — nothing below the core learns the word interface.
     const signals: Record<string, readonly GType[]> = {};
+    for (const iface of interfaces) Object.assign(signals, iface.signals);
     for (const [name, meta] of Object.entries((declared(META_SYMBOLS.signals) ?? {}) as Record<string, SignalMeta>)) {
         for (const key of Object.keys(meta)) {
             if (key !== 'param_types') throw refusal(className, `Signals.${name}.${key}`);
@@ -1008,6 +1281,7 @@ function registerWith(door: GObjectDoor, engine: GObjectEngine, args: readonly u
         gtype,
         properties,
         signals,
+        interfaces,
         template: template as BlueprintTemplate | undefined,
         internalChildren: (declared(META_SYMBOLS.internalChildren) ?? []) as readonly string[],
         cssName: declared(META_SYMBOLS.cssName) as string | undefined,
@@ -1022,6 +1296,7 @@ function registerWith(door: GObjectDoor, engine: GObjectEngine, args: readonly u
     });
     for (const spec of properties) checkAccessors(klass.prototype, spec);
     installInstanceApi(klass.prototype);
+    installInterfaces(klass.prototype, interfaces);
     REGISTRY.set(klass, info);
     // The engine first: the door's `register` may already build objects of this class.
     engine.register(info);
@@ -1039,6 +1314,7 @@ export function registerBaseClass(
     typeName: string,
     signals: Readonly<Record<string, readonly GType[]>>,
     properties: readonly ParamSpec[] = [],
+    interfaces: readonly GInterface[] = [],
     engine: GObjectEngine = PURE_JS_ENGINE,
 ): void {
     const missing = (event: string): never => {
@@ -1050,13 +1326,20 @@ export function registerBaseClass(
         enumerable: false,
         configurable: false,
     });
+    const checked = readInterfaces(typeName, interfaces.length > 0 ? interfaces : undefined);
+    requireInterfaceVfuncs(typeName, klass.prototype, checked);
+    const withInterfaceSignals: Record<string, readonly GType[]> = {};
+    for (const iface of checked) Object.assign(withInterfaceSignals, iface.signals);
+    Object.assign(withInterfaceSignals, signals);
     for (const spec of properties) checkAccessors(klass.prototype, spec);
+    installInterfaces(klass.prototype, checked);
     const info: RegisteredClass = {
         klass,
         typeName,
         gtype,
         properties,
-        signals,
+        signals: withInterfaceSignals,
+        interfaces: checked,
         internalChildren: [],
         engine,
         door: {
@@ -1135,6 +1418,7 @@ export interface GObjectNamespace {
     readonly TYPE_INT: GType;
     readonly TYPE_UINT: GType;
     readonly TYPE_DOUBLE: GType;
+    readonly TYPE_OBJECT: GType;
     readonly GTypeName: symbol;
     readonly GTypeFlags: symbol;
     readonly interfaces: symbol;
@@ -1168,6 +1452,7 @@ export function createGObject(door: GObjectDoor, engine: GObjectEngine = PURE_JS
         TYPE_INT,
         TYPE_UINT,
         TYPE_DOUBLE,
+        TYPE_OBJECT,
         GTypeName: META_SYMBOLS.GTypeName,
         GTypeFlags: META_SYMBOLS.GTypeFlags,
         interfaces: META_SYMBOLS.interfaces,

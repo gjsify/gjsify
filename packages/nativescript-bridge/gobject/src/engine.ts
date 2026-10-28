@@ -34,7 +34,7 @@
 // `scripts/audit-runtimes.mjs`'s textual walk and mis-declare this package. So nothing here
 // imports the bridge at all; the caller passes `requireGi` in, exactly as the stage-0 oracle does.
 
-import { bindProperties, type Binding, type BindingFlag } from '@gjsify/adwaita-core';
+import { bindProperties, refuseForeignInterfaces, type Binding, type BindingFlag } from '@gjsify/adwaita-core';
 import type {
     ClassLike,
     ForeignClassMeta,
@@ -174,6 +174,9 @@ export function createRealGioEngine(requireGi: RequireGi): GObjectEngine {
 
     function paramSpecFor(spec: ParamSpec): RealParamSpec {
         const { name, nick, blurb } = spec;
+        if (spec.kind === 'object') {
+            throw new TypeError(`real-gio engine: no GObject ParamSpec for object property '${name}'`);
+        }
         const fallback = spec.kind === 'string' || spec.kind === 'boolean' ? undefined : RANGES[spec.kind];
         const minimum = spec.minimum ?? fallback?.[0] ?? 0;
         const maximum = spec.maximum ?? fallback?.[1] ?? 0;
@@ -314,6 +317,10 @@ export function createRealGioEngine(requireGi: RequireGi): GObjectEngine {
         supportsForeignParentClasses: GObject.$foreignParentClasses === true,
 
         registerForeignClass(klass: ClassLike, meta: ForeignClassMeta) {
+            // Before the host question, because the answer is the same on a host that supports
+            // route D and on one that does not: a foreign parent has no GType of its own to add
+            // an interface to (ADR 0122 § 4). The core owns the message so both legs say it.
+            refuseForeignInterfaces(meta);
             if (GObject.$foreignParentClasses !== true) {
                 throw new Error(
                     `real-gio engine: this host does not support foreign parent classes, ` +
@@ -344,6 +351,12 @@ export function createRealGioEngine(requireGi: RequireGi): GObjectEngine {
             }
         },
 
+        // `info.interfaces` needs NOTHING here, and that is a result rather than an omission: the
+        // core installs the interface's methods on the implementor's own prototype, routed to its
+        // `vfunc_*`, and merges the interface's signals into `info.signals` — which arrive below
+        // as ordinary declared signals and get registered on the twin like any other. Adding the
+        // interface to the TWIN's GType would be actively wrong: the twin is `class extends
+        // Parent {}` and defines no vfuncs, so node-gi would refuse it for the missing ones.
         register(info) {
             const Parent = parentTwinOf(info.klass);
             const properties: Record<string, RealParamSpec> = {};
