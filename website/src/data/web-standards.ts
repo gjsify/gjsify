@@ -39,7 +39,7 @@ export const webStandardsCategories: readonly WebStandardCategory[] = [
         name: 'Storage',
         standards: [
             { name: 'Web Storage', status: 'full', pkg: '@gjsify/webstorage', note: 'localStorage + sessionStorage' },
-            { name: 'IndexedDB', status: 'missing', note: 'libgda could back' },
+            { name: 'IndexedDB', status: 'missing', note: 'libsqlite3 could back, through sqlite-native' },
             { name: 'Cookie Store API', status: 'missing' },
             { name: 'Cache API', status: 'out-of-scope', note: 'Service Worker companion' },
             {

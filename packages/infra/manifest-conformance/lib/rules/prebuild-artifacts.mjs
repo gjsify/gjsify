@@ -527,7 +527,7 @@ export function auditPrebuildArtifacts(nativePkgs, { girGaps = {} } = {}) {
                 // A dependency of OUR OWN is a defect in the prebuild. A
                 // third-party one the host does not have is a fact about the
                 // host — this audit runs on a bare Node runner that has glib
-                // but not libsoup/GStreamer/libgda, and failing there would
+                // but not libsoup/GStreamer, and failing there would
                 // make the guard report the runner's package list rather than
                 // anything about the artifact.
                 //

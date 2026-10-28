@@ -289,13 +289,10 @@ export default async () => {
         });
     });
 
-    // One connection has to survive as many executions as a caller cares to make. On GJS
-    // every execution used to leave a per-execution object registered on the connection,
-    // each holding a GWeakRef to the shared SQLite provider, and GLib caps those at 65535
-    // per object. Past the cap the connection went bad without an exception and a later
-    // SELECT came back wrong. The counts below cross that cap for the code that leaked
-    // (run() left four references, get() one, an INSERT through exec() two), so a
-    // regression shows as a wrong count rather than as a slow test.
+    // One connection has to survive as many executions as a caller cares to make. The
+    // libgda backend registered a GWeakRef per execution and GLib caps those at 65535 per
+    // object (ADR 0123); sqlite-native holds none, and the counts below still cross that
+    // cap so a backend that leaks per execution shows as a wrong count, not a slow test.
     await describe('a long-lived connection', async () => {
         await it('still reads every row after 15,000 run() + get() pairs', async () => {
             const n = 15_000;
