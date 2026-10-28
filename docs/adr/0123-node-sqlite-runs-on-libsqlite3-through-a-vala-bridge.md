@@ -104,9 +104,12 @@ keeping for anyone who reaches for it again.
   fails at build rather than at run time.
 - `sqlite3_column_origin_name` is deliberately NOT exposed: it needs
   `SQLITE_ENABLE_COLUMN_METADATA`, which macOS's system libsqlite3 is built without.
-- The darwin runtime bundle still carries libgda and its SQLite provider, and the CI formulae
-  still install it. Removing that payload is the remaining step of #2427 and is not part of this
-  ADR.
+- The darwin runtime bundle no longer carries libgda or its SQLite provider, the `Gda` floor
+  namespace and `GDA_TOP_BUILD_DIR` wiring are gone, and the CI brew formulae no longer install
+  it (#2427 step 4). `gjsify ship` needs no table row for the bridge: `GjsifySqlite` is a carried
+  typelib like every other `Gjsify*` bridge, so an app lists the bridge's prebuild directory in
+  `gjsify.ship.bundledTypelibs`. libgda stays in the Fedora CI image for node-gi's own GValue
+  marshalling tests, which skip without it.
 - One Node divergence is known and open: `prepare()` on whitespace- or comment-only SQL throws
   `the SQL text contains no statement`, where Node returns a statement whose methods report
   `statement has been finalized`.
