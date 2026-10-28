@@ -21,6 +21,8 @@ import {
     mkdir,
     rmdir,
     chmod,
+    realpath,
+    realpathSync,
 } from 'node:fs';
 import { constants } from 'node:fs';
 import { Buffer } from 'node:buffer';
@@ -272,6 +274,17 @@ export default async () => {
                         });
                     });
                 });
+            });
+        });
+
+        await describe('realpath', async () => {
+            // fs-extra probes `realpath.native` at load and warns when it is missing.
+            await it('exposes realpath.native', async () => {
+                expect(typeof realpath.native).toBe('function');
+                const resolved = await new Promise<string>((resolve, reject) => {
+                    realpath.native('.', (err, path) => (err ? reject(err) : resolve(path)));
+                });
+                expect(resolved).toBe(realpathSync('.'));
             });
         });
 

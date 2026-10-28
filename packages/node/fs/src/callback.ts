@@ -184,6 +184,7 @@ export function realpath(
         }
     });
 }
+(realpath as unknown as { native: typeof realpath }).native = realpath;
 
 export function symlink(target: PathLike, path: PathLike, callback: NoParamCallback): void;
 export function symlink(target: PathLike, path: PathLike, type: string | null, callback: NoParamCallback): void;
