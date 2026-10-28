@@ -31,7 +31,7 @@
 
 import { panDownSymbolic } from '@gjsify/adwaita-icons/ui';
 import { action, Label, StackLayout, type EventData, type View } from '@nativescript/core';
-import { ComboState, normalizeComboOptions } from '@gjsify/adwaita-core';
+import { ComboState, normalizeComboOptions, parseListModel } from '@gjsify/adwaita-core';
 import type { AdwComboOption, AdwListModelInput } from '@gjsify/adwaita-core';
 import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
@@ -148,12 +148,15 @@ export class GtkDropDown extends withSignals(StackLayout) {
         return this._state.model;
     }
 
-    set model(value: AdwListModelInput) {
+    set model(value: AdwListModelInput | string) {
         // The SAME normaliser the browser elements run, so one authored model — bare
         // strings included — moves between the surfaces unchanged. This setter used to
         // take descriptors only, so `model = ['a','b']` stored strings and every label
         // read back `undefined`.
-        this._state.setModel(normalizeComboOptions(value));
+        // The XML attribute door hands the list over as JSON text, the same `model='[…]'` the
+        // browser elements read — a `Gtk.StringList` cannot be filled from an attribute of its
+        // own, `strings` being construct-only (ADR 0122).
+        this._state.setModel(typeof value === 'string' ? parseListModel(value) : normalizeComboOptions(value));
     }
 
     /**

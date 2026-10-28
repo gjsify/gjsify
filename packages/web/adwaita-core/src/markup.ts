@@ -190,9 +190,19 @@ const xmlQuote: Quote = (value) => {
     return `${quote}${escaped}${quote}`;
 };
 
+/** A string list written as its parent's `model` attribute — no element, so no barrel either. */
+function isModelAttribute(child: SharedTreeNode): boolean {
+    return (
+        child.tag === 'GtkStringList' &&
+        child.slot === 'model' &&
+        child.id === undefined &&
+        child.extensions?.strings !== undefined
+    );
+}
+
 function prefixesOf(node: SharedTreeNode, into: Set<string>): Set<string> {
     into.add(xmlNameOf(node.tag).prefix);
-    for (const child of node.children ?? []) prefixesOf(child, into);
+    for (const child of node.children ?? []) if (!isModelAttribute(child)) prefixesOf(child, into);
     return into;
 }
 
@@ -238,11 +248,35 @@ function xmlElement(node: SharedTreeNode, depth: number, rootAttributes: readonl
     if (node.styleClasses !== undefined && node.styleClasses.length > 0) {
         attributes.push(['styleClasses', node.styleClasses.join(' ')]);
     }
-    // ADR 0072's string list: `build` passes the items as the `{ strings }` construct bag,
-    // and a template has no constructor to pass them to, so they are the `strings` member.
-    const strings = node.extensions?.strings;
-    if (strings !== undefined) attributes.push(['strings', JSON.stringify(strings.map((string) => string.value))]);
-    const body = (node.children ?? []).map((child) => {
+    // ADR 0072's string list: `build` passes the items as the `{ strings }` construct bag.
+    // `strings` is construct-only on a `Gtk.StringList` (ADR 0122) and NativeScript's XML builder
+    // calls `new instanceType()` with no arguments, so a list cannot be filled from an attribute
+    // of its own. A list placed at the row's `model` slot is spelled as the row's `model`
+    // attribute instead — the JSON door `normalizeComboOptions` reads — and anything else that
+    // carries strings has no XML spelling.
+    const children: SharedTreeNode[] = [];
+    for (const child of node.children ?? []) {
+        const strings = child.extensions?.strings;
+        if (strings === undefined) {
+            children.push(child);
+            continue;
+        }
+        if (!isModelAttribute(child)) {
+            throw new Error(
+                `sharedTreeNativeScriptXml: \`${child.tag}\`'s strings have no XML spelling — \`strings\` is ` +
+                    `construct-only (ADR 0122); only a \`GtkStringList\` without an id at a \`model\` slot is written, ` +
+                    `as the parent's \`model\` attribute.`,
+            );
+        }
+        attributes.push(['model', JSON.stringify(strings.map((string) => string.value))]);
+    }
+    if (node.extensions?.strings !== undefined) {
+        throw new Error(
+            `sharedTreeNativeScriptXml: \`${node.tag}\`'s strings have no XML spelling — \`strings\` is ` +
+                `construct-only (ADR 0122), so a list is written as its parent's \`model\` attribute.`,
+        );
+    }
+    const body = children.map((child) => {
         if (child.slot === undefined) return xmlElement(child, depth + 1, []);
         // A placement is NativeScript's complex-property element, `<adw:Clamp.child>`: the
         // builder hands the child to `_addChildFromBuilder` under that property's name, which
