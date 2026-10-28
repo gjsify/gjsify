@@ -21,6 +21,7 @@ import fileChooserVectors from './specs/file-chooser.js';
 import { viewsSpec } from './specs/views.js';
 import { storybookSpec } from './specs/storybook.js';
 import { buttonSpec } from './specs/button.js';
+import { buttonContentSpec } from './specs/button-content.js';
 import { spinnerSpec } from './specs/spinner.js';
 import { windowTitleSpec } from './specs/window-title.js';
 import { rowsSpec } from './specs/rows.js';
@@ -94,6 +95,8 @@ async function runSuite(): Promise<void> {
                 await rowsSpec(engine)();
                 // A signal-only migration: `clicked` of a button the apps tap.
                 await buttonSpec(engine)();
+                // Four properties of a container, and a NativeScript-only accessor beside them.
+                await buttonContentSpec(engine)();
             }
             if (optedIn) await inversionSpec();
             if (optedIn) await foreignParentSpec();

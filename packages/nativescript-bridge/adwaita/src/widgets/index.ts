@@ -210,7 +210,13 @@ export type { DataGridItemSpec } from './data-grid-model.js';
 export { AdwSpinner, DEFAULT_SPINNER_SIZE } from './adw-spinner.js';
 export { AdwStatusPage } from './adw-status-page.js';
 export { AdwButtonRow, ACTIVATED } from './adw-button-row.js';
-export { AdwButtonContent } from './adw-button-content.js';
+export {
+    AdwButtonContent,
+    NOTIFY_BUTTON_CONTENT_ICON_NAME,
+    NOTIFY_BUTTON_CONTENT_LABEL,
+    NOTIFY_BUTTON_CONTENT_USE_UNDERLINE,
+    NOTIFY_BUTTON_CONTENT_CAN_SHRINK,
+} from './adw-button-content.js';
 export { AdwSplitButton, CLICKED, MENU_TAPPED } from './adw-split-button.js';
 export type { MenuTappedEventData } from './adw-split-button.js';
 // AdwToggleGroup keeps the NS segment render (+ per-toggle icons); the selection
