@@ -60,7 +60,11 @@ export default async () => {
                 // `get_object`. A template file may now carry sibling objects (ADR 0093), which
                 // `derived.objects` holds; the emitter exports none of them beside a template.
                 if (derived.template !== undefined) {
-                    const sidecar = emitTypedSidecar(parseBlueprint(readFileSync(file, 'utf8'), file), file, repoFormat);
+                    const sidecar = emitTypedSidecar(
+                        parseBlueprint(readFileSync(file, 'utf8'), file),
+                        file,
+                        repoFormat,
+                    );
                     expect(sidecar.includes('get_object')).toBe(false);
                 }
                 for (const one of [...derived.objects, ...(derived.template?.children ?? [])]) {
