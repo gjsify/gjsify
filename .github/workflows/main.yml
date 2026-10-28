@@ -1435,6 +1435,14 @@ jobs:
           # Boots dist/cli.gjs.mjs; ADR 0002 took it out of the checkout.
           bootstrap-bundles: 'true'
 
+      # `@gjsify/sqlite` runs on `@gjsify/sqlite-native`, the Vala bridge over the
+      # system libsqlite3 (ADR 0123). Its prebuild is not committed, so build it
+      # here before the sharded test sweep can require GjsifySqlite.
+      - name: Build @gjsify/sqlite-native (libsqlite3 bridge)
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          gjsify workspace @gjsify/sqlite-native build:prebuilds
+
       # Full sharded sweep on global/main/schedule/empty; selective + sharded
       # otherwise. The full path inlines the root `test` script's filters so it
       # can take --shard. Integration tests stay opt-in.
