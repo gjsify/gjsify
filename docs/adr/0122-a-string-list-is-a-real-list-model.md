@@ -208,12 +208,14 @@ emits `(position, nRemovals, additions.length)`.
   position, and overriding it would break `list.find((s) => …)`. With `Array` gone there is no
   `Array.prototype.find` to break, so `find(string): number` is GTK's, as it should have been.
 
-**`strings` stays, and it is still not GTK's property.** `Gtk.StringList:strings` is
-construct-only in GTK, and ADR 0072 § 2's NativeScript builder has no constructor call to pass it
-through: `<gtk:StringList strings='["Blue","Teal"]'>` assigns JSON text to the member on a list
-that is already built. That door is unchanged, including its JSON parsing and its `TypeError` for
-anything that is not an array of strings — and it now emits one `items-changed` for the whole
-replacement instead of silently rewriting `this.length`.
+**`strings` is construct-only, as in GTK — so the XML door moved to the owner.** ADR 0072 § 2's
+NativeScript builder calls `new X()` with no arguments and assigns attributes afterwards, so
+`<gtk:StringList strings='["Blue","Teal"]'>` would set a construct-only property on a list that
+is already built; GTK refuses that with a CRITICAL and the list stays empty. The serializer
+(`sharedTreeNativeScriptXml`) therefore writes an id-less list at a `model` slot as the owner's
+`model='["Blue","Teal"]'` attribute, and `Adw.ComboRow` / `Gtk.DropDown` read that JSON text in
+their `model` setter, as the web elements already did. A list carrying strings anywhere else has
+no XML spelling and is refused when serialized.
 
 **No `Array` fallback anywhere, and no shim.** `normalizeComboOptions` gains a branch that reads
 a `Gio.ListModel` through `get_n_items`/`get_item`, beside the `Array.isArray` branch it already
