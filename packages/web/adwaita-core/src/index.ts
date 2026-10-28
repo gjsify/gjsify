@@ -1127,6 +1127,7 @@ export {
     gobjectEngineName,
     notifyInstance,
     PURE_JS_ENGINE,
+    refuseForeignInterfaces,
     registeredClassOf,
     registerBaseClass,
     STOP_EMISSION,
