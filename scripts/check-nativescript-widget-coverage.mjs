@@ -251,10 +251,6 @@ const KNOWN_GAPS = {
         gaps: ['climbRate', 'digits', 'numeric', 'snapToTicks', 'updatePolicy', 'wrap'],
         why: "All six are `GtkSpinButton` knobs that `Adw.SpinRow` re-exposes, and this row has no spin button: it installs a `[−] value [+]` triplet of two Buttons and a Label in the suffix slot (adw-spin-row.ts:3-8). There is no press-and-hold acceleration, no editable text field to parse or restrict, and no tick snapping — the buttons step by the adjustment's increment and clamp. `<adw-spin-row>` declares the same six.",
     },
-    'adw-split-button': {
-        gaps: ['canShrink'],
-        why: 'The size-negotiation property once more: it lets the button ellipsize below its natural width. NativeScript has no minimum/natural protocol for a `GridLayout` of two tappable parts, so there is no allocation the switch could change. `<adw-split-button>` declares the same gap.',
-    },
     'adw-tab-view': {
         gaps: ['shortcuts'],
         why: 'A `Adw.TabViewShortcuts` flag set naming the keyboard accelerators the tab view handles itself (Ctrl+Tab, Alt+digit, …). This port is a touch tab bar on a phone with no key events reaching it, so there is no shortcut to enable or suppress. `<adw-tab-view>` declares the same gap.',

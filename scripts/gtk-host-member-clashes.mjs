@@ -72,9 +72,10 @@ export function girPropsOf(interfaces, type) {
 export function readPortClasses(file, text) {
     const code = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     const classes = [];
-    // `extends withSignals(\n    GridLayout,\n)` is the same head as the one-line form.
+    // `extends withSignals(\n    GridLayout,\n)` is the same head as the one-line form, and so is
+    // `withSignals(GridLayout, {` — the declaration object opens where the call would close.
     const head =
-        /^export (?:abstract )?class (\w+)(?:<[^{]*?>)? extends ([\w.]+)(?:<[^(]*?>)?(?:\(\s*(\w+)\s*,?\s*\))?/gm;
+        /^export (?:abstract )?class (\w+)(?:<[^{]*?>)? extends ([\w.]+)(?:<[^(]*?>)?(?:\(\s*(\w+)\s*(?:,\s*\{|,?\s*\)))?/gm;
     const starts = [...code.matchAll(head)];
     for (const [index, match] of starts.entries()) {
         const [, name, outer, inner] = match;
