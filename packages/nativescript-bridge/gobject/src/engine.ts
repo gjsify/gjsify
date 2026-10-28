@@ -174,6 +174,9 @@ export function createRealGioEngine(requireGi: RequireGi): GObjectEngine {
 
     function paramSpecFor(spec: ParamSpec): RealParamSpec {
         const { name, nick, blurb } = spec;
+        if (spec.kind === 'object') {
+            throw new TypeError(`real-gio engine: no GObject ParamSpec for object property '${name}'`);
+        }
         const fallback = spec.kind === 'string' || spec.kind === 'boolean' ? undefined : RANGES[spec.kind];
         const minimum = spec.minimum ?? fallback?.[0] ?? 0;
         const maximum = spec.maximum ?? fallback?.[1] ?? 0;
