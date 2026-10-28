@@ -36,6 +36,7 @@ import { CloseRequestState, HandledAccumulator, WindowMemberState, stepDefaultSi
 import type { EventData, View } from '@nativescript/core';
 
 import { windowHost } from '../window-host.js';
+import { AdwBottomSheet } from './adw-bottom-sheet.js';
 import { defineWindowApplication, type GtkApplication } from './application.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { AdwSingleChildBase } from './single-child-base.js';
@@ -194,12 +195,14 @@ export class GtkWindow extends AdwSingleChildBase {
     }
 
     /**
-     * What the back button does, in order: the topmost dialog, the innermost navigation view, then
-     * `close-request`. Always consumes the press — the system's own back would `finish()` too, but
+     * What the back button does, in order: the topmost dialog, an open bottom sheet, the innermost
+     * navigation view, then `close-request`. The sheet sits over the content a navigation view lives
+     * in, and libadwaita closes it on Escape before anything under it sees the key. Always consumes the press — the system's own back would `finish()` too, but
      * without asking the handlers.
      */
     private _handleBack(): boolean {
         if (this._consumeBack()) return true;
+        if (closeOpenBottomSheet(this)) return true;
         if (popInnermostNavigation(this)) return true;
         this._requestClose();
         return true;
@@ -292,6 +295,28 @@ function findView(root: View, match: (view: View) => boolean): View | null {
         return found === null;
     });
     return found;
+}
+
+/**
+ * Close the innermost visible bottom sheet that is open and may be dismissed (`can-close`); a sheet
+ * that may not is skipped, as its Escape would only emit `close-attempt`.
+ */
+function closeOpenBottomSheet(root: View): boolean {
+    let taken = false;
+    root.eachChildView((child) => {
+        if (child.visibility !== 'visible') return true;
+        if (closeOpenBottomSheet(child)) {
+            taken = true;
+            return false;
+        }
+        if (child instanceof AdwBottomSheet && child.open && child.canClose) {
+            child.open = false;
+            taken = true;
+            return false;
+        }
+        return true;
+    });
+    return taken;
 }
 
 interface PopsOnBack {
