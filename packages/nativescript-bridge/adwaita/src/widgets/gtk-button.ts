@@ -42,7 +42,7 @@
 // `button.emit('clicked')` from code behaves as in GJS. It is NOT a NativeScript event any
 // more: `addEventListener('clicked')` and `notify({ eventName: 'clicked' })` are refused like
 // every declared member's (`signals.ts`). `tap` stays the platform's own event and is not
-// declared. `AdwSplitButton` still dispatches `clicked` for its action half as an event.
+// declared. `AdwSplitButton` declares `clicked` and `activate` the same way for its action half.
 //
 // THE ICON GOES THROUGH `GtkImage`, WHICH IS WHY IT TAKES A THEME NAME. `iconName` accepts
 // `'list-add-symbolic'` and an Adwaita symbolic SVG string alike, and neither spelling is

@@ -29,89 +29,24 @@ import {
     MENU_FLATTEN_VECTORS,
     MENU_ITEM_STATE_VECTORS,
     MENU_NORMALIZE_VECTORS,
-    SPLIT_BUTTON_CONTENT_VECTORS,
     SPLIT_BUTTON_DIRECTION_VECTORS,
     SPLIT_BUTTON_DROPDOWN_VECTORS,
     SPLIT_BUTTON_MENU_ACTIVATION_VECTORS,
     SPLIT_BUTTON_STYLE_CLASS_VECTORS,
     SPLIT_BUTTON_TOOLTIP_VECTORS,
 } from '@gjsify/adwaita-core/conformance';
-import { ARROW_SVGS, setActionIcon, splitButtonArrowSvg } from './widgets/split-button.js';
+import { ARROW_SVGS, splitButtonArrowSvg } from './widgets/split-button.js';
 import { refuseMenuString } from './widgets/popup-menu.js';
 
-/** Which of the two action views the widget parents for a given state. */
-function parentedView(state: SplitButtonState): 'icon' | 'label' {
-    return state.mode === 'icon' ? 'icon' : 'label';
-}
-
 export const AdwSplitButtonNsTest = async () => {
-    await describe('AdwSplitButton content (shared conformance vectors)', async () => {
-        for (const vector of SPLIT_BUTTON_CONTENT_VECTORS) {
-            await it(`renders the right half through: ${vector.name}`, () => {
-                const state = new SplitButtonState();
-                const children = new Map<string, object>();
-
-                for (const step of vector.steps) {
-                    if (step.op === 'label') state.setLabel(step.value ?? '');
-                    else if (step.op === 'icon-name') state.setIconName(step.value ?? '');
-                    else if (step.value === null) state.setChild(null);
-                    else {
-                        let child = children.get(step.value);
-                        if (child === undefined) {
-                            child = { widget: step.value };
-                            children.set(step.value, child);
-                        }
-                        state.setChild(child);
-                    }
-
-                    expect(state.mode).toBe(step.mode);
-                    // The regression this suite exists for: in icon mode the
-                    // label is GONE, not merely hidden behind a swapped view.
-                    expect(state.label).toBe(step.label);
-                    expect(state.iconName).toBe(step.iconName);
-                    expect(parentedView(state)).toBe(step.mode === 'icon' ? 'icon' : 'label');
-                    expect([...splitButtonStyleClasses(state.label, state.iconName)]).toStrictEqual([
-                        ...step.styleClasses,
-                    ]);
-                }
-            });
-        }
-
+    // The content slots are the widget's DECLARED properties now; their vectors run against the
+    // widget in `split-button-properties.spec.ts`.
+    await describe('AdwSplitButton style classes (shared conformance vectors)', async () => {
         for (const { label, iconName, classes, rule } of SPLIT_BUTTON_STYLE_CLASS_VECTORS) {
             await it(`style classes for ${JSON.stringify(label)}/${JSON.stringify(iconName)} — ${rule}`, () => {
                 expect([...splitButtonStyleClasses(label, iconName)]).toStrictEqual([...classes]);
             });
         }
-    });
-
-    await describe('AdwSplitButton.iconName ⟷ label (the real setActionIcon mapping)', async () => {
-        await it('an SVG replaces the label, and clearing it hands the half back', () => {
-            const state = new SplitButtonState();
-            state.setLabel('Save');
-            expect(state.label).toBe('Save');
-
-            setActionIcon(state, '<svg id="save"/>');
-            expect(state.mode).toBe('icon');
-            expect(state.iconName).toBe('<svg id="save"/>');
-            // Not "hidden": the sheet title reads this, and it must be empty now.
-            expect(state.label).toBe(null);
-
-            setActionIcon(state, '');
-            expect(state.mode).toBe('empty');
-            expect(state.iconName).toBe(null);
-
-            state.setLabel('Save');
-            expect(state.mode).toBe('label');
-            expect(state.label).toBe('Save');
-        });
-
-        await it('clearing an icon that was never set is a no-op', () => {
-            const state = new SplitButtonState();
-            state.setLabel('Save');
-            setActionIcon(state, null);
-            expect(state.mode).toBe('label');
-            expect(state.label).toBe('Save');
-        });
     });
 
     await describe('AdwSplitButton.menuModel normalisation (shared conformance vectors)', async () => {

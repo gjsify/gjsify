@@ -28,14 +28,12 @@ import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { assertPopupMenuAssignable, refuseMenuString } from './popup-menu.js';
 import { showMenuPopup } from './popup-menu-view.js';
-import { setActionIcon, splitButtonArrowSvg } from './split-button.js';
+import { splitButtonArrowSvg } from './split-button.js';
+import { buttonContentClassName, buttonContentLabelText } from './button-content.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { ArrowType } from './gtk-enums.js';
-import { withSignals } from './signals.js';
-
-/** Event name emitted when the main action part is tapped. Mirrors `Adw.SplitButton::clicked`. */
-export const CLICKED = 'clicked';
+import { withSignals, type GObjectNotify } from './signals.js';
 
 /** Emitted when {@link AdwSplitButton.set_direction} moves the arrow. */
 export const NOTIFY_DIRECTION = 'notify::direction';
@@ -59,9 +57,106 @@ export interface MenuTappedEventData extends EventData {
     action?: string;
 }
 
-export class AdwSplitButton extends withSignals(GridLayout) {
+/**
+ * What the content normalizers read off the button. Structural, because `normalize` is handed a
+ * bare `object` while the instance may still be constructing (the `ExpanderRowValues` precedent).
+ */
+interface SplitButtonContent {
+    /** Set while one of the two slots clears the other, so the clear is not refused as a null write. */
+    _contentGate: boolean;
+    label: string | null;
+    iconName: string | null;
+}
+
+/** Run `clear` with the gate open: the slot being cleared accepts the `null` it would refuse from a caller. */
+const clearingSlot = (button: SplitButtonContent, clear: () => void): void => {
+    button._contentGate = true;
+    try {
+        clear();
+    } finally {
+        button._contentGate = false;
+    }
+};
+
+export class AdwSplitButton extends withSignals(GridLayout, {
+    GTypeName: 'AdwSplitButton',
+    // No arguments, as in GJS. `activate` is the keyboard/action path and runs the action half.
+    Signals: { clicked: {}, activate: {} },
+    Properties: {
+        // `adw_split_button_set_label` (adw-split-button.c:662-682): a null is `g_return_if_fail`,
+        // so it changes nothing. A new label drops the icon FIRST — the C notifies the slot it
+        // clears before its own, and the cross-write is made here so that order holds on both legs.
+        label: {
+            kind: 'string',
+            default: null,
+            blurb: 'The label to show in the button',
+            normalize: (value, self) => {
+                const button = self as SplitButtonContent;
+                if (button._contentGate) return null;
+                if (value === null || value === undefined) return button.label;
+                const next = String(value);
+                if (next !== button.label && button.iconName !== null)
+                    clearingSlot(button, () => (button.iconName = null));
+                return next;
+            },
+        },
+        // `adw_split_button_set_icon_name` (:750-771). `''` reads back `null` and clears the label
+        // (GtkButton drops the icon for an empty name); GJS then notifies on EVERY such write,
+        // ours only when the held value changes — the one declared remainder.
+        'icon-name': {
+            kind: 'string',
+            default: null,
+            blurb: 'The name of the icon used to automatically populate the button',
+            normalize: (value, self) => {
+                const button = self as SplitButtonContent;
+                if (button._contentGate) return null;
+                if (value === null || value === undefined) return button.iconName;
+                const next = String(value) === '' ? null : String(value);
+                if (button.label !== null) clearingSlot(button, () => (button.label = null));
+                return next;
+            },
+        },
+        'use-underline': {
+            kind: 'boolean',
+            default: false,
+            blurb: 'Whether an underline in the text indicates a mnemonic',
+        },
+        'can-shrink': {
+            kind: 'boolean',
+            default: false,
+            blurb: 'Whether the button can be smaller than the natural size of its contents',
+        },
+        'dropdown-tooltip': { kind: 'string', default: '', blurb: 'The tooltip of the dropdown button' },
+    },
+}) {
     static readonly GTypeName: string = 'AdwSplitButton';
     static readonly emittedSignals: readonly string[] = [NOTIFY_DIRECTION];
+
+    declare notify: GObjectNotify;
+
+    /** The main button's text, or `null` while an icon fills the action half. */
+    declare label: string | null;
+
+    /**
+     * The action half's icon — an icon theme NAME or a symbolic SVG source, which `GtkImage`
+     * resolves alike. Setting one clears {@link label}; `''` reads back `null`.
+     */
+    declare iconName: string | null;
+
+    /** Whether an underline in {@link label} marks a mnemonic. */
+    declare useUnderline: boolean;
+
+    /**
+     * Whether the label can be smaller than its natural size. FIDELITY GAP: GTK ellipsizes, and the
+     * NS CSS subset has no ellipsize, so it is held and reflected as a `can-shrink` class only.
+     */
+    declare canShrink: boolean;
+
+    /**
+     * The dropdown tooltip as set — `''` while unset. Resolve it through `resolveDropdownTooltip()`
+     * for what should be shown; a PopupMenu has no tooltip surface, so this is carried for parity.
+     */
+    declare dropdownTooltip: string;
 
     /** The main action part (column 0). */
     protected readonly _actionPart: StackLayout;
@@ -87,6 +182,8 @@ export class AdwSplitButton extends withSignals(GridLayout) {
      * state to contradict it. One polarity, so there is nothing to forget.
      */
     private _sensitive = true;
+    /** See {@link SplitButtonContent._contentGate}. One write's argument, not state. */
+    private _contentGate = false;
 
     constructor(props?: ConstructProps<AdwSplitButton, { direction: number | SplitButtonDirection }>) {
         super();
@@ -135,11 +232,10 @@ export class AdwSplitButton extends withSignals(GridLayout) {
         this._dropdownPart = dropdownPart;
         this._chevron = chevron;
 
-        actionPart.addEventListener('tap', () => {
-            if (!this._sensitive) return;
-            const data: EventData = { eventName: CLICKED, object: this };
-            this.notify(data);
-        });
+        // A tap IS the user's click: one GObject emission, so each handler runs once on both legs.
+        actionPart.addEventListener('tap', () => this._click());
+        // `activate` runs the action half, whose `clicked` the C re-emits (`activate_cb`).
+        this.connect('activate', (self) => self._click());
         dropdownPart.addEventListener('tap', () => {
             this._openMenu();
         });
@@ -147,6 +243,14 @@ export class AdwSplitButton extends withSignals(GridLayout) {
         // Both halves darken on press, like Adwaita's linked `.split-button`.
         attachRowPressFeedback(actionPart);
         attachRowPressFeedback(dropdownPart);
+
+        // Each property renders from its OWN notify, so an equal write repaints nothing.
+        this.connect('notify::label', (self) => self._renderContent());
+        this.connect('notify::icon-name', (self) => self._renderContent());
+        this.connect('notify::use-underline', (self) => self._renderContent());
+        this.connect('notify::can-shrink', (self) => {
+            self._actionLabel.className = buttonContentClassName(self._actionLabel.className, self.canShrink);
+        });
 
         this._state.subscribe(() => this._render());
         this._render();
@@ -192,21 +296,30 @@ export class AdwSplitButton extends withSignals(GridLayout) {
         }
     }
 
-    /** Repaint both halves from the state machine. */
-    private _render(): void {
-        const { mode, label, iconName, direction, dropdownEnabled } = this._state;
+    /** A click on the action half: nothing while insensitive, else one `clicked`. */
+    private _click(): void {
+        if (!this._sensitive) return;
+        this.emit('clicked');
+    }
 
-        const wantIcon = mode === 'icon';
-        if (wantIcon) this._actionIcon.iconName = iconName ?? '';
-        // An empty/child action half shows an empty label — there is nothing to
-        // paint, and the label view is the one that is already parented.
-        else this._actionLabel.text = label ?? '';
+    /** Repaint the action half from the declared content properties. */
+    private _renderContent(): void {
+        const wantIcon = this.iconName !== null;
+        if (wantIcon) this._actionIcon.iconName = this.iconName ?? '';
+        // An empty action half shows an empty label — there is nothing to paint, and the
+        // label view is the one that is already parented.
+        else this._actionLabel.text = buttonContentLabelText(this.label ?? '', this.useUnderline);
 
         if (wantIcon !== this._showingIcon) {
             this._actionPart.removeChild(this._showingIcon ? this._actionIcon : this._actionLabel);
             this._actionPart.addChild(wantIcon ? this._actionIcon : this._actionLabel);
             this._showingIcon = wantIcon;
         }
+    }
+
+    /** Repaint the dropdown half and the dimming from the state machine. */
+    private _render(): void {
+        const { direction, dropdownEnabled } = this._state;
 
         this._chevron.iconName = splitButtonArrowSvg(direction);
         // `splitbutton:disabled { filter: Opacity(var(--disabled-opacity)) }`
@@ -215,34 +328,6 @@ export class AdwSplitButton extends withSignals(GridLayout) {
         // GtkMenuButton.
         this._dropdownPart.opacity = dropdownEnabled ? 1 : SPLIT_BUTTON_DISABLED_OPACITY;
         this.opacity = this._sensitive ? 1 : SPLIT_BUTTON_DISABLED_OPACITY;
-    }
-
-    /**
-     * The main action button's text label, or `''` when the action half shows an
-     * icon or nothing — never the stale value behind a swapped-out view.
-     */
-    get label(): string {
-        return this._state.label ?? '';
-    }
-
-    set label(value: string) {
-        this._state.setLabel(value ?? '');
-    }
-
-    /**
-     * A symbolic SVG for the action part (e.g. `documentSaveSymbolic`). Setting
-     * one replaces the label, clearing it returns the action half to its label —
-     * the mutual exclusion `Adw.SplitButton` enforces (adw-split-button.c:749-771).
-     *
-     * The SVG string IS the icon identity here, so it is what the state machine
-     * stores as the icon name; NS resolves no icon theme.
-     */
-    get iconName(): string {
-        return this._state.iconName ?? '';
-    }
-
-    set iconName(svg: string) {
-        setActionIcon(this._state, svg);
     }
 
     /**
@@ -326,29 +411,6 @@ export class AdwSplitButton extends withSignals(GridLayout) {
         }
         if (!this._state.setDirection(nick as SplitButtonDirection)) return;
         this.notify({ eventName: NOTIFY_DIRECTION, object: this, value: this.get_direction() } as EventData);
-    }
-
-    /**
-     * The dropdown tooltip as set — `''` while unset. Resolve it through
-     * `resolveDropdownTooltip()` for what should be shown; a PopupMenu has no
-     * tooltip surface, so this is carried for parity and for host bindings.
-     */
-    get dropdownTooltip(): string {
-        return this._state.dropdownTooltip;
-    }
-
-    set dropdownTooltip(value: string) {
-        this._state.setDropdownTooltip(value ?? '');
-    }
-
-    /** Whether an underline in the label marks a mnemonic. */
-    get useUnderline(): boolean {
-        return this._state.useUnderline;
-    }
-
-    set useUnderline(raw: boolean | string) {
-        const value = xmlBoolean(raw, this.useUnderline);
-        this._state.setUseUnderline(!!value);
     }
 
     /**

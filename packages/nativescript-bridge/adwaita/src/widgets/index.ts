@@ -217,7 +217,7 @@ export {
     NOTIFY_BUTTON_CONTENT_USE_UNDERLINE,
     NOTIFY_BUTTON_CONTENT_CAN_SHRINK,
 } from './adw-button-content.js';
-export { AdwSplitButton, CLICKED, MENU_TAPPED } from './adw-split-button.js';
+export { AdwSplitButton, MENU_TAPPED } from './adw-split-button.js';
 export type { MenuTappedEventData } from './adw-split-button.js';
 // AdwToggleGroup keeps the NS segment render (+ per-toggle icons); the selection
 // state machine (ToggleGroupState) is headless (`@gjsify/adwaita-core`, ADR 0004),

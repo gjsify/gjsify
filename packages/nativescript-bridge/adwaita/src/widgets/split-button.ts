@@ -4,7 +4,7 @@
 // (ADR 0004). NativeScript-specific is the platform seam: the NS subset has no
 // popover, so the dropdown opens an Android `PopupMenu` — which `popup-menu.ts` drives
 // for BOTH menu-bearing widgets (ADR 0097 § 2) — and the action half's icon is an
-// SVG string rather than an icon-theme name.
+// SVG string as well as an icon-theme name.
 //
 // Free of `@nativescript/core` value imports so the spec suite can exercise the real
 // code off-device; `adw-split-button.ts` cannot, because `extends GridLayout`
@@ -15,7 +15,7 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { splitButtonArrowIcon } from '@gjsify/adwaita-core';
-import type { AdwArrowIcon, SplitButtonDirection, SplitButtonState } from '@gjsify/adwaita-core';
+import type { AdwArrowIcon, SplitButtonDirection } from '@gjsify/adwaita-core';
 import { openMenuSymbolic } from '@gjsify/adwaita-icons/actions';
 import { panDownSymbolic, panEndSymbolic, panStartSymbolic, panUpSymbolic } from '@gjsify/adwaita-icons/ui';
 
@@ -38,18 +38,4 @@ export const ARROW_SVGS: Readonly<Record<AdwArrowIcon, string>> = {
 /** The arrow SVG for a direction; the split button's `none` is the down caret, not a hamburger. */
 export function splitButtonArrowSvg(direction: SplitButtonDirection): string {
     return ARROW_SVGS[splitButtonArrowIcon(direction)];
-}
-
-/**
- * Apply `AdwSplitButton.iconName = svg` to the content machine. The SVG string IS
- * the icon identity on NativeScript, so it goes where GTK puts the icon NAME.
- *
- * C offers no "unset the icon", only the side effect of filling another slot, so an
- * empty SVG clears the content and lets the label half take over again — what a
- * caller assigning `iconName` from a nullable lookup expects.
- */
-export function setActionIcon(state: SplitButtonState, svg: string | null | undefined): void {
-    const next = svg ?? '';
-    if (next.length > 0) state.setIconName(next);
-    else if (state.mode === 'icon') state.setChild(null);
 }

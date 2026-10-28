@@ -221,6 +221,17 @@ event (upstream has no `tap`, a gesture is not a GSignal). `on('clicked')`,
 (both legs), `specs/button.ts` (device). `AdwSplitButton` still dispatches `clicked` through
 `notify` — it is not a GtkButton; migrating it is a follow-up.
 
+DONE (`widgets/adw-split-button.ts`): signals `clicked`, `activate`; properties `label`, `icon-name`,
+`use-underline`, `can-shrink`, `dropdown-tooltip`. A tap emits `clicked` once; `activate` clicks too.
+`label` and `icon-name` exclude each other in `normalize` (the last write wins, as in C; the cleared
+slot notifies first). CONSUMER-VISIBLE: `label`/`iconName` read `null` when unset (was `''`); `setActionIcon`
+and the `CLICKED` export are gone; `on`/`addEventListener`/`notify({ eventName })` refuse `clicked` and
+`activate`. REMAINDERS: `direction` stays hand-written (a shadowed name, no enum kind); `menu-model`,
+`popover`, `child` are object-typed, so they wait for the object-kind decision; GJS notifies on every
+`icon-name = ''` write, we do not on a null→null write; GJS 1.88 delivers the own notify before the
+cleared one (a freeze-queue detail), we follow C. Specs: `split-button-properties.spec.ts`
+(pure-JS), `specs/split-button.ts` (device).
+
 DONE (`widgets/adw-button-content.ts`): `icon-name`, `label`, `use-underline`, `can-shrink` are declared
 through `withSignals(StackLayout, …)`; each renders from its own `notify::`. `hostButton` is a
 NATIVESCRIPT-ONLY accessor, deliberately NOT declared: `Adw.ButtonContent` has no `host-button` in C
@@ -235,7 +246,9 @@ identity compare. GJS probe (registered subclass, `ParamSpec.object`, `Gio.ListS
 
 - write object A: 1 notify; A again: 0; object B: 1; `null`: 1; `null` again: 0; A: 1.
 
-So GJS compares by identity. Then `adw-split-button.ts` (`clicked`).
+So GJS compares by identity. WAITS FOR AN OWNER DECISION on the list-model design: option A, a real
+StringList GObject model; option B, a Gio.ListStore of `{value,label}` items. The probe
+`~/.cache/gjsify-android/combo-row-probe.js` stays in place.
 
 RESOLVED (owner, 2026-10-27): `emit('<undeclared>')` throws `No signal '<name>' on object '<class>'`,
 as in GJS, on both legs. `emit` is GObject's only; a NativeScript event goes through
