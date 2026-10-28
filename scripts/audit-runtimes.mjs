@@ -428,7 +428,16 @@ const NODE_API_NO_BROWSER_SENSE = new Set([
  * scanner picks up a `.imports?.gi` guard: the prebuild IS the implementation, not a
  * polyfill, and there is no surface anywhere except GJS.
  */
-const NODE_API_GJS_ONLY = new Set(['tls-native', 'sab-native', 'terminal-native', 'http2-native', 'http-soup-bridge']);
+const NODE_API_GJS_ONLY = new Set([
+    'tls-native',
+    'sab-native',
+    'terminal-native',
+    'http2-native',
+    'http-soup-bridge',
+    // Not a bridge itself, but its only engine is @gjsify/sqlite-native: its own source
+    // spells neither `gi://` nor `@girs/*`, so the scanner would read it as portable pure TS.
+    'sqlite',
+]);
 
 /**
  * EMPTY. The seam for a declared `node:"none"` package the heuristic would suggest
@@ -491,6 +500,17 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
     // run on Node or in a browser.
     if (signals.file_count === 0 && signals.has_gi_build) {
         return { gjs: 'polyfill', node: 'none', browser: 'none' };
+    }
+
+    // Hard-bound to GJS through a bridge import the signal scan cannot see. `browser` still
+    // follows the stub entry, as in (A).
+    if (axis === 'node-api' && NODE_API_GJS_ONLY.has(pkgSubpath) && !gjsBound) {
+        const browser = signals.has_browser_polyfill
+            ? signals.browser_src_is_partial
+                ? 'partial'
+                : 'polyfill'
+            : 'none';
+        return { gjs: 'polyfill', node: 'none', browser };
     }
 
     // GJS-only by construction. (A PURE-TS framework contract — no GJS-binding
@@ -656,6 +676,7 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
  */
 function deriveNativescriptSlot(axis, suggested, signals, pkgSubpath) {
     if (!suggested) return null;
+    if (axis === 'node-api' && NODE_API_GJS_ONLY.has(pkgSubpath)) return 'none';
     // A browser polyfill entry (partial or full) means the package can run on
     // NativeScript's V8 via the browser entry, even if the main entry has
     // GJS-only legacy imports — BUT only if there are no HARD GJS bindings

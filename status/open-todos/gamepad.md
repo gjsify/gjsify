@@ -54,7 +54,7 @@ macOS/Windows would enumerate nothing while satisfying every symmetry check. Tha
 available, does nothing" shape, moved one layer down.
 
 What is left is the BACKEND, and the generalisation. Same shape as the ten other namespaces the
-workspace imports and no bundle ships (`gi://Gst` ×17, `gi://WebKit` ×4, `Soup`, `Gda`,
+workspace imports and no bundle ships (`gi://Gst` ×17, `gi://WebKit` ×4, `Soup`, `GjsifySqlite`,
 `JavaScriptCore`, `X`): the generalisable answer is a per-namespace availability contract — the
 `backend.ts` probe (classify absent vs. broken, warn once, expose a `has*` capability) is the first
 instance of it and is currently hand-rolled per package. The three concrete follow-ups are the next

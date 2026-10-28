@@ -97,9 +97,9 @@ export default async () => {
 
     await describe('a statement the database rejects', async () => {
         // Each closure spans prepare() AND the execution on purpose. node:sqlite resolves
-        // table and column names while PREPARING and raises there; libgda's parser only
-        // checks syntax, so on GJS the very same mistake can surface no earlier than
-        // execution. What both owe the caller is the error — not which call raises it.
+        // table and column names while PREPARING and raises there; an implementation that
+        // defers the compile raises the very same mistake no earlier than execution. What
+        // both owe the caller is the error — not which call raises it.
         //
         // Before this was fixed, get() answered `undefined` and all() answered `[]` for a
         // query against a table that does not exist: a wrong answer indistinguishable
@@ -133,9 +133,9 @@ export default async () => {
 
         await it('raises the error node:sqlite consumers branch on', async () => {
             const db = new DatabaseSync(nextDb());
-            // A consumer catches `err.code === 'ERR_SQLITE_ERROR'`, and libgda's GLib.Error
-            // carries a NUMERIC code and stringifies with its GError domain in front — so
-            // it has to be translated, not passed through and not re-spelled.
+            // A consumer catches `err.code === 'ERR_SQLITE_ERROR'`, and the GLib.Error the
+            // native bridge raises carries a NUMERIC code and stringifies with its GError
+            // domain in front — so it has to be translated, not passed through.
             const err = errorFrom(() => db.prepare('SELECT * FROM does_not_exist').get());
             expect(err.code).toBe('ERR_SQLITE_ERROR');
             expect(err.message).toBe('no such table: does_not_exist');
@@ -163,9 +163,9 @@ export default async () => {
             expect(notNull.code).toBe('ERR_SQLITE_ERROR');
             expect(notNull.message).toBe('NOT NULL constraint failed: t.b');
 
-            // A statement that raised must not have written: the rejected INSERT is
-            // retried as a select on GJS (PRAGMAs reach libgda as UNKNOWN and execute no
-            // other way), and a retry that landed rows would be worse than the error.
+            // A statement that raised must not have written. A constraint violation leaves
+            // the statement mid-flight, and any recovery that re-runs it — rather than
+            // resetting it — would land the row the caller was just told was rejected.
             const rows = db.prepare('SELECT a, b FROM t').all() as Record<string, unknown>[];
             expect(rows.length).toBe(1);
             expect(rows[0].a).toBe(1);
@@ -290,11 +290,11 @@ export default async () => {
     });
 
     // One connection has to survive as many executions as a caller cares to make. On GJS
-    // every execution used to leave libgda prepared-statement objects registered on the
-    // connection, each holding a GWeakRef to the SQLite provider, and GLib caps those at
-    // 65535 per object. Past the cap the connection went bad without an exception and a
-    // later SELECT came back wrong. The counts below cross that cap for the code that
-    // leaked (run() left four references, get() one, an INSERT through exec() two), so a
+    // every execution used to leave a per-execution object registered on the connection,
+    // each holding a GWeakRef to the shared SQLite provider, and GLib caps those at 65535
+    // per object. Past the cap the connection went bad without an exception and a later
+    // SELECT came back wrong. The counts below cross that cap for the code that leaked
+    // (run() left four references, get() one, an INSERT through exec() two), so a
     // regression shows as a wrong count rather than as a slow test.
     await describe('a long-lived connection', async () => {
         await it('still reads every row after 15,000 run() + get() pairs', async () => {

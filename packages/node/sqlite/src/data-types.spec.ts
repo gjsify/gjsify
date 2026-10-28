@@ -229,10 +229,9 @@ export default async () => {
         });
     });
 
-    // libgda hands a BLOB over as a `GdaBinary`, whose only byte accessor —
-    // `gda_binary_get_data()` — is annotated `gpointer` and so answers `null` through GI.
-    // `data-model-reader.ts` reads the bytes off `gda_binary_to_string()` instead; these
-    // hold that decoding against the alphabet it has to survive.
+    // A BLOB crosses GI as a `GLib.Bytes` built over `sqlite3_column_blob()`, so the
+    // bytes stay bytes the whole way. These hold that against the alphabet a BLOB
+    // reader has to survive: NUL, printable ASCII and bytes above 0x7f.
     await describe('BLOB round trip', async () => {
         await it('reads a BLOB back as the bytes it was given', async () => {
             // Two little-endian doubles: every byte class at once — NUL, a printable
@@ -279,8 +278,8 @@ export default async () => {
         });
 
         await it('reads a BLOB that is not a stored column value', async () => {
-            // A literal and a CAST reach the reader without a declared column type, which
-            // is what decides whether libgda types the column at all.
+            // A literal and a CAST reach the reader without a declared column type, so
+            // only `sqlite3_column_type()` can say these are BLOBs.
             const db = new DatabaseSync(':memory:');
             const row = db.prepare(`SELECT x'00ff' AS lit, CAST('hi' AS BLOB) AS cast`).get() as Record<
                 string,
@@ -290,12 +289,123 @@ export default async () => {
             expect(row.cast).toStrictEqual(new TextEncoder().encode('hi'));
             db.close();
         });
+
+        await it('reads a CAST to TEXT as a string', async () => {
+            // Regression: an earlier backend had its own boxed text type and no branch
+            // for it, so a CAST expression arrived at the caller as `{}` rather than a
+            // string. `column_type()` + `column_text()` have no such second shape.
+            const db = new DatabaseSync(':memory:');
+            const row = db.prepare('SELECT CAST(42 AS TEXT) AS t').get() as Record<string, unknown>;
+            expect(typeof row.t).toBe('string');
+            expect(row.t).toBe('42');
+            db.close();
+        });
+
+        await it('round-trips a 3 KiB blob of random bytes', async () => {
+            // Random, so no run of equal bytes can hide a length the reader got wrong, and
+            // past any plausible inline buffer. Seeded by hand rather than by Math.random()
+            // so a failure names the same bytes on every host.
+            let seed = 0x9e3779b9;
+            const bytes = Uint8Array.from({ length: 3072 }, () => {
+                seed = (seed * 1664525 + 1013904223) >>> 0;
+                return (seed >>> 24) & 0xff;
+            });
+            const db = new DatabaseSync(nextDb());
+            db.exec('CREATE TABLE b(id INTEGER PRIMARY KEY, data BLOB) STRICT');
+            db.prepare('INSERT INTO b (id, data) VALUES (?, ?)').run(1, bytes);
+
+            const row = db.prepare('SELECT data FROM b WHERE id = ?').get(1) as { data: Uint8Array };
+            expect(row.data).toBeInstanceOf(Uint8Array);
+            expect(row.data.length).toBe(3072);
+            expect(row.data).toStrictEqual(bytes);
+            db.close();
+        });
+
+        await it('reads ten thousand blob rows back byte for byte in one all()', async () => {
+            // The read path per row, ten thousand times over, each row 3 KiB: a reader that
+            // holds a buffer one row too long, or copies the wrong length, diverges here and
+            // nowhere in the single-row cases above.
+            const template = Uint8Array.from({ length: 3072 }, (_, i) => (i * 7) & 0xff);
+            const db = new DatabaseSync(nextDb());
+            db.exec('CREATE TABLE b(id INTEGER PRIMARY KEY, data BLOB) STRICT');
+            const insert = db.prepare('INSERT INTO b (id, data) VALUES (?, ?)');
+            db.exec('BEGIN');
+            for (let i = 0; i < 10_000; i++) {
+                // One byte per row differs, so a reader handing the same buffer back
+                // for every row fails rather than passing on identical content.
+                template[0] = i & 0xff;
+                insert.run(i, template);
+            }
+            db.exec('COMMIT');
+
+            const rows = db.prepare('SELECT id, data FROM b ORDER BY id').all() as {
+                id: number;
+                data: Uint8Array;
+            }[];
+            expect(rows.length).toBe(10_000);
+            let bad = -1;
+            for (const row of rows) {
+                template[0] = row.id & 0xff;
+                if (row.data.length !== 3072 || row.data.some((b, i) => b !== template[i])) {
+                    bad = row.id;
+                    break;
+                }
+            }
+            expect(bad).toBe(-1);
+            db.close();
+        });
     });
 
-    // SQLite's INTEGER is 64 bits wide. libgda typed such a column gint and refused every
-    // value outside 32 bits, which failed the SELECT (on 0.49.0 it read back as no rows) —
-    // a millisecond timestamp was enough. node:sqlite's contract: a Number while it is
-    // safe, a BigInt with readBigInts, and ERR_OUT_OF_RANGE past Number.MAX_SAFE_INTEGER.
+    // A column with no declared type stores each value in whatever class it was bound as,
+    // so the type is a property of the ROW, not of the column. A reader that decides once
+    // per statement reads all but the first row wrong.
+    await describe('a typeless column holding mixed types', async () => {
+        await it('reads each row back with the type it was stored as', async () => {
+            const db = new DatabaseSync(nextDb());
+            db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY, a)');
+            const insert = db.prepare('INSERT INTO t (id, a) VALUES (?, ?)');
+            insert.run(1, 'text');
+            insert.run(2, 42n);
+            insert.run(3, 1.5);
+            insert.run(4, null);
+            insert.run(5, new Uint8Array([1, 2, 3]));
+
+            const rows = db.prepare('SELECT a FROM t ORDER BY id').all() as { a: unknown }[];
+            expect(rows.length).toBe(5);
+            expect(rows[0].a).toBe('text');
+            expect(rows[1].a).toBe(42);
+            expect(rows[2].a).toBe(1.5);
+            expect(rows[3].a).toBeNull();
+            expect(rows[4].a).toStrictEqual(new Uint8Array([1, 2, 3]));
+            db.close();
+        });
+
+        await it('reads the same mix back through get(), one row at a time', async () => {
+            // get() prepares its own read of row 1 every call, so a per-statement decision
+            // survives it — only ORDER of the rows in one all() exposes that. This case
+            // holds the other half: each type read in isolation still comes back right.
+            const db = new DatabaseSync(nextDb());
+            db.exec('CREATE TABLE t (id INTEGER PRIMARY KEY, a)');
+            const insert = db.prepare('INSERT INTO t (id, a) VALUES (?, ?)');
+            insert.run(1, new Uint8Array([0xff]));
+            insert.run(2, 'ff');
+            insert.run(3, 255);
+
+            const select = db.prepare('SELECT a, typeof(a) AS ty FROM t WHERE id = ?');
+            expect((select.get(1) as Record<string, unknown>).ty).toBe('blob');
+            expect((select.get(1) as Record<string, unknown>).a).toStrictEqual(new Uint8Array([0xff]));
+            expect((select.get(2) as Record<string, unknown>).ty).toBe('text');
+            expect((select.get(2) as Record<string, unknown>).a).toBe('ff');
+            expect((select.get(3) as Record<string, unknown>).a).toBe(255);
+            db.close();
+        });
+    });
+
+    // SQLite's INTEGER is 64 bits wide. The layer this package used to sit on typed such a
+    // column gint and refused every value outside 32 bits, which failed the SELECT (on
+    // 0.49.0 it read back as no rows) — a millisecond timestamp was enough. node:sqlite's
+    // contract: a Number while it is safe, a BigInt with readBigInts, and ERR_OUT_OF_RANGE
+    // past Number.MAX_SAFE_INTEGER.
     await describe('64-bit integers', async () => {
         const safe = [2 ** 31, 2 ** 32, 2 ** 53 - 1, -(2 ** 31) - 1, -(2 ** 53 - 1)];
         // -(2^63) is left out of the throwing case on purpose: node:sqlite tests

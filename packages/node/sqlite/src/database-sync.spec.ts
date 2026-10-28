@@ -314,9 +314,10 @@ export default async () => {
         });
 
         await it('stores the on-disk file at the exact path, not <path>.db', async () => {
-            // Regression: libgda's SQLite provider names the file `<DB_NAME>.db`, so passing the
-            // `.db` basename verbatim stored the DB at `<path>.db.db` — existsSync(path) was false
-            // on GJS even though the DB existed. The path handed to DatabaseSync must be the real file.
+            // Regression: an earlier backend took a directory plus a name and appended `.db`
+            // itself, so passing a `.db` basename verbatim stored the DB at `<path>.db.db` —
+            // existsSync(path) was false on GJS even though the DB existed. The path handed to
+            // DatabaseSync must be the file that ends up on disk, character for character.
             const dbPath = nextDb();
             const db = new DatabaseSync(dbPath);
             db.exec('CREATE TABLE t (id INTEGER)');
@@ -347,6 +348,22 @@ export default async () => {
             `);
             // Should not throw
             db.exec('INSERT INTO bar (foo_id) VALUES (1)');
+            db.close();
+        });
+    });
+
+    await describe('DatabaseSync journal mode', async () => {
+        await it('switches a file-backed database to WAL and keeps it there', async () => {
+            const db = new DatabaseSync(nextDb());
+            // `PRAGMA journal_mode = WAL` answers with a row, so it only works on a
+            // backend that returns rows for a PRAGMA — and WAL has to SURVIVE: it is
+            // persisted in the database header, unlike every other journal mode.
+            expect(db.prepare('PRAGMA journal_mode = WAL').get()?.journal_mode).toBe('wal');
+            expect(db.prepare('PRAGMA journal_mode').get()?.journal_mode).toBe('wal');
+
+            db.exec('CREATE TABLE t (id INTEGER)');
+            db.prepare('INSERT INTO t (id) VALUES (?)').run(7);
+            expect(db.prepare('SELECT id FROM t').get()?.id).toBe(7);
             db.close();
         });
     });

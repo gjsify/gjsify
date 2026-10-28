@@ -36,3 +36,6 @@ export interface ColumnInfo {
 }
 
 export type SQLiteValue = null | number | bigint | string | Uint8Array;
+
+/** One result row, an object by default and an array under `returnArrays`. */
+export type StatementRow = Record<string, unknown> | unknown[];

@@ -1,14 +1,14 @@
 // The SECOND connection is the whole subject of this file.
 //
-// libgda's SQLite provider leaves a dangling GWeakRef on the session-wide
-// `GdaSqliteProvider` for every connection it frees (see connection-pool.ts for
-// the two upstream source coordinates), so the next connection's `cdata` gets
-// the same malloc block back and GLib aborts the PROCESS on the duplicate
-// registration. Every other spec in this package opens many databases, and none
-// of them caught it: each one closes before the next opens, which is exactly the
-// shape that aborts — the suite died at its second test rather than failing one,
-// and a dead runner reports nothing. So the assertions here are deliberately
-// trivial; what they prove is that the process is still alive to make them.
+// Closing a database used to abort the PROCESS on the next one: the provider behind
+// it leaked a dangling weak reference per freed connection, so the successor got the
+// same malloc block back and GLib aborted on the duplicate registration. Every other
+// spec in this package opens many databases, and none of them caught it: each one
+// closes before the next opens, which is exactly the shape that aborted — the suite
+// died at its second test rather than failing one, and a dead runner reports nothing.
+// `sqlite3_close()` has no such hazard, but the shape is still worth holding: the
+// assertions here are deliberately trivial; what they prove is that the process is
+// still alive to make them.
 //
 // `.gjs.spec.ts` is load-bearing: `scripts/audit-runtimes.mjs` skips that suffix
 // and scans every other `.ts`, so the `system` import below would otherwise be

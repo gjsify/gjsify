@@ -1,26 +1,16 @@
 // DatabaseSync class for node:sqlite
-// Reference: Node.js lib/sqlite.js
-// Reimplemented for GJS using Gda-6.0
+// Reference: Node.js lib/sqlite.js + src/node_sqlite.cc
+// Implemented for GJS over @gjsify/sqlite-native, which is libsqlite3 itself.
 
-import Gda from '@girs/gda-6.0';
-// `/core` — the pure half, so this stays independent of whether Gio is reachable.
-import { lastPathSeparatorIndex } from '@gjsify/utils/core';
-import { acquire, type PoolKey, release } from './connection-pool.ts';
+import type { Database as NativeDatabase } from '@gjsify/sqlite-native';
 import {
     ConstructCallRequiredError,
     InvalidArgTypeError,
     InvalidStateError,
     InvalidUrlSchemeError,
-    isNodeSqliteError,
-    SqliteError,
-    sqliteErrorMessage,
+    toSqliteError,
 } from './errors.ts';
-import { executeStatement } from './execution.ts';
-import { convertParameterSyntax } from './parameter-syntax.ts';
-import { parseSql } from './parse-sql.ts';
-import { rewriteExistsSubqueries } from './exists-subquery.ts';
-import { sqlRegions } from './sql-regions.ts';
-import { providerSql, statementKind } from './statement-kind.ts';
+import { nativeSqlite } from './native.ts';
 import { StatementSync } from './statement-sync.ts';
 import type { DatabaseSyncOptions, StatementSyncOptions } from './types.ts';
 
@@ -139,11 +129,10 @@ function validateOptions(options: unknown): DatabaseSyncOptions {
 }
 
 export class DatabaseSync {
-    #connection: Gda.Connection | null = null;
+    #database: NativeDatabase | null = null;
     #path: string;
     #options: DatabaseSyncOptions;
     #isMemory: boolean;
-    #inTransaction = false;
 
     constructor(path: unknown, options?: unknown) {
         // Cannot be called without new
@@ -166,12 +155,20 @@ export class DatabaseSync {
     }
 
     get isOpen(): boolean {
-        return this.#connection !== null && this.#connection.is_opened();
+        return this.#database !== null && this.#database.is_open;
     }
 
+    /**
+     * Whether a transaction is open — asked of SQLite, never read off the SQL.
+     *
+     * The text cannot answer it: `CREATE TRIGGER … BEGIN … END` carries the word BEGIN
+     * and opens no transaction, while `SAVEPOINT`/`RELEASE` open and close one and carry
+     * neither word. The native property is `sqlite3_get_autocommit()`, which is what
+     * node:sqlite reads too — so both cases now agree with it.
+     */
     get isTransaction(): boolean {
         this.#ensureOpen();
-        return this.#inTransaction;
+        return this.#database!.in_transaction;
     }
 
     open(): undefined {
@@ -179,54 +176,18 @@ export class DatabaseSync {
             throw new InvalidStateError('database is already open');
         }
 
+        const { Database, OpenMode } = nativeSqlite();
+        const mode = this.#options.readOnly ? OpenMode.READONLY : OpenMode.READWRITE_CREATE;
         try {
-            // Every connection comes from the pool, which OWNS it for the life of the
-            // process: libgda's SQLite provider leaves a dangling GWeakRef on the
-            // session-wide provider for every connection ever released, and the third one
-            // of those aborts the process. See connection-pool.ts.
-            this.#connection = acquire(this.#poolKey(), () => {
-                let connection: Gda.Connection;
-                if (this.#isMemory) {
-                    // Gda.Connection.new_from_string + open() works; open_from_string has a bug
-                    connection = Gda.Connection.new_from_string(
-                        'SQLite',
-                        'DB_DIR=;DB_NAME=:memory:',
-                        null,
-                        Gda.ConnectionOptions.NONE,
-                    );
-                } else {
-                    // The separator question goes to `@gjsify/utils/core`, which answers it from
-                    // the path's SHAPE: `lastIndexOf('/')` found nothing in `C:\data\app.db`, so
-                    // DB_DIR became `.` and DB_NAME kept the drive letter and the backslashes —
-                    // the database was created in the CWD under a fabricated name, and
-                    // `existsSync(path)` was false for the path the caller had just opened (#1143).
-                    const lastSeparator = lastPathSeparatorIndex(this.#path);
-                    const dir = lastSeparator >= 0 ? this.#path.substring(0, lastSeparator) : '.';
-                    const name = lastSeparator >= 0 ? this.#path.substring(lastSeparator + 1) : this.#path;
-                    // libgda's SQLite provider always stores the database as `<DB_DIR>/<DB_NAME>.db`, so
-                    // strip a trailing `.db` from DB_NAME: node:sqlite uses the given path verbatim, and
-                    // passing `foo.db` as DB_NAME would land the file at `foo.db.db` — making the real
-                    // file disagree with the requested path (existsSync(path) false, location() wrong).
-                    const dbName = name.endsWith('.db') ? name.slice(0, -3) : name;
-                    const cncString = `DB_DIR=${dir};DB_NAME=${dbName}`;
-                    const connOpts = this.#options.readOnly
-                        ? Gda.ConnectionOptions.READ_ONLY
-                        : Gda.ConnectionOptions.NONE;
-
-                    connection = Gda.Connection.new_from_string('SQLite', cncString, null, connOpts);
-                }
-                connection.open();
-                return connection;
-            });
+            // The path goes to sqlite3_open_v2() verbatim — `:memory:` and every relative
+            // or absolute file name mean there what they mean to node:sqlite. URI handling
+            // is off, so a path that happens to start with `file:` is a file of that name.
+            this.#database = Database.open(this.#path, mode, false);
         } catch (e: unknown) {
-            this.#connection = null;
-            throw new SqliteError(sqliteErrorMessage(e));
+            this.#database = null;
+            throw toSqliteError(e);
         }
 
-        // No Gda.SqlParser is kept: the connection parses its own SQL through parseSql(),
-        // which is the only entry point that cannot abort the process. See parse-sql.ts.
-
-        // Apply configuration PRAGMAs
         this.#applyPragmas();
 
         return undefined;
@@ -236,14 +197,11 @@ export class DatabaseSync {
         if (!this.isOpen) {
             throw new InvalidStateError('database is not open');
         }
-        // NOT `Gda.Connection.close()`: that frees the provider data whose GWeakRef on the
-        // session-wide SQLite provider libgda never clears, and the next connection then
-        // aborts the process. The pool keeps it open and alive instead — see
-        // connection-pool.ts. This object is closed either way: it drops its reference, so
-        // every method raises "database is not open" from here on.
-        release(this.#poolKey(), this.#connection!);
-        this.#connection = null;
-        this.#inTransaction = false;
+        // Finalizes every statement still live on this connection first, so an unread
+        // cursor cannot keep the handle busy. Statements prepared from it answer
+        // "statement has been finalized" from here on, like node:sqlite's.
+        this.#database!.close();
+        this.#database = null;
         return undefined;
     }
 
@@ -258,26 +216,13 @@ export class DatabaseSync {
         }
 
         try {
-            // Split SQL into individual statements and parse each one.
-            // parse_string_as_batch is not an alternative: it returns Batch objects rather
-            // than Statements — and it carries the same `remain` hazard (see #parseSql).
-            const statements = this.#splitStatements(sql);
-            for (const stmtSql of statements) {
-                // The kind comes from the text: a statement with a CTE reaches libgda as
-                // UNKNOWN whatever it does, and the provider dispatches on the first word
-                // of the text it renders (see statement-kind.ts).
-                const kind = statementKind(stmtSql);
-                const [stmt] = this.#parseSql(providerSql(rewriteExistsSubqueries(stmtSql), kind));
-                executeStatement(this.#connection!, stmt, null, () => undefined, { kind });
-            }
+            // The whole script in one call: sqlite3_exec() is what node:sqlite uses here,
+            // and it owns the statement boundaries — a `;` inside a literal or a comment is
+            // not one, which no splitter of ours has to know any more.
+            this.#database!.exec(sql);
         } catch (e: unknown) {
-            if (isNodeSqliteError(e)) {
-                throw e;
-            }
-            throw new SqliteError(sqliteErrorMessage(e));
+            throw toSqliteError(e);
         }
-
-        this.#updateTransactionState();
 
         return undefined;
     }
@@ -288,23 +233,6 @@ export class DatabaseSync {
             throw new InvalidArgTypeError('The "sql" argument must be a string.');
         }
 
-        // Validate the SQL by parsing it now, so a syntax error surfaces from prepare()
-        // rather than from the first run(). Parameters become string holders — the value
-        // types are not known yet, and libgda only needs the SHAPE to parse.
-        const [probeSql, paramMap] = convertParameterSyntax(sql);
-        // The probe parses the text the execution will parse — a statement with a CTE is
-        // stated as `SELECT * FROM ( … )` for the provider (see statement-kind.ts) — so a
-        // syntax error surfaces here and not at the first run().
-        const kind = statementKind(probeSql);
-        try {
-            this.#parseSql(providerSql(rewriteExistsSubqueries(probeSql), kind));
-        } catch (e: unknown) {
-            if (isNodeSqliteError(e)) {
-                throw e;
-            }
-            throw new SqliteError(sqliteErrorMessage(e));
-        }
-
         const stmtOptions: StatementSyncOptions = {
             readBigInts: this.#options.readBigInts ?? false,
             returnArrays: this.#options.returnArrays ?? false,
@@ -312,7 +240,11 @@ export class DatabaseSync {
             allowUnknownNamedParameters: this.#options.allowUnknownNamedParameters ?? false,
         };
 
-        return StatementSync._create(this.#connection!, sql, stmtOptions, paramMap);
+        try {
+            return StatementSync._create(this.#database!, this.#database!.prepare(sql), sql, stmtOptions);
+        } catch (e: unknown) {
+            throw toSqliteError(e);
+        }
     }
 
     location(dbName?: unknown): string | null {
@@ -328,8 +260,8 @@ export class DatabaseSync {
 
     [Symbol.dispose](): void {
         // No catch: the guard already excludes close()'s own "database is not open", and
-        // `Gda.Connection.close()` is not `throws="1"` in Gda-6.0.gir, so there is no
-        // failure left for one to absorb — only ours, which a `using` block should see.
+        // the native close() is not `throws="1"`, so there is no failure left for one to
+        // absorb — only ours, which a `using` block should see.
         if (this.isOpen) {
             this.close();
         }
@@ -341,121 +273,20 @@ export class DatabaseSync {
         }
     }
 
-    /**
-     * What the pool matches a parked connection against: a connection opened READ_ONLY
-     * cannot serve a writable request, and the path is the database it is attached to.
-     */
-    #poolKey(): PoolKey {
-        return { path: this.#path, isMemory: this.#isMemory, readOnly: this.#options.readOnly ?? false };
-    }
-
-    #parseSql(sql: string): [Gda.Statement, Gda.Set | null] {
-        return parseSql(this.#connection!, sql);
-    }
-
     #applyPragmas(): void {
-        // A PRAGMA reaches libgda as UNKNOWN; executeStatement() runs it once and releases
-        // whatever it produced, like every other statement on this connection.
-        const runPragma = (pragma: string) => {
-            const [stmt] = this.#parseSql(pragma);
-            executeStatement(this.#connection!, stmt, null, () => undefined);
-        };
+        const database = this.#database!;
 
         // Foreign keys: enabled by default
         if (this.#options.enableForeignKeyConstraints !== false) {
-            runPragma('PRAGMA foreign_keys = ON');
+            database.exec('PRAGMA foreign_keys = ON');
         } else {
-            runPragma('PRAGMA foreign_keys = OFF');
+            database.exec('PRAGMA foreign_keys = OFF');
         }
 
         // Busy timeout
         if (this.#options.timeout !== undefined && this.#options.timeout > 0) {
-            runPragma(`PRAGMA busy_timeout = ${this.#options.timeout}`);
+            database.exec(`PRAGMA busy_timeout = ${this.#options.timeout}`);
         }
-    }
-
-    #splitStatements(sql: string): string[] {
-        // Split SQL into individual statements at top-level semicolons, and strip
-        // comments from each emitted chunk.
-        //
-        // node:sqlite hands the whole string to SQLite, whose tokenizer never
-        // treats a ';' inside a comment or quoted region as a statement boundary.
-        // We mirror that boundary detection: scan the string and skip over every
-        // region a ';' could hide in —
-        //   - '…' string literals          (with the '' escape)
-        //   - "…" / `…` quoted identifiers  (with the ""/`` escape)
-        //   - [ … ] quoted identifiers      (no escape; ']' ends it)
-        //   - -- line comments              (to end of line)
-        //   - /* … */ block comments        (not nestable, per SQLite)
-        // so split-relevant tokens inside those regions never produce a spurious
-        // boundary.
-        //
-        // BLOCK comments are then DROPPED rather than handed to the parser: libgda cannot
-        // parse a statement containing a /* … */ block comment. Under parseSql() that is a
-        // plain error rather than the process abort it used to be (see parse-sql.ts), but
-        // the statement would still fail — so the stripping stays load-bearing. It is
-        // semantically transparent: SQL comments are inert except inside quoted regions,
-        // which we keep verbatim.
-        // A LINE comment is kept verbatim — libgda parses `--` without trouble, and it
-        // carries the author's own explanation of the statement. A BLOCK comment is
-        // replaced by a single space so tokens that abutted it stay separated
-        // (CREATE/**/TABLE → CREATE TABLE). A chunk that strips to nothing (a standalone or
-        // trailing block comment) trims to empty and is dropped, matching node:sqlite which
-        // silently ignores such comments.
-        //
-        // `sqlRegions()` is the one place that knows where each of those regions ends,
-        // shared with the EXISTS rewrite (see exists-subquery.ts) so the two cannot
-        // disagree about what counts as code.
-        const stmts: string[] = [];
-        let current = '';
-
-        const flush = () => {
-            const trimmed = current.trim();
-            if (trimmed.length > 0) {
-                stmts.push(trimmed);
-            }
-            current = '';
-        };
-
-        for (const region of sqlRegions(sql)) {
-            if (region.kind === 'code') {
-                // Each ';' in a code region is a top-level boundary. The chunk after the
-                // LAST one is left open: the region can end there, and what follows — a
-                // literal, a comment — continues the same statement. The final flush()
-                // below is what cuts it.
-                const chunks = sql.slice(region.start, region.end).split(';');
-                current += chunks[0];
-                for (const chunk of chunks.slice(1)) {
-                    flush();
-                    current += chunk;
-                }
-            } else if (region.kind === 'block-comment') {
-                current += ' ';
-            } else {
-                // Quoted regions are inert, and a line comment's terminating newline is
-                // in the next code region rather than in this one.
-                current += sql.slice(region.start, region.end);
-            }
-        }
-        flush();
-        return stmts;
-    }
-
-    /**
-     * Ask libgda whether the connection is in a transaction, rather than reading the SQL.
-     *
-     * The SQL cannot answer it. `CREATE TRIGGER … BEGIN … END` carries the word BEGIN and
-     * opens no transaction; `SAVEPOINT`/`RELEASE` open and close one and carry neither
-     * word. libgda tracks the real state per connection — `get_transaction_status()`
-     * returns a status object while one is open and null otherwise, which is also how
-     * `rollbackIfNeeded` decides what a parked connection owes (see connection-pool.ts).
-     *
-     * SAVEPOINT remains invisible: measured, libgda registers no status for it. That is a
-     * libgda limit, not a reading of the text, and it is the one case where this and
-     * node:sqlite's `sqlite3_get_autocommit()` disagree.
-     */
-    #updateTransactionState(): void {
-        this.#inTransaction = this.#connection!.get_transaction_status() !== null;
     }
 }
 

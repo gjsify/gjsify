@@ -1,6 +1,5 @@
-// Node.js sqlite module for GJS using libgda (GNOME Data Access)
-// Reference: Node.js lib/sqlite.js
-// Reimplemented for GJS using Gda-6.0
+// Node.js sqlite module for GJS over @gjsify/sqlite-native (libsqlite3)
+// Reference: Node.js lib/sqlite.js + src/node_sqlite.cc
 
 export { DatabaseSync } from './database-sync.ts';
 export { StatementSync } from './statement-sync.ts';
