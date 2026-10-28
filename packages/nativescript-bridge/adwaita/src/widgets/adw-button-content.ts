@@ -63,7 +63,11 @@ export class AdwButtonContent extends withSignals(StackLayout, {
         'icon-name': { kind: 'string', default: '', blurb: 'The name of the displayed icon', normalize: emptyIfNull },
         label: { kind: 'string', default: '', blurb: 'The displayed label', normalize: emptyIfNull },
         // Defaults to FALSE (:253-256), so an underscore is a literal unless asked.
-        'use-underline': { kind: 'boolean', default: false, blurb: 'Whether an underline in the text marks a mnemonic' },
+        'use-underline': {
+            kind: 'boolean',
+            default: false,
+            blurb: 'Whether an underline in the text marks a mnemonic',
+        },
         'can-shrink': { kind: 'boolean', default: false, blurb: 'Whether the label can be shrunk' },
     },
 }) {
