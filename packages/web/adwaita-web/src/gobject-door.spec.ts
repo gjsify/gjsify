@@ -205,4 +205,36 @@ export const GObjectDoorTest = async () => {
             parent.remove();
         });
     });
+    await describe('adwaita-web: a bare element has the GObject signal API', async () => {
+        await it('connects to a signal on createElement, and disconnects by id', () => {
+            const stack = document.createElement('adw-view-stack') as HTMLElement & {
+                connect(signal: string, handler: () => void): number;
+                disconnect(id: number): void;
+            };
+            document.body.append(stack);
+            let heard = 0;
+            const id = stack.connect('notify::visible-child-name', () => heard++);
+            stack.dispatchEvent(new CustomEvent('notify::visible-child-name'));
+            expect(heard).toBe(1);
+            stack.disconnect(id);
+            stack.dispatchEvent(new CustomEvent('notify::visible-child-name'));
+            expect(heard).toBe(1);
+            stack.remove();
+        });
+        await it('connects to clicked on a bare button', () => {
+            const button = document.createElement('gtk-button') as HTMLElement & {
+                connect(signal: string, handler: () => void): number;
+            };
+            let heard = 0;
+            button.connect('clicked', () => heard++);
+            button.click();
+            expect(heard).toBe(1);
+        });
+        await it('refuses a signal the element does not declare', () => {
+            const button = document.createElement('gtk-button') as HTMLElement & {
+                connect(signal: string, handler: () => void): number;
+            };
+            expect(() => button.connect('no-such-signal', () => {})).toThrow();
+        });
+    });
 };

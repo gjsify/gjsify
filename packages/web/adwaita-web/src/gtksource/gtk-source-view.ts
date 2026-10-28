@@ -390,7 +390,7 @@ export class GtkSourceView extends WidgetElement {
     }
 
     /** GJS `connect(name, cb) → id`; the handler's first argument is this view. */
-    connect(name: string, callback: (self: GtkSourceView, ...args: never[]) => unknown): number {
+    connect(name: string, callback: (self: this, ...args: never[]) => unknown): number {
         return this.session.connect(name, ((_session: unknown, ...args: never[]) => callback(this, ...args)) as never);
     }
 

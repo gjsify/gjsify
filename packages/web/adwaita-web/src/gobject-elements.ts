@@ -211,8 +211,10 @@ export function installVisible(el: HTMLElement): void {
 
 /** Gives `el` the instance API of a registered class, over the events it declares. */
 export function installElementApi(el: HTMLElement): void {
-    // A registered class already has the core's four methods on its prototype.
-    if (typeof (el as unknown as Record<string, unknown>).connect === 'function') return;
+    // A registered class already has the core's four methods on its prototype; the stubs of
+    // `defineLazyElementApi` are not those, they exist to run this.
+    const inherited = (el as unknown as Record<string, unknown>).connect;
+    if (typeof inherited === 'function' && !LAZY_API.has(inherited)) return;
     WITH_API.add(el);
     const connections = new Map<number, () => void>();
     const define = (name: string, value: unknown) =>
@@ -248,6 +250,15 @@ export function installElementApi(el: HTMLElement): void {
     define('add_css_class', (name: string): void => el.classList.add(name));
     define('remove_css_class', (name: string): void => el.classList.remove(name));
     define('has_css_class', (name: string): boolean => el.classList.contains(name));
+}
+
+const LAZY_API = new WeakSet<object>();
+
+/** Marks the self-installing `connect` / `disconnect` / `emit` / `notify` of `proto` ({@link WidgetElement}). */
+export function markLazyElementApi(proto: object): void {
+    for (const name of ['connect', 'disconnect', 'emit', 'notify']) {
+        LAZY_API.add((proto as Record<string, object>)[name]);
+    }
 }
 
 const API_MEMBERS = new Set(['connect', 'disconnect', 'emit', 'notify', 'get_property', 'set_property']);

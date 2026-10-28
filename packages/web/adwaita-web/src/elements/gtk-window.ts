@@ -171,14 +171,6 @@ export class GtkWindow extends WidgetElement {
     declare get_application: () => GtkApplication | null;
     declare set_application: (application: GtkApplication | null) => void;
 
-    /** `GObject.Object.connect`: installed per instance by `installElementApi`; refuses an undeclared signal. */
-    declare connect: (signal: string, handler: (emitter: this, ...args: any[]) => unknown) => number;
-    /** `GObject.Object.disconnect`: throws for an id that is not connected. */
-    declare disconnect: (id: number) => void;
-    /** `GObject.Object.emit`; `close-request` is refused, call `close()`. */
-    declare emit: (signal: string, ...args: unknown[]) => void;
-    /** `GObject.Object.notify`. */
-    declare notify: (name: string) => void;
     /** `GObject.Object.get_property`, by GTK's dashed name. */
     declare get_property: (name: string) => unknown;
     /** `GObject.Object.set_property`; a read-only property throws. */
