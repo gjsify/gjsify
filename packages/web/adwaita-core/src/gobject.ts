@@ -1112,7 +1112,11 @@ function readInterfaces(className: string, declared: unknown): readonly GInterfa
     const accepted = ACCEPTED_INTERFACES.map((each) => each.name).join(', ');
     return declared.map((entry: unknown) => {
         if (!ACCEPTED_INTERFACES.includes(entry as GInterface)) {
-            throw refusal(className, 'Implements', ` with the interface '${describeInterface(entry)}' (only ${accepted})`);
+            throw refusal(
+                className,
+                'Implements',
+                ` with the interface '${describeInterface(entry)}' (only ${accepted})`,
+            );
         }
         return entry as GInterface;
     });
@@ -1200,7 +1204,10 @@ function registerWith(door: GObjectDoor, engine: GObjectEngine, args: readonly u
     for (const [feature, symbol] of Object.entries(REFUSED_META)) {
         if (own(klass, symbol)) throw refusal(className, feature);
     }
-    const interfaces = readInterfaces(className, own(klass, META_SYMBOLS.interfaces) ? klass[META_SYMBOLS.interfaces] : undefined);
+    const interfaces = readInterfaces(
+        className,
+        own(klass, META_SYMBOLS.interfaces) ? klass[META_SYMBOLS.interfaces] : undefined,
+    );
     const unlocked = unlockedVfuncsOf(klass);
     for (const iface of interfaces) for (const name of iface.vfuncs) unlocked.add(name);
     for (const target of [klass as object, klass.prototype]) {

@@ -153,7 +153,7 @@ export const CONSTRUCTIBLE_VALUES = [
         member: 'Gio.ListModel',
         gir: 'ListModel',
         interface: true,
-        why: 'The interface a `Gtk.StringList` implements and `Implements: [Gio.ListModel]` names (ADR 0122 § 2) — the whole of the subset\'s interface support. An author writes `x instanceof Gio.ListModel` and declares a model property with it. An interface, not a widget.',
+        why: "The interface a `Gtk.StringList` implements and `Implements: [Gio.ListModel]` names (ADR 0122 § 2) — the whole of the subset's interface support. An author writes `x instanceof Gio.ListModel` and declares a model property with it. An interface, not a widget.",
     },
     {
         member: 'Adw.SidebarSection',
