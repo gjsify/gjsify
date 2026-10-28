@@ -60,6 +60,7 @@ import { AdwActionRowPropertiesNsTest } from './action-row-properties.spec.js';
 import { AdwSwitchRowPropertiesNsTest } from './switch-row-properties.spec.js';
 import { AdwEntryRowPropertiesNsTest } from './entry-row-properties.spec.js';
 import { AdwExpanderRowPropertiesNsTest } from './expander-row-properties.spec.js';
+import { AdwButtonContentPropertiesNsTest } from './button-content-properties.spec.js';
 
 run({
     AdwApplicationNsTest,
@@ -92,6 +93,7 @@ run({
     AdwSwitchRowPropertiesNsTest,
     AdwEntryRowPropertiesNsTest,
     AdwExpanderRowPropertiesNsTest,
+    AdwButtonContentPropertiesNsTest,
     GtkToggleButtonNsTest,
     GtkWidgetTreeNsTest,
     GtkButtonActionsNsTest,

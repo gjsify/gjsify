@@ -23,8 +23,7 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { Label, StackLayout, type View } from '@nativescript/core';
-import { ADW_BUTTON_CONTENT_DEFAULTS } from '@gjsify/adwaita-core';
-import type { AdwButtonContentProps, ButtonContentEllipsize } from '@gjsify/adwaita-core';
+import type { ButtonContentEllipsize } from '@gjsify/adwaita-core';
 import { GtkImage } from './gtk-image.js';
 import {
     buttonContentClassName,
@@ -36,21 +35,48 @@ import {
     buttonContentRootedParentClassName,
     buttonContentUnrootedParentClassName,
 } from './button-content.js';
-import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
 
 /** The content's own base class, before `can-shrink` adds its own. */
 const BASE_CLASS = 'adw-button-content';
 
-export class AdwButtonContent extends withSignals(StackLayout) {
+/** Event name emitted when {@link AdwButtonContent.iconName} changes. Mirrors GObject `notify::icon-name`. */
+export const NOTIFY_BUTTON_CONTENT_ICON_NAME = 'notify::icon-name';
+
+/** Event name emitted when {@link AdwButtonContent.label} changes. */
+export const NOTIFY_BUTTON_CONTENT_LABEL = 'notify::label';
+
+/** Event name emitted when {@link AdwButtonContent.useUnderline} changes. */
+export const NOTIFY_BUTTON_CONTENT_USE_UNDERLINE = 'notify::use-underline';
+
+/** Event name emitted when {@link AdwButtonContent.canShrink} changes. */
+export const NOTIFY_BUTTON_CONTENT_CAN_SHRINK = 'notify::can-shrink';
+
+/** A null written to a string property is the empty string, as the setters this replaces read it. */
+const emptyIfNull = (value: unknown): unknown => value ?? '';
+
+export class AdwButtonContent extends withSignals(StackLayout, {
+    GTypeName: 'AdwButtonContent',
+    Properties: {
+        // adw-button-content.c:228 / :343 — an icon NAME or, here, a symbolic SVG source.
+        'icon-name': { kind: 'string', default: '', blurb: 'The name of the displayed icon', normalize: emptyIfNull },
+        label: { kind: 'string', default: '', blurb: 'The displayed label', normalize: emptyIfNull },
+        // Defaults to FALSE (:253-256), so an underscore is a literal unless asked.
+        'use-underline': {
+            kind: 'boolean',
+            default: false,
+            blurb: 'Whether an underline in the text marks a mnemonic',
+        },
+        'can-shrink': { kind: 'boolean', default: false, blurb: 'Whether the label can be shrunk' },
+    },
+}) {
     static readonly GTypeName: string = 'AdwButtonContent';
 
     /** The leading symbolic icon. Always parented — the C never hides the image. */
     protected readonly _icon: GtkImage;
     /** The text label. */
     protected readonly _label: Label;
-    private readonly _props: AdwButtonContentProps = { ...ADW_BUTTON_CONTENT_DEFAULTS };
     private _hostButton: View | null = null;
 
     constructor(props?: ConstructProps<AdwButtonContent>) {
@@ -76,6 +102,12 @@ export class AdwButtonContent extends withSignals(StackLayout) {
         this.addChild(label);
         this._label = label;
 
+        // Each property renders from its OWN notify, so an equal write repaints nothing.
+        this.connect(NOTIFY_BUTTON_CONTENT_ICON_NAME, (self) => self._applyIcon());
+        this.connect(NOTIFY_BUTTON_CONTENT_LABEL, (self) => self._renderLabel());
+        this.connect(NOTIFY_BUTTON_CONTENT_USE_UNDERLINE, (self) => self._renderLabel());
+        this.connect(NOTIFY_BUTTON_CONTENT_CAN_SHRINK, (self) => self._applyCanShrink());
+
         applyConstructProps(this, props);
     }
 
@@ -86,6 +118,12 @@ export class AdwButtonContent extends withSignals(StackLayout) {
      * Setting it adds `image-text-button` (:115); clearing it, or replacing it,
      * removes the class from the previous host first (:126), so a button that
      * loses its content goes back to plain-button padding.
+     *
+     * NATIVESCRIPT-ONLY, and deliberately NOT a declared property: `Adw.ButtonContent` has no
+     * `host-button` — C finds its button through `gtk_widget_get_ancestor`, so GJS has nothing
+     * to match. The value is a `View`, which is not a GObject, so no ParamSpec could hold it
+     * either. It is a plain accessor on both legs: equal writes (identity) are ignored and
+     * nothing emits `notify::host-button`.
      */
     get hostButton(): View | null {
         return this._hostButton;
@@ -108,18 +146,11 @@ export class AdwButtonContent extends withSignals(StackLayout) {
      * the C sets that fallback (:355-356) and never hides `self->icon`. The doc
      * comments at :228/:343 say otherwise — see `buttonContentIcon`.
      */
-    get iconName(): string {
-        return this._props.iconName;
-    }
-
-    set iconName(svg: string) {
-        this._props.iconName = svg ?? '';
-        this._icon.iconName = buttonContentIcon(this._props.iconName);
-    }
+    declare iconName: string;
 
     /** Whether the icon currently shown is the empty-slot fallback. */
     get iconIsFallback(): boolean {
-        return buttonContentIconIsFallback(this._props.iconName);
+        return buttonContentIconIsFallback(this.iconName);
     }
 
     /** The icon fill colour (hex). Set to the button's foreground (e.g. white on suggested-action). */
@@ -132,28 +163,10 @@ export class AdwButtonContent extends withSignals(StackLayout) {
     }
 
     /** The button content text. Empty collapses the label view (:398). */
-    get label(): string {
-        return this._props.label;
-    }
+    declare label: string;
 
-    set label(value: string) {
-        this._props.label = value ?? '';
-        this._renderLabel();
-    }
-
-    /**
-     * Whether an underline in {@link label} marks a mnemonic (:431-445).
-     * Defaults to FALSE (:253-256), so an underscore is a literal unless asked.
-     */
-    get useUnderline(): boolean {
-        return this._props.useUnderline;
-    }
-
-    set useUnderline(raw: boolean | string) {
-        const value = xmlBoolean(raw, this.useUnderline);
-        this._props.useUnderline = !!value;
-        this._renderLabel();
-    }
+    /** Whether an underline in {@link label} marks a mnemonic (:431-445). */
+    declare useUnderline: boolean;
 
     /**
      * Whether the label may be smaller than its natural size (:489-491).
@@ -163,23 +176,23 @@ export class AdwButtonContent extends withSignals(StackLayout) {
      * {@link ellipsize}, and reflected as a `can-shrink` class for the theme —
      * but the truncation ellipsis is not available on this platform.
      */
-    get canShrink(): boolean {
-        return this._props.canShrink;
-    }
-
-    set canShrink(raw: boolean | string) {
-        const value = xmlBoolean(raw, this.canShrink);
-        this._props.canShrink = !!value;
-        this.className = buttonContentClassName(this.className, this._props.canShrink);
-    }
+    declare canShrink: boolean;
 
     /** The label's `PangoEllipsizeMode` for the current `canShrink` (:462). */
     get ellipsize(): ButtonContentEllipsize {
-        return buttonContentEllipsize(this._props.canShrink);
+        return buttonContentEllipsize(this.canShrink);
+    }
+
+    private _applyIcon(): void {
+        this._icon.iconName = buttonContentIcon(this.iconName);
+    }
+
+    private _applyCanShrink(): void {
+        this.className = buttonContentClassName(this.className, this.canShrink);
     }
 
     private _renderLabel(): void {
-        this._label.text = buttonContentLabelText(this._props.label, this._props.useUnderline);
-        this._label.visibility = buttonContentLabelVisibility(this._props.label);
+        this._label.text = buttonContentLabelText(this.label, this.useUnderline);
+        this._label.visibility = buttonContentLabelVisibility(this.label);
     }
 }
