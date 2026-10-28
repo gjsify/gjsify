@@ -2081,6 +2081,11 @@ jobs:
           fedora-version: ${{ matrix.fedora.v }}
           # Boots dist/cli.gjs.mjs; ADR 0002 took it out of the checkout.
           bootstrap-bundles: 'true'
+      # The sqlite examples load GjsifySqlite; its prebuild is not committed (ADR 0123).
+      - name: Build @gjsify/sqlite-native (libsqlite3 bridge)
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          gjsify workspace @gjsify/sqlite-native build:prebuilds
       - name: Download example build output
         uses: actions/download-artifact@v8
         with:
