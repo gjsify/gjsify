@@ -183,7 +183,7 @@ export class GtkStringList extends GObjectObject {
         // the subset's construct-only path defines a READABLE own property, and the measured type
         // has no readable `strings` at all. Everything else goes to the base constructor, so an
         // unknown key still answers `No property … on GtkStringList`.
-        const rest = { ...(props ?? {}) } as Record<string, unknown>;
+        const rest = { ...props } as Record<string, unknown>;
         delete rest['strings'];
         super(rest);
         ITEMS.set(
@@ -289,7 +289,7 @@ export class GtkStringList extends GObjectObject {
      * belongs, and `undefined` in a slot that takes `null`.
      */
     splice(position: number, nRemovals: number, additions: readonly (string | null)[] | null): void {
-        // eslint-disable-next-line prefer-rest-params -- the arity message needs the COUNT PASSED.
+        // `arguments`, not a rest parameter: the arity message needs the COUNT PASSED.
         const passed = arguments.length;
         if (passed < 3) {
             throw new Error(`method Gtk.StringList.splice: At least 3 arguments required, but only ${passed} passed`);
