@@ -56,32 +56,6 @@ GStreamer directly (`Gst.ElementFactory` is already in reach through `gst-init.t
 stays the BUILDER's declaration. The second is smaller and does not move a published contract.
 
 
-### `@gjsify/sqlite` reads three value shapes back wrong
-
-Found while adding the parameter-binding regression suite; all three are in the READ
-path (`data-model-reader.ts` / libgda's data model), none of them in what gets bound, so
-they were deliberately left out of the binding fix rather than bundled into it.
-
-1. **An integral REAL past 2^53 throws instead of reading.** `convertValue()` treats any
-   integral JS number over `Number.MAX_SAFE_INTEGER` as an out-of-range INTEGER and raises
-   `OutOfRangeError`, but a SQLite REAL that happens to be integral — `1e21` — is not one.
-   Telling them apart needs the column's storage class, which the reader never consults.
-   Declared as `it.failing` in `param-binding.spec.ts`, so it retires itself when fixed.
-   Node returns `1e21` here.
-
-2. **A typeless column holding mixed types reads back as strings.** libgda types a data
-   model column ONCE, so a column holding `'text'`, `42.0` and `NULL` comes back with the
-   number as the string `"42.0"`. Node reads each value with its own storage class. The
-   affected spec asserts `typeof(a)` per row instead, which is a homogeneous text column
-   and therefore reads the same on both runtimes.
-
-3. **`CAST(x AS TEXT)` yields an unconverted `Gda.Text` boxed value.** `convertValue()`
-   has no branch for it, so it falls through and the caller gets `{}` instead of a string.
-
-None of the three is reachable from `postbote`'s index today, which is why the binding fix
-did not wait for them.
-
-
 ### Every callback-form `fs` entry point calls the callback from INSIDE its try
 
 The shape, repeated across `callback.ts`, `fd-ops.ts` and `utimes.ts`:
@@ -166,26 +140,6 @@ So it needs a real design decision inside `@gjsify/http2` (e.g. resolving the di
 `@gjsify/utils/core`'s `host-process` module and `@gjsify/v8`'s `heap/{linux,darwin,win32}.ts` read the same figures from the same sources with the same degraded contract (`ps(1)` has no data/peak column, so both report `0` there). The lift was made and REVERTED, and the reason is worth having written down before someone makes it again: routing v8's reads through `/core` removes the last `@girs/*` value import from that package, `audit-runtimes --check` then derives `runtimes.node: "native"` from the source signals instead of the declared `"none"`, and `Detect runtime-triplet drift` is one of the three checks that block a merge. Promoting the slot is a change to published ADR-0014 routing (a `native` slot sends the package root to `<pkg>/globals`, which `@gjsify/v8` does not ship), not a comment. So the question to answer FIRST is what `@gjsify/v8`'s node slot should be — `none` (this package does not serve Node) or `native` (Node has its own `node:v8`) — and the deduplication follows from it. Both files name the shared contract so it cannot drift silently in the meantime.
 
 
-### `@gjsify/sqlite`'s GJS suite ABORTS the process, and the trigger is a GC window
-
-Not a failing assertion — `SIGABRT`. Measured on darwin-x64 / gjs 1.88.1 / libgda 6.0, running `database-sync.spec.ts` alone under the real harness:
-
-```
-DatabaseSync.prototype.close()
-GLib-GObject:ERROR:../gobject/gobject.c:6103:_weak_ref_set:
-  assertion failed: (weak_ref_data_list_find (new_wrdata, weak_ref) < 0)
-Bail out!   gjs exited with code null
-```
-
-It stayed invisible until the `/var` vs `/private/var` fix landed, because the node leg failed first and the `&&` chain never reached the gjs one.
-
-**Ruled out, each by measurement rather than by reading:** bare libgda (`Gda.Connection.new_from_string` + `open()` + `close()`, nothing of ours in the process) does not abort · leaked connections plus an explicit `system.gc()` do not abort · the same operations driven through the real `DatabaseSync` API outside the harness do not abort · a specific test is not responsible, and neither is a leaked connection from the constructor block — the constructor validates (`parsePath`, `validateOptions`) BEFORE it opens, so a throwing construction never creates one.
-
-**What the bisect says.** Keeping the first N `it()` rows of the constructor block and rebuilding: N=0 ok, **N=1 CRASH**, N=2 ok, N=3 ok, **N=11 CRASH**. Non-monotonic — the number of preceding rows perturbs *when* the collector runs relative to the libgda objects' lifetimes, and nothing more. That is the signature of a GC window in the interaction between GJS's object-wrapper machinery (toggle refs / `GWeakRef`) and libgda's objects, not of a condition in our code. It is therefore NOT fixable by editing a spec, and a fix that appeared to work by adding or removing a test row would be luck.
-
-Next step is instrumentation, not more bisecting: run under `GJS_DEBUG_ALL`/`G_DEBUG=fatal-warnings` with a breakpoint on `_weak_ref_set` to see which object is being re-registered, and whether the second registration comes from GJS's wrapper or from libgda. If it is GJS's, this joins the libgda row already in `upstream-patch-candidates.md`; if it is ours, the owner is `DatabaseSync`'s lifecycle. Until then there is no workaround to maintain, which is why this is here and not in that table.
-
-
 ### child_process instant-exit pid — upstream GIO gap (issue #503; rewrite scoped + rejected)
 
 `@gjsify/child_process`'s `spawn()`/`exec` read `child.pid` from `Gio.Subprocess.get_identifier()`, which returns `null` once GSubprocess's child-watch (GLib worker-thread context) reaps the child — so an instant-exit child on a saturated runner can lose its pid (Node always reports one). **Resolved at the test layer** (deterministic alive-when-checked process) + **documented as an upstream GIO limitation** (see Upstream GJS Patch Candidates). The `GLib.spawn_async_with_pipes_and_fds` + `DO_NOT_REAP_CHILD` rewrite was scoped and **rejected for now**: it regresses `child.kill()` to a `/bin/kill` shell-out and reimplements env/cwd/stdio/wait-status reaping on a critical path. Revisit IF: (a) a real consumer needs a reliable pid for instant-exit children, or (b) upstream GIO exposes a spawn-time pid. **Filed upstream: [GNOME/glib#3981](https://gitlab.gnome.org/GNOME/glib/-/work_items/3981)**; maintainer verdict: accessor "would be OK" but de-prioritised in favour of pidfds, so the deterministic alive-process test + spawn-time capture (`_capturePidAtSpawn`) is our stable, permanent posture, not a temporary workaround.
@@ -212,36 +166,6 @@ rewrote the two runners and left no stale premise in the code it touched, and a
 comment sweep belonging to `ba64356b6e` does not belong in a review about spawn
 routing. Each site needs its own sentence — the guards do not all stand for the
 same reason — which is why this is a task and not a find-and-replace.
-
-
-### `@gjsify/sqlite`: a `WITH` clause, and why it is not rewritten like `EXISTS`
-
-`StatementSync` accepts `WITH c AS (SELECT …) SELECT …`, and the statement libgda hands back is
-CORRECT — classified `UNKNOWN` and rendered verbatim, so SQLite receives the caller's own text
-(`stmt.to_sql_extended()` returns it unchanged; measured). What fails is the SQLite provider's
-dispatch: it decides "does this yield rows" by prefix-matching the rendered string against
-`SELECT` / `PRAGMA` / `EXPLAIN` (`gda-sqlite-provider.c:3724` at LIBGDA_6_0_0), `WITH …` matches
-none of the three, so the statement is stepped once as a command, the row it returns is dropped,
-and the step reports something other than `SQLITE_DONE` — surfacing as `not an error`. All three
-of `statement_execute_select`, `batch_execute` and `statement_execute_select_full` answer it, and
-the identical query wrapped as `SELECT * FROM (WITH c AS ( … ) SELECT …)` returns its row, so the
-SQL is not the problem. Declared as `it.failing` in `subquery.spec.ts`.
-
-**A rewrite was considered and rejected**, and the reason is the general one: the EXISTS rewrite
-(`exists-subquery.ts`) is a statement-INTERNAL restatement — it replaces one predicate with an
-equivalent one and copies the sub-SELECT byte for byte, so it holds for any statement `EXISTS`
-appears in. There is no such restatement for `WITH`. The only shape that works wraps the WHOLE
-statement, which is a different statement type: `WITH … INSERT`/`UPDATE`/`DELETE` cannot be
-wrapped in a `SELECT` at all, and a `SELECT` wrapper would change what the derived table is
-visible as inside the statement body. A prefix-conditional `EXPLAIN`-style hack was measured
-(`EXPLAIN WITH …` executes) and is obviously wrong: it returns SQLite's bytecode programme, not
-the query's rows. So the honest state is a declared, self-retiring `it.failing` and an upstream
-row (`status/upstream-patch-candidates.md`, same file as the `parse_string` heap corruption): fix
-the provider to branch on the statement type rather than a text prefix.
-
-### `@gjsify/sqlite` exec() compound-statement (CREATE TRIGGER) splitting
-
-`DatabaseSync.prototype.exec()`'s `#splitStatements()` is comment/quote-aware, but still a token-level scanner, not a parser — a compound statement whose body carries inner semicolons is shattered: `CREATE TRIGGER t … BEGIN INSERT …; … END;` splits at the `;` after the inner `INSERT`, yielding `incomplete input`. node:sqlite gets this right because SQLite's real parser knows `BEGIN…END`. **Clean fix = let libgda's own statement tokenizer do the splitting** — currently blocked because `Gda.SqlParser.parse_string()` used iteratively hits a double-free under GJS and `parse_string_as_batch()` returns `Gda.Batch` objects rather than `Gda.Statement`s. A heuristic port of SQLite's `sqlite3_complete()` state machine was considered and NOT taken (mis-handles `CASE…END;`, adds risk to the transaction `BEGIN; … COMMIT;` path). Revisit when the libgda `parse_string` limitation is resolved (then the hand-rolled splitter can be retired entirely).
 
 
 ### TLS gaps that Gio does not surface (Workstream B follow-up)
@@ -282,10 +206,24 @@ Full Autobahn suite (core + permessage-deflate + performance 9.\*) is part of th
 `System.exit(0)` called from the bundled driver's `Promise.then` continuation silently returns without terminating the gjs process (the GLib main loop `ensureMainLoop()` starts for Soup keeps the process alive after `main()` resolves), even though the same call works from a standalone script or a MainLoop idle callback. `scripts/run-driver.mjs` compensates with a watchdog (waits for the `Done.` marker, 3 s grace, then SIGKILL — no data loss; the report is flushed before `Done.`). Next steps to remove it: isolate whether the block is in `@gjsify/process`'s `exit()` shim, the `globalThis.imports` patching, or an interaction with `@gjsify/node-globals/register`; write a minimal reproducer outside the Autobahn pillar; fix root-cause and inline `gjs -m dist/driver-*.gjs.mjs` back into the package scripts.
 
 
-### `@gjsify/sqlite` — expand API surface
+### `@gjsify/sqlite` — the APIs the native bridge does not wrap yet
 
-Libgda does not expose session/changeset, WAL-mode toggles, backup or VFS APIs, so those are open gaps beyond the current DatabaseSync/StatementSync coverage. The closest paths: (a) wrap sqlite3 directly via libsqlite3 GI bindings (expensive — no upstream GIR), or (b) live with the libgda-shaped subset and document the gaps per API. (b) is the current direction; `sqlite.constants` (SQLITE_CHANGESET_\*) remains unimplemented until (a).
+Since #2427 the package reaches libsqlite3's C API directly through `@gjsify/sqlite-native`,
+so what is left is not hidden by a provider — it is entry points nobody has wrapped. Each one
+needs a Vala surface on the native side plus the Node semantics on top of it:
 
+- **`sqlite.constants`** (`SQLITE_CHANGESET_*`) — plain integers, but they only mean something
+  once the changeset API below exists, so they land with it rather than before it.
+- **The session/changeset extension** (`sqlite3session_*`, `sqlite3changeset_*`). It is
+  compiled in only under `SQLITE_ENABLE_SESSION`: present on this Fedora host (`nm -D` finds
+  `sqlite3session_create`), and NOT safe to assume elsewhere — macOS's system libsqlite3 is
+  already known to be built without `SQLITE_ENABLE_COLUMN_METADATA`, which is why
+  `column_origin_name` is deliberately unexposed. So this one needs a meson probe and a
+  runtime capability answer, not just a binding.
+- **The online-backup API** (`sqlite3_backup_*`) — present unconditionally, no build-flag
+  question attached, and therefore the cheapest of the three.
+- **Custom VFS registration** (`sqlite3_vfs_register`) — the largest, because a VFS written in
+  JS means calling back into the engine from sqlite's own I/O callbacks.
 
 ### A server started after a top-level await exits at once on GJS
 

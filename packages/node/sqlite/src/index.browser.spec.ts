@@ -5,7 +5,7 @@
 // Imports the browser implementation directly (`./browser.js`) rather than
 // `node:sqlite` — the package's `exports` map has no `browser` condition, so a
 // bare `node:sqlite` import would not select the stub, and the GJS impl drags
-// in `gi://Gda` which has no browser equivalent.
+// in `gi://GjsifySqlite` which has no browser equivalent.
 //
 // Locks in the current honest browser behavior (slot: browser:partial — the
 // capability-slot stub):

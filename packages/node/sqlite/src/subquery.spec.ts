@@ -1,12 +1,11 @@
 // Subqueries in the SQL a real consumer writes: EXISTS, IN (SELECT …), a scalar
 // subquery, a WITH clause.
 //
-// EXISTS (SELECT …) is here because libgda used to reject it outright: the SQLite
-// provider re-renders a parsed statement before handing it to sqlite3_prepare_v2(),
-// and libgda's renderer emits a SECOND paren pair for a function argument that is a
-// sub-SELECT, so `EXISTS (SELECT …)` reached SQLite as `EXISTS ((SELECT …))` — which
-// SQLite answers with `near "(": syntax error`. The libgda side of that is written
-// out in exists-subquery.ts; the cases below are the consumer-visible half.
+// EXISTS (SELECT …) is here because it used to be rejected outright: the SQL was
+// re-rendered from a parse tree before it reached sqlite3_prepare_v2(), and the
+// renderer emitted a SECOND paren pair for a function argument that is a sub-SELECT,
+// so `EXISTS (SELECT …)` arrived as `EXISTS ((SELECT …))` — which SQLite answers with
+// `near "(": syntax error`. Nothing re-renders SQL any more; these keep it that way.
 //
 // Rows are asserted field by field, not as whole objects: Node's own node:sqlite hands
 // back rows on a null prototype, so an object-literal comparison would only be asserting
@@ -207,9 +206,9 @@ export default async () => {
             db.close();
         });
 
-        // Bracket and backtick quoting, not `"…"`: libgda's parser rejects a
-        // double-quoted identifier holding a paren and a space, which is a defect of its
-        // own and would fail this case before the rewriter was ever reached.
+        // Bracket and backtick quoting rather than `"…"`: all three are identifier quotes
+        // to SQLite, and the two least-used ones are the ones a hand-written scanner
+        // looking for EXISTS is least likely to know about.
         await it('does not read EXISTS out of a quoted identifier', async () => {
             const db = new DatabaseSync(nextDb());
             db.exec('CREATE TABLE t ([EXISTS (x)] TEXT)');

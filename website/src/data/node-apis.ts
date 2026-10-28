@@ -109,7 +109,7 @@ export const nodeApiCategories: readonly NodeApiCategory[] = [
     },
     {
         name: 'Storage',
-        apis: [{ name: 'sqlite', status: 'partial', backed: 'Gda 6.0 (SQLite provider)' }],
+        apis: [{ name: 'sqlite', status: 'partial', backed: 'GjsifySqlite 1.0 (libsqlite3)' }],
     },
     {
         name: 'Compute',

@@ -624,8 +624,8 @@ export interface ConfigDataShip extends AppMetadata {
      * Additions for ONE package format — `deb` or `rpm` — on top of everything above.
      *
      * Exists for a library the distros disagree about: one that Fedora ships and Ubuntu does
-     * not (libgda 6), where the `.rpm` should use the system copy and only the `.deb` needs to
-     * carry its own. `bundledTypelibs` and `extraFiles` are staged for every format of a
+     * not, where the `.rpm` should use the system copy and only the `.deb` needs to carry
+     * its own. `bundledTypelibs` and `extraFiles` are staged for every format of a
      * layout, so there is no way to say "the `.deb` only" with them.
      *
      * What a format carries here is read back off its package like any other staged file, so a

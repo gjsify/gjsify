@@ -1,15 +1,14 @@
 // Regression suite for how parameter VALUES reach SQLite.
 //
-// Before this suite existed, StatementSync spliced every value into the SQL text and
-// handed the result to Gda.SqlParser.parse_string(). Two things went wrong at once:
-// libgda reads `\` as an escape inside '…' where SQLite does not, so a value ending in a
-// backslash made the quoted region run past its end; and parse_string's `remain`
-// out-parameter — an interior pointer into the SQL, annotated (transfer full) — was then
-// non-NULL, so GJS freed it and glibc aborted THE WHOLE PROCESS.
+// Values are bound to the compiled statement, never rendered into the SQL text. The
+// suite exists because the opposite was once true: an earlier backend spliced every
+// value into the statement and handed the result to a parser that read `\` as an escape
+// inside '…' where SQLite does not, so a value ending in a backslash made the quoted
+// region run past its end — and the parse that followed freed an interior pointer and
+// aborted THE WHOLE PROCESS.
 //
-// That is why several cases below have no "expected error": the old code did not throw,
-// it killed the runner. A regression here shows up as a test run that dies rather than
-// one that reports a failure.
+// That is why several cases below have no "expected error": splicing did not throw, it
+// killed the runner. Any future shortcut back to building SQL from values fails here.
 
 import { describe, it, expect } from '@gjsify/unit';
 import { join } from 'node:path';
@@ -45,8 +44,8 @@ export default async () => {
     mkdirSync(testDir, { recursive: true });
 
     await describe('parameter values that used to break the SQL', async () => {
-        // The exact shape that aborted a real import: libgda took the backslash as
-        // escaping the closing quote, so the literal swallowed the rest of the statement.
+        // The exact shape that aborted a real import: the backslash read as escaping the
+        // closing quote, so the literal swallowed the rest of the statement.
         await it('round-trips a string ending in a backslash', async () => {
             expect(roundTrip('ends with \\').value).toBe('ends with \\');
         });
@@ -129,20 +128,12 @@ export default async () => {
             expect(roundTrip(-7).value).toBe(-7);
         });
 
-        await it.failing(
-            'stores a large number without a malformed literal',
-            async () => {
-                // String(1e21) is "1e+21" — appending ".0" there would not be valid SQL.
-                expect(roundTrip(1e21).value).toBe(1e21);
-            },
-            'The WRITE side is fine: libgda parses `1e+21` and SQLite stores a REAL. It is ' +
-                'the read back that fails — convertValue() in data-model-reader.ts throws ' +
-                'OutOfRangeError for any integral number past 2^53, but a REAL that happens ' +
-                'to be integral is not an out-of-range INTEGER. Telling them apart needs the ' +
-                'column type, which the reader does not consult. Separate defect in the read ' +
-                'path, deliberately not fixed in the parameter-binding change.',
-            { when: typeof process.versions.gjs === 'string' },
-        );
+        await it('stores a large number without losing its magnitude', async () => {
+            // Integral and far past 2^53, so a reader that decides on the VALUE rather
+            // than on the column's storage class rejects it as an out-of-range INTEGER.
+            // It is a REAL: `column_type()` says so per row, which is why it reads back.
+            expect(roundTrip(1e21).value).toBe(1e21);
+        });
 
         await it('stores a float as REAL', async () => {
             const r = roundTrip(1.5);
@@ -231,11 +222,9 @@ export default async () => {
             insert.run(42);
             insert.run(null);
 
-            // Assert the STORAGE CLASS per row rather than the JS value. Reading the
-            // values back would test the reader, not the binding: a typeless column
-            // holding a mix of types is one libgda types as string wholesale (see
-            // status/open-todos/README.md), so `rows[1].a` comes back as "42.0" here and as 42 on
-            // Node. `typeof(a)` is a text column either way, so it reads the same on both.
+            // Assert the STORAGE CLASS per row rather than the JS value: reading the
+            // values back would test the reader, not the binding. The reader's own side
+            // of a typeless mixed column is held in data-types.spec.ts.
             const rows = db.prepare('SELECT typeof(a) AS ty FROM t ORDER BY rowid').all() as Record<string, unknown>[];
             expect(rows.length).toBe(3);
             expect(rows[0].ty).toBe('text');
@@ -246,11 +235,12 @@ export default async () => {
     });
 
     await describe('SQL the parser rejects returns control instead of aborting', async () => {
-        // The assertion is NOT that a particular call throws — libgda accepts some
-        // garbage as an UNKNOWN statement where SQLite rejects it, and a block comment is
-        // the reverse. What has to hold on both is that the process is still alive and
-        // the connection still works. Under parse_string an unparseable statement raised
-        // SIGABRT and nothing after it ever ran, so a regression kills the runner.
+        // The assertion is NOT that a particular call throws — hosts disagree on which
+        // of these SQLite itself rejects, and a comment-only statement is its own case.
+        // What has to hold on both is that the process is still alive and the connection
+        // still works. The parser this package used to put in front of SQLite raised
+        // SIGABRT on an unparseable statement and nothing after it ever ran, so a
+        // regression kills the runner rather than failing a test.
         await it('survives a statement the parser will not take', async () => {
             const db = new DatabaseSync(nextDb());
             db.exec('CREATE TABLE t (a)');

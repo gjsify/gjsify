@@ -108,6 +108,17 @@ export default async () => {
             expect(() => deriveDepends('deb', { ...base, namespaces: ['Gjsifyish-1.0'] })).toThrow('gi://Gjsifyish');
         });
 
+        await it("carries `@gjsify/sqlite`'s bridge instead of depending on libgda", async () => {
+            // `node:sqlite` binds `gi://GjsifySqlite` (ADR 0123), a typelib of the same
+            // kind as the HTTP bridge above, so a database app demands no system package.
+            // The old `Gda-6.0` row left with libgda: an app that still imports it must
+            // now name its package, like any other namespace the table does not know.
+            expect(
+                deriveDepends('deb', { ...base, namespaces: ['GjsifySqlite-1.0', 'Gtk-4.0'] }).requires,
+            ).toStrictEqual(['gjs >= 1.86', 'gir1.2-gtk-4.0', 'hicolor-icon-theme']);
+            expect(() => deriveDepends('deb', { ...base, namespaces: ['Gda-6.0'] })).toThrow('gi://Gda');
+        });
+
         await it('accepts a namespace once the project supplies the row', async () => {
             const { requires } = deriveDepends('deb', {
                 ...base,

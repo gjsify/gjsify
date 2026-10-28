@@ -100,6 +100,8 @@ on:
       - 'packages/node/http2-native/meson.build'
       - 'packages/node/sab-native/src/vala/**'
       - 'packages/node/sab-native/meson.build'
+      - 'packages/node/sqlite-native/src/vala/**'
+      - 'packages/node/sqlite-native/meson.build'
       - 'packages/node/tls-native/src/vala/**'
       - 'packages/node/tls-native/src/c/**'
       - 'packages/node/tls-native/meson.build'
@@ -211,6 +213,8 @@ on:
       - 'packages/node/http2-native/meson.build'
       - 'packages/node/sab-native/src/vala/**'
       - 'packages/node/sab-native/meson.build'
+      - 'packages/node/sqlite-native/src/vala/**'
+      - 'packages/node/sqlite-native/meson.build'
       - 'packages/node/tls-native/src/vala/**'
       - 'packages/node/tls-native/src/c/**'
       - 'packages/node/tls-native/meson.build'
@@ -484,6 +488,8 @@ jobs:
         # encoder shim wrapping nghttp2.
         # gnutls-devel provides the gnutls.pc + gnutls/ocsp.h that
         # @gjsify/tls-native needs for OCSP-response parsing.
+        # sqlite-devel provides sqlite3.h + libsqlite3.so for @gjsify/sqlite-native;
+        # it links the system library directly, with no .pc file involved.
         # `curl` is needed by rustup-init below.
         # cmake → @gjsify/gamepad-native: meson builds the pinned SDL3 through its
         # CMake module. systemd-devel + dbus-devel are HEADERS only — SDL dlopen()s
@@ -531,6 +537,7 @@ jobs:
           libsoup3-devel
           libnghttp2-devel
           gnutls-devel
+          sqlite-devel
           json-glib-devel
           cmake systemd-devel dbus-devel gjs valgrind
           python3
@@ -693,6 +700,31 @@ jobs:
         with:
           name: sab-native-prebuilds-linux-${{ matrix.arch }}
           path: packages/node/sab-native/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
+      # -------- @gjsify/sqlite-native (GjsifySqlite) --------
+      # Thin Vala bridge over the SYSTEM libsqlite3 (sqlite-devel above), using
+      # Vala's bundled sqlite3.vapi plus a sibling `src/vala/sqlite-compat.vapi`
+      # for the four declarations 0.56 lacks. meson asserts sqlite3_changes64,
+      # so a host below libsqlite3 3.37 fails at setup rather than at run time.
+      - name: Build @gjsify/sqlite-native Vala library
+        if: ${{ !contains(needs.changes.outputs.skip, '"sqlite-native"') }}
+        working-directory: packages/node/sqlite-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/sqlite-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sqlite-native"') }}
+        working-directory: packages/node/sqlite-native
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
+
+      - name: Upload @gjsify/sqlite-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"sqlite-native"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: sqlite-native-prebuilds-linux-${{ matrix.arch }}
+          path: packages/node/sqlite-native/prebuilds/linux-${{ matrix.arch }}/
           retention-days: 30
 
       # -------- @gjsify/tls-native (GjsifyTls) --------
@@ -1181,6 +1213,14 @@ jobs:
           path: packages/node/sab-native/prebuilds/linux-${{ matrix.arch }}/
           retention-days: 30
 
+      - name: Upload @gjsify/sqlite-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"sqlite-native"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: sqlite-native-prebuilds-linux-${{ matrix.arch }}
+          path: packages/node/sqlite-native/prebuilds/linux-${{ matrix.arch }}/
+          retention-days: 30
+
       - name: Upload @gjsify/tls-native prebuilds artifact
         if: ${{ !contains(needs.changes.outputs.skip, '"tls-native"') }}
         uses: actions/upload-artifact@v7
@@ -1332,6 +1372,12 @@ jobs:
           # g-ir-scanner is never invoked — `vala_gir:` makes valac emit the GIR
           # directly — so no binary has to be introspected at build time.
           #   gnutls   → @gjsify/tls-native
+          #   NOTHING for @gjsify/sqlite-native: the macOS SDK ships both
+          #            libsqlite3.dylib and sqlite3.h, which is exactly what
+          #            `cc.find_library('sqlite3', has_headers: …)` looks for.
+          #            Brew's `sqlite` is keg-only and would need the same
+          #            CPPFLAGS/LDFLAGS dance libnghttp2 gets below, for a copy
+          #            no better than the system's.
           #   libsoup  → @gjsify/http-soup-bridge (needs >= 3.6)
           #   libnghttp2 → @gjsify/http2-native
           #   json-glib  → @gjsify/rolldown-native (its Vala bridge passes
@@ -1660,6 +1706,24 @@ jobs:
       - name: Collect @gjsify/sab-native prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
         working-directory: packages/node/sab-native
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
+
+      # -------- @gjsify/sqlite-native (GjsifySqlite) --------
+      # Links the SDK's own libsqlite3 by name — see the brew step's note for
+      # why no formula is installed. The One GLib rule applies as everywhere
+      # here: GLib/GObject enter as a partial dependency plus
+      # `-Wl,-undefined,dynamic_lookup`, and libsqlite3 stays an ordinary link
+      # dependency, since it is not a GLib library and the host has only one.
+      - name: Build @gjsify/sqlite-native Vala library
+        if: ${{ !contains(needs.changes.outputs.skip, '"sqlite-native"') }}
+        working-directory: packages/node/sqlite-native
+        run: |
+          meson setup build .
+          meson compile -C build
+
+      - name: Collect @gjsify/sqlite-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sqlite-native"') }}
+        working-directory: packages/node/sqlite-native
         run: node ../../../scripts/stage-prebuild.mjs . --scratch
 
       # -------- @gjsify/webrtc-native (GjsifyWebrtc) --------
@@ -2006,6 +2070,15 @@ jobs:
         with:
           name: sab-native-prebuilds-darwin-${{ matrix.arch }}
           path: packages/node/sab-native/prebuilds/darwin-${{ matrix.arch }}/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload @gjsify/sqlite-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"sqlite-native"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: sqlite-native-prebuilds-darwin-${{ matrix.arch }}
+          path: packages/node/sqlite-native/prebuilds/darwin-${{ matrix.arch }}/
           if-no-files-found: error
           retention-days: 30
 
@@ -4385,6 +4458,42 @@ jobs:
           name: http2-native-prebuilds-linux-riscv64
           path: packages/node/http2-native-linux-riscv64/prebuilds/linux-riscv64/
 
+      # -------- @gjsify/sqlite-native --------
+      - name: Download sqlite-native x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sqlite-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: sqlite-native-prebuilds-linux-x64
+          path: packages/node/sqlite-native-linux-x64/prebuilds/linux-x64/
+
+      - name: Download sqlite-native arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sqlite-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: sqlite-native-prebuilds-linux-arm64
+          path: packages/node/sqlite-native-linux-arm64/prebuilds/linux-arm64/
+
+      - name: Download sqlite-native ppc64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sqlite-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: sqlite-native-prebuilds-linux-ppc64
+          path: packages/node/sqlite-native-linux-ppc64/prebuilds/linux-ppc64/
+
+      - name: Download sqlite-native s390x prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sqlite-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: sqlite-native-prebuilds-linux-s390x
+          path: packages/node/sqlite-native-linux-s390x/prebuilds/linux-s390x/
+
+      - name: Download sqlite-native riscv64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sqlite-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: sqlite-native-prebuilds-linux-riscv64
+          path: packages/node/sqlite-native-linux-riscv64/prebuilds/linux-riscv64/
+
       # -------- @gjsify/sab-native --------
       - name: Download sab-native x64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
@@ -4637,6 +4746,13 @@ jobs:
           name: http2-native-prebuilds-darwin-arm64
           path: packages/node/http2-native-darwin-arm64/prebuilds/darwin-arm64/
 
+      - name: Download sqlite-native darwin-arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sqlite-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: sqlite-native-prebuilds-darwin-arm64
+          path: packages/node/sqlite-native-darwin-arm64/prebuilds/darwin-arm64/
+
       - name: Download sab-native darwin-arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}
         uses: actions/download-artifact@v8
@@ -4729,6 +4845,13 @@ jobs:
         with:
           name: http2-native-prebuilds-darwin-x64
           path: packages/node/http2-native-darwin-x64/prebuilds/darwin-x64/
+
+      - name: Download sqlite-native darwin-x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sqlite-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: sqlite-native-prebuilds-darwin-x64
+          path: packages/node/sqlite-native-darwin-x64/prebuilds/darwin-x64/
 
       - name: Download sab-native darwin-x64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"sab-native"') }}

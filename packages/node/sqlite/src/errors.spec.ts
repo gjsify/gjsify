@@ -55,8 +55,8 @@ export default async () => {
         });
 
         await it('does not claim a foreign error', async () => {
-            // The whole point: libgda's GLib.Error must NOT pass, or the catch
-            // that translates it would hand the raw GError to the consumer.
+            // The whole point: the native bridge's GLib.Error must NOT pass, or the
+            // catch that translates it would hand the raw GError to the consumer.
             expect(errors.isNodeSqliteError(new Error('plain'))).toBe(false);
             expect(errors.isNodeSqliteError(new TypeError('typed'))).toBe(false);
             expect(errors.isNodeSqliteError({ message: 'no such table: t' })).toBe(false);
@@ -67,9 +67,9 @@ export default async () => {
 
     await describe('sqliteErrorMessage', async () => {
         await it('reads the property rather than stringifying', async () => {
-            // `String(e)` on a GJS GLib.Error yields
-            // "GLib.Error gda_server_provider_error: no such table: t"; the
-            // property alone is what node:sqlite reports.
+            // `String(e)` on a GJS GLib.Error prefixes the error domain's quark
+            // ("GLib.Error <domain>: no such table: t"); the property alone is
+            // what node:sqlite reports.
             expect(errors.sqliteErrorMessage({ message: 'no such table: t' })).toBe('no such table: t');
             expect(errors.sqliteErrorMessage(new Error('boom'))).toBe('boom');
         });

@@ -1,0 +1,95 @@
+{
+    "name": "@gjsify/sqlite-native",
+    "version": "0.64.11",
+    "description": "Optional Vala/GObject bridge over the system libsqlite3, exposing the parts of the C API that cannot be expressed in JavaScript: a connection handle, prepared statements with 1-based parameter binding, and a typed column cursor. Errors carry sqlite's extended result code. Used by @gjsify/sqlite to implement node:sqlite directly on sqlite3 instead of through libgda.",
+    "type": "module",
+    "main": "lib/esm/index.js",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        }
+    },
+    "files": [
+        "lib",
+        "meson.build",
+        "src/vala"
+    ],
+    "gjsify": {
+        "platforms": [
+            "linux-x64",
+            "linux-arm64",
+            "linux-ppc64",
+            "linux-s390x",
+            "linux-riscv64",
+            "darwin-arm64",
+            "darwin-x64"
+        ],
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "none"
+        },
+        "tier": 1
+    },
+    "scripts": {
+        "clear": "gjsify clear lib build tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs",
+        "check": "gjsify tsc --noEmit",
+        "init:meson": "meson setup build .",
+        "init:meson:wipe": "gjsify run init:meson --wipe",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}' --exclude 'src/ts/**/*.spec.{mts,ts}' 'src/ts/test.{mts,ts}'",
+        "build:meson": "gjsify run init:meson && meson compile -C build",
+        "build:types": "gjsify tsc",
+        "build:prebuilds": "gjsify run build:meson && node ../../../scripts/stage-prebuild.mjs .",
+        "build:gir-types": "ts-for-gir generate --externalDeps --allowMissingDeps --girDirectories=../sqlite-native-linux-x64/prebuilds/linux-x64 --girDirectories=/usr/share/gir-1.0 --modules=GjsifySqlite-1.0 --outdir=src/ts --npmScope=@girs --package=false --ignoreVersionConflicts=true",
+        "build:test": "gjsify run build:test:gjs",
+        "build:test:gjs": "gjsify build src/ts/test.mts --app gjs --outfile test.gjs.mjs",
+        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs"
+    },
+    "keywords": [
+        "gjs",
+        "sqlite",
+        "sqlite3",
+        "database",
+        "prepared-statement",
+        "vala",
+        "native"
+    ],
+    "dependencies": {
+        "@girs/gjs": "5.4.0",
+        "@girs/glib-2.0": "5.4.0",
+        "@girs/gobject-2.0": "5.4.0",
+        "@gjsify/utils": "workspace:^"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@ts-for-gir/cli": "^4.1.0",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/node/sqlite-native"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/node/sqlite-native#readme",
+    "optionalDependencies": {
+        "@gjsify/sqlite-native-darwin-arm64": "workspace:*",
+        "@gjsify/sqlite-native-darwin-x64": "workspace:*",
+        "@gjsify/sqlite-native-linux-arm64": "workspace:*",
+        "@gjsify/sqlite-native-linux-ppc64": "workspace:*",
+        "@gjsify/sqlite-native-linux-riscv64": "workspace:*",
+        "@gjsify/sqlite-native-linux-s390x": "workspace:*",
+        "@gjsify/sqlite-native-linux-x64": "workspace:*"
+    }
+}

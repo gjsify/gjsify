@@ -1,7 +1,7 @@
-// A prepared statement is parsed once and keeps its compiled form between executions
-// (statement-sync.ts `#parsed`, execution.ts `retained`). These are the rules that
-// caching must not break: the same statement run again with other parameters, one
-// execution per call, and a retained statement that still lets the schema change.
+// A prepared statement compiles once and keeps its `sqlite3_stmt` between executions
+// (one native Statement per StatementSync, reset between calls). These are the rules
+// that reuse must not break: the same statement run again with other parameters, one
+// execution per call, and a live statement that still lets the schema change.
 
 import { describe, it, expect } from '@gjsify/unit';
 import { join } from 'node:path';

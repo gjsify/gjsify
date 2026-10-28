@@ -411,9 +411,15 @@ launcher's own NAME changes on Windows (`<binaryName>.cmd`). What is the OS's an
 `gjsify.ship.formats.<deb|rpm>` (`bundledTypelibs`, `extraFiles`) is the same payload for ONE package
 format: its files join that format's overlay, typelibs flattened into `lib/<name>/gi/`, and the shared
 launcher adds the GI paths behind `if [ -d "$prefix"/lib/<name>/gi ]`. It exists for a library built
-against one distro's sonames (an Ubuntu-built libgda needs `libxml2.so.16`, Fedora has `.so.2`), which
+against one distro's sonames (an Ubuntu-built library may need `libxml2.so.16`, Fedora has `.so.2`), which
 the other format must not carry. A namespace staged this way is host-provided for that format only, so
 only that format's derived `Depends` drops the `gir1.2-…` package. AppImage and Flatpak read no `formats`.
+
+A `*-native` bridge's own SHARED LIBRARY dependency is not derived: `Gjsify*` typelibs are dropped from
+`Depends`, and nothing maps the system library they link. `node:sqlite` links the system `libsqlite3`,
+so a `.deb`/`.rpm` of an app using it declares neither `libsqlite3-0` nor `sqlite-libs` on its own.
+Add it through `gjsify.ship.depends` (`{ "deb": ["libsqlite3-0"], "rpm": ["sqlite-libs"] }`); a derived
+mapping is open work (#2427).
 
 | | fixed by the OS | from the consumer's `gjsify.ship` |
 |---|---|---|

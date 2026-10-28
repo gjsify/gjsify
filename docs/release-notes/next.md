@@ -47,8 +47,9 @@ Highlights of 0.54.0:
   straight to a file, also usable as a library (#1949).
 - **Node-compatible timers.** `setTimeout` / `setInterval` return handles with `ref()`,
   `unref()` and `hasRef()` on GJS, so shared code needs no casts (#1950).
-- **SQLite on a Mac without Homebrew.** The darwin GTK runtime ships libgda, so
-  `node:sqlite` works out of the box (#1942).
+- **SQLite on a Mac without Homebrew.** `node:sqlite` runs on the system
+  libsqlite3 through `@gjsify/sqlite-native`, so the darwin GTK runtime no longer
+  carries libgda (#1942, #2427).
 
 Fixes worth knowing: `@gjsify/napi` installs on a cold tree again (#1983),
 `tty.ReadStream#setRawMode` restores the terminal on exit (#1940), `child_process` emits

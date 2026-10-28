@@ -24,7 +24,7 @@ when you build a native GNOME application:
 | `fetch`, `WebSocket`, `XMLHttpRequest` | `Soup 3` |
 | `<canvas>` 2D / WebGL | `Cairo` / `Gtk.GLArea` (OpenGL ES) |
 | `WebRTC`, `WebAudio`, `<video>` | `GStreamer` |
-| `node:sqlite` | `libgda` |
+| `node:sqlite` | `libsqlite3` |
 
 No wrapper server, no bundled Chromium, no shelling out to Node — the
 implementations *are* native GNOME code. The result is a real GTK 4 / Adwaita
@@ -130,12 +130,12 @@ features you use:
 # Fedora
 sudo dnf install gjs glib2-devel gobject-introspection-devel gtk4-devel \
   libsoup3-devel webkitgtk6.0-devel libadwaita-devel gdk-pixbuf2-devel \
-  libepoxy-devel libgda libgda-sqlite meson vala gcc pkgconf
+  libepoxy-devel sqlite-devel meson vala gcc pkgconf
 
 # Ubuntu
 sudo apt install gjs libglib2.0-dev libgirepository1.0-dev libgtk-4-dev \
   libsoup-3.0-dev libwebkitgtk-6.0-dev libadwaita-1-dev libgdk-pixbuf-2.0-dev \
-  libepoxy-dev libgda-6.0-dev meson valac gcc pkg-config
+  libepoxy-dev libsqlite3-dev meson valac gcc pkg-config
 ```
 
 Node.js 24+ is **optional** — needed only to run the cross-validation test track
@@ -177,7 +177,7 @@ counts them; the note above says where from.
 | Status | Packages |
 |--------|----------|
 | **Full** | assert, async_hooks, buffer, child_process, console, constants, crypto, dgram, diagnostics_channel, dns, events, fs, globals, http, http2, https, module, net, os, path, perf_hooks, process, querystring, readline, stream, string_decoder, sys, timers, tls, tty, url, util, zlib — plus native bridges: terminal-native, sab-native, tls-native, http-soup-bridge, http2-native |
-| **Partial** | sqlite (libgda-backed subset), ws (no perMessageDeflate/ping-pong events), worker_threads (subprocess-based + cross-process SAB), vm (eval-based, no realm isolation), v8 (stub) |
+| **Partial** | sqlite (libsqlite3-backed subset), ws (no perMessageDeflate/ping-pong events), worker_threads (subprocess-based + cross-process SAB), vm (eval-based, no realm isolation), v8 (stub) |
 | **Stub** | cluster, domain, inspector |
 
 ### Web APIs (`packages/web/`)
@@ -216,7 +216,7 @@ to screenshot and inspect a running GJS app.
 | http · https · fetch · XHR · WebSocket · EventSource | Soup 3.0 |
 | crypto | GLib.Checksum, GLib.Hmac |
 | process · url | GLib (env, pid, cwd, Uri) |
-| sqlite | libgda (SQLite provider) |
+| sqlite | libsqlite3 (via `sqlite-native` Vala bridge) |
 | WebRTC · WebAudio · Video | GStreamer (`webrtcbin`, `decodebin`, gtk4paintablesink) + Vala bridges |
 | Canvas 2D | Cairo + PangoCairo |
 | WebGL | Gtk.GLArea + libepoxy (via `gwebgl` Vala) |

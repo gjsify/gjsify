@@ -1,11 +1,10 @@
 // Common table expressions: the statements that start with `WITH`.
 //
-// A `WITH` statement is the one shape libgda's SQL parser does not model: it hands the
-// statement back as UNKNOWN whatever it does, and the SQLite provider then dispatches on
-// the first word of the text it renders — so a `WITH … SELECT …` used to be run as a
-// command and answered "not an error" (SQLite's message for a non-error state) instead
-// of its rows. The libgda side of that is written out in statement-kind.ts; the cases
-// below are the consumer-visible half.
+// A `WITH` statement used to be the one shape the SQL parser in front of SQLite did not
+// model: it came back UNKNOWN whatever it did, and execution then dispatched on the first
+// word of the text it rendered — so a `WITH … SELECT …` was run as a command and answered
+// "not an error" instead of its rows. SQL now reaches sqlite3_prepare_v2() verbatim, so a
+// CTE is just a SELECT; these keep it that way.
 //
 // Rows are asserted field by field, not as whole objects: Node's own node:sqlite hands
 // back rows on a null prototype, so an object-literal comparison would only be asserting
@@ -106,8 +105,8 @@ export default async () => {
             db.close();
         });
 
-        // A bare VALUES is a query without a SELECT in front of it, and libgda does not
-        // classify it either — so it needs the same statement shape.
+        // A bare VALUES is a query with no SELECT in front of it — the other shape that an
+        // implementation deciding "is this a query?" from the leading keyword gets wrong.
         await it('reads back a bare VALUES statement', async () => {
             const db = new DatabaseSync(nextDb());
             const rows = db.prepare('VALUES (1), (2)').all();

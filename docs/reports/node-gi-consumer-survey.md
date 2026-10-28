@@ -73,7 +73,7 @@ Every package **builds** `--app node`. **25 of 33 pass on node, 20 on bun, 19 on
 
 ### Genuine passes
 
-**Green on all three runtimes (19, of which 17 have runnable specs):** `sqlite` (Gda), `http2` (Soup 3.0 + ALPN), `tls` (Gio/glib-networking), `ws` (Soup), `crypto` (GLib.Checksum/Hmac), `os` (GLib spawn + `imports.byteArray`), `dom-elements` (GdkPixbuf + the `'2d'` factory), `canvas2d-core` (cairo + PangoCairo + GdkPixbuf + Gdk — headless Canvas 2D incl. text metrics and `putImageData`), `canvas2d` (the GTK-bridge package), `iframe` (WebKit), and the pure-logic layers of `devtools`, `devtools-browser`, `devtools-cdp`, `devtools-mcp`, `devtools-protocol`, `storybook`, `adwaita-app`.
+**Green on all three runtimes (19, of which 17 have runnable specs):** `sqlite` (GjsifySqlite), `http2` (Soup 3.0 + ALPN), `tls` (Gio/glib-networking), `ws` (Soup), `crypto` (GLib.Checksum/Hmac), `os` (GLib spawn + `imports.byteArray`), `dom-elements` (GdkPixbuf + the `'2d'` factory), `canvas2d-core` (cairo + PangoCairo + GdkPixbuf + Gdk — headless Canvas 2D incl. text metrics and `putImageData`), `canvas2d` (the GTK-bridge package), `iframe` (WebKit), and the pure-logic layers of `devtools`, `devtools-browser`, `devtools-cdp`, `devtools-mcp`, `devtools-protocol`, `storybook`, `adwaita-app`.
 
 **Green on node, runtime-specific residue elsewhere (8):** `child_process` (Gio.Subprocess), `dgram` (UDP via Gio.Socket), `dns` (Gio.Resolver), `fs` (Gio.File + Gio.FileMonitor), `node-globals` (GLib), `worker_threads` (Gio.Subprocess workers + sab-native), `zlib` (Gio.ZlibCompressor), `tty`.
 
@@ -216,7 +216,7 @@ So `@gjsify/fs` runs its entire GJS suite unchanged on Node via the reverse brid
 
 ## Proof legs (wired in CI)
 
-The `consumer-suites` job in [`node-gi.yml`](../../.github/workflows/node-gi.yml) runs the harness `--require-pass` over **nine** packages on node/bun/deno: `sqlite` (Gda), `http2` (Soup), `zlib` (Gio), `tls` (Gio/glib-networking), `ws` (Soup), `dom-elements` (GdkPixbuf + the `'2d'` factory), `node-globals` (GLib), `crypto` (GLib.Checksum/Hmac) and `string_decoder` (pure TS). The job pins Node 24 (gjsify's `--app node` compile target) and installs `glib-networking gdk-pixbuf2 pango dejavu-sans-fonts` on top of the base container. A regression in the reverse bridge fails that job; the existing `consumer-sqlite` job stays as-is.
+The `consumer-suites` job in [`node-gi.yml`](../../.github/workflows/node-gi.yml) runs the harness `--require-pass` over **nine** packages on node/bun/deno: `sqlite` (GjsifySqlite), `http2` (Soup), `zlib` (Gio), `tls` (Gio/glib-networking), `ws` (Soup), `dom-elements` (GdkPixbuf + the `'2d'` factory), `node-globals` (GLib), `crypto` (GLib.Checksum/Hmac) and `string_decoder` (pure TS). The job pins Node 24 (gjsify's `--app node` compile target) and installs `glib-networking gdk-pixbuf2 pango dejavu-sans-fonts` on top of the base container. A regression in the reverse bridge fails that job; the existing `consumer-sqlite` job stays as-is.
 
 **The counts in this report were measured on a Fedora 44 DESKTOP with the full GTK stack; the gate runs a minimal Fedora 44 container.** That difference — not any code change — is why a green row here is not by itself sufficient to add a package to the gate. Before promoting a package, check what its bundle actually loads (`grep -o "requireGi(\`[A-Za-z]*\`" <bundle>`) against what the container installs.
 

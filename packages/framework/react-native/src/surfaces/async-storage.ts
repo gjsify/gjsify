@@ -6,11 +6,11 @@
 //
 // WHY NOT `@gjsify/sqlite`, which is the obvious answer and the wrong one here. It is
 // tier 1 and would be a fine dependency, but it declares `node: "none"` and depends on
-// `@girs/gda-6.0` — libgda. `@gjsify/react-native` declares `node: "polyfill"` because
-// ADR 0032's own Consequences route macOS and Windows through Node + `@gjsify/node-gi`,
-// so a `node: "none"` dependency would break the only route those two platforms have,
-// and it would add a system library to a package that is otherwise pure TypeScript
-// plus GTK.
+// `@gjsify/sqlite-native`, a Vala/GObject build over the system libsqlite3.
+// `@gjsify/react-native` declares `node: "polyfill"` because ADR 0032's own Consequences
+// route macOS and Windows through Node + `@gjsify/node-gi`, so a `node: "none"` dependency
+// would break the only route those two platforms have, and it would add a native library
+// plus a per-target prebuild to a package that is otherwise pure TypeScript plus GTK.
 //
 // WHY NOT `GLib.KeyFile`, which is the DESKTOP shape and was measured before it was
 // rejected. AsyncStorage keys are arbitrary strings — `@app:token`, `persist:root` —

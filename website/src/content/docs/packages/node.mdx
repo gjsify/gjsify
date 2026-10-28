@@ -63,7 +63,7 @@ Three levels of completeness. **Full** means everything a normal app touches is 
 | `process` | GLib | Full | EventEmitter based; env, cwd, argv, platform, hrtime, nextTick, memoryUsage |
 | `querystring` | pure TS | Full | parse / stringify with full encoding |
 | `readline` | pure TS | Full | Interface, createInterface, question, prompt, async iterator, cursor control |
-| `sqlite` | Gda 6.0 | Partial | `DatabaseSync` and `StatementSync` on the libgda SQLite provider |
+| `sqlite` | GjsifySqlite 1.0 | Partial | `DatabaseSync` and `StatementSync` on libsqlite3 through `@gjsify/sqlite-native` |
 | `stream` | pure TS | Full | Readable, Writable, Duplex, Transform, PassThrough, objectMode, backpressure |
 | `string_decoder` | pure TS | Full | UTF-8, Base64, hex, streaming |
 | `sys` | pure TS | Full | Deprecated alias, re-exports `util` |

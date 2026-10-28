@@ -62,7 +62,7 @@ already has the runtime installed.
 
 The build rewrites `node:*` imports and Web globals to gjsify's implementations,
 each backed by a GNOME library: `node:fs` by Gio, `fetch` and `WebSocket` by
-libsoup, `<canvas>` by Cairo, `node:sqlite` by libgda.
+libsoup, `<canvas>` by Cairo, `node:sqlite` by libsqlite3.
 
 ```bash
 gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js
