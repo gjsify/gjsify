@@ -1,0 +1,11 @@
+<adw:PreferencesGroup
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:adw="~/adw"
+>
+  <adw:ComboRow
+    title="Accent colour"
+    subtitle="Used to highlight selected items"
+    model='["Blue","Teal","Green","Orange","Purple"]'
+    selected="1"
+  />
+</adw:PreferencesGroup>

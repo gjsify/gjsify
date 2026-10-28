@@ -1,0 +1,6 @@
+<gtk:DropDown
+  xmlns="http://schemas.nativescript.org/tns.xsd"
+  xmlns:gtk="~/gtk"
+  model='["Automatic","Always","Never","When busy"]'
+  selected="0"
+/>

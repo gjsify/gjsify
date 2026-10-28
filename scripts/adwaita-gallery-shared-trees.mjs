@@ -407,6 +407,12 @@ export const ADWAITA_GALLERY_TREE_DIVERGENCES = {
         'content: five buttons in the preview and the framework tabs, four in the NativeScript template — the icon-only circular one is missing, and its icon would be an SVG SOURCE there rather than a name (see status/open-todos/README.md, "A property can agree on its NAME and disagree on its VALUE KIND"). Beside it a `GtkBox` against a `StackLayout`.',
     // A framework tree since the ParamSpec seam took the portable adjustment (ADR 0047
     // § Amendment); the NativeScript template predates it and drew its own example.
+    // One example on both surfaces since the `model` attribute door (ADR 0122); what differs is
+    // the value KIND, as for the spin row above.
+    'Adw.ComboRow':
+        'content: the same "Accent colour" example on both; the framework tree authors `model` as an ARRAY a JSX expression carries, the template as the JSON STRING the `model` setter parses — one value, two spellings, one per surface\'s own door.',
+    'Gtk.DropDown':
+        'content: the same four items on both; the framework tree authors `model` as an ARRAY a JSX expression carries and adds `halign`, the template as the JSON STRING the `model` setter parses.',
     'Adw.SpinRow':
         'content: "Font size" 0…100 at 16 in the block preview, the GJS and Blueprint tabs and the framework tabs; "Copies" 1…20 at 3 in the NativeScript template. Nothing in the port forces the different example. Beside it the value KIND, which does not close by matching the numbers: the framework tree authors `adjustment` as an OBJECT with the value inside it, which a JSX expression carries, and the template as the JSON STRING its XML door parses (ADR 0047 § 5) with `value` as a row property beside it — one value, two spellings, one per surface\'s own door.',
 };
