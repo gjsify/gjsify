@@ -9,5 +9,5 @@
         "strict": true,
         "types": []
     },
-    "files": ["lib/types/index.d.ts", "lib/types/source-view/index.d.ts", "lib/types/fonts.d.ts", "consumer/application-window.ts", "consumer/window-common.ts", "consumer/widget.ts"]
+    "files": ["lib/types/index.d.ts", "lib/types/source-view/index.d.ts", "lib/types/fonts.d.ts", "consumer/application-window.ts", "consumer/window-common.ts", "consumer/widget.ts", "consumer/widget-connect.ts"]
 }

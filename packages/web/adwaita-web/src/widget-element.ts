@@ -16,7 +16,7 @@
 // Reference: GTK gtk/gtkwidget.c (gtk_widget_set_visible, gtk_widget_set_tooltip_text)
 // Copyright (c) GNOME contributors (GTK). LGPLv2.1+.
 
-import { WIDGET_VISIBLE_GETTERS, notifyElement } from './gobject-elements.js';
+import { WIDGET_VISIBLE_GETTERS, installElementApi, markLazyElementApi, notifyElement } from './gobject-elements.js';
 import { dispatchedSignalsOf, type DispatchedSignals } from './signals.js';
 import { isMapped } from './widget-mapping.js';
 
@@ -69,12 +69,36 @@ export class WidgetElement extends HTMLElement {
     get_height(): number {
         return this.offsetHeight;
     }
+    /**
+     * The GObject signal API (ADR 0096 § 3), over the events the element declares in `static signals`:
+     * `connect` refuses a signal it does not declare, `disconnect` throws for an id that is not
+     * connected. Each of the four installs the real ones on the instance and repeats itself there
+     * (`installElementApi`), so a bare `document.createElement()` answers like a template's child
+     * and an element nobody connects to pays nothing.
+     */
+    connect(signal: string, handler: (emitter: this, ...args: any[]) => unknown): number {
+        installElementApi(this);
+        return this.connect(signal, handler);
+    }
+    disconnect(id: number): void {
+        installElementApi(this);
+        this.disconnect(id);
+    }
+    emit(signal: string, ...args: unknown[]): void {
+        installElementApi(this);
+        this.emit(signal, ...args);
+    }
+    notify(name: string): void {
+        installElementApi(this);
+        this.notify(name);
+    }
     /** `gtk_widget_get_mapped`: on screen, which is in the document and rendered. */
     get_mapped(): boolean {
         return isMapped(this);
     }
 }
 
+markLazyElementApi(WidgetElement.prototype);
 WIDGET_VISIBLE_GETTERS.add(Object.getOwnPropertyDescriptor(WidgetElement.prototype, 'visible')!.get!);
 
 export class TooltipElement extends WidgetElement {
