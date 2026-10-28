@@ -837,7 +837,7 @@ export const REAL_EXPECTATIONS = [
             ],
         },
         lost: [],
-        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the fifty probes are fewer than thirty-three distinct probes.',
+        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the fifty-one probes are fewer than thirty-three distinct probes.',
     },
     {
         file: 'templates/adw-game/src/main-window.blp',
@@ -2412,6 +2412,30 @@ export const REAL_EXPECTATIONS = [
                         },
                     ],
                 },
+            ],
+        },
+        lost: [],
+    },
+    {
+        file: 'packages/nativescript-bridge/adwaita/src/gobject-siblings.blp',
+        node: {
+            tag: 'AdwBin',
+            template: 'GoNsSiblings',
+            children: [
+                {
+                    tag: 'GtkBox',
+                    children: [
+                        {
+                            tag: 'GtkLabel',
+                            id: 'caption',
+                            bindings: { label: { source: 'peer', property: 'title' } },
+                        },
+                    ],
+                },
+            ],
+            siblings: [
+                { tag: 'AdwAlertDialog', id: 'unsavedChangesDialog', props: { heading: 'Save changes?' } },
+                { tag: 'GoNsPeer', extern: true, id: 'peer' },
             ],
         },
         lost: [],
