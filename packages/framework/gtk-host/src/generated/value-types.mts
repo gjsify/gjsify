@@ -38,6 +38,7 @@ export const VALUE_TYPES: Readonly<Record<string, { gtype: string; widget: boole
     'Gio.FileCreateFlags': { gtype: 'GFileCreateFlags', widget: false },
     'Gio.FileOutputStream': { gtype: 'GFileOutputStream', widget: false },
     'Gio.IOErrorEnum': { gtype: 'GIOErrorEnum', widget: false },
+    'Gio.ListModel': { gtype: 'GListModel', widget: false },
     'Gio.ListStore': { gtype: 'GListStore', widget: false },
     'Gio.Menu': { gtype: 'GMenu', widget: false },
     'Gio.MenuItem': { gtype: 'GMenuItem', widget: false },
@@ -71,6 +72,7 @@ export const VALUE_TYPES: Readonly<Record<string, { gtype: string; widget: boole
     'Gtk.Settings': { gtype: 'GtkSettings', widget: false },
     'Gtk.StackPage': { gtype: 'GtkStackPage', widget: false },
     'Gtk.StringList': { gtype: 'GtkStringList', widget: false },
+    'Gtk.StringObject': { gtype: 'GtkStringObject', widget: false },
     'Gtk.StyleContext': { gtype: 'GtkStyleContext', widget: false },
     'Gtk.show_uri': { gtype: 'Gtk.show_uri', widget: false },
 };

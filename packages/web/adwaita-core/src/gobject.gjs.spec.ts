@@ -14,6 +14,12 @@ import type { GObjectConstructor, GObjectInstance, GObjectNamespace } from './go
 interface GtkModule {
     init_check(): boolean;
     Box: GObjectConstructor;
+    DropDown: new () => GObjectInstance;
+    StringList: new (props: { strings: string[] }) => GObjectInstance;
+}
+
+interface GioModule {
+    ListModel: unknown;
 }
 
 type BindFlags = Record<'DEFAULT' | 'BIDIRECTIONAL' | 'SYNC_CREATE' | 'INVERT_BOOLEAN', number>;
@@ -29,6 +35,7 @@ export default async () => {
     await on('Gjs', async () => {
         const GObject = (await import('gi://GObject?version=2.0' as string)).default as GObjectModule;
         const Gtk = (await import('gi://Gtk?version=4.0' as string)).default as GtkModule;
+        const Gio = (await import('gi://Gio?version=2.0' as string)).default as GioModule;
         // Without a display Gtk cannot build a widget, so the template rows are not run; the
         // plain-GObject rows are.
         const hasDisplay = Gtk.init_check();
@@ -39,6 +46,15 @@ export default async () => {
             GObject,
             Widget: hasDisplay ? Gtk.Box : undefined,
             template: (source) => source.xml,
+            ListModel: Gio.ListModel,
+            // `Gtk.DropDown:model` is the real C object property ADR 0122 § 6 copies. It is a
+            // widget, so it needs the display the template rows need.
+            objectProperty: hasDisplay
+                ? () => ({
+                      instance: new Gtk.DropDown(),
+                      accepted: new Gtk.StringList({ strings: ['Blue', 'Teal'] }),
+                  })
+                : undefined,
             bind: (source, sourceProperty, target, targetProperty, flags) => {
                 const bits = flags.reduce(
                     (all, flag) => all | GObject.BindingFlags[FLAGS[flag]],

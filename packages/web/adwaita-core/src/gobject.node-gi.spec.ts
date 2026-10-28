@@ -47,6 +47,12 @@ export type RequireGi = (namespace: string, version?: string) => unknown;
 interface GtkModule {
     init_check(): boolean;
     Box: GObjectConstructor;
+    DropDown: new () => GObjectInstance;
+    StringList: new (props: { strings: string[] }) => GObjectInstance;
+}
+
+interface GioModule {
+    ListModel: unknown;
 }
 
 type BindFlags = Record<'DEFAULT' | 'BIDIRECTIONAL' | 'SYNC_CREATE' | 'INVERT_BOOLEAN', number>;
@@ -98,6 +104,8 @@ export const gobjectNodeGiSuite = (requireGi: RequireGi) => async () => {
         }
     })();
     const hasDisplay = Gtk !== undefined && Gtk.init_check();
+    // Gio is in the APK too, so the interface rows run where the widget rows do not.
+    const Gio = requireGi('Gio', '2.0') as unknown as GioModule;
 
     const subject: GObjectSubject = {
         name: 'node-gi (real GObject on Node)',
@@ -105,6 +113,14 @@ export const gobjectNodeGiSuite = (requireGi: RequireGi) => async () => {
         GObject,
         Widget: hasDisplay ? Gtk?.Box : undefined,
         template: (source) => source.xml,
+        ListModel: Gio.ListModel,
+        objectProperty:
+            hasDisplay && Gtk !== undefined
+                ? () => ({
+                      instance: new Gtk.DropDown(),
+                      accepted: new Gtk.StringList({ strings: ['Blue', 'Teal'] }),
+                  })
+                : undefined,
         bind: (source, sourceProperty, target, targetProperty, flags) => {
             const bits = flags.reduce(
                 (all, flag) => all | GObject.BindingFlags[FLAGS[flag]],

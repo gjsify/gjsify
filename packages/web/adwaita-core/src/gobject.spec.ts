@@ -10,6 +10,7 @@ import { GOBJECT_VECTORS, driveGObjectVectors, type GObjectSubject } from './con
 import {
     bindProperties,
     createGObject,
+    ListModel,
     STOP_EMISSION,
     type BindingFlag,
     type BuiltTemplate,
@@ -74,12 +75,43 @@ const FakeButton = G.registerClass(
     class extends G.Object {},
 );
 
+// The twin of `Gtk.DropDown:model` (ADR 0122 § 6): a declared object-kind property that takes a
+// `Gio.ListModel` and nothing else. On the oracles the row needs a real C property, because GJS's
+// auto-accessors store without a GValue conversion; the core's setter runs `checkPropertyValue`,
+// which is the whole point of the row here.
+const FakeDropDown = G.registerClass(
+    {
+        GTypeName: 'FakeDropDown',
+        Properties: { model: P.object('model', '', '', F.READWRITE, ListModel) },
+    },
+    class extends G.Object {},
+);
+const FakeStringList = G.registerClass(
+    { GTypeName: 'FakeStringList', Implements: [ListModel] },
+    class extends G.Object {
+        vfunc_get_item_type(): unknown {
+            return G.TYPE_OBJECT;
+        }
+        vfunc_get_n_items(): number {
+            return 2;
+        }
+        vfunc_get_item(position: number): unknown {
+            return position < 2 ? `item-${position}` : null;
+        }
+    },
+);
+
 const subject: GObjectSubject = {
     name: 'adwaita-core (test door)',
     isOracle: false,
     GObject: G,
     Widget: G.Object,
     template: (source) => source.tree,
+    ListModel,
+    objectProperty: () => ({
+        instance: new FakeDropDown() as GObjectInstance,
+        accepted: new FakeStringList() as GObjectInstance,
+    }),
     bind: (source, sourceProperty, target, targetProperty, flags) => {
         bindProperties(source, sourceProperty, target, targetProperty, flags);
     },
@@ -138,6 +170,8 @@ export default async () => {
                 'vfunc',
                 'binding engine',
                 'template',
+                'interface',
+                'object property',
             ]) {
                 expect(rows.has(row as never)).toBe(true);
             }

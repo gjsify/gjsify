@@ -62,8 +62,56 @@ export type AdwComboOptionInput = string | { value?: unknown; label?: unknown };
 /** A normalised portable list model — what a `model` property holds on every surface. */
 export type AdwListModel = ReadonlyArray<AdwComboOption>;
 
-/** What a `model` property ACCEPTS: the widened form of {@link AdwListModel}. */
-export type AdwListModelInput = ReadonlyArray<AdwComboOptionInput>;
+/**
+ * The two methods this module needs off a REAL model — `g_list_model_get_n_items` and
+ * `g_list_model_get_item`, nothing else.
+ *
+ * Duck-typed on purpose. This module is pure data and must not import `Gtk.StringList`, which
+ * is a GObject and would drag the whole object system into every surface that only wants to
+ * normalise items. `Gio.ListModel` IS these two methods, so matching them is matching the
+ * interface rather than guessing at a class.
+ */
+export interface AdwListModelSource {
+    /** `g_list_model_get_n_items`. */
+    get_n_items(): number;
+    /** `g_list_model_get_item` — `null` past the end. */
+    get_item(position: number): unknown;
+}
+
+/**
+ * What a `model` property ACCEPTS: the widened form of {@link AdwListModel}, plus a real
+ * {@link AdwListModelSource}.
+ *
+ * The model arm is new in ADR 0122, which made `Gtk.StringList` a `Gio.ListModel` instead of
+ * an `Array` subclass — the one value that used to satisfy BOTH arms at once. It is not a
+ * permanent widening: ADR 0122 § 6 narrows `Adw.ComboRow:model` to `Gio.ListModel` alone, and
+ * the array arm goes with the widget that still reads a markup attribute.
+ */
+export type AdwListModelInput = ReadonlyArray<AdwComboOptionInput> | AdwListModelSource;
+
+/**
+ * A real model → the entries {@link normalizeComboOptions} already knows how to read, or the
+ * empty list for anything that is not a model.
+ *
+ * `Gtk.StringList` hands out `Gtk.StringObject`s, whose string lives on a `string` property,
+ * so that is the one item shape unwrapped here: it is GTK's own answer to "what text is this
+ * item", the one a `Gtk.DropDown` with no factory draws. Any other item is handed on AS the
+ * object it is and meets the descriptor rule below — `{ label }`, `{ value }`, or neither.
+ * Reading a `label`/`value`-less item as the empty descriptor is the rule `{}` already gets;
+ * drawing it would need `Adw.ComboRow:expression`, which ADR 0122 leaves out.
+ */
+function readListModel(raw: unknown): AdwComboOptionInput[] {
+    const source = raw as Partial<AdwListModelSource> | null | undefined;
+    if (typeof source?.get_n_items !== 'function' || typeof source.get_item !== 'function') return [];
+
+    const entries: AdwComboOptionInput[] = [];
+    const count = source.get_n_items();
+    for (let position = 0; position < count; position++) {
+        const item = source.get_item(position) as { string?: unknown } | null;
+        entries.push(typeof item?.string === 'string' ? item.string : ((item ?? {}) as AdwComboOptionInput));
+    }
+    return entries;
+}
 
 /**
  * Raw authored items → the stable `{ value, label }` descriptors every list surface
@@ -75,12 +123,17 @@ export type AdwListModelInput = ReadonlyArray<AdwComboOptionInput>;
  * by `undefined`. ONE home for the rule, so no two list widgets can accept two different
  * item vocabularies.
  *
+ * A REAL `Gio.ListModel` is read through {@link AdwListModelSource}, and its items through the
+ * same three rules as any other entry: a `Gtk.StringObject` arrives as the string it holds,
+ * anything else falls to the descriptor rule it already matches or does not. There is no
+ * fourth vocabulary for items that came out of a model rather than out of an array.
+ *
  * TOTAL — it throws for no input. The doors this reaches are a property assignment and a
  * markup attribute, and an author's typo must not take the widget down.
  */
 export function normalizeComboOptions(raw: AdwListModelInput | null | undefined): AdwComboOption[] {
-    if (!Array.isArray(raw)) return [];
-    return raw.map((entry) => {
+    const entries = Array.isArray(raw) ? raw : readListModel(raw);
+    return entries.map((entry) => {
         if (typeof entry === 'string') return { value: entry, label: entry };
         const value = entry?.value === undefined ? String(entry?.label ?? '') : String(entry.value);
         const label = entry?.label === undefined ? value : String(entry.label);

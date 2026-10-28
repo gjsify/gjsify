@@ -14,14 +14,18 @@
 // ledger already declares, so `Gtk.Image` is right here today and stays right after the
 // class is renamed.
 //
-// TWO MEMBERS HERE ARE NOT WIDGETS — `Gtk.Adjustment` and `Gtk.StringList`, the values an
-// `adjustment` and a `model` property take. ADR 0034 § Amendment 19 is what lets a
-// clause-2 namespace carry them, `CONSTRUCTIBLE_VALUES` in `scripts/value-types.mjs` is
-// where each one is declared, and the GIR answers for both in gtk-host's committed
-// `generated/value-types.mts`. They are re-exported from `@gjsify/adwaita-core`, which is
-// where the portable list and adjustment already live: the class IS that value wearing the
-// GIR spelling, so `model: ['a','b']` and `model: new Gtk.StringList({ strings: ['a','b'] })`
-// are the same write and nothing in this package had to learn a second input shape.
+// THREE MEMBERS HERE ARE NOT WIDGETS — `Gtk.Adjustment`, `Gtk.StringList` and the
+// `Gtk.StringObject` the list holds, the values an `adjustment` and a `model` property take.
+// ADR 0034 § Amendment 19 is what lets a clause-2 namespace carry them,
+// `CONSTRUCTIBLE_VALUES` in `scripts/value-types.mjs` is where each one is declared, and the
+// GIR answers for all three in gtk-host's committed `generated/value-types.mts`. They are
+// re-exported from `@gjsify/adwaita-core`, which is where the portable list and adjustment
+// already live.
+//
+// `Gtk.StringList` IS A LIST MODEL, NOT AN ARRAY (ADR 0122). The first version of it was an
+// `Array` subclass, which made `model: ['a','b']` and `model: new Gtk.StringList(…)` the same
+// write; it is now what GTK ships — `Implements: [Gio.ListModel]`, items that are
+// `Gtk.StringObject`s, read by `get_n_items` / `get_item` and never by `length` or `[0]`.
 
 export { GtkAdjustment as Adjustment } from '@gjsify/adwaita-core';
 // ADR 0100: the file dialog is no widget either — it asks the driver `../file-chooser-host.ts`
@@ -59,7 +63,7 @@ export type { WindowCommon } from '@gjsify/adwaita-core';
 export { GtkSeparator as Separator } from '../widgets/gtk-separator.js';
 export { GtkStack as Stack } from '../widgets/gtk-stack.js';
 export { GtkStackPage as StackPage } from '../widgets/stack-page.js';
-export { GtkStringList as StringList } from '@gjsify/adwaita-core';
+export { GtkStringList as StringList, GtkStringObject as StringObject } from '@gjsify/adwaita-core';
 export { GtkTextView as TextView } from '../widgets/gtk-text-view.js';
 export { GtkToggleButton as ToggleButton } from '../widgets/gtk-toggle-button.js';
 export { ApplicationInhibitFlags } from '@gjsify/adwaita-core';
