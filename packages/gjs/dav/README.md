@@ -37,7 +37,7 @@ await dav.delete(url, { ifMatch: etag });
 
 ## API
 
-`discover`, `listCollections`, `listObjects` (calendar-query / addressbook-query), `getObjects` (multiget), `sync` (RFC 6578; a 404 entry is a deletion), `put`, `delete`, plus `parseMultistatus` for custom requests.
+`discover`, `listCollections`, `listObjects` (calendar-query / addressbook-query; calendars take `{ component, range, uid }`, where `uid` fetches one item by iCalendar UID via an RFC 4791 §9.7.5 prop-filter instead of scanning the collection), `getObjects` (multiget), `sync` (RFC 6578; a 404 entry is a deletion), `put`, `delete`, plus `parseMultistatus` for custom requests.
 
 A stale sync token makes the server answer 403/409/507 as a `DavError`; resync with `null`.
 

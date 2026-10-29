@@ -138,6 +138,31 @@ export default async () => {
             expect(full[0].data).toBe(ICS);
             expect(m.calls[1].body!.includes('/calendars/bernard/work/a.ics')).toBe(true);
         });
+        await it('filters calendar-query by UID, escaped, together with a time range', async () => {
+            const m = mock([{ ...MS, body: LIST }]);
+            const base = 'https://dav.example.org/calendars/bernard/work/';
+            const objs = await m
+                .client()
+                .listObjects(base, 'caldav', {
+                    component: 'VTODO',
+                    range: { start: '20260101T000000Z' },
+                    uid: 'a<b&"c',
+                });
+            const body = m.calls[0].body!;
+            expect(objs[0].etag).toBe('"e1"');
+            expect(
+                body.includes(
+                    '<C:prop-filter name="UID"><C:text-match collation="i;octet">a&lt;b&amp;&quot;c</C:text-match></C:prop-filter>',
+                ),
+            ).toBe(true);
+            expect(body.includes('<C:comp-filter name="VTODO"><C:time-range')).toBe(true);
+            expect(body.indexOf('prop-filter') > body.indexOf('time-range')).toBe(true);
+        });
+        await it('omits the UID filter by default', async () => {
+            const m = mock([{ ...MS, body: LIST }]);
+            await m.client().listObjects('https://dav.example.org/calendars/bernard/work/', 'caldav');
+            expect(m.calls[0].body!.includes('prop-filter')).toBe(false);
+        });
         await it('syncs: changed objects, 404 as deleted, new token', async () => {
             const m = mock([{ ...MS, body: SYNC }]);
             const r = await m.client().sync('https://dav.example.org/calendars/bernard/work/', 'tok-1');
