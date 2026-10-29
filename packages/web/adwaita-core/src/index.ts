@@ -1199,8 +1199,11 @@ export { engineForTarget, registerGObjectEngine, registeredEngine, resetRegister
 export type {
     EngineTarget,
     ForeignClassMeta,
+    ForeignObjectProperty,
     ForeignProperty,
     ForeignPropertyKind,
+    ForeignScalarKind,
+    ForeignScalarProperty,
     ForeignSignal,
     GObjectEngine,
 } from './engine.js';
