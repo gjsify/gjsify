@@ -160,8 +160,20 @@ export { CHECK_GROUP_VECTORS, driveCheckGroupVectors } from './check-group.js';
 export type { CheckButtonLike, CheckGroupSubject, CheckGroupVector } from './check-group.js';
 
 // --- Row state machines (Adw.ComboRow / Gtk.DropDown selection) vectors ---
-export { COMBO_CHOOSER_VECTORS, COMBO_SELECTION_VECTORS, TOGGLE_ACTIVE_NAME_VECTORS } from './rows.js';
-export type { ComboChooserVector, ComboSelectionStep, ComboSelectionVector, ToggleActiveNameVector } from './rows.js';
+export {
+    COMBO_CHOOSER_VECTORS,
+    COMBO_ITEMS_CHANGED_VECTORS,
+    COMBO_SELECTION_VECTORS,
+    TOGGLE_ACTIVE_NAME_VECTORS,
+} from './rows.js';
+export type {
+    ComboChooserVector,
+    ComboItemsChangedVector,
+    ComboSelectionStep,
+    ComboSelectionVector,
+    ComboSpliceStep,
+    ToggleActiveNameVector,
+} from './rows.js';
 
 // --- View stack selection (Adw.ViewStack) vectors ---
 export { VIEW_STACK_ICON_NAME_VECTORS, VIEW_STACK_PAGE_VECTORS, VIEW_STACK_VECTORS } from './view-stack.js';
@@ -309,8 +321,8 @@ export {
     LIST_MODEL_OWNERSHIP_VECTORS,
     LIST_NORMALIZE_VECTORS,
     LIST_PARSE_VECTORS,
-    LIST_SELECTION_CLAMP_VECTORS,
     TAB_PAGES_ITEMS_CHANGED_VECTORS,
+    applyListMutation,
     applyListReadback,
     replayTabPagesAsSplices,
 } from './list.js';
@@ -320,7 +332,6 @@ export type {
     ListNormalizeVector,
     ListParseVector,
     ListReadbackOp,
-    ListSelectionClampVector,
     TabPagesItemsChangedVector,
 } from './list.js';
 

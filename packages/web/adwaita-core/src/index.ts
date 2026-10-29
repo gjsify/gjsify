@@ -281,13 +281,7 @@ export type {
 } from './dialog.js';
 
 // --- The portable list model (the item vocabulary + items-changed — ADR 0046) ---
-export {
-    ADW_COMBO_NO_SELECTION,
-    clampListSelection,
-    listItemsChanged,
-    normalizeComboOptions,
-    parseListModel,
-} from './list.js';
+export { ADW_COMBO_NO_SELECTION, listItemsChanged, normalizeComboOptions, parseListModel } from './list.js';
 export type {
     AdwComboOption,
     AdwComboOptionInput,
@@ -412,8 +406,11 @@ export type { GjsifyOptionListProps } from './option-list.js';
 export { ComboState, ExpanderState, ToggleGroupState, keptToggles, toggleIndexOfName } from './rows.js';
 export type {
     ComboItemsListener,
+    ComboNotify,
+    ComboNotifyListener,
     ComboStateChange,
     ComboStateListener,
+    ComboWatchableModel,
     ExpanderStateListener,
     ToggleGroupStateChange,
     ToggleGroupStateListener,

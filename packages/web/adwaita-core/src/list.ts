@@ -79,13 +79,16 @@ export interface AdwListModelSource {
 }
 
 /**
- * What a `model` property ACCEPTS: the widened form of {@link AdwListModel}, plus a real
- * {@link AdwListModelSource}.
+ * What {@link normalizeComboOptions} ACCEPTS: the widened form of {@link AdwListModel}, plus a
+ * real {@link AdwListModelSource}.
  *
- * The model arm is new in ADR 0122, which made `Gtk.StringList` a `Gio.ListModel` instead of
- * an `Array` subclass — the one value that used to satisfy BOTH arms at once. It is not a
- * permanent widening: ADR 0122 § 6 narrows `Adw.ComboRow:model` to `Gio.ListModel` alone, and
- * the array arm goes with the widget that still reads a markup attribute.
+ * IT IS THE NORMALISER'S INPUT TYPE AND NOT A PROPERTY TYPE, which is the whole of what ADR
+ * 0122 § 6 changed about it. `Adw.ComboRow:model` and `Gtk.DropDown:model` are a
+ * `Gio.ListModel` and nothing else now — an array assigned to either is a `TypeError` naming
+ * the type. The union stays because the AUTHORED vocabulary is still both: a JSON markup
+ * attribute parses to an array, a `Gtk.StringList` handed to `GjsifyOptionList` is a model,
+ * and both arrive here on their way to becoming descriptors. The arms are the two forms a
+ * caller can WRITE DOWN, not the two values a property will take.
  */
 export type AdwListModelInput = ReadonlyArray<AdwComboOptionInput> | AdwListModelSource;
 
@@ -172,27 +175,6 @@ export function parseListModel(raw: string | null | undefined): AdwComboOption[]
  * draw a placeholder has nothing to test.
  */
 export const ADW_COMBO_NO_SELECTION = -1;
-
-/**
- * Where a selection lands after the model under it was REPLACED.
- *
- * `GtkSingleSelection` autoselects, so a position the new model does not have falls back
- * to 0 — including the sentinel, which is how a widget recovers a selection when its model
- * grows. An EMPTY model has no 0 to fall back to and lands on
- * {@link ADW_COMBO_NO_SELECTION}.
- *
- * The test is membership and not `selected >= length`: the sentinel is BELOW the range, so
- * a one-sided comparison leaves a `-1` in place and a model that was emptied and refilled
- * comes back with nothing selected.
- *
- * Lifted out of `ComboState.setModel` so a second list widget cannot re-derive it. The
- * cross-renderer rule it encodes was already conformance data — `conformance/rows.ts`
- * carries it as "the ports' shared answer" — it just had no name of its own.
- */
-export function clampListSelection(selected: number, length: number): number {
-    if (Number.isFinite(selected) && selected >= 0 && selected < length) return selected;
-    return length === 0 ? ADW_COMBO_NO_SELECTION : 0;
-}
 
 /**
  * One positional change — `Gio.ListModel::items-changed`'s own three parameters.

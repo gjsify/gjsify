@@ -15,9 +15,8 @@
 //
 //   2. "Nothing is selected" is `ADW_COMBO_NO_SELECTION` (-1), the TS spelling of
 //      `GTK_INVALID_LIST_POSITION` (= G_MAXUINT), matching `ADW_SIDEBAR_NO_SELECTION`.
-//      Still ours: an index PAST the end is accepted rather than folded onto the
-//      sentinel — `setSelectedIndex` mirrors a guint property that takes any position,
-//      and `ComboState.hasIndex` is where each renderer states its own policy.
+//      The SIGN is the divergence and all of it: the position is otherwise GTK's, and an
+//      index the model does not have is refused on both sides (see below).
 //
 // `<adw-combo-row>` DRIVES this table too, and the day it started is the day its model
 // became input a consumer can replace: two of the four step ops had no DOM spelling there
@@ -26,12 +25,20 @@
 // publishes `options`/`items` and `selectedValue`, and inherits these rows, as this
 // paragraph said it would.
 //
-// The `an index past the end` row is where the two browser renderers part, which is the
-// reason it is worth having both of them on the table. `<gtk-drop-down>` is driven against
-// its OWN answer — the element REJECTS an out-of-range set, as its published `selected`
-// docs promise — while `<adw-combo-row>` runs the row as written, keeping the permissive
-// answer `setSelectedIndex` gives. The bounds predicate is shared, the policy is each
-// renderer's, and neither side can now change in silence.
+// THE `an index past the end` ROW USED TO BE WHERE THE TWO BROWSER RENDERERS PARTED, and
+// it no longer is. `refs/gtk` is empty, so what `gtk_single_selection_set_selected` does
+// with an out-of-range position was not readable in this tree and each renderer stated its
+// own answer — `<adw-combo-row>` kept it, `<gtk-drop-down>` rejected it. ADR 0122 measured
+// it instead (`combo-probe2.js`, GJS 1.88.01 / GTK 4.22.5 / libadwaita 1.9.4): BOTH widgets
+// ignore the write, silently, emitting nothing, and `GTK_INVALID_LIST_POSITION` on a
+// non-empty model is ignored the same way. `ComboState.setSelectedIndex` is now that
+// answer, the per-renderer carve-out is gone, and this row is shared like the rest.
+//
+// THE `notified` COLUMN is the `notify::` ORDER of ADR 0122 § 5 — measured, not derived,
+// and not the same on every path (a `model` write ends with `model` and notifies all three
+// even when nothing moved; an `items-changed` puts `selected-item` BEFORE `selected`,
+// the inverse of a `selected` write). A renderer that owns real GObject properties re-emits
+// it verbatim; a DOM renderer has no such properties and drives `emitted` only.
 //
 // What the C DOES settle, and what the rows are derived from:
 //   - the no-op guard: the setter returns before touching the selection when the position
@@ -45,15 +52,23 @@
 // Reference: refs/libadwaita/src/adw-combo-row.c
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import type { AdwComboOption, ComboStateChange } from '../rows.js';
+import type { AdwComboOption, ComboNotify, ComboStateChange } from '../rows.js';
 
 /**
  * One mutation in a combo scenario. DATA, not a closure: a renderer suite
  * replays these against a real widget (set the options, pick from the chooser)
  * and compares what the user would see.
+ *
+ * `setModel` carries the model's CONTENTS and not a model object, so the table stays
+ * portable: each renderer builds whatever model it holds — a `GjsifyOptionList` in the
+ * core and in both browser elements, the same on the NativeScript host — out of these
+ * descriptors. `setModelAgain` is the one step that is about the model's IDENTITY rather
+ * than its contents, and it is a step rather than a flag because that is the only way to
+ * spell "assign the object you are already holding" in data.
  */
 export type ComboSelectionStep =
     | { op: 'setModel'; model: ReadonlyArray<AdwComboOption> }
+    | { op: 'setModelAgain' }
     | { op: 'setSelectedIndex'; index: number }
     | { op: 'setSelectedValue'; value: string }
     | { op: 'select'; index: number };
@@ -64,7 +79,7 @@ export interface ComboSelectionVector {
     steps: readonly ComboSelectionStep[];
     /** `selectedIndex` afterwards. */
     selected: number;
-    /** `selectedValue` afterwards — `''` when the index sits outside the options. */
+    /** `selectedValue` afterwards — `''` when nothing is selected. */
     value: string;
     /** `selectedLabel` afterwards — the text the inline value / button shows. */
     label: string;
@@ -74,6 +89,12 @@ export interface ComboSelectionVector {
      * gated on `interactive`.
      */
     emitted: ReadonlyArray<ComboStateChange>;
+    /**
+     * Every `notify::` the scenario owes, flattened in EMISSION ORDER — see the module
+     * header. Driven by the surfaces that have real GObject properties; a DOM renderer
+     * skips it.
+     */
+    notified: ReadonlyArray<ComboNotify>;
     rule: string;
 }
 
@@ -81,6 +102,12 @@ const AB: ReadonlyArray<AdwComboOption> = [
     { label: 'One', value: 'a' },
     { label: 'Two', value: 'b' },
 ];
+
+/** The `notify::` a non-null `model` write owes — all three, measured, in this order. */
+const MODEL_NOTIFY: ReadonlyArray<ComboNotify> = ['selected', 'selected-item', 'model'];
+
+/** The `notify::` a `selected` write that MOVED owes. The inverse order of a splice. */
+const SELECTED_NOTIFY: ReadonlyArray<ComboNotify> = ['selected', 'selected-item'];
 
 /**
  * `adw_combo_row_set_selected` and the notify chain it
@@ -106,6 +133,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
             { selected: 0, value: 'a', label: 'One', interactive: false },
             { selected: 1, value: 'b', label: 'Two', interactive: false },
         ],
+        notified: [...MODEL_NOTIFY, ...SELECTED_NOTIFY],
         rule: 'a changed position reaches the selection, whose notify becomes `notify::selected` (:788 → :154)',
     },
     {
@@ -122,6 +150,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
             { selected: 0, value: 'a', label: 'One', interactive: false },
             { selected: 1, value: 'b', label: 'Two', interactive: false },
         ],
+        notified: [...MODEL_NOTIFY, ...SELECTED_NOTIFY],
         rule: 'the setter returns before touching the selection when the position holds (:785-786) — no notify',
     },
     {
@@ -137,6 +166,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
             { selected: 0, value: 'a', label: 'One', interactive: false },
             { selected: 1, value: 'b', label: 'Two', interactive: true },
         ],
+        notified: [...MODEL_NOTIFY, ...SELECTED_NOTIFY],
         rule: 'the popup routes its position through the SAME setter (:209); only the `interactive` tag differs, and that tag is ours',
     },
     {
@@ -149,6 +179,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
         value: 'a',
         label: 'One',
         emitted: [{ selected: 0, value: 'a', label: 'One', interactive: false }],
+        notified: MODEL_NOTIFY,
         rule: 'the same-position guard (:785-786) applies to the user path too — reopening and re-picking notifies nothing',
     },
     {
@@ -161,6 +192,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
         value: 'a',
         label: 'One',
         emitted: [{ selected: 0, value: 'a', label: 'One', interactive: false }],
+        notified: MODEL_NOTIFY,
         rule: "no C equivalent: a dismissed native sheet resolves to the cancel label, so the renderer looks up -1 — the guard is the substitution's",
     },
     {
@@ -176,6 +208,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
             { selected: 0, value: 'a', label: 'One', interactive: false },
             { selected: 1, value: 'b', label: 'Two', interactive: false },
         ],
+        notified: [...MODEL_NOTIFY, ...SELECTED_NOTIFY],
         rule: 'a value maps to the FIRST option carrying it; the port addition over the C, whose model is positional',
     },
     {
@@ -188,6 +221,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
         value: 'a',
         label: 'One',
         emitted: [{ selected: 0, value: 'a', label: 'One', interactive: false }],
+        notified: MODEL_NOTIFY,
         rule: 'an unknown value is a no-op, never a reset to 0 — a mistyped binding must not silently move the selection',
     },
     {
@@ -203,6 +237,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
             { selected: 0, value: 'a', label: 'First', interactive: false },
             { selected: 0, value: 'a', label: 'Renamed', interactive: false },
         ],
+        notified: [...MODEL_NOTIFY, ...MODEL_NOTIFY],
         rule: 'the index did not move but the ITEM did — `selection_item_changed` (:157-185) repaints off the item, not the position',
     },
     {
@@ -220,7 +255,39 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
             { selected: 1, value: 'b', label: 'Two', interactive: false },
             { selected: 0, value: 'a', label: 'Only', interactive: false },
         ],
-        rule: "a selection past the end of the new model falls back to 0 — GtkSingleSelection autoselects upstream, whose C is not vendored here, so this row is the ports' shared answer",
+        notified: [...MODEL_NOTIFY, ...SELECTED_NOTIFY, ...MODEL_NOTIFY],
+        rule: 'a selection the new model does not have cannot survive — and the row below says it would not have survived even if it did',
+    },
+    {
+        name: 'a new model with an equal shape',
+        steps: [
+            { op: 'setModel', model: AB },
+            { op: 'setSelectedIndex', index: 1 },
+            { op: 'setModel', model: AB },
+        ],
+        selected: 0,
+        value: 'a',
+        label: 'One',
+        emitted: [
+            { selected: 0, value: 'a', label: 'One', interactive: false },
+            { selected: 1, value: 'b', label: 'Two', interactive: false },
+            { selected: 0, value: 'a', label: 'One', interactive: false },
+        ],
+        notified: [...MODEL_NOTIFY, ...SELECTED_NOTIFY, ...MODEL_NOTIFY],
+        rule: 'a model write RESETS the selection to 0, it does not clamp it: index 1 exists in the new model and is given up anyway (measured — GtkSingleSelection autoselects over the model it was just handed, having no memory of the one before it)',
+    },
+    {
+        name: 'assigning the model already held',
+        steps: [{ op: 'setModel', model: AB }, { op: 'setSelectedIndex', index: 1 }, { op: 'setModelAgain' }],
+        selected: 1,
+        value: 'b',
+        label: 'Two',
+        emitted: [
+            { selected: 0, value: 'a', label: 'One', interactive: false },
+            { selected: 1, value: 'b', label: 'Two', interactive: false },
+        ],
+        notified: [...MODEL_NOTIFY, ...SELECTED_NOTIFY],
+        rule: 'the row above by identity rather than by contents — `model` holds an OBJECT now (ADR 0122 § 4), so assigning the one already held is the no-op `g_object_set` makes it, and the selection survives what an equal-but-distinct model resets',
     },
     {
         name: 'an index past the end',
@@ -228,14 +295,12 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
             { op: 'setModel', model: [{ label: 'Only', value: 'a' }] },
             { op: 'setSelectedIndex', index: 5 },
         ],
-        selected: 5,
-        value: '',
-        label: '',
-        emitted: [
-            { selected: 0, value: 'a', label: 'Only', interactive: false },
-            { selected: 5, value: '', label: '', interactive: false },
-        ],
-        rule: 'the index is NOT clamped (the C takes any guint); the empty value/label is how "nothing to draw" is expressed here',
+        selected: 0,
+        value: 'a',
+        label: 'Only',
+        emitted: [{ selected: 0, value: 'a', label: 'Only', interactive: false }],
+        notified: MODEL_NOTIFY,
+        rule: 'an index the model does not have is IGNORED — silently, with no notify and no error, on both widgets (measured; see the module header for the per-renderer answers this replaced)',
     },
     {
         name: 'an empty model',
@@ -244,7 +309,8 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
         value: '',
         label: '',
         emitted: [{ selected: -1, value: '', label: '', interactive: false }],
-        rule: 'GTK_INVALID_LIST_POSITION (:593-596, :809-810) — an empty model has no index 0 to autoselect',
+        notified: MODEL_NOTIFY,
+        rule: 'GTK_INVALID_LIST_POSITION (:593-596, :809-810) — an empty model has no index 0 to autoselect, and still notifies all three',
     },
     {
         name: 'picking from an empty model',
@@ -256,6 +322,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
         value: '',
         label: '',
         emitted: [{ selected: -1, value: '', label: '', interactive: false }],
+        notified: MODEL_NOTIFY,
         rule: 'there is no option 0 to pick — and the renderers never open a chooser over an empty model either',
     },
     {
@@ -273,7 +340,8 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
             { selected: 1, value: 'b', label: 'Two', interactive: false },
             { selected: -1, value: '', label: '', interactive: false },
         ],
-        rule: 'the selection does NOT survive as index 0 — there is nothing at 0 any more',
+        notified: [...MODEL_NOTIFY, ...SELECTED_NOTIFY, ...MODEL_NOTIFY],
+        rule: 'the selection does NOT survive as index 0 — there is nothing at 0 any more. An EMPTY model still notifies all three, because the write is what notifies and not the outcome; only `model = null` notifies `model` alone',
     },
     {
         name: 'a model that is emptied and refilled',
@@ -290,6 +358,7 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
             { selected: -1, value: '', label: '', interactive: false },
             { selected: 0, value: 'a', label: 'One', interactive: false },
         ],
+        notified: [...MODEL_NOTIFY, ...MODEL_NOTIFY, ...MODEL_NOTIFY],
         rule: 'autoselect runs again, so the sentinel recovers to 0 — it is BELOW the range, which a one-sided >= length check leaves in place',
     },
     {
@@ -299,7 +368,118 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
         value: 'blank',
         label: '',
         emitted: [{ selected: 0, value: 'blank', label: '', interactive: false }],
+        notified: MODEL_NOTIFY,
         rule: 'the case the sentinel exists to separate: an empty LABEL, not an empty model',
+    },
+];
+
+// --- Gio.ListModel::items-changed → the selection -----------
+
+/** One splice applied to the model a combo state is HOLDING. */
+export interface ComboSpliceStep {
+    position: number;
+    removed: number;
+    added: ReadonlyArray<AdwComboOption>;
+}
+
+/** One `items-changed` → selection scenario. */
+export interface ComboItemsChangedVector {
+    name: string;
+    /** The model the state holds before the splice. */
+    initial: ReadonlyArray<AdwComboOption>;
+    /** Where the selection sits before the splice — `-1` leaves the sentinel in place. */
+    selected: number;
+    splice: ComboSpliceStep;
+    /** `selectedIndex` after the splice. */
+    result: number;
+    /** `selectedValue` after the splice. */
+    value: string;
+    /** The `notify::` the splice owes, in order — EMPTY where GTK emits none. */
+    notified: ReadonlyArray<ComboNotify>;
+    rule: string;
+}
+
+const ABC: ReadonlyArray<AdwComboOption> = [
+    { label: 'One', value: 'a' },
+    { label: 'Two', value: 'b' },
+    { label: 'Three', value: 'c' },
+];
+
+/**
+ * What a splice on the HELD model does to the selection — `GtkSingleSelection`'s
+ * `items-changed` handler, which `Adw.ComboRow` and `Gtk.DropDown` both sit on.
+ *
+ * NEW IN ADR 0122, and only reachable since it: while `model` was an Array the only way to
+ * change the list was to replace it, so this whole axis had no spelling. A live
+ * `Gio.ListModel` moves under the widget, and WHERE it moved decides whether the selection
+ * follows the item, shifts with it, or is clamped because the item is gone.
+ *
+ * Every row is MEASURED (`combo-probe2.js`), and the `notified` column is the point of the
+ * table: the order here is the INVERSE of a `selected` write — `selected-item` first,
+ * because what changed is the item and the index is downstream of it. The shift row
+ * notifies `selected` ALONE for the mirror-image reason (the item did not change, only its
+ * position), and the replace-in-place row notifies `selected-item` alone.
+ */
+export const COMBO_ITEMS_CHANGED_VECTORS: ReadonlyArray<ComboItemsChangedVector> = [
+    {
+        name: 'a change entirely after the selection',
+        initial: ABC,
+        selected: 0,
+        splice: { position: 2, removed: 1, added: [{ label: 'Gamma', value: 'g' }] },
+        result: 0,
+        value: 'a',
+        notified: [],
+        rule: 'the selected item neither moved nor changed — GTK emits nothing, and a widget that re-emitted here would re-run every binding on every append',
+    },
+    {
+        name: 'a change entirely before the selection',
+        initial: ABC,
+        selected: 2,
+        splice: { position: 0, removed: 0, added: [{ label: 'Zero', value: 'z' }] },
+        result: 3,
+        value: 'c',
+        notified: ['selected'],
+        rule: 'the index shifts by `added - removed` so it keeps addressing the SAME item — `selected-item` is therefore silent, which is what distinguishes this from every other row',
+    },
+    {
+        name: 'the selected item is replaced in place',
+        initial: ABC,
+        selected: 1,
+        splice: { position: 1, removed: 1, added: [{ label: 'Beta', value: 'beta' }] },
+        result: 1,
+        value: 'beta',
+        notified: ['selected-item'],
+        rule: 'the mirror image: the position held and the item did not, so `selected-item` notifies alone — a widget keyed on `notify::selected` alone draws the old label here',
+    },
+    {
+        name: 'the selected item is removed',
+        initial: ABC,
+        selected: 2,
+        splice: { position: 2, removed: 1, added: [] },
+        result: 1,
+        value: 'b',
+        notified: ['selected-item', 'selected'],
+        rule: 'the selection clamps to `min(position, n_items - 1)`, and BOTH notify — `selected-item` first',
+    },
+    {
+        name: 'every item is removed',
+        initial: ABC,
+        selected: 0,
+        splice: { position: 0, removed: 3, added: [] },
+        result: -1,
+        value: '',
+        notified: ['selected-item', 'selected'],
+        rule: 'an emptied model has no position to clamp onto, so the clamp lands on the sentinel — same two notifies, same order',
+    },
+    {
+        name: 'the first item arrives in an empty model',
+        initial: [],
+        selected: -1,
+        splice: { position: 0, removed: 0, added: [{ label: 'One', value: 'a' }] },
+        result: 0,
+        value: 'a',
+        notified: ['selected-item', 'selected'],
+        rule: 'autoselect takes 0 the moment there is a 0 — the sentinel is a state a growing model recovers from, not one it stays in',
     },
 ];
 
