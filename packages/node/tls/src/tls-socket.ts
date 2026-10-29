@@ -48,6 +48,10 @@ export interface TlsConnectOptions extends SecureContextOptions {
      * yet) — the connection falls back to a full handshake.
      */
     session?: Buffer | Uint8Array;
+    /** Upgrade the given `socket` as the TLS server (STARTTLS on the accepting side). */
+    isServer?: boolean;
+    /** Server side: ask the client for a certificate. */
+    requestCert?: boolean;
 }
 
 /**
@@ -233,7 +237,9 @@ export class TLSSocket extends Socket {
 
         const begin = (): void => {
             void this._adoptConnection(providedSocket).then((adopted) => {
-                if (adopted) this._performHandshake(options);
+                if (!adopted) return;
+                if (options.isServer) this._performServerHandshake(options);
+                else this._performHandshake(options);
             });
         };
 
@@ -472,6 +478,98 @@ export class TLSSocket extends Socket {
                         return;
                     }
                     this._secureEstablished(tlsConn, verifyError ? _authorizationError(verifyError) : null);
+                },
+            );
+        } catch (err: unknown) {
+            fail(err);
+        }
+    }
+
+    /**
+     * @internal Server-side counterpart of {@link _performHandshake}: run
+     * the TLS handshake as the accepting end over the connection
+     * `_adoptConnection` took from the plain socket, i.e.
+     * `new tls.TLSSocket(socket, { isServer: true, key, cert })`.
+     * Emits 'secure' (Node's server-side event) instead of 'secureConnect'.
+     */
+    private _performServerHandshake(options: TlsConnectOptions): void {
+        const ctx = options.secureContext ?? createSecureContext(options);
+        this._secureContext = ctx;
+
+        const internals = this as unknown as SocketInternals;
+        const claimed = this._claimSocketStreams(internals);
+        if (!claimed) return;
+        const rawConnection = claimed.connection;
+        if (!rawConnection) {
+            this.destroy(new Error('No underlying connection for TLS upgrade'));
+            return;
+        }
+        this._handshakeClaim = claimed;
+        const fail = (err: unknown): void => {
+            this.destroy(err instanceof Error ? err : new Error(String(err)));
+        };
+        if (!ctx.certificate) {
+            fail(new Error('TLS server socket has no certificate configured'));
+            return;
+        }
+
+        try {
+            const tlsConn = Gio.TlsServerConnection.new(rawConnection as unknown as Gio.IOStream, ctx.certificate);
+            const requireClientCert = !!options.requestCert && options.rejectUnauthorized !== false;
+            tlsConn.authenticationMode = options.requestCert
+                ? requireClientCert
+                    ? Gio.TlsAuthenticationMode.REQUIRED
+                    : Gio.TlsAuthenticationMode.REQUESTED
+                : Gio.TlsAuthenticationMode.NONE;
+
+            tlsConn.connect('accept-certificate', (_conn: Gio.TlsConnection, peerCert: Gio.TlsCertificate): boolean => {
+                if (!requireClientCert) return true;
+                for (const ca of ctx.caCertificates) {
+                    try {
+                        if (peerCert.verify(null, ca) === Gio.TlsCertificateFlags.NO_FLAGS) return true;
+                    } catch {
+                        /* try next */
+                    }
+                }
+                return false;
+            });
+
+            if (options.ALPNProtocols && options.ALPNProtocols.length > 0) {
+                tlsConn.set_advertised_protocols(options.ALPNProtocols);
+            }
+
+            internals._pendingIo++;
+            tlsConn.handshake_async(
+                GLib.PRIORITY_DEFAULT,
+                internals._cancellable,
+                (_source: Gio.TlsConnection | null, asyncResult: Gio.AsyncResult) => {
+                    let handshakeError: unknown = null;
+                    try {
+                        tlsConn.handshake_finish(asyncResult);
+                    } catch (err: unknown) {
+                        handshakeError = err;
+                    }
+                    if (this.destroyed) {
+                        internals._ioSettled();
+                        return;
+                    }
+                    this._handshakeClaim = null;
+                    internals._ioSettled();
+                    if (handshakeError) {
+                        this.authorized = false;
+                        this.authorizationError = _authorizationError(handshakeError);
+                        internals._connection = tlsConn as unknown as Gio.SocketConnection;
+                        internals._ioStream = tlsConn as unknown as Gio.IOStream;
+                        fail(handshakeError);
+                        return;
+                    }
+                    this.authorized = true;
+                    this._setupTlsStreams(tlsConn);
+                    this.alpnProtocol = this.getAlpnProtocol();
+                    internals._reading = false;
+                    internals._startReading();
+                    this.emit('secure');
+                    this._flushAfterSecure();
                 },
             );
         } catch (err: unknown) {
