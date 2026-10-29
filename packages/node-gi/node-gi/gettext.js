@@ -25,6 +25,14 @@
 import * as native from './index.js';
 import { ensureNative } from './index.js';
 import { requireGi } from './gi.js';
+import { refreshLocale } from '#host';
+
+/**
+ * Re-derive the process's message languages from the platform. A no-op off Android; on
+ * Android call it after the user switches the app locale (LANGUAGE is re-read per lookup).
+ * @returns {string | null}
+ */
+export { refreshLocale };
 
 // GLib is resolved on first lookup, not at import: loading a namespace walks the
 // typelib, and a module imported for its LocaleCategory alone should not pay for
