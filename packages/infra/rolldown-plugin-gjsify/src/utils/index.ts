@@ -10,3 +10,9 @@ export { GJSIFY_VIRTUAL_PREFIX, isGjsifyVirtualModuleId } from './virtual-module
 export { locateSurvivingJsx, classifyJsxParseFailure, formatSurvivingJsx } from './jsx-survival.js';
 export type { SurvivingJsx } from './jsx-survival.js';
 export { wrapInputWithSideEffects } from './entry-wrapper.js';
+export { staticStringValue, walkModuleAst, importedSpecifier, moduleSpecifiers } from './module-ast.js';
+export type { SpecifierNode, AstNode } from './module-ast.js';
+export { scanGiNamespaces, scanGiRequirements, giSpecifierKey } from './gi-namespaces.js';
+export type { GiRequirements } from './gi-namespaces.js';
+export { planGiSelection, assertGiNamespaceEntries } from './gi-selection.js';
+export type { GiSelection } from './gi-selection.js';

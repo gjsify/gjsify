@@ -57,6 +57,7 @@ import {
     gschemaPlugin,
     GSCHEMA_REGISTER,
     nativescriptLocalePlugin,
+    nativescriptGiSelectionPlugin,
     type NativescriptLocaleOptions,
 } from '@gjsify/rolldown-plugin-gjsify';
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
@@ -267,6 +268,16 @@ export interface GjsifyNativescriptOptions {
      * of `gjsify build --app nativescript`'s `nativescriptLocale`. Needs `msgfmt` on PATH.
      */
     locale?: NativescriptLocaleOptions;
+    /**
+     * The GI namespaces this app's APK carries beyond the core set the runtime already
+     * holds (`GLib`, `GObject`, `Gio`, …) — `Ns` or `Ns-Version`, e.g. `['Soup-3.0']`.
+     * The Vite mirror of `gjsify build --app nativescript`'s `nativescript.giNamespaces`
+     * (ADR 0117 § 2): the declaration DECIDES what the AAR is built with, and this build
+     * refuses to emit a bundle that imports a namespace the declaration omits — because
+     * an APK carries its whole GI stack or does without it, and the missing typelib
+     * would surface as a throw on the device.
+     */
+    giNamespaces?: string[];
 }
 
 /**
@@ -589,6 +600,11 @@ export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plu
         // `import './x.gschema.xml?schema'` registers the schema (ADR 0099 § 1), as `--app nativescript`.
         gschemaPlugin({ mode: 'emit', register: GSCHEMA_REGISTER.nativescript }) as unknown as Plugin,
         ...(options.locale ? [nativescriptLocalePlugin(options.locale) as unknown as Plugin] : []),
+        // ADR 0117 § 2's gate, on this path too: the NS CLI drives Vite, so without this
+        // `giNamespaces` is a key the config loader accepts and nothing acts on.
+        ...(options.giNamespaces
+            ? [nativescriptGiSelectionPlugin({ declared: options.giNamespaces }) as unknown as Plugin]
+            : []),
         deepkitPlugin({ reflection: options.reflection }) as unknown as Plugin,
         configPlugin,
     ];

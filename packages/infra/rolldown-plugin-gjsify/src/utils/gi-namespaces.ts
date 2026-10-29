@@ -46,15 +46,9 @@
 // `Depends:` — the failure this whole chain exists to prevent, reached from the other
 // direction.
 
-import { GI_OPTIONAL_MARKER } from '@gjsify/rolldown-plugin-gjsify';
+import { GI_OPTIONAL_MARKER } from '../plugins/gi-optional.js';
 
-import {
-    importedSpecifier,
-    staticStringValue,
-    walkModuleAst,
-    type AstNode,
-    type SpecifierNode,
-} from '../cli-runtime-closure.js';
+import { importedSpecifier, staticStringValue, walkModuleAst, type AstNode, type SpecifierNode } from './module-ast.js';
 
 /** The module a `--app node` bundle reaches GI through. */
 const NODE_GI_MODULE = '@gjsify/node-gi/gi';
@@ -110,7 +104,7 @@ export function scanGiRequirements(source: string): GiRequirements {
     walkModuleAst(source, (node) => {
         const specifier = importedSpecifier(node);
         if (specifier !== null) {
-            const key = parseGiSpecifier(specifier);
+            const key = giSpecifierKey(specifier);
             if (key !== null) found.add(key);
             if (node.type === 'ImportDeclaration' && specifier === NODE_GI_MODULE) {
                 collectNodeGiBindings(node, callable, objects);
@@ -180,7 +174,7 @@ function optionalMarkerNamespace(call: AstNode): string | null {
 }
 
 /** `gi://Gtk?version=4.0` → `Gtk-4.0`; `gi://Gtk` → `Gtk`; anything else → null. */
-export function parseGiSpecifier(specifier: string): string | null {
+export function giSpecifierKey(specifier: string): string | null {
     if (!specifier.startsWith('gi://')) return null;
     const rest = specifier.slice('gi://'.length);
     const [namespace, query] = rest.split('?', 2);

@@ -46,7 +46,7 @@
 // which it works. A warning at the end of a `ship` run competes with the
 // artifact path printed beside it, and the artifact is what gets uploaded.
 
-import { importedSpecifier, walkModuleAst } from '../cli-runtime-closure.js';
+import { importedSpecifier, walkModuleAst } from '@gjsify/rolldown-plugin-gjsify';
 import type { HostOs } from './types.js';
 
 /** What a shipped artifact's `bin/<name>` can exec. */

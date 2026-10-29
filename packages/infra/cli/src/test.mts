@@ -33,7 +33,6 @@ import hangWatchdogSuite from './utils/hang-watchdog.spec.js';
 import shipMimeSuite from './utils/ship/mime.spec.js';
 import shipLicenseSuite from './utils/ship/discover-license.spec.js';
 import shipDependsSuite from './utils/ship/depends.spec.js';
-import shipGiSelectionSuite from './utils/ship/gi-selection.spec.js';
 import shipNodeRuntimeSuite from './utils/ship/node-runtime.spec.js';
 import shipAppRuntimeSuite from './utils/ship/app-runtime.spec.js';
 import shipNodeModulesSuite from './utils/ship/node-modules.spec.js';
@@ -310,7 +309,6 @@ run(
         shipMimeSuite,
         shipLicenseSuite,
         shipDependsSuite,
-        shipGiSelectionSuite,
         shipNodeRuntimeSuite,
         shipAppRuntimeSuite,
         shipNodeModulesSuite,
