@@ -13,8 +13,8 @@
         "prebuilds"
     ],
     "gjsify": {
-        "platformsUncommitted": {
-            "linux-x64": "prebuilds.yml builds it in the Fedora container and its `commit-prebuilds` job commits it back; a developer host would bake that host's glibc floor into the artifact instead of the CI baseline"
+        "glibcRequires": {
+            "linux-x64": "2.28"
         },
         "platforms": [
             "linux-x64"

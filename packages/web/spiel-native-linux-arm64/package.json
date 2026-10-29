@@ -9,12 +9,15 @@
     "cpu": [
         "arm64"
     ],
+    "libc": [
+        "glibc"
+    ],
     "files": [
         "prebuilds"
     ],
     "gjsify": {
-        "platformsUncommitted": {
-            "linux-arm64": "prebuilds.yml builds it in the Fedora aarch64 container and its `commit-prebuilds` job commits it back; the workstation cannot cross-build it"
+        "glibcRequires": {
+            "linux-arm64": "2.28"
         },
         "platforms": [
             "linux-arm64"

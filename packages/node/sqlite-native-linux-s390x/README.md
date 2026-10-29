@@ -1,14 +1,5 @@
 # @gjsify/sqlite-native-linux-s390x
 
-> **No artifact in this tarball yet.** `linux-s390x` is declared by
-> `@gjsify/sqlite-native` and built by CI, but not committed to the repository:
-> the bridge is new and no prebuild exists yet; prebuilds.yml builds it under QEMU emulation and `commit-prebuilds` commits it back, which retires this entry on that same run
->
-> The package exists so the artifact has somewhere to land — and so its npm name
-> is claimed before the release that first ships it. Until then installing it is
-> harmless and does nothing: `@gjsify/sqlite-native` finds no typelib and takes its
-> no-native path, exactly as if this package were absent.
-
 
 The **linux-s390x** native artifacts of [`@gjsify/sqlite-native`](https://www.npmjs.com/package/@gjsify/sqlite-native) — a shared
 library plus its GObject-Introspection typelib, and nothing else. There is no
