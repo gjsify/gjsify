@@ -15,7 +15,10 @@ interface IosViewLike {
     resignFirstResponder?(): boolean;
 }
 
-export const canFinishWindow = false;
+// A function, not a constant: see `window-source.ts`.
+export function canFinishWindow(): boolean {
+    return false;
+}
 
 export function finishWindow(): void {
     throw new Error('iOS has no public API for an app to close its own window');

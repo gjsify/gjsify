@@ -136,8 +136,16 @@ const door: GObjectDoor = {
     },
 
     listen(target, event, handler) {
+        // A payload carrying an `accumulator` is a signal with a handled-accumulator (`close-request`):
+        // each return value is folded in, and handlers after the one that took it over do not run.
         const listener = (data: Payload): void => {
-            handler(target, data);
+            const accumulator = data.accumulator as { stopped: boolean; collect(returned: unknown): void } | undefined;
+            if (accumulator === undefined) {
+                handler(target, data);
+                return;
+            }
+            if (accumulator.stopped) return;
+            accumulator.collect(handler(target, data));
         };
         // A registered class's `connect` reaches `map` / `unmap` here, not through `withSignals`.
         const unwatch = WIDGET_SIGNALS.includes(event) ? watchMapping(target) : undefined;

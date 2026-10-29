@@ -19,7 +19,10 @@ interface AndroidViewLike {
     clearFocus?(): void;
 }
 
-export const canFinishWindow = true;
+// A function, not a constant: see `window-source.ts`.
+export function canFinishWindow(): boolean {
+    return true;
+}
 
 /** `AndroidApplication.activityBackPressedEvent`. */
 const ACTIVITY_BACK_PRESSED = 'activityBackPressed';

@@ -7,6 +7,7 @@ import {
     type GObjectConstructor,
     type GObjectInstance,
     type GObjectNamespace,
+    HandledAccumulator,
 } from '@gjsify/adwaita-core';
 import { driveGObjectVectors, type SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 import { describe, expect, it } from '@gjsify/unit';
@@ -140,6 +141,29 @@ export const AdwGObjectDoorNsTest = async () => {
             const widget = new GoNsDisplay() as unknown as { get_display(): unknown; get_clipboard(): unknown };
             expect(widget.get_display()).toBe(Gdk.Display.get_default());
             expect(widget.get_clipboard()).toBe(Gdk.Display.get_default().get_clipboard());
+        });
+
+        await it("folds a registered window's close-request handler into the accumulator", () => {
+            class GoNsCloseable extends Adw.Window {}
+            GObject.registerClass({ GTypeName: 'GoNsCloseable' }, GoNsCloseable);
+            const window = new GoNsCloseable();
+            const ran: string[] = [];
+            window.connect('close-request', () => {
+                ran.push('first');
+                return true;
+            });
+            window.connect('close-request', () => {
+                ran.push('second');
+                return false;
+            });
+            const accumulator = new HandledAccumulator();
+            (window as unknown as { notify(data: object): void }).notify({
+                eventName: 'close-request',
+                object: window,
+                accumulator,
+            });
+            expect(accumulator.stopped).toBe(true);
+            expect(ran.join()).toBe('first');
         });
 
         await it('refuses a bind flag and `template` as a source when no template instance is present', () => {

@@ -27,7 +27,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -178,6 +178,55 @@ describe('gjsify build --app nativescript over packages/nativescript-bridge/*', 
     // it carries.
     it('finds the bridge packages to build', () => {
         assert.ok(bridgePackages.length > 0, `no packages with a package.json under ${BRIDGE_DIR}`);
+    });
+
+    // A platform fork inside a dependency's lib is only reached if nothing upstream already
+    // folded the BASE file's value into its importer. `canFinish` was a `const` the `--library`
+    // build inlined into `window-host.js` as `false`, so an Android app resolved
+    // `window-source.android.js` for every call EXCEPT the one that decides whether
+    // `Gtk.Window.close()` throws. Evaluated, not grepped: the answer is a runtime value.
+    it('keeps the .android window fork reachable through @gjsify/adwaita-nativescript lib/', () => {
+        const adwaita = join(BRIDGE_DIR, 'adwaita');
+        const host = join(adwaita, 'lib', 'esm', 'window-host.js');
+        assert.ok(existsSync(host), `${host} missing — the e2e job needs a built tree`);
+
+        const entry = join(tmpDir, 'window-fork-entry.mjs');
+        writeFileSync(
+            entry,
+            `import { nativeWindowHost } from ${JSON.stringify(host)};\nconsole.log('CAN_FINISH=' + nativeWindowHost.canFinish);\n`,
+        );
+        const stub = join(adwaita, 'src', 'testing', 'ns-core.mts');
+
+        for (const [platform, expected] of [
+            ['android', 'CAN_FINISH=true'],
+            ['ios', 'CAN_FINISH=false'],
+        ]) {
+            const outFile = join(tmpDir, `window-fork.${platform}.mjs`);
+            const build = spawnSync(
+                process.execPath,
+                [
+                    CLI_ENTRY,
+                    'build',
+                    entry,
+                    '--app',
+                    'nativescript',
+                    '--alias',
+                    `@nativescript/core=${stub}`,
+                    '--outfile',
+                    outFile,
+                ],
+                {
+                    cwd: MONOREPO_ROOT,
+                    encoding: 'utf-8',
+                    timeout: 5 * 60 * 1000,
+                    env: { ...process.env, NATIVESCRIPT_PLATFORM: platform },
+                },
+            );
+            assert.equal(build.status, 0, `${platform} build failed\n${build.stdout}\n${build.stderr}`);
+            const run = spawnSync(process.execPath, [outFile], { encoding: 'utf-8', timeout: 60 * 1000 });
+            assert.equal(run.status, 0, `${platform} bundle did not run\n${run.stderr}`);
+            assert.ok(run.stdout.includes(expected), `${platform}: expected ${expected}, got ${run.stdout.trim()}`);
+        }
     });
 
     for (const pkg of bridgePackages) {
