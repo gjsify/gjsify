@@ -575,6 +575,41 @@ async function derivedVectors(leg: string, engineSetup: () => void): Promise<voi
     });
 }
 
+/**
+ * A property whose C setter is more than a store, which is the pair of hooks the pure leg has to
+ * itself. `icon` collapses `''` onto `null` the way `GtkImage` does, so its guard CANNOT be
+ * identity — C compares the written value against the getter readback, and a readback that can
+ * never equal `''` is a guard that can never fire. Setting it also clears `text`, and the own
+ * property notifies FIRST (`Adw.SplitButton`, measured on GJS 1.88.1).
+ *
+ * Pure leg only, deliberately: on route D the C setter is there, and a second pass over the
+ * sibling would write a `null` that C answers with a CRITICAL.
+ */
+const SETTER: DeclaredClassMeta = {
+    GTypeName: 'SpecSetter',
+    Properties: {
+        text: { kind: 'string', default: null },
+        icon: {
+            kind: 'string',
+            default: null,
+            normalize: (value) => (value === '' ? null : value),
+            changed: (next, held, written) => next !== held || written === '',
+            afterNotify: (self) => {
+                const widget = self as { text: string | null };
+                if (widget.text !== null) widget.text = null;
+            },
+        },
+    },
+};
+
+function setterClass() {
+    return class SpecSetter extends withSignals(Base, SETTER) {
+        declare text: string | null;
+        declare icon: string | null;
+        declare notify: GObjectNotify;
+    };
+}
+
 export default async () => {
     await describe('withSignals(Base, meta) — the pure-JS leg', async () => {
         await it('answers a declared property in all three spellings, at its default', () => {
@@ -783,6 +818,55 @@ export default async () => {
             // ADR 0105's rule where it bites: a widget that asked for a real GObject and got a JS
             // store would be a wrong answer nothing downstream could see.
             expect(() => new (declaredClass())()).toThrow();
+        });
+    });
+
+    await describe('withSignals(Base, meta) — a property whose setter is more than a store', async () => {
+        const widget = (): InstanceType<ReturnType<typeof setterClass>> => {
+            resetRegisteredEngine();
+            return new (setterClass())();
+        };
+
+        await it('guards on the readback: the write that collapses notifies every time', () => {
+            const self = widget();
+            const seen: Array<string | null> = [];
+            self.connect('notify::icon', (it) => seen.push(it.icon));
+            self.icon = '';
+            self.icon = '';
+            expect(seen).toStrictEqual([null, null]);
+            expect(self.icon).toBe(null);
+        });
+
+        await it('leaves a value storage does NOT collapse to the identity guard', () => {
+            const self = widget();
+            const seen: Array<string | null> = [];
+            self.connect('notify::icon', (it) => seen.push(it.icon));
+            self.icon = 'folder';
+            self.icon = 'folder';
+            expect(seen).toStrictEqual(['folder']);
+        });
+
+        await it('runs the rest of the setter AFTER its own notify', () => {
+            const self = widget();
+            const seen: string[] = [];
+            self.connect('notify::icon', () => seen.push('icon'));
+            self.connect('notify::text', () => seen.push('text'));
+            self.text = 'Open';
+            seen.length = 0;
+            self.icon = 'folder';
+            expect(seen).toStrictEqual(['icon', 'text']);
+            expect(self.text).toBe(null);
+        });
+
+        await it('does not run it for the write the guard dropped', () => {
+            const self = widget();
+            self.icon = 'folder';
+            self.text = 'Open';
+            const seen: string[] = [];
+            self.connect('notify::text', () => seen.push('text'));
+            self.icon = 'folder';
+            expect(seen).toStrictEqual([]);
+            expect(self.text).toBe('Open');
         });
     });
 
