@@ -275,3 +275,29 @@ test('refreshLocale reaches android.system.Os by reflection when the bundle neve
     assert.equal(out.set.LANGUAGE, 'de_DE:de:C');
     assert.deepEqual(out.set.__call, ['android.system.Os', 'setenv', 3]);
 });
+
+test('followSystemLocale registers one ComponentCallbacks2 and only once', () => {
+    const out = probe(
+        ['--conditions=nativescript'],
+        `import * as h from '#host';
+         const registered = [];
+         globalThis.com = { tns: { NativeScriptApplication: { getInstance: () => ({ registerComponentCallbacks: (cb) => registered.push(cb) }) } } };
+         globalThis.android = { content: { ComponentCallbacks2: function (impl) { return impl; } } };
+         const first = h.followSystemLocale();
+         const second = h.followSystemLocale();
+         console.log(JSON.stringify({ first, second, n: registered.length, hasConfig: typeof registered[0]?.onConfigurationChanged }))`,
+    );
+    assert.equal(out.first, true);
+    assert.equal(out.second, true);
+    assert.equal(out.n, 1);
+    assert.equal(out.hasConfig, 'function');
+});
+
+test('followSystemLocale is false, not a throw, without the Android classes', () => {
+    const out = probe(
+        ['--conditions=nativescript'],
+        `import * as h from '#host';
+         console.log(JSON.stringify({ r: h.followSystemLocale() }))`,
+    );
+    assert.equal(out.r, false);
+});

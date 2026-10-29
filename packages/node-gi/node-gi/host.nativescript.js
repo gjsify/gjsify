@@ -207,6 +207,37 @@ export function refreshLocale() {
     return value;
 }
 
+let followingSystemLocale = false;
+
+/**
+ * Re-run `refreshLocale()` whenever the system configuration changes — a language switch is
+ * one. The Application-level ComponentCallbacks2 fires whether or not the activity declares
+ * `locale` in `configChanges`. Registered once, from the host that owns the LANGUAGE bridge,
+ * so no consumer has to know the variable exists.
+ * @returns {boolean} whether a callback is registered
+ */
+export function followSystemLocale() {
+    if (followingSystemLocale) return true;
+    try {
+        const app = globalThis.com?.tns?.NativeScriptApplication?.getInstance();
+        const ComponentCallbacks2 = globalThis.android?.content?.ComponentCallbacks2;
+        if (!app || !ComponentCallbacks2) return false;
+        app.registerComponentCallbacks(
+            new ComponentCallbacks2({
+                onConfigurationChanged: () => {
+                    refreshLocale();
+                },
+                onLowMemory: () => {},
+                onTrimMemory: () => {},
+            }),
+        );
+        followingSystemLocale = true;
+    } catch {
+        // A callback missing only costs the live switch; the locale at start is still set.
+    }
+    return followingSystemLocale;
+}
+
 function appDirectory() {
     const set = globalThis.__NODE_GI_APP_DIR;
     if (typeof set === 'string' && set !== '') return set;
@@ -252,6 +283,7 @@ function ensureJavaVm(native) {
 
 function configureEnvironment() {
     refreshLocale();
+    followSystemLocale();
     const systemDir = globalThis.__NODE_GI_SYSTEM_DIR;
     if (typeof systemDir === 'string' && systemDir !== '') {
         setNativeEnv('XDG_DATA_DIRS', `${systemDir}/share`);

@@ -8,24 +8,21 @@
 // `setlocale`. So: bind the extracted directory, and re-derive `LANGUAGE` when the user switches
 // the system language — nothing about the lookup itself is cached.
 //
-// Measured on a Galaxy S9 (de-DE → en-US → de-DE), see the PR description.
+// `gettext` is the GJS built-in's name, exactly as in `locale.ts`: `--app nativescript` aliases it
+// to `@gjsify/node-gi/gettext`, so this package carries no dependency on the experimental bridge
+// (ADR 0005 — the build injection is the sanctioned seam). The `LANGUAGE` bridge, including
+// following a system language switch, lives in node-gi's NativeScript host.
 
-import Gettext, { refreshLocale } from '@gjsify/node-gi/gettext';
+import Gettext from 'gettext';
 
 import type { InitLocaleOptions, Translator } from './locale.js';
 
 // The runtime class hands out the Application without `@nativescript/core` — the same route
 // node-gi's host takes to find the app dir, so this file adds no dependency on the core package.
 declare const com: { tns?: { NativeScriptApplication?: { getInstance(): AndroidApplication | null } } } | undefined;
-declare const android:
-    | {
-          content?: { ComponentCallbacks2?: new (impl: object) => unknown };
-      }
-    | undefined;
 
 interface AndroidApplication {
     getFilesDir(): { getPath(): string } | null;
-    registerComponentCallbacks(callbacks: unknown): void;
 }
 
 function application(): AndroidApplication | null {
@@ -38,39 +35,14 @@ export function localeDir(): string | undefined {
     return filesDir === undefined ? undefined : `${filesDir}/app/locale`;
 }
 
-let watching = false;
-
-/**
- * Call `refreshLocale()` when the system configuration changes — a language switch is one. The
- * Application-level callback fires whether or not the activity handles `locale` itself.
- */
-function followSystemLocale(): void {
-    if (watching) return;
-    const app = application();
-    const ComponentCallbacks2 = android?.content?.ComponentCallbacks2;
-    if (!app || !ComponentCallbacks2) return;
-    app.registerComponentCallbacks(
-        new ComponentCallbacks2({
-            onConfigurationChanged: () => {
-                refreshLocale();
-            },
-            onLowMemory: () => {},
-            onTrimMemory: () => {},
-        }),
-    );
-    watching = true;
-}
-
 export type { InitLocaleOptions, Translator };
 
 export function initLocale(domain: string, options: InitLocaleOptions = {}): Translator {
     const dir = options.localeDir ?? localeDir();
-    refreshLocale();
     // Bound only when a directory exists, as on GNOME: an unbound domain answers every lookup
     // with its msgid, and `Translator.localeDir` says `undefined` instead of naming a path.
     if (dir !== undefined) Gettext.bindtextdomain(domain, dir);
     Gettext.textdomain(domain);
-    followSystemLocale();
 
     return Object.assign((msgid: string): string => Gettext.dgettext(domain, msgid), {
         plural: (singular: string, plural: string, n: number): string => Gettext.dngettext(domain, singular, plural, n),

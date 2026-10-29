@@ -64,7 +64,6 @@
         "@girs/gtk-4.0": "5.4.0",
         "@gjsify/adwaita-core": "workspace:^",
         "@gjsify/devtools": "workspace:^",
-        "@gjsify/node-gi": "workspace:^",
         "@gjsify/utils": "workspace:^"
     },
     "devDependencies": {
@@ -79,7 +78,15 @@
             "gjs": "polyfill",
             "node": "none",
             "browser": "none",
-            "nativescript": "partial"
+            "nativescript": "none"
+        },
+        "runtimeSubpaths": {
+            "./locale": {
+                "gjs": "polyfill",
+                "node": "none",
+                "browser": "none",
+                "nativescript": "partial"
+            }
         },
         "tier": 2,
         "os": {
