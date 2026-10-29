@@ -32,12 +32,19 @@ const ABSENT = 'GjsifyNoSuchNamespace';
 // contract a no-host fixture cannot see.
 const PRESENT = 'GLib';
 
-// The readers under test, IMPORTED from the CLI that writes them rather than
+// The readers under test, IMPORTED from where they are written rather than
 // restated. `scanGiRequirements` decides hard-vs-optional for a real artifact and
 // `deriveDepends` decides what a `.deb` names — a copy of either here would keep
 // agreeing with itself after it changed.
+//
+// The scanner lives in `@gjsify/rolldown-plugin-gjsify`, not in the CLI: the Vite
+// path needs the same reader and `@gjsify/cli` declares `exports: {}`
+// (ADR 0117 § stage 1b). `deriveDepends` is still the CLI's, because only `ship`
+// turns a scan into package metadata.
 const { scanGiRequirements } = await import(
-    pathToFileURL(join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'utils', 'ship', 'gi-namespaces.js')).href
+    pathToFileURL(
+        join(MONOREPO_ROOT, 'packages', 'infra', 'rolldown-plugin-gjsify', 'lib', 'utils', 'gi-namespaces.js'),
+    ).href
 );
 const { deriveDepends } = await import(
     pathToFileURL(join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'utils', 'ship', 'depends.js')).href
