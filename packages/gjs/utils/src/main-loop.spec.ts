@@ -6,7 +6,8 @@
 // release-quit discards it (a later `ensureMainLoop()` answers a NEW loop).
 // On Node the pair is a no-op, and the no-observability of a no-op has no
 // test worth its place here. The parked-entry behavior these releases price
-// is asserted where it actually runs: `tests/e2e/worker-keepalive/`.
+// is asserted where it actually runs: `tests/e2e/worker-keepalive/` and,
+// for counted requests, `tests/e2e/child-then-fs/`.
 // This package runs `test:gjs` only — keep this spec within that budget.
 
 import { describe, expect, it, on } from '@gjsify/unit';
@@ -15,7 +16,9 @@ import {
     ensureMainLoop,
     quitMainLoop,
     releaseMainLoop,
+    trackRequest,
     trackTimer,
+    untrackRequest,
     untrackTimer,
 } from './main-loop.js';
 
@@ -68,6 +71,20 @@ export default async () => {
                 expect(ensureMainLoop()).toBe(ensured);
 
                 untrackTimer(); // past zero — must not throw
+                quitMainLoop();
+            });
+
+            await it('should count requests the same way, in the shared count', async () => {
+                quitMainLoop();
+
+                trackRequest(); // an fs request alone must not park anything either
+                trackTimer();
+                const ensured = ensureMainLoop();
+                untrackRequest();
+                untrackTimer(); // the count is shared: this reaches zero, still not the owner
+                expect(ensureMainLoop()).toBe(ensured);
+
+                untrackRequest(); // past zero — must not throw
                 quitMainLoop();
             });
         });

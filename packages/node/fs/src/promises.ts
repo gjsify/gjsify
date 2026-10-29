@@ -58,6 +58,7 @@ import type {
     MakeDirectoryOptions,
     RmDirOptions,
 } from 'node:fs';
+import { request } from './request.js';
 
 /**
  * Asynchronously creates a directory.
@@ -125,13 +126,16 @@ async function readFile(path: PathLike | FileHandle, options: ReadOptions = { en
     let data: Uint8Array;
     try {
         [ok, data] = await new Promise<[boolean, Uint8Array, string]>((resolve, reject) => {
-            file.load_contents_async(null, (self, res) => {
-                try {
-                    resolve(file.load_contents_finish(res));
-                } catch (error) {
-                    reject(error);
-                }
-            });
+            file.load_contents_async(
+                null,
+                request((self, res) => {
+                    try {
+                        resolve(file.load_contents_finish(res));
+                    } catch (error) {
+                        reject(error);
+                    }
+                }),
+            );
         });
     } catch (error) {
         throw createNodeError(error, 'open', pathStr);
@@ -240,13 +244,13 @@ async function rmdir(path: PathLike, _options?: RmDirOptions): Promise<void> {
             Gio.FileQueryInfoFlags.NONE,
             GLib.PRIORITY_DEFAULT,
             null,
-            (_s: unknown, res: Gio.AsyncResult) => {
+            request((_s: unknown, res: Gio.AsyncResult) => {
                 try {
                     resolve(file.query_info_finish(res));
                 } catch (err: unknown) {
                     reject(createNodeError(err, 'rmdir', pathStr));
                 }
-            },
+            }),
         );
     });
     if (info.get_file_type() !== Gio.FileType.DIRECTORY) {
@@ -260,13 +264,13 @@ async function rmdir(path: PathLike, _options?: RmDirOptions): Promise<void> {
             Gio.FileQueryInfoFlags.NONE,
             GLib.PRIORITY_DEFAULT,
             null,
-            (_s: unknown, res: Gio.AsyncResult) => {
+            request((_s: unknown, res: Gio.AsyncResult) => {
                 try {
                     resolve(file.enumerate_children_finish(res));
                 } catch (err: unknown) {
                     reject(createNodeError(err, 'rmdir', pathStr));
                 }
-            },
+            }),
         );
     });
     const firstChild = children.next_file(null);
@@ -276,14 +280,18 @@ async function rmdir(path: PathLike, _options?: RmDirOptions): Promise<void> {
     }
     // Delete the empty directory
     await new Promise<void>((resolve, reject) => {
-        file.delete_async(GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
-            try {
-                file.delete_finish(res);
-                resolve();
-            } catch (err: unknown) {
-                reject(createNodeError(err, 'rmdir', pathStr));
-            }
-        });
+        file.delete_async(
+            GLib.PRIORITY_DEFAULT,
+            null,
+            request((_s: unknown, res: Gio.AsyncResult) => {
+                try {
+                    file.delete_finish(res);
+                    resolve();
+                } catch (err: unknown) {
+                    reject(createNodeError(err, 'rmdir', pathStr));
+                }
+            }),
+        );
     });
 }
 
@@ -291,14 +299,18 @@ async function unlink(path: PathLike): Promise<void> {
     const pathStr = normalizePath(path);
     const file = Gio.File.new_for_path(pathStr);
     await new Promise<void>((resolve, reject) => {
-        file.delete_async(GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
-            try {
-                file.delete_finish(res);
-                resolve();
-            } catch (err: unknown) {
-                reject(createNodeError(err, 'unlink', pathStr));
-            }
-        });
+        file.delete_async(
+            GLib.PRIORITY_DEFAULT,
+            null,
+            request((_s: unknown, res: Gio.AsyncResult) => {
+                try {
+                    file.delete_finish(res);
+                    resolve();
+                } catch (err: unknown) {
+                    reject(createNodeError(err, 'unlink', pathStr));
+                }
+            }),
+        );
     });
 }
 
@@ -393,14 +405,14 @@ function queryInfoAsync(
             flags,
             GLib.PRIORITY_DEFAULT,
             null,
-            (_s: unknown, res: Gio.AsyncResult) => {
+            request((_s: unknown, res: Gio.AsyncResult) => {
                 try {
                     const info = file.query_info_finish(res);
                     resolve(statsFrom(info, pathStr, syscall, options?.bigint));
                 } catch (err: unknown) {
                     reject(createNodeError(err, syscall, pathStr));
                 }
-            },
+            }),
         );
     });
 }
@@ -435,14 +447,19 @@ async function symlink(target: PathLike, path: PathLike, _type?: string): Promis
     const targetStr = normalizePath(target);
     return new Promise((resolve, reject) => {
         const file = Gio.File.new_for_path(pathStr);
-        file.make_symbolic_link_async(targetStr, GLib.PRIORITY_DEFAULT, null, (_s: unknown, res: Gio.AsyncResult) => {
-            try {
-                file.make_symbolic_link_finish(res);
-                resolve();
-            } catch (err: unknown) {
-                reject(createNodeError(err, 'symlink', targetStr, pathStr));
-            }
-        });
+        file.make_symbolic_link_async(
+            targetStr,
+            GLib.PRIORITY_DEFAULT,
+            null,
+            request((_s: unknown, res: Gio.AsyncResult) => {
+                try {
+                    file.make_symbolic_link_finish(res);
+                    resolve();
+                } catch (err: unknown) {
+                    reject(createNodeError(err, 'symlink', targetStr, pathStr));
+                }
+            }),
+        );
     });
 }
 
@@ -471,18 +488,22 @@ async function rm(path: PathLike, options?: RmOptions): Promise<void> {
 
     if (topType === Gio.FileType.SYMBOLIC_LINK) {
         await new Promise<void>((resolve, reject) => {
-            file.delete_async(GLib.PRIORITY_DEFAULT, null, (_self: unknown, res: Gio.AsyncResult) => {
-                try {
-                    file.delete_finish(res);
-                    resolve();
-                } catch (err: unknown) {
-                    if (force) {
+            file.delete_async(
+                GLib.PRIORITY_DEFAULT,
+                null,
+                request((_self: unknown, res: Gio.AsyncResult) => {
+                    try {
+                        file.delete_finish(res);
                         resolve();
-                        return;
+                    } catch (err: unknown) {
+                        if (force) {
+                            resolve();
+                            return;
+                        }
+                        reject(createNodeError(err, 'rm', path));
                     }
-                    reject(createNodeError(err, 'rm', path));
-                }
-            });
+                }),
+            );
         });
         return;
     }
@@ -503,18 +524,22 @@ async function rm(path: PathLike, options?: RmOptions): Promise<void> {
     }
 
     await new Promise<void>((resolve, reject) => {
-        file.delete_async(GLib.PRIORITY_DEFAULT, null, (_self: unknown, res: Gio.AsyncResult) => {
-            try {
-                file.delete_finish(res);
-                resolve();
-            } catch (err: unknown) {
-                if (force) {
+        file.delete_async(
+            GLib.PRIORITY_DEFAULT,
+            null,
+            request((_self: unknown, res: Gio.AsyncResult) => {
+                try {
+                    file.delete_finish(res);
                     resolve();
-                    return;
+                } catch (err: unknown) {
+                    if (force) {
+                        resolve();
+                        return;
+                    }
+                    reject(createNodeError(err, 'rm', path));
                 }
-                reject(createNodeError(err, 'rm', path));
-            }
-        });
+            }),
+        );
     });
 }
 

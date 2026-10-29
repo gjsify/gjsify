@@ -9,6 +9,7 @@ import { normalizePath } from './utils.js';
 import { Dirent } from './dirent.js';
 import { createNodeError, requireCallback } from './errors.js';
 import type { PathLike } from 'node:fs';
+import { request } from './request.js';
 
 const DIR_ATTRS =
     'standard::name,standard::type,standard::is-symlink,standard::size,standard::symlink-target,unix::uid,unix::gid,unix::mode,time::modified,time::access,time::created';
@@ -186,14 +187,14 @@ export async function opendirAsync(
             Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
             GLib.PRIORITY_DEFAULT,
             null,
-            (_source: unknown, result: Gio.AsyncResult) => {
+            request((_source: unknown, result: Gio.AsyncResult) => {
                 try {
                     const enumerator = file.enumerate_children_finish(result);
                     resolve(new Dir(pathStr, enumerator));
                 } catch (err: unknown) {
                     reject(createNodeError(err, 'opendir', pathStr));
                 }
-            },
+            }),
         );
     });
 }

@@ -44,6 +44,7 @@ import { normalizePath } from './utils.js';
 // encoding helpers available if needed in future
 
 import type { OpenFlags } from './types/index.js';
+import { request } from './request.js';
 
 /**
  * The handle behind `fd`, or `null` after handing EBADF to `deliver`.
@@ -93,14 +94,20 @@ function statImpl(
 ): void {
     const pathStr = normalizePath(path);
     const file = Gio.File.new_for_path(pathStr);
-    file.query_info_async(STAT_ATTRIBUTES, flags, GLib.PRIORITY_DEFAULT, null, (_s: Gio.File, res: Gio.AsyncResult) => {
-        try {
-            const info = file.query_info_finish(res);
-            callback(null, statsFrom(info, pathStr, syscall, options?.bigint as boolean | undefined));
-        } catch (err: unknown) {
-            callback(createNodeError(err, syscall, pathStr));
-        }
-    });
+    file.query_info_async(
+        STAT_ATTRIBUTES,
+        flags,
+        GLib.PRIORITY_DEFAULT,
+        null,
+        request((_s: Gio.File, res: Gio.AsyncResult) => {
+            try {
+                const info = file.query_info_finish(res);
+                callback(null, statsFrom(info, pathStr, syscall, options?.bigint as boolean | undefined));
+            } catch (err: unknown) {
+                callback(createNodeError(err, syscall, pathStr));
+            }
+        }),
+    );
 }
 
 export function stat(path: PathLike, callback: (err: NodeJS.ErrnoException | null, stats: Stats) => void): void;
@@ -202,14 +209,19 @@ export function symlink(
     const pathStr = normalizePath(path);
     const targetStr = normalizePath(target);
     const file = Gio.File.new_for_path(pathStr);
-    file.make_symbolic_link_async(targetStr, GLib.PRIORITY_DEFAULT, null, (_s: Gio.File, res: Gio.AsyncResult) => {
-        try {
-            file.make_symbolic_link_finish(res);
-            callback(null);
-        } catch (err: unknown) {
-            callback(createNodeError(err, 'symlink', targetStr, pathStr));
-        }
-    });
+    file.make_symbolic_link_async(
+        targetStr,
+        GLib.PRIORITY_DEFAULT,
+        null,
+        request((_s: Gio.File, res: Gio.AsyncResult) => {
+            try {
+                file.make_symbolic_link_finish(res);
+                callback(null);
+            } catch (err: unknown) {
+                callback(createNodeError(err, 'symlink', targetStr, pathStr));
+            }
+        }),
+    );
 }
 
 type OpenCallback = (err: NodeJS.ErrnoException | null, fd: number) => void;
