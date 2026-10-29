@@ -91,7 +91,7 @@ import { compileSchemasForPayload, compileSchemasForStage } from '../utils/ship/
 import { buildMsi, MSI_PAYLOAD_DIR } from '../utils/ship/msi.js';
 import { buildZip, zipEntriesFromPayload } from '../utils/ship/zip.js';
 import { assertEntryRunsUnder } from '../utils/ship/entry-interpreter.js';
-import { scanGiRequirements } from '../utils/ship/gi-namespaces.js';
+import { scanGiRequirements } from '@gjsify/rolldown-plugin-gjsify';
 import {
     assertLauncherMatchesInterpreter,
     assertPayloadMatchesArch,

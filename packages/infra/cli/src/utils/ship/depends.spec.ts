@@ -19,11 +19,18 @@ import {
 } from './depends.js';
 import { resolveFormats } from './formats.js';
 import { LAYOUTS } from './layout.js';
-import { parseGiSpecifier, scanGiNamespaces, scanGiRequirements } from './gi-namespaces.js';
 // The shim that WRITES the optional marker, imported rather than restated: the
 // reader's job is to recognise the shape its sibling emits, and a copy of that
-// shape in a test is a copy that keeps agreeing with itself.
-import { giOptionalShimSource, giOptionalNodeShimSource } from '@gjsify/rolldown-plugin-gjsify';
+// shape in a test is a copy that keeps agreeing with itself. The scanner itself
+// lives beside that shim now (ADR 0117 § stage 1b): the Vite path reads the same
+// bundle and cannot boot the CLI to ask.
+import {
+    giOptionalShimSource,
+    giOptionalNodeShimSource,
+    giSpecifierKey,
+    scanGiNamespaces,
+    scanGiRequirements,
+} from '@gjsify/rolldown-plugin-gjsify';
 
 const base = { hasIcons: true, hasSchemas: false, interpreter: 'gjs' as const, extra: [] };
 
@@ -507,9 +514,9 @@ export default async () => {
         });
 
         await it('parses a specifier with and without a version', async () => {
-            expect(parseGiSpecifier('gi://Gtk?version=4.0')).toBe('Gtk-4.0');
-            expect(parseGiSpecifier('gi://Gtk')).toBe('Gtk');
-            expect(parseGiSpecifier('node:fs')).toBe(null);
+            expect(giSpecifierKey('gi://Gtk?version=4.0')).toBe('Gtk-4.0');
+            expect(giSpecifierKey('gi://Gtk')).toBe('Gtk');
+            expect(giSpecifierKey('node:fs')).toBe(null);
         });
 
         await it('still reports an optional namespace among the namespaces', async () => {

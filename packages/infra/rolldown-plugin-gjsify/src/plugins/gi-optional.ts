@@ -7,7 +7,7 @@
 // The `optional` query flag is the declaration that the app has that decision to make.
 // The import resolves to a virtual module that loads the SAME specifier without the
 // flag inside a try/catch, so the emitted bundle still carries the verbatim
-// `gi://Goa?version=1.0` that `ship/gi-namespaces.ts` and `depends.ts` read, and the
+// `gi://Goa?version=1.0` that `utils/gi-namespaces.ts` and the CLI's `depends.ts` read, and the
 // namespace is `undefined` when it is absent.
 //
 // BOTH app targets, and the second one was the trap. `--app node` already loads a

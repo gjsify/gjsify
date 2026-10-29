@@ -30,6 +30,29 @@ function namespaceOf(entry: string): string {
     return dash === -1 ? entry : entry.slice(0, dash);
 }
 
+/** `Ns` or `Ns-Version` — what the AAR builder resolves against the sysroot's typelib names. */
+const GI_SELECTION_ENTRY = /^[A-Za-z][A-Za-z\d_]*(-\d+(\.\d+)*)?$/;
+
+/**
+ * Refuse a `giNamespaces` entry that is not a GI namespace, naming the entry.
+ *
+ * ONE definition for both paths that accept the key — `gjsify build`'s config loader
+ * and `defineNativescriptConfig` — because a shape check that holds on one of them is
+ * a project that builds through Vite and fails through the CLI for a typo. A free-form
+ * string surfaces as "the prefix has no typelib for …" hours later in the AAR build,
+ * naming the sysroot rather than the mistake.
+ *
+ * @param where how the caller spells the key, so the message points at the file the
+ *   reader is editing (`nativescript.giNamespaces` vs `giNamespaces`).
+ */
+export function assertGiNamespaceEntries(declared: readonly string[], where: string): void {
+    for (const entry of declared) {
+        if (!GI_SELECTION_ENTRY.test(entry)) {
+            throw new Error(`${where} entry "${entry}" is not a GI namespace. Write it as \`Gtk\` or \`Gtk-4.0\`.`);
+        }
+    }
+}
+
 /**
  * The namespaces every AAR carries whether or not anything declares them.
  *

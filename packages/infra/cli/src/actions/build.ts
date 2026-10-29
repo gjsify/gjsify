@@ -9,6 +9,8 @@ import {
     NODE_SHEBANG,
     createGjsExternalsPredicate,
     globToEntryPoints,
+    scanGiNamespaces,
+    planGiSelection,
 } from '@gjsify/rolldown-plugin-gjsify';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { resolveUserPlugins } from '../utils/resolve-plugin-by-name.js';
@@ -37,8 +39,6 @@ import { collectEntryPaths, describeJsxConfig, findJsxEntryPoint, jsxConfigMissi
 import { giSystemProbes } from '../utils/gi-runtime-paths.js';
 import { escapeRawNulForGjs } from '../utils/gjs-source-escape.js';
 import { assertNodeBundleGlobalsShimmed } from '../utils/node-bundle-guard.js';
-import { scanGiNamespaces } from '../utils/ship/gi-namespaces.js';
-import { planGiSelection } from '../utils/ship/gi-selection.js';
 import { DEP_CHANGE_LOCKFILES } from '../utils/package-inputs.js';
 
 const DEFAULT_GJS_SHEBANG = '#!/usr/bin/env -S gjs -m';

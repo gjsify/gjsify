@@ -69,6 +69,11 @@ export {
     NATIVESCRIPT_LOCALE_PLUGIN,
 } from './plugins/nativescript-locale.js';
 export type { NativescriptLocaleOptions, LocaleAsset } from './plugins/nativescript-locale.js';
+export {
+    nativescriptGiSelectionPlugin,
+    NATIVESCRIPT_GI_SELECTION_PLUGIN,
+} from './plugins/nativescript-gi-selection.js';
+export type { NativescriptGiSelectionOptions } from './plugins/nativescript-gi-selection.js';
 export { externalsPlugin } from './plugins/externals.js';
 export type { ExternalsPredicate, ExternalsPluginOptions } from './plugins/externals.js';
 export {

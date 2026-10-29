@@ -5,7 +5,12 @@ import { basename, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isGjs, hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { buildAppForRuntime } from './utils/runtimes.js';
-import { DIALECT_APPS, isSourceDialect, SOURCE_DIALECTS } from '@gjsify/rolldown-plugin-gjsify';
+import {
+    assertGiNamespaceEntries,
+    DIALECT_APPS,
+    isSourceDialect,
+    SOURCE_DIALECTS,
+} from '@gjsify/rolldown-plugin-gjsify';
 import { GI_RENDERER_APPS } from '@gjsify/resolve-npm';
 
 /**
@@ -361,18 +366,13 @@ export class Config {
                     '`gi://` against a GI stack the host already has.',
             );
         }
-        for (const entry of configData.nativescript?.giNamespaces ?? []) {
-            // `Ns` or `Ns-Version`, because that is what the AAR builder resolves
-            // against the typelib names in the sysroot. A free-form string here
-            // surfaces as "the prefix has no typelib for …" hours later, naming the
-            // typo rather than the shape.
-            if (!/^[A-Za-z][A-Za-z\d_]*(-\d+(\.\d+)*)?$/.test(entry)) {
-                throw new Error(
-                    `gjsify build: nativescript.giNamespaces entry "${entry}" is not a GI namespace. ` +
-                        'Write it as `Gtk` or `Gtk-4.0`.',
-                );
-            }
-        }
+        // Shape-checked through the shared helper, because the Vite path accepts the
+        // same key and a check that holds on only one of them is a project that builds
+        // one way and fails the other for a typo.
+        assertGiNamespaceEntries(
+            configData.nativescript?.giNamespaces ?? [],
+            'gjsify build: nativescript.giNamespaces',
+        );
         if (cliArgs.globals !== undefined) configData.globals = cliArgs.globals;
         // Fallback applied post-merge (not as a yargs `default:`) so a
         // `globals` declared in package.json#gjsify / `.gjsifyrc.*` survives —

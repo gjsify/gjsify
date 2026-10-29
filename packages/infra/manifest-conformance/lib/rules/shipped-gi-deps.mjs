@@ -32,7 +32,7 @@
  * recorded nowhere in the package.
  *
  * The consequence is a failure this repository has already paid for once, recorded in
- * `packages/infra/cli/src/utils/ship/gi-namespaces.ts`'s header: a package derives an
+ * `packages/infra/rolldown-plugin-gjsify/src/utils/gi-namespaces.ts`'s header: a package derives an
  * EMPTY typelib dependency set, installs cleanly, and dies at its first GI call. The
  * reader that catches that exists — `scanGiNamespaces`, AST-parsed because a regex
  * misses the bare side-effect form and matches `gi://` inside a diagnostic string — but

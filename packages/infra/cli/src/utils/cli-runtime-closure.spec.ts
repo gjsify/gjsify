@@ -8,7 +8,11 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Workspace } from '@gjsify/workspace';
-import { cliRuntimeClosure, moduleSpecifiers } from './cli-runtime-closure.js';
+// The walk itself moved to the bundler-plugin package (ADR 0117 § stage 1b), where
+// the Vite path can reach it too. The CASES stay here: each one is a way THIS
+// closure was measured to go wrong, and that is what they document.
+import { moduleSpecifiers } from '@gjsify/rolldown-plugin-gjsify';
+import { cliRuntimeClosure } from './cli-runtime-closure.js';
 
 /** A workspace package materialised under `root`, so the walk has real files to read. */
 function makeWorkspace(
