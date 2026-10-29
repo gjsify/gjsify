@@ -7,6 +7,7 @@ import { GTK_PLATFORM_VECTORS, driveGtkPlatformVectors, type GtkPlatformLike } f
 
 import {
     CssProvider,
+    EventControllerKey,
     GDK_KEYS,
     IconTheme,
     STYLE_PROVIDER_PRIORITY_APPLICATION,
@@ -15,6 +16,7 @@ import {
     STYLE_PROVIDER_PRIORITY_THEME,
     STYLE_PROVIDER_PRIORITY_USER,
     createGtkPlatform,
+    deliverKeyToControllers,
     keyvalOfKey,
     widgetControllerMembers,
     type HostKeyEvent,
@@ -140,7 +142,40 @@ export default async () => {
             expect(keyvalOfKey(' ')).toBe(GDK_KEYS.KEY_space);
             expect(keyvalOfKey('Enter')).toBe(GDK_KEYS.KEY_Return);
             expect(keyvalOfKey('ArrowUp')).toBe(GDK_KEYS.KEY_Up);
+            expect(keyvalOfKey('BrowserBack')).toBe(GDK_KEYS.KEY_Back);
+            expect(GDK_KEYS.KEY_Back).toBe(0x1008ff26);
             expect(keyvalOfKey('Dead')).toBe(0);
+        });
+
+        await it('delivers a key to the controllers attached to a widget, until one takes it', async () => {
+            const { host } = recordingHost();
+            const members = widgetControllerMembers(host);
+            const widget = {};
+            const other = {};
+            const calls: string[] = [];
+            const make = (name: string, result: boolean) => {
+                const controller = new EventControllerKey();
+                controller.connect('key-pressed', () => {
+                    calls.push(name);
+                    return result;
+                });
+                return controller;
+            };
+            const first = make('first', false);
+            const second = make('second', true);
+            members.add_controller.call(widget, first);
+            members.add_controller.call(widget, second);
+            const back = { key: 'BrowserBack', keycode: 4, state: 0, pressed: true };
+            expect(deliverKeyToControllers(widget, back)).toBe(true);
+            expect(calls).toStrictEqual(['first', 'second']);
+            expect(deliverKeyToControllers(other, back)).toBe(false);
+            members.remove_controller.call(widget, second);
+            expect(deliverKeyToControllers(widget, back)).toBe(false);
+            members.add_controller.call(other, first);
+            calls.length = 0;
+            expect(deliverKeyToControllers(widget, back)).toBe(false);
+            expect(deliverKeyToControllers(other, back)).toBe(false);
+            expect(calls).toStrictEqual(['first']);
         });
 
         await it('reports a key as handled only when a handler returns true', async () => {

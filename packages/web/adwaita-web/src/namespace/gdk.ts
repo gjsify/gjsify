@@ -34,4 +34,5 @@ export const {
     KEY_Up,
     KEY_Right,
     KEY_Down,
+    KEY_Back,
 } = GDK_KEYS;

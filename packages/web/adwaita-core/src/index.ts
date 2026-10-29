@@ -474,6 +474,7 @@ export {
     STYLE_PROVIDER_PRIORITY_THEME,
     STYLE_PROVIDER_PRIORITY_USER,
     createGtkPlatform,
+    deliverKeyToControllers,
     keyvalOfKey,
     widgetControllerMembers,
 } from './gtk-platform.js';
