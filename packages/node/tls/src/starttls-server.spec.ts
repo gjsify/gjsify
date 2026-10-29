@@ -147,5 +147,85 @@ export default async () => {
             },
             ITEST_TIMEOUT_MS,
         );
+
+        // The shape nodemailer's `_upgradeConnection` puts on the wire: BOTH
+        // sides keep a persistent 'data' listener through the plaintext
+        // dialogue and drop it (`removeAllListeners('data')`) only at the
+        // moment they upgrade — so each side has a read in flight when it
+        // decides to hand the connection to TLS, and the client's ClientHello
+        // is on the way before the server's upgrade has run. Bytes read after
+        // that decision belong to TLS, so a ClientHello delivered to the plain
+        // read loop instead is lost from the handshake, which GnuTLS reports as
+        // "An unexpected TLS handshake packet was received".
+        await it(
+            'upgrades when both sides hold a persistent data listener until the upgrade',
+            async () => {
+                let serverSecure: tls.TLSSocket | null = null;
+                const serverLines: string[] = [];
+                const server = net.createServer((conn: Socket) => {
+                    conn.on('error', () => {});
+                    conn.on('data', (chunk: Buffer) => {
+                        const line = chunk.toString('utf8');
+                        serverLines.push(line);
+                        if (!line.startsWith('STARTTLS')) return;
+                        conn.write('220 Ready to start TLS\r\n');
+                        conn.removeAllListeners('data');
+                        const secure = new tls.TLSSocket(conn, { isServer: true, key: KEY_PEM, cert: CERT_PEM });
+                        serverSecure = secure;
+                        secure.on('error', () => {});
+                        secure.on('data', (data: Buffer) => {
+                            secure.write(`ECHO:${data.toString('utf8')}`);
+                        });
+                    });
+                    conn.write('220 hello\r\n');
+                });
+                await new Promise<void>((resolve, reject) => {
+                    server.once('error', reject);
+                    server.listen(0, '127.0.0.1', () => resolve());
+                });
+                const { port } = server.address() as { port: number };
+                let client: tls.TLSSocket | null = null;
+                try {
+                    const reply = await withTimeout(
+                        (async () => {
+                            const plain = net.connect(port, '127.0.0.1');
+                            const upgraded = new Promise<tls.TLSSocket>((resolve, reject) => {
+                                plain.once('error', reject);
+                                plain.on('data', (chunk: Buffer) => {
+                                    const line = chunk.toString('utf8');
+                                    if (line.startsWith('220 hello')) {
+                                        plain.write('STARTTLS\r\n');
+                                        return;
+                                    }
+                                    if (!line.startsWith('220 Ready')) return;
+                                    plain.removeAllListeners('data');
+                                    resolve(tls.connect({ socket: plain, servername: 'localhost', ca: CERT_PEM }));
+                                });
+                            });
+                            client = await upgraded;
+                            await new Promise<void>((resolve, reject) => {
+                                client!.once('error', reject);
+                                client!.once('secureConnect', () => resolve());
+                            });
+                            expect(client.authorized).toBe(true);
+                            client.write('over-tls');
+                            return nextChunk(client);
+                        })(),
+                        'persistent-listener upgrade round trip',
+                    );
+                    // Nothing after STARTTLS reached the plaintext listener,
+                    // so no ClientHello byte was consumed before the upgrade.
+                    expect(serverLines.join('')).toBe('STARTTLS\r\n');
+                    expect(reply).toBe('ECHO:over-tls');
+                    expect(serverSecure !== null).toBe(true);
+                    expect(serverSecure!.encrypted).toBe(true);
+                } finally {
+                    (client as tls.TLSSocket | null)?.destroy();
+                    (serverSecure as tls.TLSSocket | null)?.destroy();
+                    await new Promise<void>((resolve) => server.close(() => resolve()));
+                }
+            },
+            ITEST_TIMEOUT_MS,
+        );
     });
 };
