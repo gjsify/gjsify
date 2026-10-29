@@ -198,14 +198,16 @@ export class DavClient {
         return out;
     }
 
-    /** URLs and ETags of every object (optionally one component type and time range for calendars). */
+    /** URLs and ETags of every object (optionally one component type, time range and iCalendar UID for calendars). */
     async listObjects(
         collectionUrl: string,
         kind: DavKind,
-        filter: { component?: string; range?: TimeRange } = {},
+        filter: { component?: string; range?: TimeRange; uid?: string } = {},
     ): Promise<DavObject[]> {
         const body =
-            kind === 'caldav' ? calendarQueryBody(filter.component ?? 'VEVENT', filter.range) : addressbookQueryBody();
+            kind === 'caldav'
+                ? calendarQueryBody(filter.component ?? 'VEVENT', filter.range, filter.uid)
+                : addressbookQueryBody();
         const { ms, url } = await this.xml('REPORT', collectionUrl, body, '1');
         return this.objects(ms.responses, kind, url);
     }

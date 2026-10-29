@@ -95,13 +95,18 @@ export interface TimeRange {
     end?: string;
 }
 
-export function calendarQueryBody(component: string, range?: TimeRange): string {
+/** `uid` adds an RFC 4791 §9.7.5 prop-filter; `i;octet` because UIDs are case-sensitive. */
+export function calendarQueryBody(component: string, range?: TimeRange, uid?: string): string {
     const tr = range
         ? `<C:time-range start="${escapeXml(range.start)}"${range.end ? ` end="${escapeXml(range.end)}"` : ''}/>`
         : '';
+    const uidFilter =
+        uid === undefined
+            ? ''
+            : `<C:prop-filter name="UID"><C:text-match collation="i;octet">${escapeXml(uid)}</C:text-match></C:prop-filter>`;
     return (
         `${HEAD}<C:calendar-query ${NSDECL}><D:prop><D:getetag/></D:prop>` +
-        `<C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="${escapeXml(component)}">${tr}` +
+        `<C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="${escapeXml(component)}">${tr}${uidFilter}` +
         `</C:comp-filter></C:comp-filter></C:filter></C:calendar-query>`
     );
 }
