@@ -47,13 +47,13 @@ export default async () => {
             // `planGiSelection` is pure and knows only namespaces. A NativeScript build
             // emits many chunks, and "the bundle imports Soup" without a file sends the
             // reader grepping.
-            expect(() => run([], { 'vendor.js': `import "gi://Soup";` })).toThrow(/vendor\.js/);
+            expect(() => run([], { 'vendor.js': `import "gi://Soup?version=3.0";` })).toThrow(/vendor\.js/);
         });
 
         await it('reads every chunk, not just the entry', async () => {
-            expect(() => run([], { 'index.js': 'export const a = 1;', 'chunk-b.js': `import "gi://Soup";` })).toThrow(
-                /Soup/,
-            );
+            expect(() =>
+                run([], { 'index.js': 'export const a = 1;', 'chunk-b.js': `import "gi://Soup?version=3.0";` }),
+            ).toThrow(/Soup/);
         });
 
         await it('ignores assets, which are not JavaScript', async () => {
