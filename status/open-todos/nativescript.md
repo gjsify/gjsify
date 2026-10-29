@@ -223,14 +223,25 @@ event (upstream has no `tap`, a gesture is not a GSignal). `on('clicked')`,
 
 DONE (`widgets/adw-split-button.ts`): signals `clicked`, `activate`; properties `label`, `icon-name`,
 `use-underline`, `can-shrink`, `dropdown-tooltip`. A tap emits `clicked` once; `activate` clicks too.
-`label` and `icon-name` exclude each other in `normalize` (the last write wins, as in C; the cleared
-slot notifies first). CONSUMER-VISIBLE: `label`/`iconName` read `null` when unset (was `''`); `setActionIcon`
-and the `CLICKED` export are gone; `on`/`addEventListener`/`notify({ eventName })` refuse `clicked` and
-`activate`. REMAINDERS: `direction` stays hand-written (a shadowed name, no enum kind); `menu-model`,
-`popover`, `child` are object-typed, so they wait for the object-kind decision; GJS notifies on every
-`icon-name = ''` write, we do not on a null→null write; GJS 1.88 delivers the own notify before the
-cleared one (a freeze-queue detail), we follow C. Specs: `split-button-properties.spec.ts`
-(pure-JS), `specs/split-button.ts` (device).
+`label` and `icon-name` exclude each other: the shape in `normalize`, the cross-write in
+`afterNotify`, so the OWN property notifies first and the slot it cleared second — measured, not
+inferred (GJS 1.88.1 / libadwaita 1.9.4). `icon-name = ''` notifies on every write, because C's
+guard is `g_strcmp0 (value, get_icon_name ())` against a readback `GtkImage` keeps at `null`;
+`DeclaredProperty.changed` is how the pure leg says so. CONSUMER-VISIBLE: `label`/`iconName` read
+`null` when unset (was `''`); `setActionIcon` and the `CLICKED` export are gone;
+`on`/`addEventListener`/`notify({ eventName })` refuse `clicked` and `activate`. REMAINDERS:
+`direction` stays hand-written (a shadowed name, no enum kind); `menu-model`, `popover`, `child`
+are object-typed, so they wait for the object-kind decision — and with no `child` property there
+is no `notify::child` in the sequence, which is the one part of the measured order this surface
+cannot reach. Specs: `split-button-properties.spec.ts` (pure-JS),
+`signals-gobject.spec.ts` (the two hooks), `specs/split-button.ts` (device).
+
+APPLY NEXT, same mechanism: `AdwActionRow`/`AdwExpanderRow` `subtitle`. Measured on the same
+build — `subtitle = null` notifies EVERY time while the value stays `''` (the C guard reads back
+`""` from a `GtkLabel` that stores no NULL), and `subtitle = ''` notifies nothing. Both legs hold
+the opposite today. NOT done here: it changes what an absent attribute means, and the web
+renderer reads `subtitle` at eight call sites — WAITS FOR AN OWNER DECISION on whether `null` and
+`''` stay distinguishable to a caller.
 
 DONE (`widgets/adw-button-content.ts`): `icon-name`, `label`, `use-underline`, `can-shrink` are declared
 through `withSignals(StackLayout, …)`; each renders from its own `notify::`. `hostButton` is a
