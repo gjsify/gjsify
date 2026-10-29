@@ -676,12 +676,12 @@ export function resolveNotaryPlan(input: { flag?: string; layoutOs: HostOs; sign
 /**
  * Submit one written artifact for notarisation.
  *
- * ⚠️ UNVERIFIED END TO END. Everything up to the `spawnToCompletion` is covered
- * — the argv by `signing.spec.ts`, the guard and both refusals by
- * `tests/e2e/ship-signing` — and the invocation itself has never run: it needs
- * an Apple Developer account, and § A17's whole point is that M6's proof does
- * not. Whoever first runs this on a real credential should record what it did
- * beside § A15, which is where the question was left open.
+ * VERIFIED BY HAND, NOT IN CI. The argv is covered by `signing.spec.ts`, the
+ * guard and both refusals by `tests/e2e/ship-signing`; the invocation needs an
+ * Apple Developer account, which § A17 keeps out of CI. It has been run with a
+ * real Developer ID and keychain profile on 2026-10-29 (ADR 0024, amendment of
+ * that date): the `.dmg` and the `.zip` of a GTK application both came back
+ * `Accepted`.
  */
 export async function notarizeArtifact(input: {
     plan: Extract<NotaryPlan, { kind: 'notarize' }>;
@@ -727,9 +727,10 @@ export async function notarizeArtifact(input: {
  * instead — which is a fact about the CONTAINER and therefore lives on the format
  * (`canCarryTicket`), not in a branch here.
  *
- * ⚠️ UNVERIFIED END TO END, for the same reason `notarizeArtifact` is: stapling
- * needs a real notarisation, which needs an Apple account (ADR 0024 § A15, § A17).
- * The argv is unit-tested and the invocation has never run in this repository.
+ * VERIFIED BY HAND, for the same reason as `notarizeArtifact`: stapling needs a
+ * real notarisation (ADR 0024 § A15, § A17). Run on 2026-10-29 against a signed
+ * `.dmg` — "The staple and validate action worked!", and `spctl` accepts the
+ * image afterwards. The argv is unit-tested.
  *
  * `stapler(1)` also states the constraint that decides the ORDER: *"Stapling does
  * not invalidate the code signature and must be run after an executable or archive

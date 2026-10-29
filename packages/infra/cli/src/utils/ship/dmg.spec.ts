@@ -23,6 +23,8 @@
 // jobs later as "dmg2img: not a valid dmg" and read as a broken artifact rather
 // than as a wrong flag.
 
+import { lstatSync, mkdtempSync, readlinkSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
 
 import { describe, expect, it } from '@gjsify/unit';
@@ -36,7 +38,15 @@ import {
     formatIdsFor,
     resolveFormats,
 } from './formats.js';
-import { DMG_TOOL, dmgVolumeDir, dmgVolumeName, hdiutilCreateArgs } from './dmg.js';
+import {
+    addApplicationsLink,
+    codesignDmgArgs,
+    DMG_APPLICATIONS_LINK,
+    DMG_TOOL,
+    dmgVolumeDir,
+    dmgVolumeName,
+    hdiutilCreateArgs,
+} from './dmg.js';
 import { LAYOUTS } from './layout.js';
 import { SCHEMA_COMPILER } from './schemas.js';
 import type { PackSettings } from './types.js';
@@ -212,6 +222,51 @@ export default async () => {
             expect(dir === artifacts).toBe(false);
             expect(dir.startsWith(`${artifacts}${sep}`)).toBe(false);
             expect(dir.startsWith(`${outRoot}${sep}`)).toBe(true);
+        });
+    });
+
+    await describe('the drag-here link', async () => {
+        await it('points the volume root at the absolute /Applications', async () => {
+            // A symlink needs a privilege on Windows that a test host does not
+            // have, and the volume is only ever assembled on darwin anyway.
+            if (process.platform === 'win32') return;
+            const volume = mkdtempSync(join(tmpdir(), 'gjsify-dmg-spec-'));
+            try {
+                writeFileSync(join(volume, 'placeholder'), '');
+                addApplicationsLink(volume);
+                const link = join(volume, 'Applications');
+                expect(lstatSync(link).isSymbolicLink()).toBe(true);
+                expect(readlinkSync(link)).toBe('/Applications');
+                expect(DMG_APPLICATIONS_LINK.target.length).toBe(13);
+            } finally {
+                rmSync(volume, { recursive: true, force: true });
+            }
+        });
+    });
+
+    await describe('the image signature', async () => {
+        await it('timestamps a real identity and nothing else', async () => {
+            const id = 'Developer ID Application: Example (ABCDE12345)';
+            expect(codesignDmgArgs({ identity: id, file: '/x/a.dmg', adhoc: false })).toStrictEqual([
+                '--force',
+                '--sign',
+                id,
+                '--timestamp',
+                '/x/a.dmg',
+            ]);
+            expect(codesignDmgArgs({ identity: '-', file: '/x/a.dmg', adhoc: true })).toStrictEqual([
+                '--force',
+                '--sign',
+                '-',
+                '/x/a.dmg',
+            ]);
+        });
+
+        await it('asks for no hardened runtime and no entitlements, which an image cannot use', async () => {
+            const args = codesignDmgArgs({ identity: 'X', file: 'a.dmg', adhoc: false });
+            expect(args.includes('--options')).toBe(false);
+            expect(args.includes('--entitlements')).toBe(false);
+            expect(args[args.length - 1]).toBe('a.dmg');
         });
     });
 

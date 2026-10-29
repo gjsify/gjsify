@@ -139,6 +139,10 @@ HFS_SIGNATURE_OFFSET = 1024
 #: HFS+J bookkeeping — see the module docstring. A CLOSED list, never a pattern.
 JOURNAL_FILES = (".journal", ".journal_info_block")
 
+#: The ONE symlink the volume carries: its path under the volume root, and its target.
+#: `ship` writes it beside the bundle so the mounted window has something to drag onto.
+APPLICATIONS_LINK = ("Applications", "/Applications")
+
 #: The format whose overlay this image carries.
 FORMAT_ID = "macos-app-dmg"
 
@@ -307,11 +311,33 @@ def expected_files(manifest_path: str) -> tuple[str, dict[str, tuple[int, int]]]
     return name, files
 
 
-def compare_listing(records: list[dict[str, str]], manifest_path: str, where: str) -> int:
+def check_links(links: list[str], archive: str, name: str, where: str) -> None:
+    """Exactly one symlink, `<volume>/Applications`, pointing at `/Applications`.
+
+    7-Zip lists an HFS+ symlink as a FILE whose mode starts with `l` and whose size is
+    the length of its target (measured against an `hdiutil` image with 7-Zip 26.04:
+    `Mode = lrwxr-xr-x`, `Size = 13`). The target itself is the entry's data fork,
+    which `7z x -so` prints — so the comparison is over the target 7-Zip reads, not
+    over a length that a 13-character wrong target would also have.
+    """
+    want_path = f"{name}/{APPLICATIONS_LINK[0]}"
+    if links != [want_path]:
+        fail(
+            f"{where}: the image carries the symlink(s) {links}, and the volume must carry exactly "
+            f"`{want_path}` — the drop target beside the bundle, and nothing the payload should have "
+            "been instead."
+        )
+    target = run(["7z", "x", "-so", archive, want_path], what="7z x -so <link>").stdout
+    if target != APPLICATIONS_LINK[1]:
+        fail(f"{where}: `{want_path}` points at {target!r}, not {APPLICATIONS_LINK[1]!r}.")
+
+
+def compare_listing(records: list[dict[str, str]], manifest_path: str, where: str, archive: str) -> int:
     """Hold one `7z l -slt` listing against the stage sidecar: names, sizes AND modes."""
     name, expected = expected_files(manifest_path)
 
     found: dict[str, tuple[int, int | None]] = {}
+    links: list[str] = []
     for record in records:
         # DIRECTORIES ARE OUT, and that is what makes the extra-file allowance short:
         # an `hdiutil` volume carries `.HFS+ Private Directory Data` and
@@ -319,6 +345,12 @@ def compare_listing(records: list[dict[str, str]], manifest_path: str, where: st
         if record.get("Folder") == "+":
             continue
         path = record.get("Path", "")
+        # SYMLINKS ARE THEIR OWN QUESTION, asked by `check_links` below. The stage holds
+        # regular files only, so a link can never match an expected entry — and counting
+        # one as an extra file would refuse the drop target the volume is meant to have.
+        if record.get("Mode", "").startswith("l"):
+            links.append(path)
+            continue
         size = record.get("Size", "")
         found[path] = (int(size) if size.isdigit() else -1, octal_mode(record.get("Mode", "")))
 
@@ -334,6 +366,8 @@ def compare_listing(records: list[dict[str, str]], manifest_path: str, where: st
             "`hdiutil -volname` and `gjsify.ship.name` have to be the same string — the volume and the "
             "bundle inside it are the two names a user reads in one Finder window."
         )
+
+    check_links(sorted(links), archive, name, where)
 
     allowed_extra = {f"{name}/{leaf}" for leaf in JOURNAL_FILES}
     missing = sorted(set(expected) - set(found))
@@ -448,7 +482,7 @@ def verify_volume(volume: str, manifest_path: str, where: str = "volume") -> Non
         fail(f"7-Zip identified the converted volume as {types}, not ['HFS'].")
     if "HFS+" not in methods:
         fail(f"7-Zip reports the volume's method as {methods}, with no `HFS+` among them.")
-    compare_listing(records, manifest_path, where)
+    compare_listing(records, manifest_path, where, volume)
 
 
 def verify_dmg(image: str, manifest_path: str) -> None:
@@ -468,7 +502,7 @@ def verify_dmg(image: str, manifest_path: str) -> None:
         fail(f"7-Zip reports the methods as {methods}, with no `HFS+` among them — the volume is not HFS+.")
 
     # The listing 7-Zip's own Dmg→HFS chain produced, against the sidecar.
-    compare_listing(records, manifest_path, "7z over the .dmg")
+    compare_listing(records, manifest_path, "7z over the .dmg", image)
 
     # LINK 2, and it is the one an `l`-only chain would be missing: `7z t` inflates every
     # stored run, so a byte flipped inside the compressed data is refused here and nowhere
