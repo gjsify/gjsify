@@ -11,12 +11,18 @@
 // `Label`, and adds the three things the platform has no word for — `label` with GTK's markup and
 // mnemonic rules, `wrap` under GTK's name, and `add_css_class`.
 //
-// WHAT IT DOES WITH MARKUP, STATED HERE AND NOT LEFT IMPLICIT. `use-markup` is honoured by
-// REDUCING the markup to its plain text, never by rendering it: NativeScript's `Label.text` is
-// literal and its `formattedText` takes objects rather than a markup string, so there is no parser
-// to hand Pango markup to. Unparseable markup keeps the raw string, which is the C fallback. The
-// reasoning is in `@gjsify/adwaita-core`'s `label.ts` — one file, because `Adw.Banner` already made
-// this decision and the two label renderers should have ONE answer to markup.
+// WHAT IT DOES WITH MARKUP, STATED HERE AND NOT LEFT IMPLICIT. `use-markup` is DRAWN: the markup
+// is parsed into flat styled runs by `@gjsify/adwaita-core`'s `labelMarkupRender` and written as a
+// `FormattedString` of `Span`s (`label-markup.ts`, which carries the per-attribute mapping and the
+// two declared remainders). `Label.text` takes no markup string and never will — NativeScript has
+// no parser to hand one to — so the parse is ours and only the resolved attributes reach the
+// platform. Unparseable markup keeps the raw string, which is the C fallback. `get_text()` still
+// answers the reduced plain text either way.
+//
+// A MARKUP LABEL WHOSE RUNS CARRY NOTHING STAYS ON `text`. `<markup>` around ordinary prose draws
+// identically from the plain property, and taking the rich path for it would move such a label onto
+// a different native mechanism (an Android `SpannableStringBuilder`) for no visible difference —
+// `labelMarkupNeedsSpans` is the gate, and `formattedText` is cleared when it answers no.
 //
 // `use-markup` DEFAULTS TO FALSE, as in GTK, and that is what keeps this port clear of the failure
 // the other direction has: a widget that parses markup by default blanks a label containing a `<` in
@@ -74,27 +80,41 @@
 //
 // Copyright (c) The GTK Team, GNOME contributors. LGPLv2.1+.
 
-import { Label } from '@nativescript/core';
+import { Label, type EventData } from '@nativescript/core';
 
 import {
     DEFAULT_LABEL_LINES,
     DEFAULT_LABEL_XALIGN,
+    HandledAccumulator,
+    createAppInfo,
+    labelActivateLink,
     labelDisplayText,
     labelEffectiveLines,
     labelEllipsizeOverflowValue,
+    labelHasLinks,
+    labelLinkVisited,
+    labelMarkupRender,
     normalizeLabelEllipsize,
     normalizeLabelLines,
     normalizeLabelXalign,
     LABEL_JUSTIFICATIONS,
     type LabelEllipsizeMode,
     type LabelJustification,
+    type LabelLink,
 } from '@gjsify/adwaita-core';
 
 import { classNameWith, normalizeStyleClasses, withCssClass, withoutCssClass } from './style-classes.js';
+import { labelMarkupFormattedString, labelMarkupNeedsSpans } from './label-markup.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { androidApiLevel } from './native-tooltip.js';
+import { nativePlatformHost } from '../platform-host.js';
 import { withSignals } from './signals.js';
+
+/** Event name emitted when a link in the markup is tapped, before it is opened. */
+export const ACTIVATE_LINK = 'activate-link';
+
+const appInfo = createAppInfo(nativePlatformHost);
 
 type Edge = 'start' | 'center' | 'end';
 
@@ -139,6 +159,8 @@ export class GtkLabel extends withSignals(Label) {
     private _xalignWritten = false;
     private _justify: LabelJustification = 'left';
     private _selectable = false;
+    /** The `<a href>` of the last render — kept so a re-parse inherits `visited` by URI. */
+    private _links: readonly LabelLink[] = [];
 
     constructor(props?: ConstructProps<GtkLabel>) {
         super();
@@ -174,9 +196,8 @@ export class GtkLabel extends withSignals(Label) {
     /**
      * `Gtk.Label:use-markup` — whether {@link label} is Pango markup.
      *
-     * TRUE means the markup is REDUCED to its plain text here, not rendered: see the
-     * header. FALSE, the default, shows the string literally, so a `<` in a sentence stays
-     * a `<`.
+     * TRUE means the markup is DRAWN, as styled `Span`s: see the header. FALSE, the
+     * default, shows the string literally, so a `<` in a sentence stays a `<`.
      */
     get useMarkup(): boolean {
         return this._useMarkup;
@@ -460,8 +481,95 @@ export class GtkLabel extends withSignals(Label) {
     }
 
     private _render(): void {
+        // `null` is BOTH cases where there is no markup to draw: `use-markup` unset, and a
+        // string pango itself rejects — for which GTK shows the raw text, and
+        // `labelDisplayText` answers with that same C fallback.
+        const render = this._useMarkup ? labelMarkupRender(this._label, this._links) : null;
+        this._links = render?.links ?? [];
         const text = labelDisplayText(this._label, this._useMarkup, this._useUnderline);
         this._applyAlignment({ text });
+
+        // `gtk_label_set_markup` puts the `link` class on the WIDGET when the markup
+        // carried an `<a href>` (gtklabel.c:3896) — libadwaita's stylesheet selects on it,
+        // so a port that paints a link without it is styling by its own rule.
+        //
+        // ONLY WHEN IT CHANGES: `_setClasses` writes `className`, and NativeScript leaves
+        // that property `undefined` until something sets it — a plain label that touched it
+        // on every render would hold a string where `check-nativescript-ns-defaults.mjs`
+        // expects nothing.
+        const hasLink = labelHasLinks(this._links);
+        if (hasLink !== this._styleClasses.includes('link'))
+            this._setClasses(
+                hasLink ? withCssClass(this._styleClasses, 'link') : withoutCssClass(this._styleClasses, 'link'),
+            );
+
+        if (render !== null && labelMarkupNeedsSpans(render)) {
+            // TEXT FIRST, THEN THE SPANS. While `formattedText` is set the platform's
+            // `[textProperty.setNative]` returns early, so this write is a no-op natively
+            // and exists for `get_text()`; the device then re-derives `text` from the
+            // spans (`formattedTextProperty.setNative` → `textProperty.nativeValueChange`,
+            // `FormattedString.toString()`), which is the same string the runs were built
+            // from.
+            this.text = text;
+            this.formattedText = labelMarkupFormattedString(
+                render,
+                this._useUnderline,
+                // `<big>`/`<small>` need an absolute base and skip without one — see
+                // `label-markup.ts`. Only a size something has WRITTEN counts; the theme's
+                // own is in the CSS engine, not on this property.
+                this.style.fontSize,
+                (index) => this._activateLink(index),
+            );
+            return;
+        }
+
+        // THE SPANS GO FIRST on the way back, and that order is not interchangeable:
+        // clearing `formattedText` calls `textProperty.nativeValueChange(this, '')`, so a
+        // `text` written before it would be wiped to the empty string.
+        if (this.formattedText !== null && this.formattedText !== undefined) this.formattedText = null;
         this.text = text;
+    }
+
+    /**
+     * `emit_activate_link` for the link at `index`: the user's handlers under GTK's handled
+     * accumulator, then — only if none handled it — the default launch.
+     *
+     * The link becomes VISITED whenever the emission was handled, INCLUDING by a handler
+     * that cancelled the launch (gtklabel.c:2053, `if (handled && !link->visited)`): GTK
+     * reads a TRUE as "this link has been followed, my way". `Gtk.LinkButton` differs — it
+     * sets `visited` inside its own default handler, which a cancelling handler skips — and
+     * the two are not the same rule.
+     */
+    private _activateLink(index: number): void {
+        const link = this._links[index];
+        if (link === undefined) return;
+        const visited = labelActivateLink(link.href, {
+            // `GTK_IS_WINDOW (gtk_widget_get_root (widget))` — a label with no window above
+            // it launches nothing. `isLoaded` is this surface's version of that question:
+            // it is `ViewBase._isLoaded`, set when the view is attached to the visual tree
+            // a platform window owns.
+            rooted: this.isLoaded,
+            emit: () => {
+                const accumulator = new HandledAccumulator();
+                this.notify({ eventName: ACTIVATE_LINK, object: this, uri: link.href, accumulator } as EventData);
+                return accumulator.stopped;
+            },
+            launch: (uri) => this.launch(uri),
+        });
+        if (visited) this._links = labelLinkVisited(this._links, index);
+    }
+
+    /**
+     * The launcher call, on its own method so a caller (or a spec) can stand in for the
+     * app the host would have opened — the same door `Adw.AboutDialog` uses on this
+     * surface, because the two must not disagree about what following a link does. A URI
+     * the host cannot launch is dropped, as a failed launch is.
+     */
+    protected launch(uri: string): void {
+        try {
+            appInfo.launch_default_for_uri(uri, null);
+        } catch {
+            // no scheme, nothing to open
+        }
     }
 }

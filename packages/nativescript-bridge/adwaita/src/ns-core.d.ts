@@ -250,8 +250,15 @@ declare module '@nativescript/core' {
          *  'direction', cssName: 'direction' })`, default null), which is the
          *  text direction `start`/`end` are resolved against. `Style` is an `Observable`
          *  (`ui/styling/style/index.ts`): a CSS property such as `visibility` notifies
-         *  `<name>Change` on it, not on the view. */
-        readonly style: Observable & { direction?: 'ltr' | 'rtl' | null; visibility?: string };
+         *  `<name>Change` on it, not on the view. `fontSize` is in DIPs and UNSET until
+         *  something writes it (`fontSizeProperty` is registered with no `defaultValue`),
+         *  so the theme's own size is not readable here — which is what makes pango's
+         *  relative `<big>`/`<small>` unresolvable in the general case. */
+        readonly style: Observable & {
+            direction?: 'ltr' | 'rtl' | null;
+            visibility?: string;
+            fontSize?: number;
+        };
         /** Accessibility state — NS's counterpart to `gtk_accessible_update_state`. */
         accessibilityState: string | undefined;
         /** The text a screen reader announces for this view — NS's counterpart
@@ -384,9 +391,82 @@ declare module '@nativescript/core' {
         static setRowSpan(view: View, value: number): void;
     }
 
+    /**
+     * One styled stretch of a `FormattedString` — `<Span>`.
+     *
+     * Upstream it is `Span extends ViewBase`, which this slice does not declare; what the
+     * port reaches for is the event system, so `Observable` is the base here. The
+     * font/decoration members are SPAN'S OWN accessors forwarding to `style`
+     * (`ui/text-base/span.ts`), not inherited ones — `verticalAlignment` is the exception
+     * and has no such shortcut, because `View` is where that one lives and `Span` is not
+     * a `View`.
+     */
+    export class Span extends Observable {
+        /** `'linkTap'` — emitted when a tappable span is activated. */
+        static readonly linkTapEvent: string;
+        /** The span's text. NS unescapes `\n` and `\t` on write. */
+        text: string;
+        fontFamily: string | undefined;
+        /** In DIPs, ABSOLUTE — NS has no relative size, which is why `<big>`/`<small>`
+         *  are resolved against the label's own `style.fontSize`. */
+        fontSize: number | undefined;
+        fontStyle: string | undefined;
+        fontWeight: string | undefined;
+        textDecoration: string | undefined;
+        /**
+         * `verticalAlignment` is narrowed to `VerticalAlignmentType` in upstream's
+         * `ui/styling/style/index.d.ts:27,120`, but the property is REGISTERED with
+         * `CoreTypes.VerticalAlignmentText.parse`
+         * (`ui/styling/style-properties.js:463-470`), which also accepts `'sup'`,
+         * `'sub'`, `'text-top'` and `'text-bottom'` — and both platforms honour them
+         * (Android `BaselineAdjustedSpanImpl.updateState`, iOS `getBaselineOffset`).
+         * So that is an upstream `.d.ts`/runtime divergence, and the wider type is the
+         * one that matches what runs.
+         */
+        readonly style: Observable & { verticalAlignment?: string; fontSize?: number };
+        /** Derived, never written: NS flips it from `addEventListener`/
+         *  `removeEventListener` to `hasListeners(Span.linkTapEvent)`, and only a
+         *  tappable span gets the native `ClickableSpan`. */
+        readonly tappable: boolean;
+    }
+
+    /**
+     * The rich-text value of a `Label` — a FLAT list of spans, no nesting.
+     *
+     * `spans` is an `ObservableArray<Span>` upstream and NOT an array, which is a
+     * difference with teeth: it reads by `getItem(pos)` and `spans[0]` is `undefined` on a
+     * device. So the members declared here are the four that collection really has
+     * (`data/observable-array/index.d.ts`), and index access is deliberately not among
+     * them — a caller that wants one span asks for it by `getItem`.
+     */
+    export class FormattedString extends Observable {
+        readonly spans: {
+            /** Appends, and answers the new length, as `ObservableArray.push` does. */
+            push(span: Span): number;
+            length: number;
+            /** The only read door; a negative `pos` counts from the end. */
+            getItem(pos: number): Span;
+            [Symbol.iterator](): Iterator<Span>;
+        };
+    }
+
     /** A text label — `<Label>`. */
     export class Label extends View {
         text: string;
+        /**
+         * Rich text, and while it is set it WINS: `[textProperty.setNative]` returns
+         * early (`ui/text-base/index.android.js:192-195`), so writing `text` first is a
+         * no-op natively. Clearing it is the inverse — `[formattedTextProperty.setNative]`
+         * calls `textProperty.nativeValueChange(this, '')`, so the plain path has to
+         * clear this BEFORE it writes `text`.
+         *
+         * UNSET until something writes it, like {@link View.className}:
+         * `formattedTextProperty` carries no `defaultValue`
+         * (`ui/text-base/text-base-common.ts:194`), so a label that was never given rich
+         * text reads `undefined` rather than `null` — the ledger
+         * `status/nativescript-undefined-defaults.json` holds that.
+         */
+        formattedText: FormattedString | null | undefined;
         textWrap: boolean;
         /** Horizontal text alignment (`'left' | 'center' | 'right' | 'justify' | 'initial'`). */
         textAlignment: string;

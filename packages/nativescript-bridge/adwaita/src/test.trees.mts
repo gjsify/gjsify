@@ -38,6 +38,7 @@ import { AdwGObjectDoorNsTest } from './gobject-door.spec.js';
 import { AdwGTypeNameNsTest } from './gtype-name.spec.js';
 import { AdwGridLayoutNsTest } from './grid-layout.spec.js';
 import { GtkGridNsTest } from './gtk-grid.spec.js';
+import { GtkLabelMarkupNsTest } from './label-markup.spec.js';
 import { GtkListBoxNsTest } from './gtk-list-box.spec.js';
 import { GtkControlsNsTest } from './gtk-controls.spec.js';
 import { GtkStackNsTest } from './gtk-stack.spec.js';
@@ -82,6 +83,7 @@ run({
     GtkBoxNsTest,
     GtkGridNsTest,
     AdwGridLayoutNsTest,
+    GtkLabelMarkupNsTest,
     GtkListBoxNsTest,
     GtkControlsNsTest,
     GtkStackNsTest,
