@@ -975,6 +975,21 @@ it with "no usable signature" — measured, ADR 0024's amendment of 2026-10-29. 
 `Applications → /Applications` link beside the bundle, written on the packing host and checked by
 `verify-dmg.py`
 
+## Every file artifact gets a release record (ADR 0124)
+
+`packOne` ends by writing `<artifact>.gjsify-release.json` beside each FILE artifact
+(`utils/ship/release-record.ts`): the signature kind (`none`, `adhoc`, `identity` with its name),
+whether notarisation and stapling FINISHED, the `sha256` and size of the bytes on disk after the last
+step that wrote into them, the layout OS, the arch (`noarch` for a payload with no native code) and
+the CLI version. A directory artifact gets none; it is never a release asset. A step that fails
+throws first, so a record never claims what did not happen.
+
+The record is for whoever publishes the artifact: upload it beside its file. `@gjsify/site` reads it
+to decide whether a macOS or Windows download needs the "open anyway" hint, and believes it only when
+its `sha256` equals the `digest` GitHub computed for the asset — a record anyone could have written
+proves nothing about bytes it does not hash to. No record, a mismatch, or an ad-hoc signature all
+read as unsigned; on macOS only `notarized` silences the hint, on Windows a named signature does.
+
 ## `DistroFormatId` is not `FormatId`
 
 A `.deb` says `Depends: gir1.2-gtk-4.0`, an `.rpm` says `Requires: gtk4`, and both are package

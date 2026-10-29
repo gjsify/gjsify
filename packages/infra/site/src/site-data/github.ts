@@ -1,3 +1,4 @@
+import { recordedArtifact } from './downloads.js';
 import { fetchJson, HttpError, type NetworkOptions } from './network.js';
 import type { LatestRelease, ReleaseAsset } from './types.js';
 
@@ -6,6 +7,14 @@ interface RawAsset {
     size?: unknown;
     download_count?: unknown;
     browser_download_url?: unknown;
+    digest?: unknown;
+}
+
+/** GitHub spells the digest `sha256:<hex>`; any other algorithm is not one a release record carries. */
+function sha256Of(digest: unknown): string | undefined {
+    if (typeof digest !== 'string') return undefined;
+    const match = /^sha256:([0-9a-f]{64})$/i.exec(digest);
+    return match ? match[1]!.toLowerCase() : undefined;
 }
 
 /** Parses the GitHub REST `releases/latest` payload; anything malformed throws so the caller can warn and degrade. */
@@ -28,6 +37,7 @@ export function parseLatestRelease(payload: unknown): LatestRelease {
                       size: typeof asset.size === 'number' ? asset.size : 0,
                       downloadUrl: asset.browser_download_url,
                       downloadCount: typeof asset.download_count === 'number' ? asset.download_count : 0,
+                      ...(sha256Of(asset.digest) ? { sha256: sha256Of(asset.digest) } : {}),
                   },
               ]
             : [],
@@ -39,6 +49,33 @@ export function parseLatestRelease(payload: unknown): LatestRelease {
         url: typeof release.html_url === 'string' ? release.html_url : '',
         assets,
     };
+}
+
+/**
+ * Fetches every release record among `assets`, by the artifact it describes. A record that does not
+ * download is reported through `warn` and left out, which makes its artifact `unsigned` — the page
+ * then shows one hint too many rather than one too few.
+ */
+export async function fetchReleaseRecords(
+    assets: readonly ReleaseAsset[],
+    options: NetworkOptions,
+    warn: (message: string) => void,
+): Promise<Map<string, unknown>> {
+    const records = new Map<string, unknown>();
+    await Promise.all(
+        assets.map(async (asset) => {
+            const artifact = recordedArtifact(asset.name);
+            if (artifact === undefined) return;
+            try {
+                records.set(artifact, await fetchJson(asset.downloadUrl, { Accept: 'application/json' }, options));
+            } catch (error) {
+                warn(
+                    `Could not fetch the release record ${asset.name} (${String(error)}); treating ${artifact} as unsigned`,
+                );
+            }
+        }),
+    );
+    return records;
 }
 
 /**

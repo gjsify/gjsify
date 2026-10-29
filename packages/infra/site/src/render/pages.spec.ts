@@ -131,6 +131,22 @@ export default async () => {
             expect(html).toMatch(/download-cta[^>]*data-os="linux"/);
         });
 
+        await it('tells how to open an unsigned download, and stays quiet for a notarised one', async () => {
+            const html = (signing: DownloadTarget['signing'], os: DownloadTarget['os'] = 'darwin') =>
+                downloadWidget({ data: downloadData([], [{ ...target(os, 'dmg'), signing }]), t, lang: 'en' });
+            expect(html('unsigned')).toMatch(/os-note-unsigned">macOS asks before[^<]*Open Anyway\./);
+            expect(html('unsigned')).toMatch(/data-unsigned/);
+            expect(html('unsigned')).toMatch(/target-meta">[^<]*Not notarized/);
+            // Signed is not enough on macOS: Gatekeeper still stops an app Apple has not checked.
+            expect(html('signed')).toMatch(/os-note-unsigned/);
+            expect(html('notarized')).not.toMatch(/os-note-unsigned|data-unsigned|Not notarized/);
+            // Windows is content with a signature.
+            expect(html('signed', 'win32')).not.toMatch(/os-note-unsigned/);
+            expect(html('unsigned', 'win32')).toMatch(/os-note-unsigned">Windows may warn[^<]*Run anyway\./);
+            // A target with nothing to check, like a store page, claims nothing either way.
+            expect(html(undefined)).not.toMatch(/os-note-unsigned/);
+        });
+
         await it('numbers nothing when there is only one part to install', async () => {
             const single = downloadWidget({ data: downloadData([], [target('linux', 'deb')]), t, lang: 'en' });
             expect(single).not.toMatch(/component-head|component-step/);

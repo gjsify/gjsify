@@ -140,6 +140,18 @@ msgstr ""
 msgid "Chromium"
 msgstr ""
 
+msgid "macOS asks before opening an app Apple has not checked. Try to open it once, then choose System Settings → Privacy & Security → Open Anyway."
+msgstr ""
+
+msgid "Windows may warn about an unknown publisher. Choose More info → Run anyway."
+msgstr ""
+
+msgid "Not notarized"
+msgstr ""
+
+msgid "Unsigned"
+msgstr ""
+
 msgid "Install from Flathub"
 msgstr ""
 

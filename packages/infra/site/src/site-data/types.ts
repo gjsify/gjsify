@@ -293,13 +293,25 @@ export interface DownloadTarget {
     downloadCount?: number;
     /** The one target to offer first for its OS. */
     recommended: boolean;
+    /**
+     * What the release record beside the asset proves (ADR 0124). Set on macOS and Windows release
+     * assets only — the two systems that stop an unsigned download; a store page or the web build
+     * has nothing to warn about. `unsigned` when no
+     * record exists or its hash does not match the asset, because a claim that cannot be checked is
+     * not shown.
+     */
+    signing?: Signing;
 }
+
+export type Signing = 'notarized' | 'signed' | 'unsigned';
 
 export interface ReleaseAsset {
     name: string;
     size: number;
     downloadUrl: string;
     downloadCount: number;
+    /** Lower-case hex SHA-256 GitHub computed on upload; absent on assets uploaded before it did. */
+    sha256?: string;
 }
 
 export interface LatestRelease {

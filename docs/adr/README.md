@@ -143,6 +143,7 @@ the TODO records the *what's left*.
 | [0121](0121-speech-synthesis-on-gjs-via-libspiel.md) | `speechSynthesis` on GJS runs on libspiel, with the system library first and no cloud voices | Accepted |
 | [0122](0122-a-string-list-is-a-real-list-model.md) | A string list is a REAL list model, and `registerClass` learns `Implements` | Accepted |
 | [0123](0123-node-sqlite-runs-on-libsqlite3-through-a-vala-bridge.md) | `node:sqlite` runs on libsqlite3 through a Vala bridge, not on libgda | Accepted |
+| [0124](0124-ship-writes-a-release-record-per-artifact.md) | `gjsify ship` writes a release record beside every artifact, and the site reads signing from it | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
