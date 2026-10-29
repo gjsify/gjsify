@@ -1,7 +1,7 @@
-// <adw-combo-row> — row with a title/subtitle and a dropdown select. The model is a JSON
-// array in the `model` attribute (`["a","b"]` or `[{"value":"a","label":"A"}]`), `selected`
-// an index, and the native <select> is stretched invisibly over the row so clicking
-// anywhere opens it.
+// <adw-combo-row> — row with a title/subtitle and a dropdown select. The model is a real
+// `Gio.ListModel` on the PROPERTY and a JSON array in the `model` ATTRIBUTE (`["a","b"]` or
+// `[{"value":"a","label":"A"}]`), `selected` an index, and the native <select> is stretched
+// invisibly over the row so clicking anywhere opens it.
 //
 // The SELECTION state machine (the model, the two-way index↔value mapping, the
 // empty/out-of-range guards and the programmatic-vs-interactive notify split) is HEADLESS
@@ -15,6 +15,13 @@
 // (#1525). Both spellings now reach the same rebuild, and
 // `scripts/check-adwaita-collection-reactivity.mjs` holds the rule for every collection
 // either renderer takes in.
+//
+// THE PROPERTY TAKES A LIST MODEL, THE ATTRIBUTE TAKES JSON (ADR 0122). `model` is an object
+// property over `Gio.ListModel`, held by identity, and an array written to it is a
+// `TypeError`. The ATTRIBUTE is untouched — a `Gio.ListModel` has no attribute spelling — and
+// it fills the element's own `GjsifyOptionList`, whose identity survives an edit so appending
+// one option to `model='[…]'` splices rather than replacing the list and resetting the
+// selection. `readModelWrite` in core is the one door both go through.
 //
 // THE MODEL IS SPLICED, NOT REBUILT (ADR 0046). `ComboState` reports WHERE the model
 // changed — `Gio.ListModel::items-changed`, one splice per assignment — and this element
@@ -35,17 +42,16 @@
 // Properties — the `<gtk-drop-down>` set minus `enableSearch` and `active`, which are that
 // element's own popover chrome and have no counterpart on a row that opens a native
 // <select>:
-//   model            — the list model ({ value, label }[]) (get/set). `Adw.ComboRow:model`'s
-//     own name, per ADR 0034 clause 1; it replaced `options`/`items`, which were two
-//     further spellings of one GTK property.
-//   selected         — the selected index (get/set). PERMISSIVE, and this is the one row of
-//     `ComboState`'s contract the two selectors answer differently: an index past the end
-//     is ACCEPTED here and reads back with an empty `selectedValue`/label, where
-//     `<gtk-drop-down>` rejects the set outright (gtk-drop-down.ts). Neither is a bug —
-//     `ComboState.hasIndex` is where the bounds live and why the policy is each
-//     renderer's. Stated here because a consumer of THIS element reads this file.
+//   model            — the list model, a `Gio.ListModel` (get/set), held BY IDENTITY.
+//     `Adw.ComboRow:model`'s own name, per ADR 0034 clause 1; it replaced
+//     `options`/`items`, which were two further spellings of one GTK property. An ARRAY is a
+//     `TypeError` naming the type (ADR 0122 § 4) — `options` is the descriptor side.
+//   options          — the held model's items as `{ value, label }` descriptors (get).
+//   selected         — the selected index (get/set). An index past the end is IGNORED, as
+//     measured in libadwaita and as on `<gtk-drop-down>`; the two selectors no longer
+//     answer this differently. `ComboState.hasIndex` is where the bounds live.
 //   selectedValue    — the selected option's value ('' when empty) (get/set-by-value).
-//   selectedItem     — the selected option descriptor, or null (get).
+//   selectedItem     — the model's own selected item, or null (get).
 // Events:
 //   `notify::selected` (CustomEvent, bubbles, detail = { selected }) — a USER pick.
 //     Deliberately NOT every change, unlike `<gtk-drop-down>`: this row's event has
@@ -58,8 +64,8 @@
 //   title/subtitle text column added to match Adw.ComboRow; the selection state
 //   machine composed from @gjsify/adwaita-core.
 
-import { ComboState, deriveRowLabels, normalizeComboOptions, parseListModel } from '@gjsify/adwaita-core';
-import type { AdwComboOption, AdwListItemsChanged, AdwListModelInput } from '@gjsify/adwaita-core';
+import { ComboState, deriveRowLabels, GjsifyOptionList, parseListModel, readModelWrite } from '@gjsify/adwaita-core';
+import type { AdwComboOption, AdwListItemsChanged, ComboWatchableModel } from '@gjsify/adwaita-core';
 
 import { applyRowTooltip } from '../row-tooltip.js';
 import { bindSlottedChildren } from '../slotted-children.js';
@@ -76,34 +82,58 @@ export class AdwComboRow extends TooltipElement {
     private _subtitleEl!: HTMLSpanElement;
     /** The headless options list + selectedIndex↔selectedValue state machine (ADR 0004). */
     private readonly _state = new ComboState();
+    /**
+     * The list the MARKUP doors fill — the `model` ATTRIBUTE is JSON text and a
+     * `<gtk-string-list slot="model">` child is strings, and a real `Gio.ListModel` has no
+     * spelling in either (ADR 0122 § 5). Held for the element's whole life so re-parsing the
+     * attribute splices the list the element already points at rather than replacing it, which
+     * would reset the selection.
+     */
+    private readonly _authored = GjsifyOptionList.new(null);
     private _initialized = false;
 
     static get observedAttributes() {
         return ['title', 'subtitle', 'model', 'selected', 'tooltip-text', 'title-lines', 'subtitle-lines'];
     }
 
-    /** The list model (`Adw.ComboRow:model`). Setting it splices the <select> and clamps the selection. */
-    get model(): AdwComboOption[] {
+    /**
+     * The list model (`Adw.ComboRow:model`) — the OBJECT that was assigned, by identity, as
+     * `row.model === model` is measured to hold in libadwaita (ADR 0122 § 4). The normalised
+     * descriptors are {@link options}. Assigning splices the `<select>` and re-runs autoselect.
+     */
+    get model(): ComboWatchableModel | null {
         return this._state.model;
     }
 
-    set model(value: AdwListModelInput) {
-        // `setModel` re-runs autoselect, so an index the new model does not have falls
-        // back to 0 — the clamp is core's, exactly as `<gtk-drop-down>` gets it.
-        this._state.setModel(normalizeComboOptions(value));
+    set model(value: ComboWatchableModel | string | null) {
+        // ONE door for every surface: a real model by identity, `null` for none, a STRING for
+        // the `model` attribute (JSON), and a `TypeError` in the property's own words for
+        // anything else, an array included.
+        this._state.setModel(readModelWrite(value, this._authored));
+    }
+
+    /** The held model's items as `{ value, label }` descriptors. */
+    get options(): AdwComboOption[] {
+        return this._state.options;
     }
 
     /** `adw_combo_row_set_model`. */
-    set_model(model: AdwListModelInput | null): void {
-        this.model = model ?? [];
+    set_model(model: ComboWatchableModel | null): void {
+        this.model = model;
+    }
+
+    /** `adw_combo_row_get_model`. */
+    get_model(): ComboWatchableModel | null {
+        return this.model;
     }
 
     /**
-     * The selected index (Adw.ComboRow:selected). PERMISSIVE: an index past the end is
-     * accepted and reads back with an empty {@link selectedValue}, mirroring the `guint`
-     * property that takes any position — where `<gtk-drop-down>` rejects the same set, as
-     * its own docs promise. `ComboState.hasIndex` owns the bounds and records why the
-     * POLICY is each renderer's; `COMBO_SELECTION_VECTORS` drives both answers.
+     * The selected index (Adw.ComboRow:selected). An index past the end is IGNORED — the
+     * selection stays where it was, which is what libadwaita is measured to do (ADR 0122 § 4,
+     * `combo-probe2.js`) and what `<gtk-drop-down>` already did. This element used to ACCEPT
+     * such a set and read back an empty {@link selectedValue}, the one row of
+     * `COMBO_SELECTION_VECTORS` the two selectors answered differently; the permissive half
+     * was ours, not GTK's, and it is gone. `ComboState.hasIndex` owns the bounds.
      */
     get selected(): number {
         return this._initialized ? this._state.selectedIndex : parseInt(this.getAttribute('selected') || '0', 10);
@@ -134,19 +164,21 @@ export class AdwComboRow extends TooltipElement {
     }
 
     set selectedValue(value: string) {
-        const index = this._state.model.findIndex((option) => option.value === value);
+        const index = this._state.options.findIndex((option) => option.value === value);
         if (index >= 0) this.selected = index;
     }
 
     /**
-     * The selected option descriptor, or `null` (Adw.ComboRow:selected-item).
+     * The selected ITEM, or `null` (Adw.ComboRow:selected-item).
      *
-     * Read-only, as the GObject property is. `null` and not a blank descriptor: the
-     * sentinel and an index past the end both address no option, and inventing an empty
-     * one would make "nothing is selected" indistinguishable from an option with no text.
+     * Read-only, as the GObject property is, and the MODEL'S OWN object rather than a
+     * descriptor, so the identity comparison a `selected-item` consumer writes holds (ADR
+     * 0122 § 4). `null` and not a blank item: the sentinel and an index past the end both
+     * address no option, and inventing an empty one would make "nothing is selected"
+     * indistinguishable from an option with no text.
      */
-    get selectedItem(): AdwComboOption | null {
-        return this._state.model[this._state.selectedIndex] ?? null;
+    get selectedItem(): unknown {
+        return this._state.selectedItem;
     }
 
     connectedCallback() {
@@ -177,12 +209,26 @@ export class AdwComboRow extends TooltipElement {
         // A `<gtk-string-list slot="model">` child is the list a `.blp` authored (ADR 0072),
         // consumed here BEFORE the attribute seed below, so the seed sees a model and leaves
         // it alone, and before the selection, so an authored index lands on the real list.
-        bindSlottedChildren(this, [stringListSlot((model) => this._state.setModel(model))]).install(
-            text,
-            this._valueEl,
-            this._select,
-        );
-        if (this._state.count === 0) this._state.setModel(parseListModel(this.getAttribute('model')));
+        // The slot hands over DESCRIPTORS, which the authored list adopts — the same list the
+        // `model` attribute fills, because the two are one markup door and an author who wrote
+        // both should not get two lists.
+        bindSlottedChildren(this, [
+            stringListSlot((options) => {
+                this._authored.reconcile(options);
+                this._state.setModel(this._authored);
+            }),
+        ]).install(text, this._valueEl, this._select);
+        // Two tests, and both are needed. `model === null` and no longer "holds no items" is
+        // the test for "the slot above did not already set it": a model is an object now, so
+        // an EMPTY one is a model the author meant and the count test would have thrown it
+        // away. The ATTRIBUTE'S PRESENCE is the test for whether to seed at all — a fresh
+        // widget with no authored model has `model === null`, as GTK's does, and seeding the
+        // empty authored list unconditionally would hand every unconfigured row a model.
+        const authoredModel = this.getAttribute('model');
+        if (this._state.model === null && authoredModel !== null) {
+            this._authored.reconcile(parseListModel(authoredModel));
+            this._state.setModel(this._authored);
+        }
         this._state.setSelectedIndex(parseInt(this.getAttribute('selected') || '0', 10));
 
         // WHERE the model changed — applied before the selection change below, which is
@@ -218,7 +264,7 @@ export class AdwComboRow extends TooltipElement {
     attributeChangedCallback(name: string, _old: string | null, value: string | null) {
         if (!this._initialized) return;
         if (name === 'model') {
-            this._state.setModel(parseListModel(value));
+            this.model = value;
         } else if (name === 'selected') {
             // A programmatic set — the core state notifies `interactive: false`,
             // so the subscriber re-syncs the display without emitting an event.
@@ -257,11 +303,11 @@ export class AdwComboRow extends TooltipElement {
         if (!this._initialized) return;
         for (let i = 0; i < change.removed; i++) this._select.remove(change.position);
         const before = this._select.options[change.position] ?? null;
-        // Read ONCE: `model` hands back a copy (ADR 0046), so reading it per item would make
+        // Read ONCE: `options` hands back a copy (ADR 0046), so reading it per item would make
         // a splice of n items O(n²) instead of the O(n) the splice is.
-        const model = this._state.model;
+        const options = this._state.options;
         for (let i = 0; i < change.added; i++) {
-            const option = model[change.position + i];
+            const option = options[change.position + i];
             if (option) this._select.insertBefore(this._createOption(option), before);
         }
     }
@@ -274,7 +320,7 @@ export class AdwComboRow extends TooltipElement {
      */
     private _renderOptions(): void {
         if (!this._initialized) return;
-        this._select.replaceChildren(...this._state.model.map((option) => this._createOption(option)));
+        this._select.replaceChildren(...this._state.options.map((option) => this._createOption(option)));
         this._select.selectedIndex = this._state.selectedIndex;
         this._valueEl.textContent = this._state.selectedLabel;
         this._syncChooser();

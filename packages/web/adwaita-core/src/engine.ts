@@ -32,7 +32,9 @@ import type {
     Binding,
     BindingFlag,
     ClassLike,
+    GInterface,
     GObjectInstance,
+    GType,
     ParamSpec,
     RegisteredClass,
     SignalHandler,
@@ -52,20 +54,57 @@ import type {
 // the engine that has node-gi translates. The pure-JS engine translates it to accessors over its
 // own store, which is what the browser and iOS get.
 
+/**
+ * The kinds that carry a VALUE a declaration can also spell as a default — the five the subset
+ * has had since ADR 0105, and the only ones a signal parameter may take.
+ */
+export type ForeignScalarKind = 'string' | 'boolean' | 'int' | 'uint' | 'double';
+
 /** The property kinds the subset has, and the only ones a declared widget property may take. */
-export type ForeignPropertyKind = 'string' | 'boolean' | 'int' | 'uint' | 'double';
+export type ForeignPropertyKind = ForeignScalarKind | 'object';
 
 /** One property a widget class declares at its `extends`. `default` is the unset value. */
-export interface ForeignProperty {
-    readonly kind: ForeignPropertyKind;
+export interface ForeignScalarProperty {
+    readonly kind: ForeignScalarKind;
     readonly default?: string | boolean | number | null;
     readonly nick?: string;
     readonly blurb?: string;
 }
 
-/** One signal a widget class declares at its `extends`, in the subset's parameter vocabulary. */
+/**
+ * A property holding another GObject, or `null` — `Adw.ComboRow:model` (ADR 0122 § 6).
+ *
+ * `valueType` IS REQUIRED, and that is the whole reason this is a separate arm rather than an
+ * optional field on the one above. `g_param_spec_object` takes the object type as an argument and
+ * has no default for it, so a declaration that omitted it would leave the engine to guess between
+ * "any GObject" and the interface the widget actually means — and a `model` that accepted any
+ * GObject is the refusal ADR 0122 § 6 exists to make. It is the subset's own token (`TYPE_OBJECT`
+ * or an interface of the subset), NOT node-gi's: a port that named a real GType would have to
+ * import node-gi to describe its own properties, which is the dependency this vocabulary exists
+ * to keep out. The engine that has node-gi translates.
+ *
+ * There is no `default`. `g_param_spec_object`'s default is always `NULL`, so a declaration
+ * cannot carry another one.
+ */
+export interface ForeignObjectProperty {
+    readonly kind: 'object';
+    readonly valueType: GType | GInterface;
+    readonly nick?: string;
+    readonly blurb?: string;
+}
+
+/** One property a widget class declares at its `extends`. */
+export type ForeignProperty = ForeignScalarProperty | ForeignObjectProperty;
+
+/**
+ * One signal a widget class declares at its `extends`, in the subset's parameter vocabulary.
+ *
+ * SCALARS ONLY. An object parameter would need its own type beside the kind, as the property arm
+ * does, and nothing declares one — `items-changed` is three `uint`s. Widening it to
+ * `ForeignPropertyKind` would make `{ kind: 'object' }` spellable with no type and no meaning.
+ */
 export interface ForeignSignal {
-    readonly param_types?: readonly ForeignPropertyKind[];
+    readonly param_types?: readonly ForeignScalarKind[];
 }
 
 /**

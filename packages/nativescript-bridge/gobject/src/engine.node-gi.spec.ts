@@ -9,11 +9,13 @@
 // construct order and error messages, over real GTypes, real `notify`, real emissions and real
 // `GBinding`.
 //
-// SO ALL 24 ROWS RUN HERE, including the seven `holds: 'subset'` refusals the oracle leg skips
+// SO EVERY ROW RUNS HERE, including the `holds: 'subset'` refusals the oracle leg skips
 // (`isOracle: false`): the refusals are the core's and must survive the engine swap — that is the
-// one claim an engine could silently break. The four `widget: true` rows run too, because the
-// door is the same two-fake-widget door `gobject.spec.ts` uses, not a real Gtk; no display is
-// needed and none is consulted.
+// one claim an engine could silently break. The `widget: true` rows run too, because the door is
+// the same two-fake-widget door `gobject.spec.ts` uses, not a real Gtk; no display is needed and
+// none is consulted. The `iface` and `objectProperty` rows (ADR 0122) run because the subject
+// offers both tokens — which is what puts the engine's `g_param_spec_object` translation under
+// measurement, since a declared object property is the only thing that reaches it.
 //
 // WHY IT LIVES HERE AND NOT BESIDE THE VECTORS. `@gjsify/adwaita-core` is tier 2 and may not
 // depend on this tier-3 package, and the subject needs the engine. ADR 0105 § 7 asks for the
@@ -67,6 +69,20 @@ export const realGioEngineSuite = (requireGi: RequireGi) => async () => {
             const asked = engine.setValue(instance, specOf(K, 'code'), 'x');
             expect([asked, seen.join('')]).toStrictEqual([false, 'n']);
         });
+
+        // NOT MEASURED HERE, and the reason is the measurement: `realValueTypeFor`'s refusal of an
+        // object value type it cannot translate into a real GType (ADR 0122 § 6, no silent
+        // fallback). It is unreachable from this leg through any real door —
+        //   • `ParamSpec.object` refuses an untranslatable value type in the CORE, so the engine's
+        //     gate stands behind one that fires first, and `registerClass` refuses anything that is
+        //     not a `ParamSpec` instance at all (measured: "declares a property that is not a
+        //     ParamSpec"), so a hand-built spec never arrives either;
+        //   • the one door that hands the engine an UNVALIDATED value type is route D's
+        //     `foreignParamSpecFor`, and `registerForeignClass` throws on `$foreignParentClasses`
+        //     before it on every non-NativeScript host, this one included.
+        // So it belongs to the DEVICE leg (`tests/integration/nativescript-gi/`), where route D is
+        // live; filed in `status/open-todos/README.md`. Reaching it here would mean mutating a real
+        // ParamSpec's `valueType` after the fact, which measures a fabricated object and not a door.
     });
 };
 

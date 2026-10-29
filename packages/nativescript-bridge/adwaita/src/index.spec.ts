@@ -84,7 +84,7 @@ import {
 } from '@gjsify/adwaita-core';
 import type { ToastScheduler, ToastTimerHandle } from '@gjsify/adwaita-core';
 // Same for the row interaction state machines, specced in the core's `rows.spec.ts`.
-import { ComboState, SpinState, ToggleGroupState, parseAdjustment } from '@gjsify/adwaita-core';
+import { ComboState, GjsifyOptionList, SpinState, ToggleGroupState, parseAdjustment } from '@gjsify/adwaita-core';
 
 // The XML-registration helper's own module is import-safe, but it lives in the widgets
 // barrel, which DOES pull the classes — so its absent-global no-op contract is
@@ -513,23 +513,30 @@ export default async () => {
         // NS `AdwComboRow` composes.
         await it('resolves selectedValue from selectedIndex', () => {
             const state = new ComboState();
-            state.setModel([
-                { label: 'One', value: 'a' },
-                { label: 'Two', value: 'b' },
-            ]);
+            state.setModel(
+                GjsifyOptionList.new([
+                    { label: 'One', value: 'a' },
+                    { label: 'Two', value: 'b' },
+                ]),
+            );
             state.setSelectedIndex(1);
             expect(state.selectedValue).toBe('b');
         });
 
-        await it('setSelectedValue moves selectedIndex; out-of-range → empty value', () => {
+        await it('setSelectedValue moves selectedIndex; an out-of-range index write is ignored', () => {
             const state = new ComboState();
-            state.setModel([{ label: 'One', value: 'a' }]);
-            state.setSelectedIndex(5);
-            expect(state.selectedValue).toBe('');
-            state.setModel([
-                { label: 'One', value: 'a' },
-                { label: 'Two', value: 'b' },
-            ]);
+            state.setModel(GjsifyOptionList.new([{ label: 'One', value: 'a' }]));
+            // Measured on both widgets (ADR 0122): an index the model does not address leaves
+            // the selection where it was — it does not blank it.
+            expect(state.setSelectedIndex(5)).toBe(false);
+            expect(state.selectedIndex).toBe(0);
+            expect(state.selectedValue).toBe('a');
+            state.setModel(
+                GjsifyOptionList.new([
+                    { label: 'One', value: 'a' },
+                    { label: 'Two', value: 'b' },
+                ]),
+            );
             expect(state.setSelectedValue('b')).toBe(true);
             expect(state.selectedIndex).toBe(1);
         });
@@ -541,7 +548,9 @@ export default async () => {
         for (const { count, presentsChooser, rule } of COMBO_CHOOSER_VECTORS) {
             await it(`${count} option(s) → presentsChooser ${presentsChooser}: ${rule}`, () => {
                 const state = new ComboState();
-                state.setModel(Array.from({ length: count }, (_, i) => ({ label: `L${i}`, value: `v${i}` })));
+                state.setModel(
+                    GjsifyOptionList.new(Array.from({ length: count }, (_, i) => ({ label: `L${i}`, value: `v${i}` }))),
+                );
                 expect(state.presentsChooser).toBe(presentsChooser);
             });
         }

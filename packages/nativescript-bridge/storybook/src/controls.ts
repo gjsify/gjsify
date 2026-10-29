@@ -17,6 +17,7 @@
 //   SELECT      -> Adw.ComboRow
 //   COLOR       -> Adw.EntryRow (hex fallback — NS has no native color row)
 
+import { GjsifyOptionList } from '@gjsify/adwaita-core';
 import type { StoryControl, StoryNumberControl, StorySelectControl } from '@gjsify/stories';
 import {
     bindControl,
@@ -128,7 +129,11 @@ const ADWAITA_NS_FACTORY: ControlWidgetFactory<View> = {
         const row = new Adw.ComboRow();
         row.title = label(control);
         if (control.description) row.subtitle = control.description;
-        row.model = options.map((o) => ({ label: o.label, value: String(o.value) }));
+        // A real list model and not the array this line used to assign: `model` is an object
+        // property over `Gio.ListModel` since ADR 0122 § 4. `GjsifyOptionList` and not
+        // `Gtk.StringList`, because a `Gtk.StringObject` holds a string alone and a story
+        // control's option carries a `value` beside its `label`.
+        row.model = GjsifyOptionList.new(options.map((o) => ({ label: o.label, value: String(o.value) })));
         let cb: (v: number) => void = () => {};
         row.addEventListener(NOTIFY_SELECTED, (e) => cb((e as NotifySelectedEventData).selected));
         return {

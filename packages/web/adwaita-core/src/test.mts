@@ -40,6 +40,7 @@ import calendarTestSuite from './calendar.spec.js';
 import adjustmentTestSuite from './adjustment.spec.js';
 import gtkAdjustmentTestSuite from './gtk-adjustment.spec.js';
 import gtkStringListTestSuite from './gtk-string-list.spec.js';
+import optionListTestSuite from './option-list.spec.js';
 import rowsTestSuite from './rows.spec.js';
 import toastTestSuite from './toast.spec.js';
 import toastObjectTestSuite from './toast-object.spec.js';
@@ -114,6 +115,7 @@ run({
     adjustmentTestSuite,
     gtkAdjustmentTestSuite,
     gtkStringListTestSuite,
+    optionListTestSuite,
     bannerTestSuite,
     buttonContentTestSuite,
     buttonTestSuite,

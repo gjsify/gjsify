@@ -282,10 +282,10 @@ export class ListViewState {
      * any selected position the new model does not have.
      *
      * A VIEW DOES NOT AUTOSELECT, and that is the one place this class deliberately
-     * differs from `ComboState`. `clampListSelection` is `GtkSingleSelection`'s
-     * `autoselect`, which exists so a combo row always has a value to SHOW; a list view
-     * has no inline value and GTK's own `GtkMultiSelection` keeps nothing selected after
-     * a model it cannot map. So positions are filtered, not clamped.
+     * differs from `ComboState`, whose model write resets the selection to 0:
+     * `GtkSingleSelection:autoselect` exists so a combo row always has a value to SHOW; a
+     * list view has no inline value and GTK's own `GtkMultiSelection` keeps nothing
+     * selected after a model it cannot map. So positions are filtered, not reset.
      */
     setModel(model: readonly AdwComboOption[] | null | undefined): void {
         const next = Array.isArray(model) ? model : [];

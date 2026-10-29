@@ -281,13 +281,7 @@ export type {
 } from './dialog.js';
 
 // --- The portable list model (the item vocabulary + items-changed — ADR 0046) ---
-export {
-    ADW_COMBO_NO_SELECTION,
-    clampListSelection,
-    listItemsChanged,
-    normalizeComboOptions,
-    parseListModel,
-} from './list.js';
+export { ADW_COMBO_NO_SELECTION, listItemsChanged, normalizeComboOptions, parseListModel } from './list.js';
 export type {
     AdwComboOption,
     AdwComboOptionInput,
@@ -402,12 +396,21 @@ export type { GtkAdjustmentProps } from './gtk-adjustment.js';
 export { GtkStringList, GtkStringObject, INVALID_LIST_POSITION } from './gtk-string-list.js';
 export type { GtkStringListProps } from './gtk-string-list.js';
 
+// NOT prefixed for a library, because no library has it: a `Gio.ListModel` of two-field option
+// items is what a GTK author builds out of `Gio.ListStore` plus a `GObject` subclass of their
+// own, and this is that subclass, written once (ADR 0122 § 6, `option-list.ts`).
+export { GjsifyOptionList, GjsifyOptionObject, readModelWrite } from './option-list.js';
+export type { GjsifyOptionListProps } from './option-list.js';
+
 // --- Row interaction state machines (Adw.ExpanderRow/ComboRow/ToggleGroup) ---
 export { ComboState, ExpanderState, ToggleGroupState, keptToggles, toggleIndexOfName } from './rows.js';
 export type {
     ComboItemsListener,
+    ComboNotify,
+    ComboNotifyListener,
     ComboStateChange,
     ComboStateListener,
+    ComboWatchableModel,
     ExpanderStateListener,
     ToggleGroupStateChange,
     ToggleGroupStateListener,
@@ -1197,8 +1200,11 @@ export { engineForTarget, registerGObjectEngine, registeredEngine, resetRegister
 export type {
     EngineTarget,
     ForeignClassMeta,
+    ForeignObjectProperty,
     ForeignProperty,
     ForeignPropertyKind,
+    ForeignScalarKind,
+    ForeignScalarProperty,
     ForeignSignal,
     GObjectEngine,
 } from './engine.js';

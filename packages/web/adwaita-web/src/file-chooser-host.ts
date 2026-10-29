@@ -22,6 +22,7 @@ import {
     dialogFailedError,
     dismissedError,
     fileFilterAccepts,
+    GjsifyOptionList,
     GLibError,
     registerFileChooserDriver,
     type FileChooserDriver,
@@ -291,7 +292,7 @@ export function presentOpfsDialog(
     let dropDown: GtkDropDown | null = null;
     if (filters.length > 0) {
         dropDown = el('gtk-drop-down') as GtkDropDown;
-        dropDown.model = filters.map((f, i) => f.name ?? `Filter ${i + 1}`);
+        dropDown.model = GjsifyOptionList.new(filters.map((f, i) => f.name ?? `Filter ${i + 1}`));
         dropDown.selected = Math.max(initial, 0);
         bottom.append(dropDown);
     }

@@ -501,3 +501,24 @@ What closes it is whatever eventually lets a NativeScript widget module be
 evaluated in the suite — the `ns-core.d.ts` ambient slice is the type-level half of
 that problem and does not run anything.
 
+### The real-Gio engine's object value-type refusal is measurable only on a device
+
+`createRealGioEngine`'s `realValueTypeFor` translates an object property's declared
+value type into a real GType and refuses every token it has not been taught, naming
+the two it has (ADR 0122 § 6, ADR 0105's no-silent-fallback rule). The positive half
+is measured: `GOBJECT_VECTORS`' eleven `objectProperty` rows now run on this engine
+(`vector-subject.ts` supplies the pair), so a `Gio.ListModel`-typed property really is
+a `g_param_spec_object` over the real interface.
+
+The REFUSAL is not, on any host leg. The core's `ParamSpec.object` rejects an
+untranslatable value type before the engine sees it, and `registerClass` rejects
+anything that is not a `ParamSpec` instance at all — so neither the real door nor a
+hand-built spec arrives. The one door that hands the engine an unvalidated value type
+is route D's `foreignParamSpecFor`, and `registerForeignClass` throws on
+`$foreignParentClasses` before reaching it everywhere except NativeScript.
+
+So it closes in `tests/integration/nativescript-gi/`, with a route-D class declaring
+an object property whose value type is neither `GObject` nor `Gio.ListModel`. Until
+then the engine's gate is a second gate behind a firing one, which is the shape a rule
+rots in unnoticed. Reaching it on the host leg would mean mutating a real ParamSpec's
+`valueType` after construction, which measures a fabricated object and not a door.

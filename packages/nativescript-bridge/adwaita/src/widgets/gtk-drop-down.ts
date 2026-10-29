@@ -31,8 +31,8 @@
 
 import { panDownSymbolic } from '@gjsify/adwaita-icons/ui';
 import { action, Label, StackLayout, type EventData, type View } from '@nativescript/core';
-import { ComboState, normalizeComboOptions, parseListModel } from '@gjsify/adwaita-core';
-import type { AdwComboOption, AdwListModelInput } from '@gjsify/adwaita-core';
+import { ComboState, GjsifyOptionList, readModelWrite } from '@gjsify/adwaita-core';
+import type { AdwComboOption, ComboWatchableModel } from '@gjsify/adwaita-core';
 import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { xmlNumber } from './xml-values.js';
@@ -74,6 +74,13 @@ export class GtkDropDown extends withSignals(StackLayout) {
     protected readonly _chevron: GtkImage;
     /** The headless options list + selectedIndex↔selectedValue state machine (ADR 0004). */
     private readonly _state = new ComboState();
+    /**
+     * The list the MARKUP door fills — `<gtk:DropDown model='[…]'>` is JSON text, and a real
+     * `Gio.ListModel` has no attribute spelling (ADR 0122 § 5). Held for the widget's whole life
+     * so re-parsing the attribute splices the list it already points at rather than replacing
+     * it, which would reset the selection.
+     */
+    private readonly _authored = GjsifyOptionList.new(null);
     /** Title shown atop the substituted `action()` sheet. */
     private _chooserTitle = '';
 
@@ -131,7 +138,7 @@ export class GtkDropDown extends withSignals(StackLayout) {
     /** Open the native chooser and apply the picked option. */
     private async _openChooser(): Promise<void> {
         if (this._state.count === 0) return;
-        const labels = this._state.model.map((o) => o.label);
+        const labels = this._state.options.map((o) => o.label);
         const chosen = await action({
             title: this._chooserTitle || undefined,
             cancelButtonText: 'Cancel',
@@ -143,20 +150,35 @@ export class GtkDropDown extends withSignals(StackLayout) {
         this._state.select(labels.indexOf(chosen));
     }
 
-    /** The list model (`Gtk.DropDown:model`). Updates the button label. */
-    get model(): AdwComboOption[] {
+    /**
+     * The list model (`Gtk.DropDown:model`) — the OBJECT that was assigned, by identity, as
+     * `dropdown.model === model` is measured to hold in GTK (ADR 0122 § 4). The normalised
+     * descriptors are {@link options}.
+     */
+    get model(): ComboWatchableModel | null {
         return this._state.model;
     }
 
-    set model(value: AdwListModelInput | string) {
-        // The SAME normaliser the browser elements run, so one authored model — bare
-        // strings included — moves between the surfaces unchanged. This setter used to
-        // take descriptors only, so `model = ['a','b']` stored strings and every label
-        // read back `undefined`.
-        // The XML attribute door hands the list over as JSON text, the same `model='[…]'` the
-        // browser elements read — a `Gtk.StringList` cannot be filled from an attribute of its
-        // own, `strings` being construct-only (ADR 0122).
-        this._state.setModel(typeof value === 'string' ? parseListModel(value) : normalizeComboOptions(value));
+    set model(value: ComboWatchableModel | string | null) {
+        // ONE door for every surface: a real model by identity, `null` for none, a STRING for
+        // the XML attribute (`model='[…]'`, JSON — a `Gio.ListModel` has no attribute spelling),
+        // and a `TypeError` in the property's own words for anything else, an array included.
+        this._state.setModel(readModelWrite(value, this._authored));
+    }
+
+    /** The held model's items as `{ value, label }` descriptors. */
+    get options(): AdwComboOption[] {
+        return this._state.options;
+    }
+
+    /** `gtk_drop_down_set_model`. */
+    set_model(model: ComboWatchableModel | null): void {
+        this.model = model;
+    }
+
+    /** `gtk_drop_down_get_model`. */
+    get_model(): ComboWatchableModel | null {
+        return this.model;
     }
 
     /**
@@ -167,7 +189,7 @@ export class GtkDropDown extends withSignals(StackLayout) {
         if (resolveBuilderSlot(name, ['model'], 'child') !== 'model') {
             throw new Error(`Gtk.DropDown takes no child widget; <${name}> is placed nowhere.`);
         }
-        this.model = child as unknown as AdwListModelInput;
+        this.model = child as unknown as ComboWatchableModel;
     }
 
     /** The selected option index (`Gtk.DropDown:selected`). */
@@ -199,9 +221,18 @@ export class GtkDropDown extends withSignals(StackLayout) {
         this._state.setSelectedValue(value);
     }
 
-    /** The selected option descriptor, or `null` when out of range (`Gtk.DropDown:selected-item`). */
-    get selectedItem(): AdwComboOption | null {
-        return this._state.model[this._state.selectedIndex] ?? null;
+    /**
+     * The selected ITEM (`Gtk.DropDown:selected-item`) — the model's own object at
+     * {@link selected}, read through `get_item`, so the identity comparison a `selected-item`
+     * consumer writes holds. `null` for the sentinel and for no model. Read-only, as in GTK.
+     */
+    get selectedItem(): unknown {
+        return this._state.selectedItem;
+    }
+
+    /** `gtk_drop_down_get_selected_item`. */
+    get_selected_item(): unknown {
+        return this.selectedItem;
     }
 
     /**

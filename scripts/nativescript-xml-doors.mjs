@@ -107,9 +107,12 @@ export const STRING_TOLERANT = {
  * setter landed in the UNCARRYABLE bucket and no rule looked at it again.
  *
  * The declared shape is what opts in: a setter annotated `<Something> | string` says the
- * attribute spelling exists. `AdwComboRow.model` is annotated `AdwListModelInput`, which
- * RESOLVES to a union containing `string` — and a bare string there is one ITEM, not JSON.
- * That is why the test reads the setter's own annotation rather than the resolved alias.
+ * attribute spelling exists. `AdwComboRow.model` is annotated `ComboWatchableModel | string
+ * | null` — the object half is a `Gio.ListModel`, which has no attribute spelling at all, so
+ * the `| string` beside it is the whole of what XML can write. The test reads the setter's own
+ * annotation and not a resolved alias, because an alias can hide a `string` that means
+ * something else: `AdwListModelInput` resolves to a union containing one, and a bare string
+ * THERE is one ITEM rather than JSON.
  *
  * Each entry is VERIFIED against its own declaration by `jsonDoors()`, like
  * `STRING_TOLERANT` is: a door that stops taking a string stops being one.
@@ -117,6 +120,7 @@ export const STRING_TOLERANT = {
 export const JSON_DOORS = {
     parseAdjustment: 'packages/web/adwaita-core/src/adjustment.ts',
     parseListModel: 'packages/web/adwaita-core/src/list.ts',
+    readModelWrite: 'packages/web/adwaita-core/src/option-list.ts',
 };
 
 /**
@@ -1260,9 +1264,25 @@ export function coerces(setter, kind) {
  * Every `JSON_DOORS` entry really is a total string→object door.
  *
  * The twin of {@link stringTolerant}, and it asks for two things rather than one: the
- * first parameter still accepts a `string`, AND the function does not throw on a bad one.
+ * first parameter still accepts a `string`, AND the STRING ARM does not throw on a bad one.
  * The second is what a door IS — an attribute is where an author's typo arrives, and a
  * door that throws stops the element upgrading rather than ignoring the typo.
+ *
+ * Both halves take two spellings, because a door can be the PROPERTY's door as well as the
+ * attribute's. `readModelWrite` is: ADR 0122 made `model` an object property over
+ * `Gio.ListModel`, so the one function answers a real model (by identity), `null`, a JSON
+ * string, and — for an array, the Array-era spelling — a `TypeError` in the property's own
+ * words. That is why
+ *
+ *   - `unknown` counts as accepting a string, but ONLY together with a `typeof <param> ===
+ *     'string'` in the body. `unknown` is more permissive than `string`, not less; what it
+ *     cannot show on its own is that a string is ROUTED anywhere, and a door that never tests
+ *     for one is not a string door however it is declared;
+ *   - delegating the string arm to another `JSON_DOORS` entry counts as the `catch`.
+ *     `readModelWrite` hands its string to `parseListModel`, whose own catch is verified by
+ *     this same loop, so the chain is held end to end. Its `TypeError` sits on a branch no
+ *     attribute can reach, an attribute being a string by construction — holding the throw
+ *     against it would force the one door to have two spellings of the same answer.
  */
 export function jsonDoors(root) {
     const problems = [];
@@ -1274,23 +1294,34 @@ export function jsonDoors(root) {
             problems.push(`JSON_DOORS names ${fn} in ${rel}, which is not readable.`);
             continue;
         }
-        const decl = new RegExp(`export function ${fn}\\(\\s*\\w+: ([^,)]+)`).exec(text);
+        const decl = new RegExp(`export function ${fn}\\(\\s*(\\w+): ([^,)]+)`).exec(text);
         if (decl === null) {
             problems.push(`JSON_DOORS names ${fn}, which ${rel} does not export as a function.`);
             continue;
         }
-        if (!/\bstring\b/.test(decl[1])) {
+        const [, param, declared] = decl;
+        const start = text.indexOf(`export function ${fn}(`);
+        const end = text.indexOf('\n}\n', start);
+        const body = text.slice(start, end === -1 ? text.length : end + 2);
+        const routes = new RegExp(`typeof ${param} === '(?:string)'`).test(body);
+        if (!/\bstring\b/.test(declared) && !(/\bunknown\b/.test(declared) && routes)) {
             problems.push(
-                `JSON_DOORS names ${fn}, whose first parameter is \`${decl[1].trim()}\` — it no longer ` +
-                    'accepts a string, so an XML attribute cannot reach it.',
+                `JSON_DOORS names ${fn}, whose first parameter is \`${declared.trim()}\` — it no longer ` +
+                    'accepts a string, so an XML attribute cannot reach it.' +
+                    (/\bunknown\b/.test(declared)
+                        ? ` \`unknown\` does accept one, but nothing in ${fn}'s body tests \`typeof ` +
+                          `${param} === 'string'\`, so no string is routed anywhere.`
+                        : ''),
             );
             continue;
         }
-        const body = text.slice(text.indexOf(`export function ${fn}(`));
-        if (!/\bcatch\b/.test(body.slice(0, body.indexOf('\n}\n') + 1))) {
+        if (/\bcatch\b/.test(body)) continue;
+        const delegate = Object.keys(JSON_DOORS).find((other) => other !== fn && body.includes(`${other}(`));
+        if (delegate === undefined) {
             problems.push(
-                `JSON_DOORS names ${fn}, whose body has no \`catch\` — a door is where an author's typo ` +
-                    'arrives, and one that throws stops the element upgrading instead of ignoring the typo.',
+                `JSON_DOORS names ${fn}, whose body has no \`catch\` and hands its string to no other ` +
+                    "JSON door — a door is where an author's typo arrives, and one that throws stops the " +
+                    'element upgrading instead of ignoring the typo.',
             );
         }
     }

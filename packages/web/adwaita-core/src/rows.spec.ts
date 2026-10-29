@@ -16,17 +16,33 @@ import {
     normalizeComboOptions,
     toggleIndexOfName,
 } from './rows.js';
-import type { ComboStateChange, ToggleGroupStateChange } from './rows.js';
-import { COMBO_CHOOSER_VECTORS, COMBO_SELECTION_VECTORS, TOGGLE_ACTIVE_NAME_VECTORS } from './conformance/rows.js';
+import type { ComboNotify, ComboStateChange, ToggleGroupStateChange } from './rows.js';
+import {
+    COMBO_CHOOSER_VECTORS,
+    COMBO_ITEMS_CHANGED_VECTORS,
+    COMBO_SELECTION_VECTORS,
+    TOGGLE_ACTIVE_NAME_VECTORS,
+} from './conformance/rows.js';
 import type { ComboSelectionStep } from './conformance/rows.js';
-import { LIST_MODEL_OWNERSHIP_VECTORS, applyListReadback } from './conformance/list.js';
+import { LIST_MODEL_OWNERSHIP_VECTORS, applyListMutation, applyListReadback } from './conformance/list.js';
+import { GjsifyOptionList } from './option-list.js';
 import type { AdwComboOption, AdwListItemsChanged } from './list.js';
 
-/** Replay one combo vector step against a headless combo state. */
+/**
+ * Replay one combo vector step against a headless combo state.
+ *
+ * Every `setModel` builds a FRESH list, which is what makes `setModelAgain` a distinct step
+ * rather than a repeat of the one before it: `model` holds an object now (ADR 0122 § 4), so
+ * two lists with equal contents are two different values and only the second step hands back
+ * the identity the state is already on.
+ */
 function applyComboStep(state: ComboState, step: ComboSelectionStep): void {
     switch (step.op) {
         case 'setModel':
-            state.setModel([...step.model]);
+            state.setModel(GjsifyOptionList.new([...step.model]));
+            return;
+        case 'setModelAgain':
+            state.setModel(state.model);
             return;
         case 'setSelectedIndex':
             state.setSelectedIndex(step.index);
@@ -94,7 +110,9 @@ export default async () => {
             await it(`${vector.name} — ${vector.rule}`, () => {
                 const state = new ComboState();
                 const changes: ComboStateChange[] = [];
+                const notified: ComboNotify[] = [];
                 state.subscribe((change) => changes.push(change));
+                state.subscribeNotify((property) => notified.push(property));
 
                 for (const step of vector.steps) applyComboStep(state, step);
 
@@ -105,14 +123,51 @@ export default async () => {
                 // change, so a swallowed or duplicated one is a bug even when the end
                 // state is right.
                 expect(changes).toStrictEqual([...vector.emitted]);
+                // And the `notify::` ORDER beside it, which is the half a DOM renderer has
+                // no way to show: the two feeds disagree on purpose (a model write emits ONE
+                // change and three notifies), so neither stands in for the other.
+                expect(notified).toStrictEqual([...vector.notified]);
             });
         }
     });
 
-    // WHO OWNS THE ARRAY — driven here rather than only at the renderers because this is
-    // the surface where both doors are open: an element setter runs `normalizeComboOptions`
-    // and closes the input one on its own, `ComboState.setModel` takes a normalised model
-    // straight from a caller and closes nothing for free.
+    await describe('ComboState items-changed on the held model (GtkSingleSelection)', async () => {
+        for (const vector of COMBO_ITEMS_CHANGED_VECTORS) {
+            await it(`${vector.name} — ${vector.rule}`, () => {
+                const state = new ComboState();
+                const list = GjsifyOptionList.new([...vector.initial]);
+                state.setModel(list);
+                if (vector.selected >= 0) state.setSelectedIndex(vector.selected);
+                expect(state.selectedIndex, 'the row set up the selection it says it did').toBe(vector.selected);
+
+                const splices: AdwListItemsChanged[] = [];
+                const notified: ComboNotify[] = [];
+                state.subscribeItems((change) => splices.push(change));
+                state.subscribeNotify((property) => notified.push(property));
+
+                list.splice(vector.splice.position, vector.splice.removed, [...vector.splice.added]);
+
+                expect(state.selectedIndex).toBe(vector.result);
+                expect(state.selectedValue).toBe(vector.value);
+                expect(notified).toStrictEqual([...vector.notified]);
+                // The splice reaches the renderer channel on EVERY row, including the ones
+                // that notify nothing: where the list changed is a fact about the drawn
+                // items, independent of whether the selection moved with it.
+                expect(splices).toStrictEqual([
+                    {
+                        position: vector.splice.position,
+                        removed: vector.splice.removed,
+                        added: vector.splice.added.length,
+                    },
+                ]);
+            });
+        }
+    });
+
+    // WHO OWNS THE OPTIONS — the two arrays either side of the model, and the model itself.
+    // Driven here rather than only at the renderers because this is the surface where the
+    // state takes a list straight from a caller: an element setter builds the list out of
+    // its own parsed attribute and so closes the input door on its own.
     await describe('ComboState model ownership (portable list-model vectors)', async () => {
         for (const vector of LIST_MODEL_OWNERSHIP_VECTORS) {
             await it(vector.rule, () => {
@@ -120,16 +175,20 @@ export default async () => {
                 // A caller's own array of a caller's own items, which is what makes the row
                 // about ownership rather than about the table's constants.
                 const input: AdwComboOption[] = vector.initial.map((item) => ({ ...item }));
-                state.setModel(input);
+                const list = GjsifyOptionList.new(input);
+                state.setModel(list);
 
                 const splices: AdwListItemsChanged[] = [];
                 state.subscribeItems((change) => splices.push(change));
 
-                const mutated = applyListReadback(vector.source === 'input' ? input : state.model, vector.op);
-                if (vector.assign) state.setModel(mutated);
+                if (vector.source === 'model') applyListMutation(list, vector.op);
+                else applyListReadback(vector.source === 'input' ? input : state.options, vector.op);
 
-                expect(state.model).toStrictEqual([...vector.model]);
+                expect(state.options).toStrictEqual([...vector.model]);
                 expect(splices).toStrictEqual(vector.itemsChanged === null ? [] : [vector.itemsChanged]);
+                // The model the state holds is still the one it was handed: none of these
+                // ops is a replacement, so identity must not have moved under any of them.
+                expect(state.model).toBe(list);
             });
         }
     });
@@ -140,10 +199,12 @@ export default async () => {
     await describe('ComboState selection contract (Adw.ComboRow)', async () => {
         const twoOptions = (): ComboState => {
             const state = new ComboState();
-            state.setModel([
-                { label: 'One', value: 'a' },
-                { label: 'Two', value: 'b' },
-            ]);
+            state.setModel(
+                GjsifyOptionList.new([
+                    { label: 'One', value: 'a' },
+                    { label: 'Two', value: 'b' },
+                ]),
+            );
             return state;
         };
 
@@ -158,7 +219,7 @@ export default async () => {
 
         await it('guards an empty options list', () => {
             const state = new ComboState();
-            state.setModel([]);
+            state.setModel(GjsifyOptionList.new([]));
             expect(state.count).toBe(0);
             expect(state.selectedValue).toBe('');
             expect(state.select(0)).toBe(false); // nothing to interactively pick
@@ -170,7 +231,9 @@ export default async () => {
         await it('presentsChooser follows model_changed — one option is not a choice', () => {
             const state = new ComboState();
             for (const { count, presentsChooser, rule } of COMBO_CHOOSER_VECTORS) {
-                state.setModel(Array.from({ length: count }, (_, i) => ({ label: `L${i}`, value: `v${i}` })));
+                state.setModel(
+                    GjsifyOptionList.new(Array.from({ length: count }, (_, i) => ({ label: `L${i}`, value: `v${i}` }))),
+                );
                 expect(state.presentsChooser, rule).toBe(presentsChooser);
             }
         });
@@ -205,7 +268,7 @@ export default async () => {
             expect(changes.length).toBe(0);
         });
 
-        await it('hasIndex answers the bounds question both renderers ask', () => {
+        await it('hasIndex is the gate BOTH paths now pass through', () => {
             const state = twoOptions();
             expect(state.hasIndex(0)).toBe(true);
             expect(state.hasIndex(1)).toBe(true);
@@ -213,12 +276,16 @@ export default async () => {
             expect(state.hasIndex(-1)).toBe(false);
             expect(state.hasIndex(Number.NaN)).toBe(false);
             expect(state.hasIndex(Number.POSITIVE_INFINITY)).toBe(false);
-            // The permissive programmatic model is unchanged: setSelectedIndex
-            // still accepts a position hasIndex rejects, and the selection then
-            // reads empty (GTK's INVALID_LIST_POSITION spelling).
-            expect(state.setSelectedIndex(5)).toBe(true);
-            expect(state.hasIndex(state.selectedIndex)).toBe(false);
-            expect(state.selectedValue).toBe('');
+            // There is no permissive programmatic half any more (ADR 0122 § 4, measured
+            // against libadwaita 1.9.4): `Adw.ComboRow` and `Gtk.DropDown` IGNORE a
+            // `selected` write for a position the model does not have, silently and with
+            // no notify, so a position `hasIndex` rejects cannot be reached from here
+            // either and the selection standing stays.
+            expect(state.setSelectedIndex(1)).toBe(true);
+            expect(state.setSelectedIndex(5)).toBe(false);
+            expect(state.selectedIndex).toBe(1);
+            expect(state.setSelectedIndex(ADW_COMBO_NO_SELECTION)).toBe(false);
+            expect(state.selectedIndex).toBe(1);
         });
 
         await it('normalizeComboOptions takes strings, descriptors and half-descriptors', () => {
@@ -246,11 +313,15 @@ export default async () => {
             expect(normalizeComboOptions({ length: 2 } as unknown as string[])).toStrictEqual([]);
         });
 
-        await it('coerces a non-finite programmatic index to 0', () => {
+        await it('ignores a non-finite programmatic index instead of folding it to 0', () => {
+            // It used to coerce, which turned a `parseInt` of a malformed attribute into a
+            // real selection change at index 0. A non-finite position addresses no item, so
+            // it fails `hasIndex` like any other and the write is dropped.
             const state = twoOptions();
             state.setSelectedIndex(1);
-            expect(state.setSelectedIndex(Number.NaN)).toBe(true);
-            expect(state.selectedIndex).toBe(0);
+            expect(state.setSelectedIndex(Number.NaN)).toBe(false);
+            expect(state.setSelectedIndex(Number.POSITIVE_INFINITY)).toBe(false);
+            expect(state.selectedIndex).toBe(1);
         });
     });
 

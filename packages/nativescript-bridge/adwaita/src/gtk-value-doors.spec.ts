@@ -1,13 +1,18 @@
 // `Gtk.StringList` and `Gtk.Adjustment` AT THE WIDGET, held against the spelling they
 // replace.
 //
-// THE CLAIM UNDER TEST is backward compatibility, and it is the one claim a core-side spec
-// cannot make. `@gjsify/adwaita-core` proves the two classes reduce to the same value as
-// the array and the object literal; what a reader needs to know is that the WIDGET cannot
-// tell them apart — that `model: ['Blue', 'Teal']` and
-// `model: new Gtk.StringList({ strings: ['Blue', 'Teal'] })` leave `Adw.ComboRow` in the
-// same state, and likewise for the two adjustment spellings on `Adw.SpinRow`. Four
-// spellings, each asserted against the state the widget hands back.
+// THE CLAIM UNDER TEST is what each property's value IS, and it is the one claim a core-side
+// spec cannot make: `@gjsify/adwaita-core` proves what the two classes hold, what a reader
+// needs to know is what the WIDGET does with them.
+//
+// The two properties now answer DIFFERENTLY, which is why both are here. `adjustment` is still
+// a convenience door: `adjustment: FONT_SIZE` and `adjustment: new Gtk.Adjustment(FONT_SIZE)`
+// leave `Adw.SpinRow` in the same state, and the object literal is the shorthand. `model` is
+// not, since ADR 0122: it is an object property over `Gio.ListModel`, it holds the list BY
+// IDENTITY, and `model: ['Blue', 'Teal']` is a `TypeError` naming the type rather than a
+// shorthand for one. The array door it replaces is asserted here as the refusal it became —
+// this file is where a reader looking for `model: [...]` arrives, so this is where the answer
+// belongs.
 //
 // This lives on the TREES entry (`src/test.trees.mts`), not the pure one: it builds the
 // port's real widget classes, which evaluate `@nativescript/core` at module scope and are
@@ -28,34 +33,36 @@ const COLOURS = ['Blue', 'Teal', 'Green'];
 const FONT_SIZE = { lower: 0, upper: 100, value: 16, stepIncrement: 1 };
 
 /** Everything a `model` write leaves behind, as one comparable string. */
-const modelState = (row: { model: unknown; selected: number; selectedValue: string }) =>
-    JSON.stringify({ model: row.model, selected: row.selected, value: row.selectedValue });
+const modelState = (row: { options: unknown; selected: number; selectedValue: string }) =>
+    JSON.stringify({ options: row.options, selected: row.selected, value: row.selectedValue });
 
 /** Everything an `adjustment` write leaves behind. */
 const rangeState = (row: { adjustment: unknown; value: number }) =>
     JSON.stringify({ adjustment: row.adjustment, value: row.value });
 
 export const AdwGtkValueDoorsNsTest = async () => {
-    await describe('Adw.ComboRow takes a plain array and a Gtk.StringList alike', async () => {
-        await it('leaves the row in the same state through the construct bag', () => {
-            const array = new Adw.ComboRow({ title: 'Accent colour', model: COLOURS, selected: 1 });
-            const list = new Adw.ComboRow({
-                title: 'Accent colour',
-                model: new Gtk.StringList({ strings: COLOURS }),
-                selected: 1,
-            });
+    await describe('Adw.ComboRow:model takes a Gtk.StringList and refuses an array', async () => {
+        await it('holds the list by identity through the construct bag', () => {
+            const list = new Gtk.StringList({ strings: COLOURS });
+            const row = new Adw.ComboRow({ title: 'Accent colour', model: list, selected: 1 });
 
-            expect(modelState(list)).toBe(modelState(array));
-            expect(list.selectedValue).toBe('Teal');
+            expect(row.model === list).toBe(true);
+            expect(modelState(row)).toBe(
+                JSON.stringify({
+                    options: COLOURS.map((colour) => ({ value: colour, label: colour })),
+                    selected: 1,
+                    value: 'Teal',
+                }),
+            );
         });
 
-        await it('leaves the row in the same state through the property setter', () => {
-            const array = new Adw.ComboRow();
-            const list = new Adw.ComboRow();
-            array.model = COLOURS;
-            list.model = new Gtk.StringList({ strings: COLOURS });
+        await it('holds the list by identity through the property setter', () => {
+            const list = new Gtk.StringList({ strings: COLOURS });
+            const row = new Adw.ComboRow();
+            row.model = list;
 
-            expect(modelState(list)).toBe(modelState(array));
+            expect(row.model === list).toBe(true);
+            expect(row.selectedValue).toBe('Blue');
         });
 
         await it('follows a list that was appended to after construction', () => {
@@ -65,15 +72,42 @@ export const AdwGtkValueDoorsNsTest = async () => {
 
             expect(row.selectedValue).toBe('Teal');
         });
+
+        await it('follows a list appended to WHILE the row holds it', () => {
+            const list = new Gtk.StringList({ strings: ['Blue'] });
+            const row = new Adw.ComboRow({ model: list });
+            list.append('Teal');
+            row.selected = 1;
+
+            expect(row.selectedValue).toBe('Teal');
+        });
+
+        // The array door this file used to assert, as the refusal it became: `model` is an
+        // object property over `Gio.ListModel`, so the message is the property's own.
+        await it('refuses a plain array by naming the type', () => {
+            const row = new Adw.ComboRow();
+
+            expect(() => {
+                (row as unknown as { model: unknown }).model = COLOURS;
+            }).toThrow("Object is not a subclass of GObject_Object, it's a Array");
+        });
     });
 
-    await describe('Gtk.DropDown takes a plain array and a Gtk.StringList alike', async () => {
-        await it('leaves the drop-down in the same state', () => {
-            const array = new Gtk.DropDown({ model: COLOURS, selected: 2 });
-            const list = new Gtk.DropDown({ model: new Gtk.StringList({ strings: COLOURS }), selected: 2 });
+    await describe('Gtk.DropDown:model takes a Gtk.StringList and refuses an array', async () => {
+        await it('holds the list by identity', () => {
+            const list = new Gtk.StringList({ strings: COLOURS });
+            const dropDown = new Gtk.DropDown({ model: list, selected: 2 });
 
-            expect(modelState(list)).toBe(modelState(array));
-            expect(list.selectedValue).toBe('Green');
+            expect(dropDown.model === list).toBe(true);
+            expect(dropDown.selectedValue).toBe('Green');
+        });
+
+        await it('refuses a plain array by naming the type', () => {
+            const dropDown = new Gtk.DropDown();
+
+            expect(() => {
+                (dropDown as unknown as { model: unknown }).model = COLOURS;
+            }).toThrow("Object is not a subclass of GObject_Object, it's a Array");
         });
     });
 

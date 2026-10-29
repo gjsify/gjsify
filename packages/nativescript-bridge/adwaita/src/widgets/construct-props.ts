@@ -29,7 +29,7 @@
 // That is the same silent drop one door over that `xml-values.ts` exists for, and a bag
 // that reproduced it would be a new surface for it rather than a convenience.
 
-import type { AdwAdjustmentInput, AdwListModelInput } from '@gjsify/adwaita-core';
+import type { AdwAdjustmentInput } from '@gjsify/adwaita-core';
 
 import { GTK_ALIGN, gtkAlignRefusal, NS_HORIZONTAL_ALIGNMENT, NS_VERTICAL_ALIGNMENT } from './gtk-align.js';
 import { iconSizeNickOf } from './gtk-icon-size.js';
@@ -83,31 +83,37 @@ export type SnakeCase<S extends string> = S extends `${infer Head}${infer Rest}`
 export type WithSnakeCase<Props> = Props & { [K in keyof Props as K extends string ? SnakeCase<K> : K]: Props[K] };
 
 /**
- * The two properties whose SETTER takes a portable VALUE the getter does not hand back, and
- * what each one accepts.
+ * The two properties whose SETTER takes a value the getter does not hand back, and what each
+ * one accepts BEYOND its getter's type.
  *
  * THE GETTER TYPE IS NOT THE WHOLE DOOR HERE, and the difference is not an XML artifact like
- * `size`'s `| string`. `set model` takes `AdwListModelInput` — bare strings included, which
- * is `Gtk.StringList`'s own model and what `Gtk.StringList` itself is — and hands back
- * normalised `AdwComboOption`s; `set adjustment` takes a PARTIAL and hands back a whole one,
- * which is what makes `adjustment: { upper: 20 }` move one bound. Read off the getter alone,
- * the bag refused both — `new Adw.ComboRow({ model: ['Blue', 'Teal'] })` and
- * `new Adw.SpinRow({ adjustment: { lower: 0, upper: 100 } })` are the spellings the website
- * gallery has published on every such block, and every one of them was `TS2322` while the
- * runtime took it: `applyConstructProps` assigns through the setter, so nothing could fail.
+ * `size`'s `| string`. `set adjustment` takes a PARTIAL and hands back a whole one, which is
+ * what makes `adjustment: { upper: 20 }` move one bound. Read off the getter alone, the bag
+ * refused `new Adw.SpinRow({ adjustment: { lower: 0, upper: 100 } })` — a spelling the website
+ * gallery has published on every such block — with `TS2322` while the runtime took it:
+ * `applyConstructProps` assigns through the setter, so nothing could fail.
+ *
+ * `model` IS NARROWER THAN IT WAS, and the narrowing is the point. It used to widen to
+ * `AdwListModelInput`, arrays included, which was right while a `Gtk.StringList` WAS an array;
+ * since ADR 0122 § 4 `model` is an object property over `Gio.ListModel`, so
+ * `new Adw.ComboRow({ model: ['Blue', 'Teal'] })` is a `TypeError` at runtime and has to be one
+ * at compile time too — a bag that still admitted it would only move the failure to the first
+ * person who ran it. What is left to widen is the STRING: `model='[…]'` is the XML attribute's
+ * JSON door, which a `Gio.ListModel` has no attribute spelling for, and the getter hands back a
+ * model rather than the string it parsed.
  *
  * TWO KEY NAMES AND FOUR ACCESSORS: `model` on `AdwComboRow` and `GtkDropDown`, `adjustment`
  * on `AdwSpinRow` and `AdwSliderRow`, each pair declaring the same input type as the other.
  * Keyed by NAME like {@link ALIGNMENT_AXES}, because a widget that grows one of these
  * properties grows it with that meaning or the vocabulary gate refuses the name.
  *
- * It is held by `gtk-value-doors.spec.ts`, which writes all four spellings — array, a
- * `Gtk.StringList`, an object literal and a `Gtk.Adjustment` — through this door and is
- * type-checked with the rest of the package, so narrowing this table stops that file
- * compiling.
+ * It is held by `gtk-value-doors.spec.ts`, which writes every accepted spelling — a
+ * `Gtk.StringList`, an object literal and a `Gtk.Adjustment` — through this door and asserts
+ * the array as the refusal it became, and is type-checked with the rest of the package, so
+ * narrowing this table further stops that file compiling.
  */
 export interface ValueProps {
-    model: AdwListModelInput;
+    model: string;
     adjustment: AdwAdjustmentInput;
 }
 

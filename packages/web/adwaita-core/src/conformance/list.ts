@@ -28,10 +28,18 @@
 //                   it is how many item views a renderer must NOT have touched, which is
 //                   the difference between splicing and rebuilding and is invisible to
 //                   any assertion about the model alone.
-//   CLAMP           where the selection lands when the model under it is replaced.
-//                   `GtkSingleSelection` autoselects, so a position the new model does not
-//                   have falls to 0 — and the sentinel is BELOW the range, which is why
-//                   the test is membership and not `selected >= length`.
+//   OWNERSHIP       which arrays a caller keeps and which door actually moves the list,
+//                   now that `model` holds a real `Gio.ListModel` (ADR 0122 § 4) and there
+//                   is no array to assign back.
+//
+// A SIXTH TABLE WAS REMOVED HERE, and the reason belongs on the record: `CLAMP` pinned
+// `clampListSelection`, where a selection landed after the model under it was REPLACED —
+// clamped to the end, with the sentinel falling to 0. ADR 0122 § 4 measured libadwaita and
+// a replacement does not clamp: it RESETS to 0, giving up index 1 even when the new model
+// has it. The clamp survives only for a splice on the model the widget already holds,
+// which is `COMBO_ITEMS_CHANGED_VECTORS` in `conformance/rows.ts` — against the real
+// `GtkSingleSelection` branches and their notify order, which a pure `(selected, length)`
+// function had no way to express.
 //   TAB PAGES       the mapping from `TabViewPagesChange`, the one positional collection
 //                   signal this package already had, onto the portable one. Each row
 //                   carries the order BEFORE and AFTER, so "the three numbers plus the id
@@ -46,6 +54,7 @@ import type {
     AdwListModelInput,
     AdwListModelSource,
 } from '../list.js';
+import { GjsifyOptionList } from '../option-list.js';
 import { tabViewItemsChanged } from '../tab-view.js';
 import type { TabViewPagesChange } from '../tab-view.js';
 
@@ -155,6 +164,22 @@ export const LIST_NORMALIZE_VECTORS: ReadonlyArray<ListNormalizeVector> = [
         rule: 'an item with neither half is the empty descriptor `{}` already is — drawing it would need `expression`, which ADR 0122 leaves out',
     },
 ];
+
+/**
+ * A {@link LIST_NORMALIZE_VECTORS} row as the value a `model` PROPERTY write takes.
+ *
+ * ADR 0122 § 4 took the array arm off that property, so the ARRAY rows go in as a list built
+ * out of the array: the normaliser still runs on them, one step further in, as
+ * {@link GjsifyOptionList}'s own constructor. The model-source rows go STRAIGHT through —
+ * that is the shape the door now takes, and they are what proves a surface reads items by
+ * position rather than recognising one class.
+ *
+ * Lives here rather than in each driving suite because WHICH door a row reaches through is
+ * part of what the table claims, and two copies of that answer are two claims.
+ */
+export function listModelForInput(input: AdwListModelInput): AdwListModelSource {
+    return Array.isArray(input) ? GjsifyOptionList.new(input) : (input as AdwListModelSource);
+}
 
 /** One {@link parseListModel} expectation — the JSON attribute door. */
 export interface ListParseVector {
@@ -303,21 +328,22 @@ export const LIST_ITEMS_CHANGED_VECTORS: ReadonlyArray<ListItemsChangedVector> =
     },
 ];
 
-/** What a caller does to the array it read back out of a `model` accessor. */
+/** What a caller does to the options they hold, or to the model they were handed. */
 export type ListReadbackOp = 'append' | 'relabel-first' | 'remove-first';
 
-/** One read-mutate-assign expectation — see {@link LIST_MODEL_OWNERSHIP_VECTORS}. */
+/** One ownership expectation — see {@link LIST_MODEL_OWNERSHIP_VECTORS}. */
 export interface ListModelOwnershipVector {
     initial: AdwListModel;
     /**
-     * Which array the caller mutates: the one `model` handed BACK, or the one they
-     * assigned and kept. Two doors into the same failure, and closing one leaves the other.
+     * WHAT the caller mutates. `input` is the array they authored and handed to
+     * `GjsifyOptionList.new`; `options` is the array read back out of `toOptions()`; `model`
+     * is the list itself, through its own `Gio.ListModel` API. The first two must move
+     * nothing and the third must move everything, and which of the three a surface gets
+     * wrong is the difference between a leak and a dropped redraw.
      */
-    source: 'readback' | 'input';
+    source: 'options' | 'input' | 'model';
     op: ListReadbackOp;
-    /** Whether the mutated array is assigned back to `model` afterwards. */
-    assign: boolean;
-    /** The model the surface holds when the row is done. */
+    /** The options the surface holds when the row is done. */
     model: AdwListModel;
     /** The splice the surface emits, or `null` where it emits none. */
     itemsChanged: AdwListItemsChanged | null;
@@ -327,79 +353,94 @@ export interface ListModelOwnershipVector {
 }
 
 /**
- * WHO OWNS THE ARRAY a `model` accessor hands back — read, mutate, assign.
+ * WHO OWNS THE OPTIONS — the arrays a caller holds on either side of the model, and the
+ * model itself.
  *
  * The browser suite drives `LIST_MODEL_OWNERSHIP_VECTORS` through `<adw-combo-row>` and
- * `<gtk-drop-down>`, and core drives it through `ComboState` itself, which is the surface
- * where BOTH doors are reachable: the element setters run `normalizeComboOptions` and so
- * close the input door on their own, while `ComboState.setModel` takes a normalised model
- * straight from a caller.
+ * `<gtk-drop-down>`, and core drives it through `ComboState`.
  *
- * THE ROWS EXIST BECAUSE THE SPLICE MADE THIS A SILENT FAILURE. Under the full rebuild
- * every assignment redrew the list, so an aliased array was invisible; the splice decides
- * what to redraw by COMPARING the assignment against the stored model, and an alias makes
- * both sides read the new value — "nothing changed", nothing drawn, no error. `append`
- * with `assign` is the pattern that regressed, `relabel-first` is the same failure one
- * level down through a shared descriptor (which is why the copy is per ITEM and not just
- * per array), and the `assign: false` row is the invariant the other two rest on: what a
- * caller holds is THEIRS, so touching it moves nothing until they hand it back.
+ * READ, MUTATE, ASSIGN IS GONE AS A PATTERN, and that is what reshaped these rows. ADR 0122
+ * § 4 narrows `model` to a real `Gio.ListModel`, so there is no array to assign back: the
+ * only way to change a model in place is its own API, and handing over a DIFFERENT list is a
+ * replacement that resets the selection. What survives from the array era is the half that
+ * was never about assignment — an array a caller holds is THEIRS on both sides, going in
+ * (`GjsifyOptionList` copies each descriptor into an item) and coming out (`toOptions`
+ * copies each item back). `relabel-first` is why the copy is per ITEM rather than per array:
+ * a shared descriptor would let the text under a selection move with nothing emitted, which
+ * is the failure `GjsifyOptionObject`'s read-only `label` exists to prevent.
+ *
+ * The `model` rows are the other side of the same invariant: the ONE door that does move the
+ * list emits the one minimal splice for it, in each of the three directions a splice can go.
  */
 export const LIST_MODEL_OWNERSHIP_VECTORS: ReadonlyArray<ListModelOwnershipVector> = [
     {
         initial: [A, B],
-        source: 'readback',
+        source: 'options',
         op: 'append',
-        assign: false,
         model: [A, B],
         itemsChanged: null,
         survivors: 2,
-        rule: "a model read back is the CALLER's array — pushing onto it moves nothing, because nothing was assigned",
+        rule: 'the options read back out of a model are a COPY — pushing onto them moves nothing, because the list holds items and not that array',
     },
     {
         initial: [A, B],
-        source: 'readback',
-        op: 'append',
-        assign: true,
-        model: [A, B, { value: 'z', label: 'Z' }],
-        itemsChanged: { position: 2, removed: 0, added: 1 },
-        survivors: 2,
-        rule: 'read, push, assign is one insertion at the end — the pattern a full rebuild used to serve and a splice over a shared array answers with nothing at all',
-    },
-    {
-        initial: [A, B],
-        source: 'readback',
+        source: 'options',
         op: 'relabel-first',
-        assign: true,
-        model: [{ value: 'a', label: 'Renamed' }, B],
-        itemsChanged: { position: 0, removed: 1, added: 1 },
-        survivors: 1,
-        rule: 'relabelling an item THROUGH the array read back is the same failure one level down: a shared descriptor changes the stored model too, so the comparison sees no change',
-    },
-    {
-        initial: [A, B, C],
-        source: 'readback',
-        op: 'remove-first',
-        assign: true,
-        model: [B, C],
-        itemsChanged: { position: 0, removed: 1, added: 0 },
+        model: [A, B],
+        itemsChanged: null,
         survivors: 2,
-        rule: 'the shrink direction, which a shared array reports as a model that got shorter on BOTH sides and therefore did not change',
+        rule: 'and the copy is per ITEM: relabelling a descriptor read back leaves the item it came from alone, so no text moves without an emission',
     },
     {
         initial: [A, B],
         source: 'input',
         op: 'append',
-        assign: true,
+        model: [A, B],
+        itemsChanged: null,
+        survivors: 2,
+        rule: 'the OTHER array a caller holds — the one they authored and handed over. The list read it once; pushing onto it afterwards reaches nothing',
+    },
+    {
+        initial: [A, B],
+        source: 'input',
+        op: 'relabel-first',
+        model: [A, B],
+        itemsChanged: null,
+        survivors: 2,
+        rule: 'the same per-item copy on the way IN, which is the door a constructor that stored the caller descriptors would leave open',
+    },
+    {
+        initial: [A, B],
+        source: 'model',
+        op: 'append',
         model: [A, B, { value: 'z', label: 'Z' }],
         itemsChanged: { position: 2, removed: 0, added: 1 },
         survivors: 2,
-        rule: 'the OTHER door — an array the caller ASSIGNED and kept a reference to. Closing only the read-back one leaves the same comparison reading the new value on both sides, by the other route',
+        rule: 'appending THROUGH the model is one insertion at the end — the only door that moves the list, and it emits the splice for it',
+    },
+    {
+        initial: [A, B],
+        source: 'model',
+        op: 'relabel-first',
+        model: [{ value: 'a', label: 'Renamed' }, B],
+        itemsChanged: { position: 0, removed: 1, added: 1 },
+        survivors: 1,
+        rule: 'relabelling is a REPLACEMENT of the item, because an item is immutable: one out, one in, at the position that changed',
+    },
+    {
+        initial: [A, B, C],
+        source: 'model',
+        op: 'remove-first',
+        model: [B, C],
+        itemsChanged: { position: 0, removed: 1, added: 0 },
+        survivors: 2,
+        rule: 'the shrink direction, where the two survivors are the point: a renderer that rebuilt would report none',
     },
 ];
 
 /**
- * The caller-side half of one {@link LIST_MODEL_OWNERSHIP_VECTORS} row: mutate the array a
- * `model` accessor handed back, IN PLACE, and hand the same array back.
+ * The caller-side half of an `options`/`input` row: mutate the array, IN PLACE, and hand the
+ * same array back.
  *
  * In place and returning its argument is the whole point — a helper that built a new array
  * would test the pattern that never broke.
@@ -413,51 +454,18 @@ export function applyListReadback(model: AdwComboOption[], op: ListReadbackOp): 
     return model;
 }
 
-/** One {@link clampListSelection} expectation. */
-export interface ListSelectionClampVector {
-    selected: number;
-    length: number;
-    result: number;
-    rule: string;
-}
-
 /**
- * Where a selection lands after the model under it was replaced.
+ * The model-side half: the same three ops through the list's own `Gio.ListModel` API.
  *
- * The browser suite drives `LIST_SELECTION_CLAMP_VECTORS` through `<adw-combo-row>` and
- * through that element only. `<gtk-drop-down>` REFUSES an out-of-range `selected` set
- * outright — its published contract, with `ComboState.hasIndex` as the shared bounds — so
- * the starting index these rows replace cannot be put on that element in the first place.
- * One row is narrower than the vector even on the row, and `adw-row-state.spec.ts` says
- * so in place.
+ * `relabel-first` is a splice rather than an assignment because {@link GjsifyOptionObject}
+ * is read-only — changing what an item says means putting a different item there, which is
+ * also how `Gio.ListStore` would have to spell it.
  */
-export const LIST_SELECTION_CLAMP_VECTORS: ReadonlyArray<ListSelectionClampVector> = [
-    { selected: 1, length: 3, result: 1, rule: 'a position the new model has is kept' },
-    {
-        selected: 5,
-        length: 3,
-        result: 0,
-        rule: 'a position past the end falls back to 0 — `GtkSingleSelection` autoselects rather than deselecting',
-    },
-    {
-        selected: -1,
-        length: 3,
-        result: 0,
-        rule: 'the SENTINEL falls back to 0 too, which is how a widget recovers a selection when its model grows; a one-sided `selected >= length` would leave the -1 standing',
-    },
-    {
-        selected: 0,
-        length: 0,
-        result: -1,
-        rule: 'an EMPTY model has no 0 to fall back to, so it lands on the sentinel and a placeholder becomes drawable',
-    },
-    {
-        selected: Number.NaN,
-        length: 3,
-        result: 0,
-        rule: 'a non-finite position addresses no item — the same answer as one past the end, so a `parseInt` of a malformed attribute cannot poison the index',
-    },
-];
+export function applyListMutation(model: GjsifyOptionList, op: ListReadbackOp): void {
+    if (op === 'append') model.append({ value: 'z', label: 'Z' });
+    else if (op === 'relabel-first') model.splice(0, 1, [{ value: 'a', label: 'Renamed' }]);
+    else model.remove(0);
+}
 
 /** One {@link tabViewItemsChanged} expectation, with the order it replays. */
 export interface TabPagesItemsChangedVector {

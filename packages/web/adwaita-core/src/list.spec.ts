@@ -10,11 +10,10 @@ import {
     LIST_ITEMS_CHANGED_VECTORS,
     LIST_NORMALIZE_VECTORS,
     LIST_PARSE_VECTORS,
-    LIST_SELECTION_CLAMP_VECTORS,
     TAB_PAGES_ITEMS_CHANGED_VECTORS,
     replayTabPagesAsSplices,
 } from './conformance/list.js';
-import { clampListSelection, listItemsChanged, normalizeComboOptions, parseListModel } from './list.js';
+import { listItemsChanged, normalizeComboOptions, parseListModel } from './list.js';
 import { tabViewItemsChanged } from './tab-view.js';
 
 export default async () => {
@@ -77,14 +76,6 @@ export default async () => {
                 expect(applied).toStrictEqual([...vector.next]);
             }
         });
-    });
-
-    await describe('clampListSelection (GtkSingleSelection autoselect)', async () => {
-        for (const vector of LIST_SELECTION_CLAMP_VECTORS) {
-            await it(vector.rule, () => {
-                expect(clampListSelection(vector.selected, vector.length)).toBe(vector.result);
-            });
-        }
     });
 
     await describe('tabViewItemsChanged (the one signal that already had this shape)', async () => {

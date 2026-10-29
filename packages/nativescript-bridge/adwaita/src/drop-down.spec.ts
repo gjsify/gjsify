@@ -20,14 +20,23 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { ComboState } from '@gjsify/adwaita-core';
+import { ComboState, GjsifyOptionList } from '@gjsify/adwaita-core';
 import type { ComboStateChange } from '@gjsify/adwaita-core';
 import { COMBO_SELECTION_VECTORS, type ComboSelectionStep } from '@gjsify/adwaita-core/conformance';
 
+/**
+ * Replay one combo vector step. Every `setModel` builds a FRESH list, which is what makes
+ * `setModelAgain` a distinct step rather than a repeat of the one before it: `model` holds an
+ * object now (ADR 0122 § 4), so two lists with equal contents are two different values and
+ * only the second step hands back the identity the state is already on.
+ */
 function applyStep(state: ComboState, step: ComboSelectionStep): void {
     switch (step.op) {
         case 'setModel':
-            state.setModel([...step.model]);
+            state.setModel(GjsifyOptionList.new([...step.model]));
+            return;
+        case 'setModelAgain':
+            state.setModel(state.model);
             return;
         case 'setSelectedIndex':
             state.setSelectedIndex(step.index);
@@ -69,8 +78,8 @@ export const AdwDropDownNsTest = async () => {
             const painted: string[] = [];
             state.subscribe((change) => painted.push(change.label));
 
-            state.setModel([{ label: 'First', value: 'a' }]);
-            state.setModel([{ label: 'Renamed', value: 'a' }]);
+            state.setModel(GjsifyOptionList.new([{ label: 'First', value: 'a' }]));
+            state.setModel(GjsifyOptionList.new([{ label: 'Renamed', value: 'a' }]));
             expect(painted).toStrictEqual(['First', 'Renamed']);
         });
 
@@ -84,10 +93,12 @@ export const AdwDropDownNsTest = async () => {
                 if (change.interactive) notified.push(change.selected);
             });
 
-            state.setModel([
-                { label: 'One', value: 'a' },
-                { label: 'Two', value: 'b' },
-            ]);
+            state.setModel(
+                GjsifyOptionList.new([
+                    { label: 'One', value: 'a' },
+                    { label: 'Two', value: 'b' },
+                ]),
+            );
             state.setSelectedIndex(1); // programmatic — silent
             state.select(0); // the pick — notifies
             state.setSelectedValue('b'); // programmatic — silent
@@ -100,7 +111,7 @@ export const AdwDropDownNsTest = async () => {
             // cannot see (they end at the state, the sheet is the platform's).
             const state = new ComboState();
             expect(state.count).toBe(0);
-            state.setModel([{ label: 'One', value: 'a' }]);
+            state.setModel(GjsifyOptionList.new([{ label: 'One', value: 'a' }]));
             expect(state.count).toBe(1);
         });
     });
