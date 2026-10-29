@@ -28,17 +28,36 @@
 // handlers are connected to the twin, so by the time the write returns the notification has
 // already reached them. Returning "the core must notify" as false is what keeps it at one.
 //
+// WHY AN OBJECT PROPERTY'S VALUE IS HELD BESIDE THE TWIN. An object-kind property (ADR 0122 § 6,
+// `Adw.ComboRow:model`) gets a REAL `g_param_spec_object` on the twin's GType — that is what makes
+// `notify::model` a signal the twin can carry, and it is what the amendment A3 of ADR 0122 asked
+// for. What it cannot carry is the VALUE: the value is a `GjsifyOptionList`, one of the subset's
+// own core types, which `registerBaseClass` pins to the PURE-JS engine, and node-gi refuses a
+// pure-JS object in a `GValue` with `expected a node-gi GObject handle` (measured, GLib 2.86).
+// Boxing it would need a real GObject stand-in per subset object, with its own identity to leak —
+// which ADR 0122 amendment A3 records as rejected. So the value lives in a per-instance map here
+// and the twin is used for the one thing it is good at: the emission. `notify` goes out through
+// `twin.notify(name)` inside `withEmission`, so a handler of it can still stop it, and the
+// equal-write rule below applies to the map exactly as it applies to a twin's property.
+//
 // WHY `requireGi` IS INJECTED. `@gjsify/node-gi` is no workspace member: it resolves only where a
 // job links it. A static import of `@gjsify/node-gi/gi` in a type-checked file fails `build:types`
 // with TS2307 on every other job, and a dynamic `gi://`-style load would set `dynamic_gi` in
 // `scripts/audit-runtimes.mjs`'s textual walk and mis-declare this package. So nothing here
 // imports the bridge at all; the caller passes `requireGi` in, exactly as the stage-0 oracle does.
 
-import { bindProperties, refuseForeignInterfaces, type Binding, type BindingFlag } from '@gjsify/adwaita-core';
+import {
+    bindProperties,
+    refuseForeignInterfaces,
+    TYPE_OBJECT,
+    type Binding,
+    type BindingFlag,
+} from '@gjsify/adwaita-core';
 import type {
     ClassLike,
     ForeignClassMeta,
     ForeignProperty,
+    GInterface,
     GObjectEngine,
     GType,
     ParamSpec,
@@ -83,11 +102,25 @@ interface RealGObject {
         int(n: string, k: string, b: string, f: number, min: number, max: number, value?: number): RealParamSpec;
         uint(n: string, k: string, b: string, f: number, min: number, max: number, value?: number): RealParamSpec;
         double(n: string, k: string, b: string, f: number, min: number, max: number, value?: number): RealParamSpec;
+        /**
+         * `g_param_spec_object`. `gtype` is a real one — node-gi takes the CLASS or the INTERFACE
+         * object itself (`GObject.Object`, `Gio.ListModel`), and the default is always `NULL`,
+         * so there is no value argument.
+         */
+        object(name: string, nick: string, blurb: string, flags: number, gtype: unknown): RealParamSpec;
     };
     ParamFlags: Record<string, number>;
     BindingFlags: Record<string, number>;
     signal_stop_emission_by_name(instance: RealInstance, detailedSignal: string): void;
 }
+
+/** As much of `Gio` as this engine needs: the one interface an object property may name. */
+interface RealGio {
+    ListModel: unknown;
+}
+
+/** The object value types this engine can translate, for the refusal that names them. */
+const OBJECT_TYPES = 'GObject, GListModel';
 
 /** The subset's signal parameter types in node-gi's vocabulary; the core refuses every other. */
 const SIGNAL_TYPES: Readonly<Record<string, string>> = {
@@ -148,7 +181,15 @@ export function createRealGioEngine(requireGi: RequireGi): GObjectEngine {
      * here explicitly and the two engines decide every write alike.
      */
     const TOUCHED = new WeakMap<object, Set<string>>();
+    /**
+     * The value of every OBJECT-kind property, per instance — the store the twin cannot be, for
+     * the reason in the header. Keyed by canonical property name; an absent slot reads as the
+     * spec's default, which for an object property is always `null`.
+     */
+    const OBJECTS = new WeakMap<object, Map<string, unknown>>();
 
+    /** Set once a widget declares a list-model property; see {@link realValueTypeFor}. */
+    let Gio: RealGio | undefined;
     let registrations = 0;
 
     /** Marks a property seen on an instance, answering whether this is the first time. */
@@ -172,10 +213,41 @@ export function createRealGioEngine(requireGi: RequireGi): GObjectEngine {
         return `${sanitised || '_'}_RealGio${++registrations}`;
     }
 
+    /**
+     * The real GType an object property's declared value type names.
+     *
+     * The subset's token is deliberately NOT node-gi's — a port that named a real GType would have
+     * to import node-gi to describe its own properties, which is what `ForeignObjectProperty`'s
+     * docblock in the core exists to keep out — so the translation lives here and nowhere else.
+     *
+     * It is a NAMED map, like {@link SIGNAL_TYPES}, and not a lookup into `requireGi`:
+     * `g_param_spec_object` accepts any GType that is a `GObject` subtype, an INTERFACE included
+     * (measured in GJS 1.88.01; `GObject.TYPE_INT` is what it refuses), so a token this engine has
+     * not been taught would otherwise become a property nobody has a vector for.
+     */
+    function realValueTypeFor(property: string, valueType: GType | GInterface): unknown {
+        const typeName = 'gtype' in valueType ? valueType.gtype.name : valueType.name;
+        switch (typeName) {
+            case 'GObject':
+                return GObject.Object;
+            case 'GListModel':
+                // Lazily: a host's `gi-runtime.json` may list GObject alone, so requiring Gio at
+                // engine construction would break every app that declares no list-model property.
+                return (Gio ??= requireGi('Gio', '2.0') as RealGio).ListModel;
+        }
+        throw new TypeError(
+            `real-gio engine: no GObject type for the value type '${typeName}' of object property ` +
+                `'${property}' (this engine translates ${OBJECT_TYPES})`,
+        );
+    }
+
     function paramSpecFor(spec: ParamSpec): RealParamSpec {
         const { name, nick, blurb } = spec;
         if (spec.kind === 'object') {
-            throw new TypeError(`real-gio engine: no GObject ParamSpec for object property '${name}'`);
+            // The default is `null` and `g_param_spec_object` has no other, so nothing is read off
+            // the spec but its value type.
+            const valueType = realValueTypeFor(name, spec.valueType ?? TYPE_OBJECT);
+            return GObject.ParamSpec.object(name, nick, blurb, READWRITE, valueType);
         }
         const fallback = spec.kind === 'string' || spec.kind === 'boolean' ? undefined : RANGES[spec.kind];
         const minimum = spec.minimum ?? fallback?.[0] ?? 0;
@@ -205,6 +277,10 @@ export function createRealGioEngine(requireGi: RequireGi): GObjectEngine {
     function foreignParamSpecFor(name: string, property: ForeignProperty): RealParamSpec {
         const nick = property.nick ?? '';
         const blurb = property.blurb ?? '';
+        if (property.kind === 'object') {
+            const valueType = realValueTypeFor(name, property.valueType);
+            return GObject.ParamSpec.object(name, nick, blurb, READWRITE, valueType);
+        }
         const value = property.default;
         switch (property.kind) {
             case 'boolean':
@@ -297,6 +373,11 @@ export function createRealGioEngine(requireGi: RequireGi): GObjectEngine {
         return property;
     }
 
+    /** Whether `property` on `instance` is object-kind — the one bind no GBinding can carry. */
+    function isObjectProperty(instance: object, property: string): boolean {
+        return specOf(instance, canonicalPropertyOf(instance, property))?.kind === 'object';
+    }
+
     function withEmission(instance: object, key: string, run: () => void): void {
         let stack = EMISSIONS.get(instance);
         if (!stack) EMISSIONS.set(instance, (stack = []));
@@ -376,13 +457,27 @@ export function createRealGioEngine(requireGi: RequireGi): GObjectEngine {
         },
 
         getValue(instance, spec) {
-            // Bracket access, because a dashed property name is not an identifier.
-            const twin = twinOf(instance);
             touch(instance, spec.name);
-            return twin[spec.name];
+            if (spec.kind === 'object') {
+                const held = OBJECTS.get(instance);
+                return held?.has(spec.name) === true ? held.get(spec.name) : spec.get_default_value();
+            }
+            // Bracket access, because a dashed property name is not an identifier.
+            return twinOf(instance)[spec.name];
         },
 
         setValue(instance, spec, value) {
+            if (spec.kind === 'object') {
+                let held = OBJECTS.get(instance);
+                if (!held) OBJECTS.set(instance, (held = new Map()));
+                // The same equal-write rule as below, asked of the map instead of the twin.
+                if (!touch(instance, spec.name) && held.get(spec.name) === value) return false;
+                held.set(spec.name, value);
+                withEmission(instance, `notify::${spec.name}`, () => {
+                    twinOf(instance).notify(spec.name);
+                });
+                return false;
+            }
             const twin = twinOf(instance);
             // AN EQUAL WRITE IS NOT A CHANGE — and that rule is the engine's to apply, not
             // GObject's. `g_object_set_property` notifies UNCONDITIONALLY (measured: two equal
@@ -462,8 +557,15 @@ export function createRealGioEngine(requireGi: RequireGi): GObjectEngine {
             // A bind may cross out of this engine: the door's own widgets are no registered class
             // and have no twin. There is no real GBinding to make then, so the portable binding
             // engine — which only needs `notify` and a property write, both of which the core
-            // routes back here — carries it.
-            if (!twinClassOf(source) || !twinClassOf(target)) {
+            // routes back here — carries it. An OBJECT property goes the same way for a different
+            // reason: its value is not in the twin (see the header), so a real GBinding would
+            // faithfully copy the twin's permanently-null one.
+            if (
+                !twinClassOf(source) ||
+                !twinClassOf(target) ||
+                isObjectProperty(source, sourceProperty) ||
+                isObjectProperty(target, targetProperty)
+            ) {
                 return bindProperties(source, sourceProperty, target, targetProperty, flags);
             }
             const bits = flags.reduce(

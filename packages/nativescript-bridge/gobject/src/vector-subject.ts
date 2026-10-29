@@ -20,6 +20,7 @@
 
 import {
     createGObject,
+    ListModel,
     type BindingFlag,
     type BlueprintTemplate,
     type BuiltTemplate,
@@ -46,6 +47,8 @@ export function createSubsetSubject(engine: GObjectEngine, name: string = SUBSET
     // door is an argument to the namespace that registers the widgets it builds.
     let FakeSwitch: GObjectConstructor | undefined;
     let FakeButton: GObjectConstructor | undefined;
+    let FakeDropDown: GObjectConstructor | undefined;
+    let FakeStringList: GObjectConstructor | undefined;
 
     const door: GObjectDoor = {
         name: 'test door',
@@ -92,6 +95,29 @@ export function createSubsetSubject(engine: GObjectEngine, name: string = SUBSET
         { GTypeName: 'FakeButton', Signals: { clicked: { param_types: [] } } },
         class extends G.Object {},
     );
+    // The twin of `Gtk.DropDown:model` (ADR 0122 § 6), the same pair `adwaita-core`'s own subject
+    // registers — so the object-property rows measure the ENGINE and not a second door. This is
+    // where the engine's `ParamSpec.object` leg is exercised: `register` translates the declared
+    // value type into a real `g_param_spec_object` over `Gio.ListModel`, and the rows then hold it
+    // to the C property's refusals, its single notify per change and its identity round-trip.
+    FakeDropDown = G.registerClass(
+        { GTypeName: 'FakeDropDown', Properties: { model: P.object('model', '', '', F.READWRITE, ListModel) } },
+        class extends G.Object {},
+    );
+    FakeStringList = G.registerClass(
+        { GTypeName: 'FakeStringList', Implements: [ListModel] },
+        class extends G.Object {
+            vfunc_get_item_type(): unknown {
+                return G.TYPE_OBJECT;
+            }
+            vfunc_get_n_items(): number {
+                return 2;
+            }
+            vfunc_get_item(position: number): unknown {
+                return position < 2 ? `item-${position}` : null;
+            }
+        },
+    );
 
     return {
         name,
@@ -99,6 +125,14 @@ export function createSubsetSubject(engine: GObjectEngine, name: string = SUBSET
         GObject: G,
         Widget: G.Object,
         template: (source) => source.tree,
+        // The CORE's interface token, not a real `Gio.ListModel`: the interface is the subset's own
+        // (ADR 0122 § 2) and the engine deliberately leaves it off the twin's GType — see
+        // `register`'s comment in `engine.ts`. A real one here would describe a different subject.
+        ListModel,
+        objectProperty: () => ({
+            instance: new (FakeDropDown as unknown as new () => GObjectInstance)(),
+            accepted: new (FakeStringList as unknown as new () => GObjectInstance)(),
+        }),
         // The ENGINE's binding engine, not `bindProperties`: on this subject the two differ, and
         // the binding rows are about what the engine does.
         bind: (source, sourceProperty, target, targetProperty, flags) => {
