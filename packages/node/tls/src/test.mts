@@ -7,6 +7,7 @@ import testSuiteCaVerify from './ca-verify.spec.js';
 import testSuiteCaVerifyGjs from './ca-verify.gjs.spec.js';
 import testSuiteGivenSocket from './given-socket.spec.js';
 import testSuiteStarttlsUpgrade from './starttls-upgrade.gjs.spec.js';
+import testSuiteStarttlsServer from './starttls-server.spec.js';
 import testSuiteSniParser from './internal/sni-parser.spec.js';
 import testSuiteSessionAccess from './session-access.gjs.spec.js';
 
@@ -18,6 +19,7 @@ run({
     testSuiteCaVerifyGjs,
     testSuiteGivenSocket,
     testSuiteStarttlsUpgrade,
+    testSuiteStarttlsServer,
     testSuiteSniParser,
     testSuiteSessionAccess,
 });
