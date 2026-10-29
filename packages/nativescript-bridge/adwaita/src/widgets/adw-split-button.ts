@@ -68,11 +68,20 @@ interface SplitButtonContent {
     iconName: string | null;
 }
 
-/** Run `clear` with the gate open: the slot being cleared accepts the `null` it would refuse from a caller. */
-const clearingSlot = (button: SplitButtonContent, clear: () => void): void => {
+/**
+ * The second half of the C setter: having notified its own property, it clears the slot the new
+ * content displaces, with the gate open so that slot accepts the `null` a caller would be
+ * refused.
+ *
+ * It does NOTHING when this write was itself such a clear, which is what ends the cascade: the
+ * cleared slot notifies too, and its own `afterNotify` would otherwise turn round and clear the
+ * property that started it.
+ */
+const clearOtherSlot = (button: SplitButtonContent, other: 'label' | 'iconName'): void => {
+    if (button._contentGate || button[other] === null) return;
     button._contentGate = true;
     try {
-        clear();
+        button[other] = null;
     } finally {
         button._contentGate = false;
     }
@@ -84,8 +93,8 @@ export class AdwSplitButton extends withSignals(GridLayout, {
     Signals: { clicked: {}, activate: {} },
     Properties: {
         // `adw_split_button_set_label` (adw-split-button.c:662-682): a null is `g_return_if_fail`,
-        // so it changes nothing. A new label drops the icon FIRST — the C notifies the slot it
-        // clears before its own, and the cross-write is made here so that order holds on both legs.
+        // so it changes nothing. A new label drops the icon, and the OWN property leads —
+        // `[label, icon-name]`, measured on GJS 1.88.1 — so the cross-write is an `afterNotify`.
         label: {
             kind: 'string',
             default: null,
@@ -94,15 +103,14 @@ export class AdwSplitButton extends withSignals(GridLayout, {
                 const button = self as SplitButtonContent;
                 if (button._contentGate) return null;
                 if (value === null || value === undefined) return button.label;
-                const next = String(value);
-                if (next !== button.label && button.iconName !== null)
-                    clearingSlot(button, () => (button.iconName = null));
-                return next;
+                return String(value);
             },
+            afterNotify: (self) => clearOtherSlot(self as SplitButtonContent, 'iconName'),
         },
-        // `adw_split_button_set_icon_name` (:750-771). `''` reads back `null` and clears the label
-        // (GtkButton drops the icon for an empty name); GJS then notifies on EVERY such write,
-        // ours only when the held value changes — the one declared remainder.
+        // `adw_split_button_set_icon_name` (:750-771). `''` reads back `null`, because the
+        // internal GtkImage keeps no empty name — so the C guard `g_strcmp0 ("", get_icon_name ())`
+        // can never fire and `''` notifies every time, held value unmoved. The one write on this
+        // widget that is not idempotent.
         'icon-name': {
             kind: 'string',
             default: null,
@@ -111,10 +119,10 @@ export class AdwSplitButton extends withSignals(GridLayout, {
                 const button = self as SplitButtonContent;
                 if (button._contentGate) return null;
                 if (value === null || value === undefined) return button.iconName;
-                const next = String(value) === '' ? null : String(value);
-                if (button.label !== null) clearingSlot(button, () => (button.label = null));
-                return next;
+                return String(value) === '' ? null : String(value);
             },
+            changed: (next, held, written) => next !== held || written === '',
+            afterNotify: (self) => clearOtherSlot(self as SplitButtonContent, 'label'),
         },
         'use-underline': {
             kind: 'boolean',

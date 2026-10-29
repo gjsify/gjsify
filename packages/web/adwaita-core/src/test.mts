@@ -80,6 +80,7 @@ import gdkOracleTestSuite from './gdk.gjs.spec.js';
 import grapheneTestSuite from './graphene.spec.js';
 import gtkPlatformTestSuite from './gtk-platform.spec.js';
 import gtkCssOracleTestSuite from './gtk-css.gjs.spec.js';
+import glibTestSuite from './glib.spec.js';
 import glibPathsTestSuite from './glib-paths.spec.js';
 import glibPathsOracleTestSuite from './glib-paths.gjs.spec.js';
 import glibUriTestSuite from './glib-uri.spec.js';
@@ -190,6 +191,7 @@ run({
     grapheneTestSuite,
     gtkPlatformTestSuite,
     gtkCssOracleTestSuite,
+    glibTestSuite,
     glibPathsTestSuite,
     glibPathsOracleTestSuite,
     glibUriTestSuite,

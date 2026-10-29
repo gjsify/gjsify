@@ -5,8 +5,8 @@
 //
 // 1. a four-slot content machine — `empty | label | icon | child` — where
 // setting one slot clears the other two, with C's idempotence guards and
-// its exact `notify::*` EMISSION ORDER (cleared properties first, then the
-// one being set, inside one freeze/thaw);
+// its exact `notify::*` EMISSION ORDER (the property being SET first, then
+// the slots that were filled before it, inside one freeze/thaw);
 // 2. two derived root style classes keyed off the FIRST CHARACTER of the
 // string rather than truthiness: `image-button` iff `icon_name[0]`,
 // `text-button` iff `label[0]`;
@@ -37,6 +37,7 @@
 // Reference: refs/libadwaita/tests/test-split-button.c (the upstream suite)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
+import { gtkButtonIconNameReadback } from './glib.js';
 import { menuItemAt, normalizeMenuModel } from './menu.js';
 import type { AdwMenuInput, AdwMenuItem, AdwMenuModel, AdwMenuPath } from './menu.js';
 
@@ -87,7 +88,11 @@ export interface SplitButtonChange {
     mode: SplitButtonContentMode;
     /** The label, or `null` unless {@link mode} is `'label'`. */
     label: string | null;
-    /** The icon name, or `null` unless {@link mode} is `'icon'`. */
+    /**
+     * The icon name as `get_icon_name` reads it back: `null` unless {@link mode} is
+     * `'icon'`, and `null` as well for an icon name set to `''`
+     * ({@link gtkButtonIconNameReadback}).
+     */
     iconName: string | null;
     /** The child widget — the app's in `'child'` mode, an opaque internal node in `'label'`/`'icon'` mode. */
     child: object | null;
@@ -152,6 +157,41 @@ const SPLIT_BUTTON_ARROW_ICONS: Readonly<Record<SplitButtonDirection, AdwArrowIc
 
 /** The five `GtkArrowType` values, for validating an attribute string. */
 const DIRECTIONS: readonly SplitButtonDirection[] = ['none', 'up', 'down', 'left', 'right'];
+
+/**
+ * The order the three content properties are notified in AFTER the one being set — the
+ * `g_object_notify_by_pspec` sequence each of the three C setters runs inside its
+ * freeze/thaw, which `g_object_thaw_notify` then replays as it was queued.
+ *
+ * Measured on GJS 1.88.1 / libadwaita 1.9.4, property writes and the C setter methods
+ * alike: `set_label` on an icon button emits `label, child, icon-name`; `set_icon_name`
+ * on a labelled one emits `icon-name, child, label`; `set_child` on an icon button emits
+ * `child, icon-name`. One rule fits all eleven transitions — the OWN property first, then
+ * the slots that were filled BEFORE the call, in this order — and it is the opposite of
+ * what this file shipped (cleared slots first).
+ *
+ * `label` and `icon-name` can never both be filled, so only `child` is ever observed
+ * ahead of a string slot; the pair is kept in one table anyway because that is the
+ * sequence the C writes, not a coincidence of which states are reachable.
+ */
+const CONTENT_NOTIFY_ORDER = ['child', 'label', 'icon-name'] as const;
+
+/**
+ * `menu-model` and `popover` are notified TOGETHER by either setter — the two are one
+ * `GtkMenuButton` state, and neither setter can tell whether the other slot was filled
+ * once the menu button has normalised it.
+ *
+ * Measured on GJS 1.88.1 / libadwaita 1.9.4: whichever of the two is SET emits
+ * `menu-model, popover` from every pre-state, including setting a popover on a split
+ * button that never had a menu model; CLEARING one — the only path that can leave the
+ * dropdown dead — reverses to `popover, menu-model`. Each setter guards on ITS OWN slot,
+ * so `menu_model = null` on a popover-only button and `popover = null` on a bare one both
+ * return early and emit nothing at all.
+ */
+const DROPDOWN_NOTIFY_ORDER: Readonly<Record<'set' | 'clear', readonly SplitButtonProperty[]>> = {
+    set: Object.freeze(['menu-model', 'popover'] as const),
+    clear: Object.freeze(['popover', 'menu-model'] as const),
+};
 
 /**
  * `update_style_classes` as a pure function. Both branches test the FIRST CHARACTER, not
@@ -301,7 +341,7 @@ export class SplitButtonState {
         const change: SplitButtonChange = {
             mode: this._mode,
             label: this._label,
-            iconName: this._iconName,
+            iconName: this.iconName,
             child: this._child,
             styleClasses: this.styleClasses,
             dropdownEnabled: this.dropdownEnabled,
@@ -312,6 +352,24 @@ export class SplitButtonState {
         // Snapshot so a listener that unsubscribes mid-fan-out can't skip another.
         // oxlint-disable-next-line unicorn/no-useless-spread -- the copy IS the snapshot: a Set iterator is live, so an unsubscribe mid-fan-out would skip the next listener
         for (const listener of [...this._listeners]) listener(change);
+    }
+
+    /**
+     * The `notify::*` sequence a content mutation owes, per {@link CONTENT_NOTIFY_ORDER}.
+     * Reads the PRE-state, so every caller must build its list before mutating.
+     */
+    private _contentNotify(own: 'label' | 'icon-name' | 'child'): SplitButtonProperty[] {
+        const filled = {
+            child: this._child !== null,
+            label: this._label !== null,
+            // The READBACK, so an `''` icon name does not count as a filled slot.
+            'icon-name': this.iconName !== null,
+        };
+        const notified: SplitButtonProperty[] = [own];
+        for (const property of CONTENT_NOTIFY_ORDER) {
+            if (property !== own && filled[property]) notified.push(property);
+        }
+        return notified;
     }
 
     // --- Content: label / icon-name / child are mutually exclusive ---
@@ -336,43 +394,45 @@ export class SplitButtonState {
         // `g_strcmp0 (label, get_label)` — never equal while a NULL label is stored.
         if (label === this._label) return false;
 
-        const notified: SplitButtonProperty[] = [];
         // C tests the PRE-state pointers, so a label→label change still notifies
         // `child`: the internal GtkLabel is non-NULL even though it is reused.
-        if (this._iconName !== null) notified.push('icon-name');
-        if (this._child !== null) notified.push('child');
+        const notified = this._contentNotify('label');
 
         this._child = this._mode === 'label' ? this._child : internalContent('label');
         this._mode = 'label';
         this._label = label;
         this._iconName = null;
-        notified.push('label');
         this._emit(notified, false);
         return true;
     }
 
-    /** The icon name, or `null` unless {@link mode} is `'icon'`. */
+    /**
+     * The icon name as `adw_split_button_get_icon_name` reads it back — `null` unless
+     * {@link mode} is `'icon'`, and `null` as well for an icon name set to `''`, which
+     * leaves GtkButton's internal image EMPTY ({@link gtkButtonIconNameReadback}).
+     */
     get iconName(): string | null {
-        return this._iconName;
+        return gtkButtonIconNameReadback(this._iconName);
     }
 
     /**
      * Set the icon name, clearing `label` and `child`. A non-string is rejected —
      * `g_return_if_fail (icon_name != NULL)`.
+     *
+     * The guard is C's `g_strcmp0 (icon_name, get_icon_name (self))`: against the
+     * READBACK, so `''` is never equal to the `null` it reads back as and every
+     * `setIconName('')` is a change that notifies afresh.
      */
     setIconName(iconName: string): boolean {
         if (typeof iconName !== 'string') return false;
-        if (iconName === this._iconName) return false;
+        if (iconName === this.iconName) return false;
 
-        const notified: SplitButtonProperty[] = [];
-        if (this._label !== null) notified.push('label');
-        if (this._child !== null) notified.push('child');
+        const notified = this._contentNotify('icon-name');
 
         this._child = this._mode === 'icon' ? this._child : internalContent('icon');
         this._mode = 'icon';
         this._iconName = iconName;
         this._label = null;
-        notified.push('icon-name');
         this._emit(notified, false);
         return true;
     }
@@ -395,22 +455,19 @@ export class SplitButtonState {
         // `if (child == adw_split_button_get_child (self)) return;` — pointer equality.
         if (next === this._child) return false;
 
-        const notified: SplitButtonProperty[] = [];
-        if (this._label !== null) notified.push('label');
-        if (this._iconName !== null) notified.push('icon-name');
+        const notified = this._contentNotify('child');
 
         this._mode = next === null ? 'empty' : 'child';
         this._child = next;
         this._label = null;
         this._iconName = null;
-        notified.push('child');
         this._emit(notified, false);
         return true;
     }
 
     /** The root style classes for the current content. */
     get styleClasses(): readonly SplitButtonStyleClass[] {
-        return splitButtonStyleClasses(this._label, this._iconName);
+        return splitButtonStyleClasses(this._label, this.iconName);
     }
 
     /** Whether an underline in the label marks a mnemonic. */
@@ -453,6 +510,9 @@ export class SplitButtonState {
      * from a renderer's point of view. A model that is non-empty but draws nothing — one
      * empty section — is NOT collapsed: it has a node, so it is a menu, which is the
      * answer GTK gives for the same `GMenu`.
+     *
+     * Notifies both properties per {@link DROPDOWN_NOTIFY_ORDER}; the guard is on the
+     * menu model ALONE, so clearing it on a popover-only button emits nothing.
      */
     setMenuModel(input: AdwMenuInput | null | undefined): boolean {
         const normalized = normalizeMenuModel(input);
@@ -466,14 +526,11 @@ export class SplitButtonState {
         if (menuKey(next) === menuKey(this._menuModel)) return false;
 
         const popover = next === null ? null : derivedPopover();
-        const notified: SplitButtonProperty[] = [];
-        if (popover !== this._popover) notified.push('popover');
-        notified.push('menu-model');
 
         this._menuModel = next;
         this._popover = popover;
         if (!this.dropdownEnabled) this._open = false;
-        this._emit(notified, false);
+        this._emit(DROPDOWN_NOTIFY_ORDER[next === null ? 'clear' : 'set'], false);
         return true;
     }
 
@@ -483,23 +540,21 @@ export class SplitButtonState {
     }
 
     /**
-     * Set the popover, dissociating any menu model. The cleared property is notified before
-     * the set one, the order `set_label()`/`set_icon_name`/`set_child` use throughout this
-     * widget; GtkMenuButton's own internal ordering is not observable from the upstream
-     * suite, which only counts per-property notifications.
+     * Set (or clear, with `null`) the popover, dissociating any menu model. Both properties
+     * are notified per {@link DROPDOWN_NOTIFY_ORDER}, UNCONDITIONALLY — setting a popover on
+     * a split button that never had a menu model still emits `notify::menu-model`.
+     *
+     * The guard is pointer equality on the popover ALONE, so handing back the
+     * model-derived popover is a no-op that leaves the menu model in place.
      */
     setPopover(popover: object | null | undefined): boolean {
         const next = popover ?? null;
         if (next === this._popover) return false;
 
-        const notified: SplitButtonProperty[] = [];
-        if (this._menuModel !== null) notified.push('menu-model');
-        notified.push('popover');
-
         this._menuModel = null;
         this._popover = next;
         if (!this.dropdownEnabled) this._open = false;
-        this._emit(notified, false);
+        this._emit(DROPDOWN_NOTIFY_ORDER[next === null ? 'clear' : 'set'], false);
         return true;
     }
 

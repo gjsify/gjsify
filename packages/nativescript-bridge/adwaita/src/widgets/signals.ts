@@ -200,6 +200,37 @@ type Declared<P> = P & {
      * here, since a write that resolves to the value already held is not a change.
      */
     readonly normalize?: (value: unknown, self: object) => unknown;
+
+    /**
+     * Replaces the equal-write check for this property on the PURE leg: `written` is the value as
+     * the caller spelled it, `next` what {@link Declared.normalize} made of it, `held` what the
+     * store holds — and the answer decides whether the write notifies at all.
+     *
+     * WHY. A C setter guards on `g_strcmp0 (value, adw_…_get_…(self))`, against the GETTER
+     * READBACK rather than the stored field. Where storage normalises, the two differ and the
+     * guard can never fire: `GtkImage` turns an empty icon name into "no icon", so writing `''`
+     * to a button that already reads back `null` notifies EVERY time (measured on GJS 1.88.1 /
+     * libadwaita 1.9.4). Comparing the held value says the opposite, and only the property whose
+     * `normalize` collapses distinct writes onto one held value can tell the difference.
+     *
+     * The real leg has no use for it — there the guard IS the C one.
+     */
+    readonly changed?: (next: unknown, held: unknown, written: unknown, self: object) => boolean;
+
+    /**
+     * The rest of the C setter, on the PURE leg: runs once this property's own `notify::<name>`
+     * is out, so a setter that also drives OTHER properties emits in the order C does.
+     *
+     * WHY IT IS NOT `normalize`. A normalizer runs AHEAD of the store, so a cross-write made
+     * there notifies before the property that caused it. `Adw.SplitButton` measures the other way
+     * round — `label = 'Open'` on an icon button emits `label` first and the slots it clears
+     * after — and the two cannot both be one hook. The SHAPE of a value still belongs to
+     * `normalize`; what the write does to its siblings belongs here.
+     *
+     * Not run on the real leg, where the C setter does this itself: a second pass would write the
+     * cleared slot a second time, and C answers a redundant `null` with a CRITICAL.
+     */
+    readonly afterNotify?: (self: object) => void;
 };
 
 /** A declared property of any kind, with its optional {@link Declared.normalize}. */
@@ -229,6 +260,22 @@ export interface DeclaredClassMeta extends Omit<ForeignClassMeta, 'Properties'> 
 function coerceDeclared(name: string, property: DeclaredProperty, value: unknown, self: object): unknown {
     if (property.normalize !== undefined) return property.normalize(value, self);
     return readDeclaredValue(name, property.kind, value);
+}
+
+/**
+ * Whether a write to a held property notifies — identity, unless the property brought its own
+ * {@link DeclaredProperty.changed}. Identity is what node-gi's accessors do and the default for
+ * that reason; see `changed` for the one shape of property it cannot describe.
+ */
+function isDeclaredChange(
+    property: DeclaredProperty,
+    next: unknown,
+    held: unknown,
+    written: unknown,
+    self: object,
+): boolean {
+    if (property.changed !== undefined) return property.changed(next, held, written, self);
+    return held !== next;
 }
 
 /**
@@ -810,6 +857,10 @@ function wrapRouteDAccessors(declaration: Declaration): void {
  * rules node-gi's own accessors follow, so a widget behaves alike on both — an equal write
  * is not a change, a read MATERIALISES the default so that a later default-equal write is
  * not one either, and a spelling the host chain already owns is left to it.
+ *
+ * Where the C setter is more than a store, the two hooks this leg has to itself stand in for the
+ * rest of it: {@link DeclaredProperty.changed} for a guard that cannot be identity, and
+ * {@link DeclaredProperty.afterNotify} for what the setter does to its siblings afterwards.
  */
 function installPureJsProperties(declaration: Declaration): void {
     const { meta, prototype } = declaration;
@@ -828,9 +879,10 @@ function installPureJsProperties(declaration: Declaration): void {
                 set(this: Observable, raw: unknown): void {
                     const value = coerceDeclared(name, property, raw, this);
                     const values = valuesOf(this);
-                    if (values.has(name) && values.get(name) === value) return;
+                    if (values.has(name) && !isDeclaredChange(property, value, values.get(name), raw, this)) return;
                     values.set(name, value);
                     emitDeclared(this, `notify::${name}`, []);
+                    property.afterNotify?.(this);
                 },
             });
         }

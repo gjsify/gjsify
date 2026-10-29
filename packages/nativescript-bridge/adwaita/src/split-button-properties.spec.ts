@@ -109,29 +109,17 @@ export const AdwSplitButtonPropertiesNsTest = async () => {
             await it(`notifies and holds through: ${vector.name}`, () => {
                 const button = new Adw.SplitButton();
                 const seen = watch(button);
-                // The one declared remainder: C keeps `''` as an icon name, GJS reads `null` back
-                // (probed) and so does this port, so no `icon-name` is cleared by the next write.
-                let iconWasEmpty = false;
 
                 for (const step of vector.steps) {
                     if (step.op === 'child') break;
                     seen.length = 0;
-                    const value = step.value ?? '';
-                    let expected = step.notified.filter((name) => name !== 'child');
-                    if (step.op === 'icon-name' && value === '') {
-                        loose(button)['icon-name'] = value;
-                        expect(button.iconName).toBe(null);
-                        expect(button.label).toBe(null);
-                        expect(seen.join()).toBe('label');
-                        iconWasEmpty = true;
-                        continue;
-                    }
-                    if (iconWasEmpty) {
-                        expected = expected.filter((name) => name !== 'icon-name');
-                        iconWasEmpty = false;
-                    }
-                    if (step.op === 'label') button.label = value;
-                    else button.iconName = value;
+                    // No `child` property on this surface: the internal GtkLabel/GtkImage the C
+                    // notifies has no counterpart here, so what is left of each sequence is the
+                    // own property and the sibling slot it cleared — IN THAT ORDER.
+                    const expected = step.notified.filter((name) => name !== 'child');
+
+                    if (step.op === 'label') button.label = step.value ?? '';
+                    else button.iconName = step.value ?? '';
 
                     expect(seen.join()).toBe(expected.join());
                     expect(button.label).toBe(step.label);

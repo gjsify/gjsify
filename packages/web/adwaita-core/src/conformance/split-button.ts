@@ -4,6 +4,14 @@
 // content SEQUENCES are line-for-line transcriptions of the upstream suite, including its
 // exact per-property `notify::*` counts.
 //
+// The upstream suite counts notifications PER PROPERTY and cannot see their ORDER, so for
+// `notified` the oracle is a runtime measurement instead: every sequence below was replayed
+// against a real `Adw.SplitButton` on GJS 1.88.1 / libadwaita 1.9.4 / GTK 4.22.5, and the
+// arrays are what the `notify::*` handlers actually observed. They are the OPPOSITE of what
+// this file shipped — the property being SET comes first, then the slots that were filled
+// BEFORE the call, in the order `child → label → icon-name`. Upstream's counts are
+// unchanged by the correction, which is exactly why they never caught it.
+//
 // The rows pin the derivations a renderer gets wrong by hand: which content slot C CLEARS
 // when it uses the other, `text-button` keyed off `label[0]` with no trimming, the
 // translated `More Options` default behind an empty `dropdown-tooltip`, an insensitive
@@ -44,7 +52,10 @@ export interface SplitButtonContentStep {
     mode: SplitButtonContentMode;
     /** `get_label()` after the step. */
     label: string | null;
-    /** `get_icon_name()` after the step. */
+    /**
+     * `get_icon_name()` after the step — the READBACK, so an icon name set to `''` reads
+     * back `null` here, as it does in C.
+     */
     iconName: string | null;
     /** The root style classes after the step. */
     styleClasses: readonly SplitButtonStyleClass[];
@@ -62,8 +73,9 @@ export interface SplitButtonContentVector {
  * The content machine.
  *
  * Two things are easy to get wrong and are asserted explicitly. The `notified` ORDER: C
- * freezes, notifies the slots it is about to CLEAR, sets the new one, notifies it, then
- * thaws — so one `set_label()` can emit three notifications. And `child` is notified far
+ * freezes, notifies the property being SET, then the slots that were filled before the
+ * call, then thaws — so one `set_label()` can emit three notifications, led by `label`
+ * itself. And `child` is notified far
  * more often than a reader expects, because `adw_split_button_get_child()` returns
  * GtkButton's INTERNAL label/image widget in label/icon mode (the upstream suite says so)
  * and the C guard tests that pointer, not whether the app ever set a child.
@@ -101,7 +113,7 @@ export const SPLIT_BUTTON_CONTENT_VECTORS: ReadonlyArray<SplitButtonContentVecto
                 op: 'icon-name',
                 value: 'edit-find-symbolic',
                 changed: true,
-                notified: ['child', 'icon-name'],
+                notified: ['icon-name', 'child'],
                 mode: 'icon',
                 label: null,
                 iconName: 'edit-find-symbolic',
@@ -112,18 +124,18 @@ export const SPLIT_BUTTON_CONTENT_VECTORS: ReadonlyArray<SplitButtonContentVecto
                 op: 'label',
                 value: 'Open',
                 changed: true,
-                notified: ['icon-name', 'child', 'label'],
+                notified: ['label', 'child', 'icon-name'],
                 mode: 'label',
                 label: 'Open',
                 iconName: null,
                 styleClasses: ['text-button'],
-                rule: 'setting the label CLEARS the icon — get_icon_name() is NULL after (:42-44)',
+                rule: 'setting the label CLEARS the icon — get_icon_name() is NULL after (:42-44); the OWN property leads, the two cleared slots follow (measured)',
             },
             {
                 op: 'icon-name',
                 value: 'document-open-symbolic',
                 changed: true,
-                notified: ['label', 'child', 'icon-name'],
+                notified: ['icon-name', 'child', 'label'],
                 mode: 'icon',
                 label: null,
                 iconName: 'document-open-symbolic',
@@ -134,7 +146,7 @@ export const SPLIT_BUTTON_CONTENT_VECTORS: ReadonlyArray<SplitButtonContentVecto
                 op: 'child',
                 value: 'child1',
                 changed: true,
-                notified: ['icon-name', 'child'],
+                notified: ['child', 'icon-name'],
                 mode: 'child',
                 label: null,
                 iconName: null,
@@ -172,7 +184,7 @@ export const SPLIT_BUTTON_CONTENT_VECTORS: ReadonlyArray<SplitButtonContentVecto
                 op: 'label',
                 value: 'Find',
                 changed: true,
-                notified: ['child', 'label'],
+                notified: ['label', 'child'],
                 mode: 'label',
                 label: 'Find',
                 iconName: null,
@@ -183,7 +195,7 @@ export const SPLIT_BUTTON_CONTENT_VECTORS: ReadonlyArray<SplitButtonContentVecto
                 op: 'icon-name',
                 value: 'document-open-symbolic',
                 changed: true,
-                notified: ['label', 'child', 'icon-name'],
+                notified: ['icon-name', 'child', 'label'],
                 mode: 'icon',
                 label: null,
                 iconName: 'document-open-symbolic',
@@ -194,7 +206,7 @@ export const SPLIT_BUTTON_CONTENT_VECTORS: ReadonlyArray<SplitButtonContentVecto
                 op: 'label',
                 value: 'Open',
                 changed: true,
-                notified: ['icon-name', 'child', 'label'],
+                notified: ['label', 'child', 'icon-name'],
                 mode: 'label',
                 label: 'Open',
                 iconName: null,
@@ -205,7 +217,7 @@ export const SPLIT_BUTTON_CONTENT_VECTORS: ReadonlyArray<SplitButtonContentVecto
                 op: 'child',
                 value: 'child1',
                 changed: true,
-                notified: ['label', 'child'],
+                notified: ['child', 'label'],
                 mode: 'child',
                 label: null,
                 iconName: null,
@@ -254,7 +266,7 @@ export const SPLIT_BUTTON_CONTENT_VECTORS: ReadonlyArray<SplitButtonContentVecto
                 op: 'label',
                 value: 'Open',
                 changed: true,
-                notified: ['child', 'label'],
+                notified: ['label', 'child'],
                 mode: 'label',
                 label: 'Open',
                 iconName: null,
@@ -265,7 +277,7 @@ export const SPLIT_BUTTON_CONTENT_VECTORS: ReadonlyArray<SplitButtonContentVecto
                 op: 'child',
                 value: 'child3',
                 changed: true,
-                notified: ['label', 'child'],
+                notified: ['child', 'label'],
                 mode: 'child',
                 label: null,
                 iconName: null,
@@ -276,7 +288,7 @@ export const SPLIT_BUTTON_CONTENT_VECTORS: ReadonlyArray<SplitButtonContentVecto
                 op: 'icon-name',
                 value: 'document-open-symbolic',
                 changed: true,
-                notified: ['child', 'icon-name'],
+                notified: ['icon-name', 'child'],
                 mode: 'icon',
                 label: null,
                 iconName: 'document-open-symbolic',
@@ -286,7 +298,7 @@ export const SPLIT_BUTTON_CONTENT_VECTORS: ReadonlyArray<SplitButtonContentVecto
         ],
     },
     {
-        name: 'empty + whitespace labels (derived from adw-split-button.c:151-159, not asserted upstream)',
+        name: 'empty + whitespace labels (derived from adw-split-button.c:151-159, measured on GJS 1.88.1, not asserted upstream)',
         steps: [
             {
                 op: 'label',
@@ -303,23 +315,34 @@ export const SPLIT_BUTTON_CONTENT_VECTORS: ReadonlyArray<SplitButtonContentVecto
                 op: 'icon-name',
                 value: '',
                 changed: true,
-                notified: ['label', 'child', 'icon-name'],
+                notified: ['icon-name', 'child', 'label'],
                 mode: 'icon',
                 label: null,
-                iconName: '',
+                iconName: null,
                 styleClasses: [],
-                rule: 'the empty label is still a non-NULL pointer, so it is notified as cleared (c:760-761)',
+                rule: 'an empty icon name reads back NULL — GtkImage normalises `""` to "no icon" (GTK_IMAGE_EMPTY) — while the empty label it cleared was a non-NULL pointer and is notified',
+            },
+            {
+                op: 'icon-name',
+                value: '',
+                changed: true,
+                notified: ['icon-name', 'child'],
+                mode: 'icon',
+                label: null,
+                iconName: null,
+                styleClasses: [],
+                rule: 'and AGAIN: the guard is `g_strcmp0 ("", get_icon_name ())` against that NULL readback, so it can never fire — setting `""` twice notifies twice, the one write on this widget that is never idempotent',
             },
             {
                 op: 'label',
                 value: '  ',
                 changed: true,
-                notified: ['icon-name', 'child', 'label'],
+                notified: ['label', 'child'],
                 mode: 'label',
                 label: '  ',
                 iconName: null,
                 styleClasses: ['text-button'],
-                rule: 'whitespace is a valid label: nothing trims, and `label[0]` is a space (c:156-159)',
+                rule: 'whitespace is a valid label: nothing trims, and `label[0]` is a space (c:156-159). No `icon-name` in the sequence: the slot it cleared already read back NULL, so C saw nothing to clear',
             },
             {
                 op: 'label',
@@ -336,7 +359,7 @@ export const SPLIT_BUTTON_CONTENT_VECTORS: ReadonlyArray<SplitButtonContentVecto
                 op: 'label',
                 value: 'Änderungen speichern…',
                 changed: true,
-                notified: ['child', 'label'],
+                notified: ['label', 'child'],
                 mode: 'label',
                 label: 'Änderungen speichern…',
                 iconName: null,
@@ -371,7 +394,12 @@ export const SPLIT_BUTTON_STYLE_CLASS_VECTORS: ReadonlyArray<SplitButtonStyleCla
         rule: 'an icon gives image-button (c:151-154)',
     },
     { label: '', iconName: null, classes: [], rule: '`label[0]` is NUL — an empty label carries NO class' },
-    { label: null, iconName: '', classes: [], rule: '`icon_name[0]` is NUL — an empty icon name carries NO class' },
+    {
+        label: null,
+        iconName: '',
+        classes: [],
+        rule: '`icon_name[0]` is NUL — an empty icon name carries NO class. Both arms of the branch are tested even though `get_icon_name()` never RETURNS `""` (it reads back NULL), because the C tests the pointer it was handed',
+    },
     { label: '  ', iconName: null, classes: ['text-button'], rule: 'two spaces are a non-empty label — no trimming' },
     { label: '\t', iconName: null, classes: ['text-button'], rule: 'any non-NUL first byte counts, tab included' },
     { label: null, iconName: null, classes: [], rule: 'a child (or nothing) carries neither class (c:145-165)' },
