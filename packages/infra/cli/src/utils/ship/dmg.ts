@@ -39,14 +39,26 @@
 //     ubuntu-24.04 ships 7-Zip 23.01, not this workstation's 26.02. zlib is the
 //     method its `Dmg` handler has read since long before either.
 //
-// WHAT THIS PACKER DOES NOT PUT IN THE VOLUME: an `/Applications` symlink, the
-// drag-here convention. `writePayload` writes regular files and nothing else —
-// which is a property `tests/e2e/ship` and the `ship-stage` job both assert, and
-// a symlink is also what `actions/upload-artifact` silently dereferences. The
-// artifact is still draggable out of the mounted volume; what it lacks is the
-// arrow. Unblocker: a staged-symlink concept with a reader that can see one, at
-// which point the link and its oracle land together.
+// THE VOLUME CARRIES ONE SYMLINK, `Applications → /Applications`, the drag-here
+// convention: without it the mounted window shows the bundle and nothing to drop
+// it on. It is NOT staged. `writePayload` writes regular files and nothing else —
+// a property `tests/e2e/ship` and the `ship-stage` job both assert — and a staged
+// symlink would be dereferenced by `actions/upload-artifact` on its way to the
+// packing host. The volume directory is assembled ON that host, after the stage
+// has arrived, so neither objection reaches it: the link is written here, next to
+// the `hdiutil` call that consumes it. Its reader is `verify-dmg.py`, which admits
+// exactly this one link with exactly this target and refuses any other.
+//
+// THE IMAGE ITSELF IS SIGNED, and that is a separate signature from the bundle's.
+// Measured on macOS 27 with a Developer ID identity (2026-10-29): a notarised and
+// stapled `.dmg` whose container was never passed to `codesign` reads "code object
+// is not signed at all" under `codesign -dv`, and `spctl -a -t open
+// --context context:primary-signature` rejects it with "no usable signature" —
+// while the `.app` mounted from it is "accepted, source=Notarized Developer ID".
+// The order is fixed by `stapler(1)`: a later `codesign` invalidates a stapled
+// ticket, so the image is signed here, before `ship` notarises and staples it.
 
+import { symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { describeExit, spawnToCompletion } from '../spawn.js';
@@ -108,7 +120,7 @@ export function dmgVolumeName(settings: PackSettings): string {
 export interface DmgCreateInput {
     /** The volume label — see {@link dmgVolumeName}. */
     volumeName: string;
-    /** The directory whose CONTENTS become the volume root; it holds `<App>.app` and nothing else. */
+    /** The directory whose CONTENTS become the volume root: `<App>.app` and the `Applications` link. */
     sourceDir: string;
     /** Absolute path the finished `.dmg` is written to. */
     target: string;
@@ -201,11 +213,79 @@ export async function buildDmgImage(input: DmgPackInput): Promise<void> {
  * Where the volume is assembled before `hdiutil` turns it into an image.
  *
  * A directory of its own under the run's output root, never `out/` itself: the
- * volume root holds the `.app` and NOTHING ELSE, because `-srcfolder` copies
+ * volume root holds the `.app` and its drop target and NOTHING ELSE, because `-srcfolder` copies
  * whatever it finds — a stray sibling would ride into the image, and the reader
  * that would catch it is the same listing comparison that would then have to be
  * relaxed to allow it.
  */
 export function dmgVolumeDir(outRoot: string): string {
     return join(outRoot, 'dmg', 'volume');
+}
+
+/** The drop target's name in the volume root, and where it points. */
+export const DMG_APPLICATIONS_LINK = { name: 'Applications', target: '/Applications' } as const;
+
+/**
+ * Put the drag-here link into a volume `writePayload` has just filled.
+ *
+ * AFTER `writePayload`, never before: that call wipes the directory it writes,
+ * so it is also what keeps a previous run's link from making this one fail
+ * with `EEXIST`. An ABSOLUTE target, because the link is resolved on the
+ * user's machine where `/Applications` is the only path that means anything —
+ * the Finder shows it as "Applications" with the folder's own icon.
+ */
+export function addApplicationsLink(volumeDir: string): void {
+    symlinkSync(DMG_APPLICATIONS_LINK.target, join(volumeDir, DMG_APPLICATIONS_LINK.name));
+}
+
+/** The tool that signs the image. The bundle's signer uses the same one. */
+export const DMG_SIGN_TOOL = 'codesign';
+
+export interface DmgSignInput {
+    /** A `codesign` identity, or `-` for ad-hoc. */
+    identity: string;
+    /** The finished `.dmg`. */
+    file: string;
+    /** `identity` is the ad-hoc `-`. */
+    adhoc: boolean;
+}
+
+/**
+ * The `codesign` invocation for the IMAGE, as data.
+ *
+ * NOT the darwin signer's argv (`SIGNERS.darwin.args`), and the two differences
+ * are the point. No `--options runtime`: the hardened runtime is a property of
+ * code that executes, and a disk image does not. No entitlements, for the same
+ * reason. What stays is `--force` — `-ov` rewrites the file, but a caller may
+ * hand in one that is already signed — and `--timestamp` on a real identity
+ * only, for the reason that row gives: an ad-hoc signature has no certificate
+ * to countersign, and `codesign(1)` documents a timestamp failure as fatal.
+ */
+export function codesignDmgArgs(input: DmgSignInput): string[] {
+    return ['--force', '--sign', input.identity, ...(input.adhoc ? [] : ['--timestamp']), input.file];
+}
+
+/**
+ * Sign the image at `input.file`.
+ *
+ * Ad-hoc is signed too. It earns the image nothing with Gatekeeper, but it is
+ * what CI runs, and a branch only a release with a real certificate reaches is
+ * a branch that breaks on release day.
+ */
+export async function signDmgImage(input: DmgSignInput & { verbose: boolean; workDir: string }): Promise<void> {
+    const args = codesignDmgArgs(input);
+    if (input.verbose) console.log(`[gjsify ship] ${DMG_SIGN_TOOL} ${args.join(' ')}`);
+    const result = await spawnToCompletion(DMG_SIGN_TOOL, args, {
+        completion: 'return',
+        cwd: input.workDir,
+        stdio: 'inherit',
+        notFound: () =>
+            new Error(
+                `gjsify ship: ${DMG_SIGN_TOOL} is not on PATH, so the image cannot be signed. Install the ` +
+                    'Xcode Command Line Tools (`xcode-select --install`).',
+            ),
+    });
+    if (result.code !== 0) {
+        throw new Error(`gjsify ship: ${DMG_SIGN_TOOL} failed on the image with ${describeExit(result)}.`);
+    }
 }

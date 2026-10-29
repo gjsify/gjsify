@@ -56,7 +56,7 @@ import {
     findPinnedRuntime,
     stampAppDirTimes,
 } from '../utils/ship/appimage.js';
-import { buildDmgImage, dmgVolumeDir, dmgVolumeName } from '../utils/ship/dmg.js';
+import { addApplicationsLink, buildDmgImage, dmgVolumeDir, dmgVolumeName, signDmgImage } from '../utils/ship/dmg.js';
 import { assertNoDroppedFlatpakModules } from '../utils/ship/flatpak-config.js';
 import { buildFlatpakBundle } from '../utils/ship/flatpak.js';
 import { iconSizes, resolveAppIcon } from '../utils/ship/icons.js';
@@ -102,6 +102,7 @@ import {
 } from '../utils/ship/payload.js';
 import { assertOverlayIsLicensed, planOverlay, planStage, type StageInputs } from '../utils/ship/plan.js';
 import {
+    ADHOC_IDENTITY,
     assertHostCanSign,
     notarizeArtifact,
     stapleArtifact,
@@ -1474,6 +1475,7 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
             // mounts showing `Contents/` — a window with no application in it.
             const volumeDir = dmgVolumeDir(outRoot);
             writePayload(volumeDir, payload, '');
+            addApplicationsLink(volumeDir);
             await buildDmgImage({
                 volumeName: dmgVolumeName(settings),
                 sourceDir: volumeDir,
@@ -1481,6 +1483,17 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                 workDir: dirname(volumeDir),
                 verbose: input.verbose,
             });
+            // The IMAGE's own signature, before the notarisation below submits
+            // it and the staple writes into it — see `utils/ship/dmg.ts`.
+            if (input.sign.kind === 'sign') {
+                await signDmgImage({
+                    identity: input.sign.identity,
+                    file: target,
+                    adhoc: input.sign.identity === ADHOC_IDENTITY,
+                    workDir: dirname(volumeDir),
+                    verbose: input.verbose,
+                });
+            }
             break;
         }
         case 'macos-app-zip':

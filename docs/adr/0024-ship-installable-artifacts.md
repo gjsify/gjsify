@@ -2000,3 +2000,33 @@ webgl (`gwebgl.dll`), gamepad and WebView2 on arm64 — `status/open-todos/windo
 carries the ordered list. `pe-launcher.ts`'s stub stays x64-only on purpose: it runs under
 Windows' Prism x86-64 emulator on arm64 and `exec`s the native arm64 `node.exe` beside it, so a
 second native arm64 stub would duplicate a ~550-byte PE for no behavioural difference.
+
+## Amendment, 2026-10-29 — the `.dmg` is signed itself, and its volume carries the drop target
+
+**Measured on a real Developer ID identity, against a real GTK application** (darwin-arm64,
+macOS 27, `gjsify ship --from-stage … --target macos-app-dmg --sign <Developer ID> --notarize
+<profile>`). Before this change the image was notarised (`Accepted`) and stapled (`stapler validate`
+ok), and still two things were missing:
+
+- **The container carried no signature of its own.** `codesign -dv` on the `.dmg` printed "code
+  object is not signed at all", and `spctl -a -t open --context context:primary-signature`
+  rejected it with "no usable signature" — while the `.app` mounted from it read "accepted,
+  source=Notarized Developer ID". Signing the bundle inside is not signing the image around it.
+  `packOne` now runs `codesign --force --sign <id> [--timestamp] <image>` after `hdiutil` and
+  before `notarytool`, because `stapler(1)` states that a later `codesign` invalidates a stapled
+  ticket. No `--options runtime` and no entitlements: both describe code that executes. Ad-hoc
+  identities sign the image too, so the CI path runs the same branch. After the change:
+  `codesign --verify` satisfies the designated requirement, `spctl` reads "accepted,
+  source=Notarized Developer ID" for the image, and the mounted `.app` is unchanged.
+- **The volume had no `Applications → /Applications` link**, the drag-here convention. The
+  header of `dmg.ts` deferred it until a staged-symlink concept existed, because `writePayload`
+  writes regular files only and `actions/upload-artifact` dereferences links. Neither objection
+  reaches the link: the volume is assembled on the packing host after the stage has arrived, so
+  the link is written there and never travels. `verify-dmg.py` admits exactly one symlink,
+  `<volume>/Applications`, and reads its target with `7z x -so` — 7-Zip 26.04 lists it as
+  `Mode = lrwxr-xr-x`, `Size = 13`, and the data fork is the target string. An image whose link
+  points at `/Applicationz` (same length) is refused.
+
+The `.app` inside the image still has no ticket of its own: one more notarisation per release
+would buy only the offline first launch from a copied `.app`, and Gatekeeper's online check
+covers the rest.

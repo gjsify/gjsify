@@ -968,6 +968,12 @@ for ad-hoc, which has no team for the loader to match
 a ticket — `canCarryTicket` in `formats.ts`. The `.dmg` can; the `.zip` cannot, and Apple's own
 remedy (staple the items that went into the archive, then re-create it) is printed instead of a
 claim
+|the `.dmg` CONTAINER is signed with `codesign --force --sign <id>` (`--timestamp` on a named
+identity), after `hdiutil` and before `notarytool`, because a stapled ticket does not survive a
+later `codesign`. Without it the image is notarised and stapled and `spctl -a -t open` still rejects
+it with "no usable signature" — measured, ADR 0024's amendment of 2026-10-29. The volume carries an
+`Applications → /Applications` link beside the bundle, written on the packing host and checked by
+`verify-dmg.py`
 
 ## `DistroFormatId` is not `FormatId`
 
