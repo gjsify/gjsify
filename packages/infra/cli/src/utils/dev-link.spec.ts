@@ -370,11 +370,17 @@ export default async () => {
             const checkout = makeCheckout(join(root, 'checkout'));
             const consumer = makeConsumer(join(root, 'consumer'), ['@gjsify/utils']);
             realPackage(join(consumer, 'node_modules', '@gjsify', 'utils'), '@gjsify/utils');
-            realPackage(join(consumer, 'node_modules', '@gjsify', 'utils', 'node_modules', '@gjsify', 'gtk-host'), '@gjsify/gtk-host');
+            realPackage(
+                join(consumer, 'node_modules', '@gjsify', 'utils', 'node_modules', '@gjsify', 'gtk-host'),
+                '@gjsify/gtk-host',
+            );
             runLink(consumer, { checkout, packages: ['@gjsify/*'] });
             const links = scanDevLinks(consumer, [checkout]).map((l) => l.linkPath);
             expect(links.join(',')).toBe(
-                [join(consumer, 'node_modules', '@gjsify', 'gtk-host'), join(consumer, 'node_modules', '@gjsify', 'utils')].join(','),
+                [
+                    join(consumer, 'node_modules', '@gjsify', 'gtk-host'),
+                    join(consumer, 'node_modules', '@gjsify', 'utils'),
+                ].join(','),
             );
             expect(existsSync(join(checkout, 'packages', 'utils', 'node_modules'))).toBe(false);
             rmSync(root, { recursive: true, force: true });
