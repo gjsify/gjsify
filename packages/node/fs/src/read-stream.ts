@@ -13,6 +13,7 @@ import { closeSync } from './fd-ops.js';
 
 import type { CreateReadStreamOptions } from 'node:fs/promises';
 import type { PathLike, ReadStream as IReadStream } from 'node:fs';
+import { request } from './request.js';
 
 /**
  * What `fs.createReadStream()` accepts, as opposed to
@@ -134,26 +135,30 @@ export class ReadStream extends Readable implements IReadStream {
             this.emit('ready');
             return;
         }
-        this._gioFile.read_async(GLib.PRIORITY_DEFAULT, this._cancellable, (_source, asyncResult) => {
-            if (this.destroyed) {
-                callback();
-                return;
-            }
-            try {
-                this._inputStream = this._gioFile.read_finish(asyncResult);
-                this.pending = false;
-                this.emit('open', 0);
-                this.emit('ready');
-                if (this._start > 0 && this._inputStream!.can_seek()) {
-                    this._inputStream!.seek(this._start, GLib.SeekType.SET, null);
+        this._gioFile.read_async(
+            GLib.PRIORITY_DEFAULT,
+            this._cancellable,
+            request((_source, asyncResult) => {
+                if (this.destroyed) {
+                    callback();
+                    return;
                 }
-                callback();
-            } catch (err) {
-                if (!this._cancellable.is_cancelled()) {
-                    callback(err as Error);
+                try {
+                    this._inputStream = this._gioFile.read_finish(asyncResult);
+                    this.pending = false;
+                    this.emit('open', 0);
+                    this.emit('ready');
+                    if (this._start > 0 && this._inputStream!.can_seek()) {
+                        this._inputStream!.seek(this._start, GLib.SeekType.SET, null);
+                    }
+                    callback();
+                } catch (err) {
+                    if (!this._cancellable.is_cancelled()) {
+                        callback(err as Error);
+                    }
                 }
-            }
-        });
+            }),
+        );
     }
 
     override _read(size: number): void {
@@ -216,36 +221,41 @@ export class ReadStream extends Readable implements IReadStream {
         if (!stream || this.destroyed) return;
 
         this._reading = true;
-        stream.read_bytes_async(toRead, GLib.PRIORITY_DEFAULT, this._cancellable, (_source, asyncResult) => {
-            // Cleared BEFORE push(), because push() can call _read() straight
-            // back on this stack in flowing mode and that call is legitimate —
-            // the operation it would follow has already completed.
-            this._reading = false;
-            try {
-                const gbytes = stream.read_bytes_finish(asyncResult);
-                const data = gbytes.get_data();
+        stream.read_bytes_async(
+            toRead,
+            GLib.PRIORITY_DEFAULT,
+            this._cancellable,
+            request((_source, asyncResult) => {
+                // Cleared BEFORE push(), because push() can call _read() straight
+                // back on this stack in flowing mode and that call is legitimate —
+                // the operation it would follow has already completed.
+                this._reading = false;
+                try {
+                    const gbytes = stream.read_bytes_finish(asyncResult);
+                    const data = gbytes.get_data();
 
-                if (!data || data.length === 0) {
+                    if (!data || data.length === 0) {
+                        this._readAgain = false;
+                        this.push(null);
+                        return;
+                    }
+
+                    this.bytesRead += data.length;
+                    this._pos += data.length;
+                    this.push(Buffer.from(data));
+
+                    if (this._readAgain && !this._reading) {
+                        this._readAgain = false;
+                        this._doRead(this._lastSize);
+                    }
+                } catch (err) {
                     this._readAgain = false;
-                    this.push(null);
-                    return;
+                    if (!this._cancellable.is_cancelled()) {
+                        this.destroy(err as Error);
+                    }
                 }
-
-                this.bytesRead += data.length;
-                this._pos += data.length;
-                this.push(Buffer.from(data));
-
-                if (this._readAgain && !this._reading) {
-                    this._readAgain = false;
-                    this._doRead(this._lastSize);
-                }
-            } catch (err) {
-                this._readAgain = false;
-                if (!this._cancellable.is_cancelled()) {
-                    this.destroy(err as Error);
-                }
-            }
-        });
+            }),
+        );
     }
 
     /**
@@ -293,7 +303,11 @@ export class ReadStream extends Readable implements IReadStream {
     /** Every OS resource this stream holds, released once and idempotently. */
     private _release(): void {
         if (this._inputStream) {
-            this._inputStream.close_async(GLib.PRIORITY_DEFAULT, null, () => {});
+            this._inputStream.close_async(
+                GLib.PRIORITY_DEFAULT,
+                null,
+                request(() => {}),
+            );
             this._inputStream = null;
         }
         this._releaseFd();

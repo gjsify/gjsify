@@ -47,6 +47,7 @@ import type {
     ReadPosition,
 } from 'node:fs';
 import type { Interface as ReadlineInterface } from 'node:readline';
+import { request } from './request.js';
 
 export class FileHandle implements IFileHandle {
     private readonly _gFile: Gio.File;
@@ -503,13 +504,13 @@ export class FileHandle implements IFileHandle {
                 Gio.FileQueryInfoFlags.NONE,
                 GLib.PRIORITY_DEFAULT,
                 null,
-                (_s: unknown, res: Gio.AsyncResult) => {
+                request((_s: unknown, res: Gio.AsyncResult) => {
                     try {
                         resolve(target.query_info_finish(res));
                     } catch (e) {
                         reject(e);
                     }
-                },
+                }),
             );
         });
         return statsFrom(info, this._pathStr, 'fstat', opts?.bigint);

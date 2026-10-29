@@ -35,17 +35,28 @@ let _holds = 0;
 let _ownsLoop = false;
 
 /**
- * Referenced timers (`setTimeout`/`setInterval`) pending right now — Node's
- * active timer handles. Never creates or arms a loop: it only DEFERS the exit
- * a drained {@link acquireMainLoop} owner would otherwise take, so a timer in
- * an app without counted holds changes nothing. Independent of the loop's
- * lifetime (a timer outlives {@link quitMainLoop}), hence not reset by it.
+ * Referenced timers (`setTimeout`/`setInterval`, {@link trackTimer}) and
+ * in-flight async requests (an `fs.stat` on `query_info_async`,
+ * {@link trackRequest}) pending right now — Node's active timer handles plus
+ * its active requests. Never creates or arms a loop: it only DEFERS the exit
+ * a drained {@link acquireMainLoop} owner would otherwise take, so a timer or
+ * request in an app without counted holds changes nothing. Independent of the
+ * loop's lifetime (a timer outlives {@link quitMainLoop}), hence not reset by it.
+ *
+ * Requests are counted because `loop.is_running()` does NOT mean the entry
+ * module settled: gjs 1.88.1 enters the hook's `run()` on the first job drain,
+ * while a top-level await is still pending. Measured: `await execFile(…)`
+ * followed by `await stat(…)` exited 0 before the stat callback ran, because
+ * the child's released hold found the loop running and nothing else counted.
  */
-let _timers = 0;
+let _pending = 0;
+
+/** An exit is scheduled by {@link exitParked} and re-checks idleness first. */
+let _exiting = false;
 
 /**
  * The counted holds drained to 0 on a loop we own, but the exit was postponed
- * (the entry module is still evaluating, or a timer is pending). Keeps
+ * (the entry module is still evaluating, or a timer or request is pending). Keeps
  * {@link _ownsLoop} from being recomputed by the next {@link acquireMainLoop}:
  * the loop already exists by then, which would read as "someone else's".
  */
@@ -205,9 +216,10 @@ export function acquireMainLoop(): GLib.MainLoop | undefined {
 
 /**
  * Release one hold acquired with {@link acquireMainLoop}. Idempotent beyond
- * the count (calls at 0 are a no-op), no-op on Node.js. At 0, with no referenced timer
- * ({@link trackTimer}) pending and the entry module settled, the loop created
- * by this module is quit and the process exits — the Node "refs drained" moment.
+ * the count (calls at 0 are a no-op), no-op on Node.js. At 0, with no
+ * referenced timer ({@link trackTimer}) or request ({@link trackRequest})
+ * pending and the entry module settled, the loop created by this module is
+ * quit and the process exits — the Node "refs drained" moment.
  */
 export function releaseMainLoop(): void {
     if (_holds === 0 || !_loop) return;
@@ -215,22 +227,41 @@ export function releaseMainLoop(): void {
     drainIfIdle();
 }
 
-/** Count one referenced timer. See {@link _timers}. */
+/** Count one referenced timer. See {@link _pending}. */
 export function trackTimer(): void {
-    _timers += 1;
+    _pending += 1;
 }
 
 /** Drop one referenced timer; the last one may complete a postponed exit. */
 export function untrackTimer(): void {
-    if (_timers === 0) return;
-    _timers -= 1;
-    if (_timers === 0) drainIfIdle();
+    dropPending();
+}
+
+/**
+ * Count one in-flight async request (a Gio `*_async` call a Node API is
+ * waiting on). See {@link _pending}. Like a timer it only defers an exit, it
+ * never arms a loop — safe to call from any Node-layer I/O, GTK apps included.
+ */
+export function trackRequest(): void {
+    _pending += 1;
+}
+
+/** Drop one in-flight request after its completion has been delivered. */
+export function untrackRequest(): void {
+    dropPending();
+}
+
+function dropPending(): void {
+    if (_pending === 0) return;
+    _pending -= 1;
+    if (_pending === 0) drainIfIdle();
 }
 
 /**
  * End the process once nothing is left to wait for: no counted hold, no
- * referenced timer, and the entry module has settled. Node's "event loop is
- * empty" moment, for a loop that {@link acquireMainLoop} owns.
+ * referenced timer or in-flight request, and the entry module has settled.
+ * Node's "event loop is empty" moment, for a loop that {@link acquireMainLoop}
+ * owns.
  */
 function drainIfIdle(): void {
     if (_holds !== 0 || !_loop || !_ownsLoop) return;
@@ -241,15 +272,17 @@ function drainIfIdle(): void {
         quitMainLoop();
         return;
     }
-    if (_timers !== 0) {
-        _owed = true; // the last timer's untrackTimer() finishes the drain
+    if (_pending !== 0) {
+        _owed = true; // the last timer's or request's untrack finishes the drain
         return;
     }
     // Armed but not running: gjs's eval_module is still evaluating the entry
     // (a pending top-level await spins the default context, not this loop), so
     // exiting now would kill work the program has not finished — measured:
     // `await close; await sleep(300); log('after')` lost 'after'. Wait until
-    // the hook enters `run()`, which is the entry having settled.
+    // the hook enters `run()`. That is only a lower bound for the entry having
+    // settled — gjs enters `run()` while a top-level await is still pending —
+    // which is why the work that await waits on must be counted in _pending.
     if (!loop.is_running()) {
         _owed = true;
         awaitEntrySettle(loop);
@@ -263,9 +296,9 @@ function awaitEntrySettle(loop: GLib.MainLoop): void {
     if (!GLibModule || _polling) return;
     _polling = true;
     GLibModule.timeout_add(GLibModule.PRIORITY_DEFAULT, 20, () => {
-        // Acquired again, a timer appeared, or the loop was replaced: whoever
+        // Acquired again, a timer or request appeared, or the loop was replaced: whoever
         // changed that re-runs the idle check when it drains.
-        if (_loop !== loop || _holds !== 0 || _timers !== 0) {
+        if (_loop !== loop || _holds !== 0 || _pending !== 0) {
             _polling = false;
             return GLibModule.SOURCE_REMOVE;
         }
@@ -277,25 +310,36 @@ function awaitEntrySettle(loop: GLib.MainLoop): void {
 }
 
 function exitParked(): void {
-    quitMainLoop();
     // gjs's eval_module hook drives loop.run() and quit() does not lift it
     // (measured). Exit through process.exit(), which schedules the syscall on
     // an idle source and drives the default context until it fires — the only
     // reliable teardown from inside a parked hook.
     const proc = (globalThis as { process?: { exit?: (code?: number) => void; exitCode?: number } }).process;
-    if (typeof proc?.exit !== 'function') return;
-    const code = proc.exitCode ?? 0;
-    // Deferred so the releasing call returns to its caller (which may still
-    // have code to run, e.g. console.log) before the process exits.
     const GLibModule = glib();
-    if (GLibModule) {
-        GLibModule.timeout_add(GLibModule.PRIORITY_DEFAULT, 0, () => {
-            proc.exit!(code);
-            return GLibModule.SOURCE_REMOVE;
-        });
-    } else {
-        proc.exit(code);
+    if (typeof proc?.exit !== 'function' || !GLibModule) {
+        quitMainLoop();
+        proc?.exit?.(proc.exitCode ?? 0);
+        return;
     }
+    if (_exiting) return;
+    _exiting = true;
+    const loop = _loop;
+    // Deferred so the releasing call returns to its caller (which may still
+    // have code to run, e.g. console.log) before the process exits — and
+    // re-checked, because that code may start new work: the untrack that got
+    // us here runs before the microtasks of the callback it just delivered.
+    GLibModule.timeout_add(GLibModule.PRIORITY_DEFAULT, 0, () => {
+        _exiting = false;
+        if (_loop !== loop || _holds !== 0) return GLibModule.SOURCE_REMOVE;
+        if (_pending !== 0) {
+            _owed = true;
+            return GLibModule.SOURCE_REMOVE;
+        }
+        const code = proc.exitCode ?? 0;
+        quitMainLoop();
+        proc.exit!(code);
+        return GLibModule.SOURCE_REMOVE;
+    });
 }
 
 /**

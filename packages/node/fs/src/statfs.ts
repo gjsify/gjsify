@@ -7,6 +7,7 @@ import { normalizePath } from './utils.js';
 
 import type { PathLike } from 'node:fs';
 import { requireCallback } from './errors.js';
+import { request } from './request.js';
 
 const FS_INFO_ATTRS = ['filesystem::size', 'filesystem::free'].join(',');
 
@@ -66,14 +67,14 @@ function queryFsInfoAsync(path: PathLike, useBigInt: boolean): Promise<StatFsRes
             FS_INFO_ATTRS,
             GLib.PRIORITY_DEFAULT,
             null,
-            (_s: unknown, res: Gio.AsyncResult) => {
+            request((_s: unknown, res: Gio.AsyncResult) => {
                 try {
                     const info = file.query_filesystem_info_finish(res);
                     resolve(useBigInt ? buildBigIntStatFs(info) : buildStatFs(info));
                 } catch (err) {
                     reject(err);
                 }
-            },
+            }),
         );
     });
 }
