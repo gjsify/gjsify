@@ -21,7 +21,10 @@ msgstr ""
 "Plural-Forms: ${plural}\\n"
 ${body}`;
 
-const DE = PO('de', 'nplurals=2; plural=(n != 1);', `
+const DE = PO(
+    'de',
+    'nplurals=2; plural=(n != 1);',
+    `
 msgid "Save"
 msgstr "Speichern"
 
@@ -33,14 +36,19 @@ msgid "%d file"
 msgid_plural "%d files"
 msgstr[0] "%d Datei"
 msgstr[1] "%d Dateien"
-`);
-const PL = PO('pl', 'nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);', `
+`,
+);
+const PL = PO(
+    'pl',
+    'nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);',
+    `
 msgid "%d file"
 msgid_plural "%d files"
 msgstr[0] "%d plik"
 msgstr[1] "%d pliki"
 msgstr[2] "%d plików"
-`);
+`,
+);
 
 const PROBE = `
 #include <stdio.h>
@@ -63,10 +71,17 @@ int main(int argc, char **argv) {
 
 function setup() {
     const dir = mkdtempSync(join(tmpdir(), 'libintl-'));
-    for (const [lang, po] of [['de', DE], ['pl', PL]]) {
+    for (const [lang, po] of [
+        ['de', DE],
+        ['pl', PL],
+    ]) {
         mkdirSync(join(dir, 'locale', lang, 'LC_MESSAGES'), { recursive: true });
         writeFileSync(join(dir, `${lang}.po`), po);
-        const r = spawnSync('msgfmt', ['-o', join(dir, 'locale', lang, 'LC_MESSAGES', 't.mo'), join(dir, `${lang}.po`)]);
+        const r = spawnSync('msgfmt', [
+            '-o',
+            join(dir, 'locale', lang, 'LC_MESSAGES', 't.mo'),
+            join(dir, `${lang}.po`),
+        ]);
         assert.equal(r.status, 0, String(r.stderr));
     }
     writeFileSync(join(dir, 'probe.c'), PROBE);
@@ -87,7 +102,13 @@ function run(dir, env) {
 test('LANGUAGE selects the catalog although the locale is C (UTF-8, msgctxt, plurals)', { skip }, () => {
     const dir = setup();
     assert.deepEqual(run(dir, { LANGUAGE: 'de_DE:de:C', LC_ALL: 'C' }), [
-        'Speichern', 'Öffnen', 'Missing', '%d Datei', '%d Dateien', '%d Dateien', '%d Dateien',
+        'Speichern',
+        'Öffnen',
+        'Missing',
+        '%d Datei',
+        '%d Dateien',
+        '%d Dateien',
+        '%d Dateien',
     ]);
 });
 

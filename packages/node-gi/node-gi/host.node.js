@@ -38,7 +38,15 @@ function refreshLocale() {
     return null;
 }
 
-export { setImmediate, setInterval, clearInterval, runtimeProcess, windowingEnvWrites, bundledLocaleDir, refreshLocale };
+export {
+    setImmediate,
+    setInterval,
+    clearInterval,
+    runtimeProcess,
+    windowingEnvWrites,
+    bundledLocaleDir,
+    refreshLocale,
+};
 
 const require = createRequire(import.meta.url);
 const here = packageRoot;

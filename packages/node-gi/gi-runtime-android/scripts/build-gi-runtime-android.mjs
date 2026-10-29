@@ -794,8 +794,16 @@ function buildLibintl(ndk, abi, abiStage) {
     const strip = ndkTool(ndk, 'llvm-strip');
     const out = join(abiStage, 'libintl.built.so');
     execFileSync(clang, [
-        `--target=${LIBINTL_TARGETS[abi]}24`, '-shared', '-fPIC', '-Os', '-fvisibility=hidden',
-        '-Wl,-soname,libintl.so', '-Wl,--gc-sections', '-o', out, join(pkgDir, 'libintl', 'libintl.c'),
+        `--target=${LIBINTL_TARGETS[abi]}24`,
+        '-shared',
+        '-fPIC',
+        '-Os',
+        '-fvisibility=hidden',
+        '-Wl,-soname,libintl.so',
+        '-Wl,--gc-sections',
+        '-o',
+        out,
+        join(pkgDir, 'libintl', 'libintl.c'),
     ]);
     execFileSync(strip, ['--strip-unneeded', out]);
     const bytes = readFileSync(out);
