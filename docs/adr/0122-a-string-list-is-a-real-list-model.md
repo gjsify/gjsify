@@ -405,3 +405,88 @@ so § 3 cannot reach it.
    `AdwListModelInput` to `Gio.ListModel`. The `model` ATTRIBUTE path is not touched.
 9. `docs/node-gi-gjs-surface.md` and `status/open-todos/nativescript.md` — the new surface, the
    refusals, and the MIGRATE NEXT entry for `adw-combo-row`.
+
+## Amendment (2026-10-29) — `ParamSpec.object` on the NativeScript engine is REAL, and the value is held BESIDE the twin
+
+§ 4 gave the seam an `object` kind and said the native half "costs nothing", because
+`g_param_spec_object` already exists and `gi.js` passes `desc.gtype` through. Stage 3 built it
+and found that sentence true for the PSPEC and false for the VALUE. Both halves are measured
+here; § 4's table of identity rules is unchanged.
+
+### A1. The value type is resolved to a REAL GType, and an unmappable one throws
+
+`paramSpecFor` in `packages/nativescript-bridge/gobject/src/engine.ts` threw on the object kind.
+It now maps the subset's value type to a real GType and builds a real `g_param_spec_object`:
+
+| subset value type | real GType |
+|---|---|
+| `TYPE_OBJECT` (`{ name: 'GObject' }`) | node-gi `GObject.Object` |
+| the `ListModel` interface token (`gtype.name === 'GListModel'`) | `requireGi('Gio', '2.0').ListModel` |
+| anything else | `TypeError` naming the type |
+
+The `Gio` import is lazy — taken only when a `GListModel`-typed property is actually declared —
+the same shape `list-store.ts` already uses in this package.
+
+Measured, on this tree's addon (GLib 2.86): `GObject.ParamSpec.object` accepts both
+`GObject.Object` and `Gio.ListModel`; a real `Gio.ListStore` round-trips by identity through such
+a property; `null` is accepted. Measured in real GJS (1.88): `g_param_spec_object` accepts an
+INTERFACE GType (`Gio.ListModel.$gtype` → `value_type=GListModel`), and a non-object GType
+(`GObject.TYPE_INT`) fails `g_type_is_a (object_type, G_TYPE_OBJECT)` and returns null — so the
+refusal above is not a policy, it is the floor the C function already has.
+
+### A2. The VALUE never enters the twin
+
+The engine's other kinds write `twin[spec.name] = value` and let the real store notify itself.
+An object-kind value cannot take that path, and the reason is measured, not stylistic:
+
+- node-gi refuses a pure-JS object in a `GValue`: `expected a node-gi GObject handle`.
+- Every core type of the subset is pinned to `PURE_JS_ENGINE` by `registerBaseClass`, so a
+  `Gtk.StringList` reaching this property is a pure-JS object BY CONSTRUCTION. There is no
+  configuration under which it is a real GObject.
+
+So `getValue`/`setValue` for the object kind read and write an engine-side per-instance map and
+emit through `twin.notify(name)` inside `withEmission`. The twin's own slot for that property
+stays `null` forever, and that is deliberate: the real pspec's only remaining jobs are making
+`notify::<name>` a valid DETAILED signal on the twin's GType and answering `bind_property`.
+
+**`bind()` for an object-kind property therefore routes through the core's portable
+`bindProperties`**, not through `g_object_bind_property` — a real `GBinding` would faithfully
+copy the twin's always-null value. This is the escape the engine already documents and takes when
+either side has no twin; the object kind is a third reason to take it, not a new mechanism.
+
+### A3. Rejected, and why
+
+- **A real GObject stand-in per subset object.** Would force the pspec's value type back to
+  `GObject` (the stand-in is not a `GListModel`), make `g_object_get` answer an object that means
+  nothing to any caller, and add a second identity to keep in step with § 4's `===` rule.
+- **A `jsobject` or `pointer` pspec.** node-gi exposes neither. Its `ParamSpec` keys are
+  `string, boolean, char, uchar, int, uint, int64, uint64, double, float, object, boxed`, and
+  `GObject.TYPE_JSOBJECT` is `undefined`. Claiming one would be the silent half-success this ADR
+  opened by refusing.
+
+### A4. The descriptor door gets its OWN list model, and it is not called `Adw*`
+
+§ 6 narrows `Adw.ComboRow:model` and `Gtk.DropDown:model` to a real `Gio.ListModel`. It does not
+touch the `model` ATTRIBUTE — the JSON markup door — and that door carries `{ value, label }`
+descriptors pinned by `conformance/list.ts`, `gtk-drop-down.spec.ts` and the generated website
+data. Something has to turn the attribute into a model, and `Gtk.StringList` cannot: it holds
+`Gtk.StringObject`s, which hold a string and nothing else, so `{ value: 'de', label: 'Deutschland' }`
+round-trips as `'Deutschland'` and the item loses the half it is addressed by.
+
+So the core gets `GjsifyOptionList`, a `Gio.ListModel` of `GjsifyOptionObject`s — exactly what a
+GTK author builds out of `Gio.ListStore` plus a `GObject` subclass of their own, written once in
+the core instead of four times across the surfaces. Both are pure-JS (`registerBaseClass` pins
+them to `PURE_JS_ENGINE`), which is also what lets an item satisfy `checkPropertyValue` for
+`selected-item`.
+
+**The prefix is `Gjsify`, not `Adw` or `Gtk`, because neither library has this type.** The other
+borrowed core names (`AdwListModel`, `AdwMenuItem`, `AdwAdjustment`) carry a prefix over a shape
+GIR really declares, and `check-core-namespace-claims.mjs` holds each of them to the GIR type it
+is the portable form of. There is no GIR type here to point at, so an `Adw` prefix would be a
+claim that fails lookup. `GjsifyCanvas2DBridge` and `GjsifyStandInFileFilter` are the precedent.
+
+`reconcile()` is the markup door's update path and keeps the list's IDENTITY: re-parsing an
+attribute emits the one minimal `items-changed` that turns the old contents into the new, where a
+`model` PROPERTY write replaces the identity and re-runs autoselect per § 4. Editing
+`model='[…]'` to append an option must not reset the selection to 0, and these are the two
+different operations that distinction needs.
