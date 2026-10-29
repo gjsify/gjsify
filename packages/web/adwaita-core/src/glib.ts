@@ -39,6 +39,31 @@ export function stringIsNotEmpty(value: string | null | undefined): boolean {
 }
 
 /**
+ * How a `GtkButton` reads an icon name BACK: `''` becomes `NULL`.
+ *
+ * `gtk_button_set_icon_name` holds the name on an internal `GtkImage`, and an empty name
+ * leaves that image EMPTY — so `gtk_button_get_icon_name` answers `NULL` for a button
+ * whose icon name was set to `''`. Only the readback normalises; the write itself is
+ * accepted and does replace the content widget.
+ *
+ * WHY A PORT NEEDS IT. C's idempotence guard is `g_strcmp0 (icon_name, get_icon_name
+ * (self))` — the incoming value against the READBACK, not against what is stored. The
+ * two differ exactly here, so `g_strcmp0 ('', NULL)` is non-zero and EVERY
+ * `icon_name = ''` write passes the guard, rebuilds the internal image and notifies,
+ * for as long as it is repeated. A port that compares against its own field instead
+ * swallows the second write and goes silent where GTK is loud.
+ *
+ * Measured on GJS 1.88.1 / libadwaita 1.9.4 / GTK 4.22.5: `set_icon_name('')` on a fresh
+ * `Adw.SplitButton` emits `notify::icon-name` and reads `null` back; repeating it emits
+ * `notify::icon-name` and `notify::child` again. An `''` LABEL does not behave this way —
+ * `gtk_button_get_label` reads `''` straight back — which is why this is one function
+ * about one property and not a general "empty means unset" rule.
+ */
+export function gtkButtonIconNameReadback(stored: string | null): string | null {
+    return stored === '' ? null : stored;
+}
+
+/**
  * GLib's `CLAMP`, which tests the HIGH bound FIRST:
  * `x > high ? high : (x < low ? low : x)`.
  *

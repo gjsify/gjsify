@@ -454,7 +454,7 @@ export type {
 } from './label.js';
 
 // --- GLib primitives Adwaita arithmetic is written in ---
-export { glibClamp, gStrStrip, stringIsNotEmpty } from './glib.js';
+export { glibClamp, gStrStrip, gtkButtonIconNameReadback, stringIsNotEmpty } from './glib.js';
 export {
     AppLaunchContext as GdkAppLaunchContext,
     ContentFormats,
