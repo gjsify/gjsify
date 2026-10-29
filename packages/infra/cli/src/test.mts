@@ -40,6 +40,7 @@ import shipNodeModulesSuite from './utils/ship/node-modules.spec.js';
 import shipGtkRuntimeAcquireSuite from './utils/ship/gtk-runtime-acquire.spec.js';
 import shipFlatpakSuite from './utils/ship/flatpak.spec.js';
 import shipDmgSuite from './utils/ship/dmg.spec.js';
+import shipReleaseRecordSuite from './utils/ship/release-record.spec.js';
 import shipAppImageSuite from './utils/ship/appimage.spec.js';
 import installProvenanceSuite from './utils/install-provenance.spec.js';
 import shipPlistSuite from './utils/ship/plist.spec.js';
@@ -314,6 +315,7 @@ run(
         shipGtkRuntimeAcquireSuite,
         shipFlatpakSuite,
         shipDmgSuite,
+        shipReleaseRecordSuite,
         shipAppImageSuite,
         shipPlistSuite,
         shipMsiSuite,

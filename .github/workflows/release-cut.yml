@@ -401,6 +401,7 @@ jobs:
             packages/infra/cli/dist/cli.gjs.mjs.sha256
             packages/infra/cli/ship/out/*.deb
             packages/infra/cli/ship/out/*.rpm
+            packages/infra/cli/ship/out/*.gjsify-release.json
 
       # A check that cannot fail is decoration, so this one gates — and it gates
       # BEFORE the publish dispatch on purpose. The two failure modes are not

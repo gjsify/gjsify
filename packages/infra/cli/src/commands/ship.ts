@@ -101,6 +101,7 @@ import {
     readPayloadFacts,
 } from '../utils/ship/payload.js';
 import { assertOverlayIsLicensed, planOverlay, planStage, type StageInputs } from '../utils/ship/plan.js';
+import { recordedSignature, writeReleaseRecord } from '../utils/ship/release-record.js';
 import {
     ADHOC_IDENTITY,
     assertHostCanSign,
@@ -1567,6 +1568,8 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
     // installer, so a `<App>.app` has no submittable form of its own; on darwin
     // the zip beside it is the one that goes. Refusing here would make
     // `--notarize` unusable with the default format set, which is both rows.
+    let notarized = false;
+    let stapled = false;
     if (input.notarize.kind === 'notarize') {
         if (format.artifactKind === 'directory') {
             console.warn(
@@ -1580,6 +1583,7 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                 verbose: input.verbose,
                 log: (line) => console.log(`${LOG} ${line}`),
             });
+            notarized = true;
             // AND THEN THE TICKET, on the artifacts that can hold one. Submitting
             // and stapling are two questions with two answers, and the `.zip` is
             // where they come apart: the notary service accepts it and `stapler`
@@ -1594,6 +1598,7 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                     verbose: input.verbose,
                     log: (line) => console.log(`${LOG} ${line}`),
                 });
+                stapled = true;
             } else {
                 console.warn(
                     `${LOG} ${format.id} is notarised and NOT stapled: \`stapler\` takes a UDIF image, a ` +
@@ -1603,6 +1608,22 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                 );
             }
         }
+    }
+
+    // THE RELEASE RECORD, after every step that writes into the file (ADR 0124).
+    // A directory is never a release asset; the container beside it is.
+    if (format.artifactKind === 'file') {
+        const record = writeReleaseRecord({
+            file: target,
+            format: format.id,
+            os: format.layoutOs,
+            arch: isArchIndependent(payload) ? 'noarch' : input.arch,
+            signature: recordedSignature(input.sign.kind === 'sign' ? input.sign.identity : undefined, ADHOC_IDENTITY),
+            notarized,
+            stapled,
+            generator: `@gjsify/cli ${cliVersion()}`,
+        });
+        if (input.verbose) console.log(`${LOG} release record: ${record}`);
     }
     return { format: format.id, path: target, size };
 }
