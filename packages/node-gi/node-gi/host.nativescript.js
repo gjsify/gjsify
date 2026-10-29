@@ -116,9 +116,36 @@ function deriveAppDir() {
     }
 }
 
+// A Vite-built app exposes only the `android.*` packages its own code touched, and nothing
+// touches `android.system` — so `android.system.Os` is undefined there and every setenv
+// silently did nothing (LANGUAGE and XDG_* never reached the native process). Reflection
+// reaches the class whatever the bundle referenced.
+function androidSetenv(name, value) {
+    const os = globalThis.android?.system?.Os;
+    if (os) {
+        os.setenv(name, value, true);
+        return;
+    }
+    const java = globalThis.java;
+    if (!java?.lang?.Class) return;
+    try {
+        const types = java.lang.reflect.Array.newInstance(java.lang.Class.class, 3);
+        java.lang.reflect.Array.set(types, 0, java.lang.String.class);
+        java.lang.reflect.Array.set(types, 1, java.lang.String.class);
+        java.lang.reflect.Array.set(types, 2, java.lang.Boolean.TYPE);
+        const args = java.lang.reflect.Array.newInstance(java.lang.Object.class, 3);
+        java.lang.reflect.Array.set(args, 0, name);
+        java.lang.reflect.Array.set(args, 1, value);
+        java.lang.reflect.Array.set(args, 2, java.lang.Boolean.TRUE);
+        java.lang.Class.forName('android.system.Os').getMethod('setenv', types).invoke(null, args);
+    } catch (e) {
+        globalThis.console?.warn?.(`node-gi: setenv(${name}) failed: ${e}`);
+    }
+}
+
 function setNativeEnv(name, value) {
     env[name] = value;
-    globalThis.android?.system?.Os?.setenv(name, value, true);
+    androidSetenv(name, value);
 }
 
 /**

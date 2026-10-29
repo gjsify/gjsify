@@ -248,3 +248,30 @@ test('refreshLocale sets LANGUAGE through the platform Os.setenv and honours the
     assert.equal(out.b, 'fr');
     assert.equal(out.set.LANGUAGE, 'fr');
 });
+
+test('refreshLocale reaches android.system.Os by reflection when the bundle never touched that package', () => {
+    const out = probe(
+        ['--conditions=nativescript'],
+        `import * as h from '#host';
+         const set = {};
+         const arrays = [];
+         const klass = (name) => ({ name });
+         globalThis.java = {
+             lang: {
+                 String: { class: klass('String') },
+                 Object: { class: klass('Object') },
+                 Class: {
+                     class: klass('Class'),
+                     forName: (n) => ({ getMethod: (m, types) => ({ invoke: (_o, args) => { set[args[0]] = args[1]; set.__call = [n, m, types.length]; } }) }),
+                 },
+                 Boolean: { TYPE: klass('boolean'), TRUE: true },
+                 reflect: { Array: { newInstance: (_c, n) => { const a = new Array(n); arrays.push(a); return a; }, set: (a, i, v) => { a[i] = v; } } },
+             },
+             util: { Locale: { getDefault: () => ({ toLanguageTag: () => 'de-DE' }) } },
+         };
+         h.refreshLocale();
+         console.log(JSON.stringify({ set }))`,
+    );
+    assert.equal(out.set.LANGUAGE, 'de_DE:de:C');
+    assert.deepEqual(out.set.__call, ['android.system.Os', 'setenv', 3]);
+});
