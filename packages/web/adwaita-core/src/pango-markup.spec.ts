@@ -1,4 +1,5 @@
-// `parsePangoMarkup` — the tree, and `stripMarkup` as its reduction.
+// `parsePangoMarkup` — the tree, and `stripMarkup` as its reduction. Plus
+// `parseLabelMarkup` / `stripLabelMarkup`, the same scan with `<a href>` allowed.
 //
 // The point of the tree is that a renderer can build NODES from it. So the rows that
 // matter most are the ones a web renderer used to reach with `innerHTML`: `<b>` must come
@@ -6,10 +7,16 @@
 // `<script>` must come back as NOTHING a renderer could build — the whole parse fails and
 // the string stays text, which is what makes the markup property safe rather than merely
 // differently-shaped.
+//
+// THE TWO ENTRY POINTS MUST STAY APART. `<a>` is `Gtk.Label`'s tag, not pango's, so the
+// pango-only parse has to keep REJECTING it: `stripMarkup`'s callers (the search pipeline,
+// `Adw.Banner`, `Adw.AlertDialog`, `Gtk.Inscription`) show a string with an `<a>` in it
+// raw, exactly as the C does. The block below asserts that divergence directly, because a
+// single widened parser is the obvious refactor and it would silently change all four.
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { escapeMarkup, parsePangoMarkup, stripMarkup } from './pango-markup.js';
+import { escapeMarkup, parseLabelMarkup, parsePangoMarkup, stripLabelMarkup, stripMarkup } from './pango-markup.js';
 import { STRIP_MARKUP_VECTORS } from './conformance/preferences.js';
 
 /** The text of a parsed tree, so a row can state what a renderer would SHOW. */
@@ -207,6 +214,160 @@ export default async () => {
         await it("the escape is GLib's, numeric references for the quote characters", () => {
             expect(escapeMarkup(`'"`)).toBe('&#39;&#34;');
             expect(escapeMarkup('\u007f')).toBe('&#x7f;');
+        });
+    });
+
+    await describe('parseLabelMarkup — the same scan, with `<a href>` the one addition', async () => {
+        await it('<a> comes back as its OWN kind, carrying the three attributes GTK keeps', () => {
+            expect(parseLabelMarkup('<a href="https://gtk.org" title="Docs" class="x">GTK</a>')).toStrictEqual([
+                {
+                    kind: 'link',
+                    href: 'https://gtk.org',
+                    title: 'Docs',
+                    cssClass: 'x',
+                    children: [{ kind: 'text', text: 'GTK' }],
+                },
+            ]);
+        });
+
+        await it('the two optional attributes are null when absent, not missing keys', () => {
+            expect(parseLabelMarkup('<a href="https://gtk.org">GTK</a>')).toStrictEqual([
+                {
+                    kind: 'link',
+                    href: 'https://gtk.org',
+                    title: null,
+                    cssClass: null,
+                    children: [{ kind: 'text', text: 'GTK' }],
+                },
+            ]);
+        });
+
+        await it('href arrives RESOLVED, so a `&amp;` in a query string is one character', () => {
+            expect(parseLabelMarkup('<a href="https://x/?a=1&amp;b=2">q</a>')).toStrictEqual([
+                {
+                    kind: 'link',
+                    href: 'https://x/?a=1&b=2',
+                    title: null,
+                    cssClass: null,
+                    children: [{ kind: 'text', text: 'q' }],
+                },
+            ]);
+        });
+
+        await it('a missing href FAILS the whole parse — G_MARKUP_ERROR_INVALID_CONTENT', () => {
+            expect(parseLabelMarkup('<a>GTK</a>')).toBe(null);
+            expect(parseLabelMarkup('<a title="Docs">GTK</a>')).toBe(null);
+        });
+
+        await it('a fourth attribute FAILS it too, rather than being ignored', () => {
+            // `G_MARKUP_ERROR_UNKNOWN_ATTRIBUTE`: the label then shows the raw string, so
+            // an author who writes `target="_blank"` sees the markup, not a silent drop.
+            expect(parseLabelMarkup('<a href="https://gtk.org" target="_blank">GTK</a>')).toBe(null);
+            expect(parseLabelMarkup('<a href="https://gtk.org" onclick="x()">GTK</a>')).toBe(null);
+        });
+
+        await it('pango tags still nest inside a link, and a link inside them', () => {
+            expect(parseLabelMarkup('<a href="u"><b>GTK</b></a>')).toStrictEqual([
+                {
+                    kind: 'link',
+                    href: 'u',
+                    title: null,
+                    cssClass: null,
+                    children: [
+                        { kind: 'element', tag: 'b', attributes: {}, children: [{ kind: 'text', text: 'GTK' }] },
+                    ],
+                },
+            ]);
+            expect(parseLabelMarkup('<b><a href="u">GTK</a></b>')).toStrictEqual([
+                {
+                    kind: 'element',
+                    tag: 'b',
+                    attributes: {},
+                    children: [
+                        {
+                            kind: 'link',
+                            href: 'u',
+                            title: null,
+                            cssClass: null,
+                            children: [{ kind: 'text', text: 'GTK' }],
+                        },
+                    ],
+                },
+            ]);
+        });
+
+        await it('a NESTED <a> parses, as it does in the C — the inner one is its own link', () => {
+            // GTK's `start_element_handler` does not check for an open link, so this is not
+            // an error there either; what the two overlapping ranges draw is the renderer's
+            // problem and `label-markup.ts`'s, not the parser's.
+            expect(parseLabelMarkup('<a href="o">out<a href="i">in</a></a>')).toStrictEqual([
+                {
+                    kind: 'link',
+                    href: 'o',
+                    title: null,
+                    cssClass: null,
+                    children: [
+                        { kind: 'text', text: 'out' },
+                        {
+                            kind: 'link',
+                            href: 'i',
+                            title: null,
+                            cssClass: null,
+                            children: [{ kind: 'text', text: 'in' }],
+                        },
+                    ],
+                },
+            ]);
+        });
+
+        await it('an unclosed <a> fails, like every other unclosed element', () => {
+            expect(parseLabelMarkup('<a href="u">GTK')).toBe(null);
+            expect(parseLabelMarkup('<a href="u">GTK</b>')).toBe(null);
+        });
+
+        await it('every failure the pango-only parse has, it has too', () => {
+            for (const markup of [
+                'a < b',
+                '<b>unclosed',
+                '<blink>x</blink>',
+                '<script>alert(1)</script>',
+                '<b x="1">y</b>',
+            ]) {
+                expect(parseLabelMarkup(markup)).toBe(null);
+            }
+        });
+    });
+
+    await describe('parsePangoMarkup still REJECTS <a>, which is what keeps the two apart', async () => {
+        // `stripMarkup`'s callers are not labels: `Adw.Banner`, `Adw.AlertDialog`,
+        // `Gtk.Inscription` and the search pipeline all run pango's parser alone, and an
+        // `<a>` there is an unknown tag. Widening one parser would change all four.
+        for (const markup of ['<a href="u">GTK</a>', 'see <a href="u">the docs</a>', '<b><a href="u">x</a></b>']) {
+            await it(`${JSON.stringify(markup)} is an unknown tag to pango, so the string stays raw`, () => {
+                expect(parsePangoMarkup(markup)).toBe(null);
+                expect(stripMarkup(markup)).toBe(null);
+            });
+        }
+    });
+
+    await describe('stripLabelMarkup is gtk_label_get_text — the text with the <a> gone', async () => {
+        await it('drops the link tag and keeps its text', () => {
+            expect(stripLabelMarkup('see <a href="https://gtk.org">the docs</a>')).toBe('see the docs');
+        });
+
+        await it('reduces pango tags and links in one pass', () => {
+            expect(stripLabelMarkup('<b>Read</b> <a href="u"><i>this</i></a>')).toBe('Read this');
+        });
+
+        await it('is null under the same failures, so the caller keeps the raw string', () => {
+            expect(stripLabelMarkup('<a>no href</a>')).toBe(null);
+            expect(stripLabelMarkup('a < b')).toBe(null);
+        });
+
+        await it('agrees with stripMarkup on everything that has no link in it', () => {
+            for (const { markup } of STRIP_MARKUP_VECTORS) {
+                expect(stripLabelMarkup(markup)).toBe(stripMarkup(markup));
+            }
         });
     });
 };

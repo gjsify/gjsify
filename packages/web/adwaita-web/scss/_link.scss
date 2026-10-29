@@ -1,12 +1,26 @@
 // _link.scss — `link` and `button.link`, libadwaita's link treatment.
 //
-// ONLY `button.link`, not a bare `.link`. Upstream's rule names the `link` NODE and
-// `button.link` (`_links.scss:1-2`); the `link` node is the inner node of a `Gtk.Label`'s
-// `<a>` markup, which no element here renders. The `.link` style CLASS on anything but a
-// button is unstyled upstream: `AdwLinkRow` adds it to its row (adw-link-row.c:377), and
-// no rule matches `row.link`, so its title stays in the row's own colour. A bare `.link`
-// here painted the About dialog's link rows blue and underlined. `<gtk-link-button>`
-// renders an inner `<button class="adw-button link">`, which the selector below reads.
+// TWO NODES, NEVER A BARE `.link`. Upstream's rule names the `link` NODE and
+// `button.link` (`_links.scss:1-2`). `button.link` is `<gtk-link-button>`'s inner
+// `<button class="adw-button link">`, which the first selector below reads. The `link`
+// node is the inner node of a `Gtk.Label`'s `<a>` markup, and `<gtk-label>` now DRAWS
+// that — an `<a href>` per link in the markup (`label-markup.ts`) — so the second
+// selector is upstream's `link` rule, ported onto the element that finally exists.
+//
+// The `.link` style CLASS on anything but those two is unstyled upstream: `AdwLinkRow`
+// adds it to its row (adw-link-row.c:377), and no rule matches `row.link`, so its title
+// stays in the row's own colour. A bare `.link` here painted the About dialog's link rows
+// blue and underlined. It would now also hit `<gtk-label>` ITSELF, which gains the class
+// whenever its markup has a link (gtklabel.c:3896) — the label is not a link, its anchors
+// are. So both selectors name a node, and neither matches a class alone.
+//
+// THE LABEL'S ANCHORS ARE NOT STYLED THROUGH `:visited`, the CSS pseudo-class, even
+// though they are real `<a href>` elements that would match it. A browser's `:visited` is
+// the user's BROWSING HISTORY: a link followed in another tab, or last year, would come
+// up visited in a label that has never been clicked, which `Gtk.Label` never does. Its
+// `visited` is per-label state carried by URI across a re-parse
+// (`labelLinksInheritVisited`), painted as `.visited` by `_paintVisited` — the same class
+// `<gtk-link-button>` writes for the same reason one paragraph down.
 //
 // THE TWO COLOURS ARE THE PALETTE'S, not new tokens: `$link_color: var(--accent-color)`
 // and `$link_visited_color: color-mix(in srgb, var(--accent-color) 80%, var(--view-fg-color))`
@@ -36,6 +50,7 @@
 $link-color: var(--accent-color);
 $link-visited-color: color-mix(in srgb, var(--accent-color) 80%, var(--view-fg-color));
 $osd-link-color: color-mix(in srgb, var(--accent-bg-color) 50%, white);
+$osd-link-visited-color: color-mix(in srgb, var(--accent-bg-color) 75%, white);
 
 .adw-button.link {
   color: $link-color;
@@ -81,5 +96,56 @@ $osd-link-color: color-mix(in srgb, var(--accent-bg-color) 50%, white);
   &:checked,
   &.checked {
     background-color: transparent;
+  }
+}
+
+// Upstream's bare `link` node — a `Gtk.Label`'s `<a href>` markup, which `<gtk-label>`
+// draws as a real anchor per link (`label-markup.ts`, `buildAnchor`).
+//
+// THE SELECTOR IS THE ATTRIBUTE, not the class. `data-gtk-link` is written by the renderer
+// and by nothing else, so it names the node the way upstream's `link` names a GTK node;
+// the `.link` class on the same anchor is GTK's own style class, which a consumer may also
+// put on anything (and `<gtk-label>` ITSELF carries it whenever its markup has a link —
+// see the header). Scoped under `gtk-label` so an `<a>` a consumer put in a label's slot
+// for its own reasons is untouched.
+gtk-label a[data-gtk-link] {
+  color: $link-color;
+  text-decoration: underline;
+  font-weight: inherit;
+
+  &:hover {
+    color: hsl(from $link-color h calc(s * 1.1) calc(l * 1.1));
+  }
+
+  &:active {
+    color: $link-color;
+  }
+
+  // `.visited` and NOT `:visited` — the pseudo-class is the user's browsing history, where
+  // `Gtk.Label`'s `visited` is per-label state carried by URI (`_paintVisited`, and the
+  // paragraph in the header).
+  &.visited {
+    color: $link-visited-color;
+  }
+
+  .osd & {
+    color: $osd-link-color;
+
+    &.visited {
+      color: $osd-link-visited-color;
+    }
+
+    &:active {
+      color: $osd-link-color;
+    }
+  }
+
+  // `link { @include focus-ring() }` (_links.scss:33-35) — the mixin is a 2px outline at
+  // offset -2px (`_drawing.scss`), spelled out as `_expander.scss` and `_checks.scss`
+  // spell it out. `:focus-visible` rather than `:focus`: GTK draws the ring on keyboard
+  // focus, and a click on a link must not leave one behind.
+  &:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: -2px;
   }
 }

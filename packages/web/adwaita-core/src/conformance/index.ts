@@ -662,6 +662,13 @@ export type {
     LabelYalignAlignItemsVector,
     LabelYalignVector,
 } from './label.js';
+export { LABEL_MARKUP_LINK_VECTORS, LABEL_MARKUP_RUN_VECTORS } from './label-markup.js';
+export type {
+    LabelMarkupLinkExpectation,
+    LabelMarkupLinkVector,
+    LabelMarkupRunExpectation,
+    LabelMarkupRunVector,
+} from './label-markup.js';
 
 // --- Wrap box line layout, properties + child order (Adw.WrapBox) vectors ---
 export {

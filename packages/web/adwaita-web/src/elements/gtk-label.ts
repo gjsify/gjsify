@@ -8,11 +8,21 @@
 // mounted through `mountSharedTree` arrives as a TAG with a `label` attribute, and without
 // an element that reads it the text never reached the screen.
 //
-// THE TEXT IS WRITTEN AS TEXT. `use-markup` is honoured by REDUCING the markup to its
-// plain text (`labelDisplayText` in `@gjsify/adwaita-core`, the reduction the NativeScript
-// label shares), never by handing it to `innerHTML`, which would run whatever the string
-// carries. GTK draws the bold; this port shows the word. `use-underline` strips the
-// mnemonic marker and binds no key.
+// THE TEXT IS WRITTEN AS NODES, NEVER AS MARKUP. `use-markup` is DRAWN: the string is
+// parsed headlessly (`labelMarkupRender` in `@gjsify/adwaita-core`, the derivation the
+// NativeScript label shares), and its styled runs become elements built with
+// `createElement` — `../label-markup.js`. Nothing is ever handed to `innerHTML`, which
+// would run whatever the string carries; markup that does not PARSE falls back to the raw
+// string as text, which is the C's own fallback. `use-underline` strips the mnemonic
+// marker and binds no key.
+//
+// `<a href>` IS A LINK HERE, with `::activate-link` behind it. The anchors carry GTK's
+// `link` CSS class and their markup's `title` as a tooltip, the widget gains the `link`
+// class and `has-tooltip` the way `gtk_label_set_markup` and
+// `gtk_label_ensure_has_tooltip` set them, and a click emits the cancelable
+// `activate-link` before anything is opened — `<gtk-link-button>`'s pattern, because the
+// two must not disagree about what following a link does. `visited` is carried across a
+// re-render by URI, as the C does.
 //
 // `xalign` IS WHERE THE TEXT SITS IN THE LABEL'S BOX, `justify` how its LINES align with
 // each other — two properties, as in GTK. `xalign` is a continuum and CSS alignment has
@@ -59,9 +69,14 @@
 // Copyright (c) The GTK Team, GNOME contributors. LGPLv2.1+.
 
 import {
+    labelActivateLink,
     labelDisplayText,
     labelEffectiveLines,
     labelEllipsizeOverflowValue,
+    labelHasLinks,
+    labelLinksHaveTooltip,
+    labelLinkVisited,
+    labelMarkupRender,
     labelWidthCharsExtent,
     labelYalignAlignItems,
     normalizeLabelEllipsize,
@@ -74,10 +89,14 @@ import {
     normalizeLabelYalign,
     type LabelEllipsizeMode,
     type LabelJustification,
+    type LabelLink,
+    type LabelMarkupRender,
     type LabelWrapMode,
 } from '@gjsify/adwaita-core';
 
 import { JUSTIFY_TEXT_ALIGN } from './justification.js';
+import { LABEL_LINK_ATTRIBUTE, labelMarkupAnchorIndex, labelMarkupAnchors, labelMarkupNodes } from '../label-markup.js';
+import type { DispatchedSignals } from '../signals.js';
 import { WidgetElement } from '../widget-element.js';
 
 /** The attributes that carry a property — also the `notify::` roster. */
@@ -108,11 +127,50 @@ export class GtkLabel extends WidgetElement {
      * gets one text node").
      */
     private _wrapSpan: HTMLSpanElement | null = null;
+
+    /**
+     * The box the markup's runs are drawn in while the label is a SINGLE LINE — the case
+     * {@link _wrapSpan} does not cover, and the runs still may not go without a box.
+     *
+     * THE RUNS MAY NOT BE THE LABEL'S OWN CHILDREN. `gtk-label` is a flex container (the
+     * `xalign` spacers, `_labels.scss`), so each node directly under it is a FLEX ITEM —
+     * and a flex item is not text: `vertical-align` does not apply to one, so `<sup>` and
+     * `<sub>` stop being raised and lowered, and `align-items` centres each run on its own
+     * rather than the line sharing one baseline. A plain label never showed this because a
+     * bare text node is ONE anonymous item; a run list is as many items as it has runs. So
+     * the runs get a box and the box is the item. `null` while plain text is drawn, so a
+     * label without markup keeps the single text node `childElementCount` asserts on.
+     */
+    private _runSpan: HTMLSpanElement | null = null;
     private _resizes: ResizeObserver | null = null;
 
     /** Whether `_sync` last wrote `min-width` / `max-width` itself, and so may clear them. */
     private _wroteMinWidth = false;
     private _wroteMaxWidth = false;
+
+    /**
+     * The `<a href>` elements the label currently draws, in reading order.
+     *
+     * HELD ACROSS RENDERS because `visited` is: `gtk_label_set_markup` carries it over by
+     * URI (`labelLinksInheritVisited`), so a followed link stays followed when the text
+     * around it is rewritten. Empty whenever the markup has no links or does not parse.
+     */
+    private _links: readonly LabelLink[] = [];
+    private _wired = false;
+
+    /**
+     * The inputs of the run list currently in the DOM, or `null` when plain text is.
+     *
+     * `_render` runs on EVERY observed attribute — `xalign` included — and rebuilding the
+     * run elements each time would drop a selection and the focus inside a link for a
+     * change that never touched the text. The plain-text path compares `textContent`; a
+     * list of elements has no such single string to compare against, so the two inputs
+     * that produced it stand in for it.
+     */
+    private _drawn: string | null = null;
+
+    /** The GTK signals this element dispatches, each with the DOM event it arrives as (ADR 0093). */
+    static readonly signals: DispatchedSignals = { 'activate-link': 'activate-link' };
 
     static get observedAttributes() {
         return [...PROPERTY_ATTRIBUTES];
@@ -279,6 +337,7 @@ export class GtkLabel extends WidgetElement {
     }
 
     connectedCallback() {
+        this._wire();
         this._render();
         this._resizes = new ResizeObserver(() => this._remeasure());
         this._resizes.observe(this);
@@ -318,15 +377,28 @@ export class GtkLabel extends WidgetElement {
     }
 
     private _render(): void {
-        // `textContent`, the whole of the XSS answer: whatever the label holds, the DOM
-        // gets one text node (wrapped in {@link _wrapSpan} while {@link wrap} or
-        // {@link ellipsize} needs a box of its own — see `_renderSpan`).
+        // THE MARKUP IS DRAWN WHEN IT PARSES, and `null` here is both cases where it is
+        // not: `use-markup` unset, and a string pango itself rejects — for which GTK
+        // shows the raw text (`labelDisplayText`, the C fallback). Either way no string
+        // becomes markup the browser parses: the run path builds every node with
+        // `createElement` (`../label-markup.js`) and the text path is `textContent`.
+        const render = this.useMarkup ? labelMarkupRender(this.label, this._links) : null;
+        this._links = render?.links ?? [];
+        const drawn = render === null ? null : `${this.useUnderline ? '1' : '0'}\u0000${this.label}`;
+
         const text = this.getText();
         const wrap = this.wrap;
         const ellipsize = this.ellipsize;
         const clamped = ellipsize !== 'none';
-        if (wrap || clamped) this._renderSpan(text, clamped);
-        else this._renderSingleLine(text);
+        if (wrap || clamped) this._renderSpan(text, render, drawn, clamped);
+        else this._renderSingleLine(text, render, drawn);
+
+        // `gtk_label_set_markup`'s two side effects on the WIDGET (gtklabel.c:3896,
+        // gtk_label_ensure_has_tooltip): the class libadwaita's stylesheet selects on, and
+        // the flag that says a tooltip may be asked for. The tooltip TEXT is per link and
+        // sits on the anchor itself, which is where a browser reads one from.
+        this.classList.toggle('link', labelHasLinks(this._links));
+        this.toggleAttribute('has-tooltip', labelLinksHaveTooltip(this._links));
 
         this.style.setProperty('--gtk-label-xalign', String(this.xalign));
         this.style.textAlign = JUSTIFY_TEXT_ALIGN[this.justify];
@@ -373,10 +445,118 @@ export class GtkLabel extends WidgetElement {
         this._wroteMaxWidth = extent.maxCh !== null;
     }
 
-    private _renderSingleLine(text: string): void {
-        this._wrapSpan?.remove();
-        this._wrapSpan = null;
-        if (this.textContent !== text) this.textContent = text;
+    private _renderSingleLine(text: string, render: LabelMarkupRender | null, drawn: string | null): void {
+        if (this._wrapSpan) {
+            this._wrapSpan.remove();
+            this._wrapSpan = null;
+            // The box the runs were in is gone, so what `_drawn` describes is gone with it.
+            this._drawn = null;
+        }
+
+        // PLAIN TEXT GOES STRAIGHT IN, runs may not — see {@link _runSpan}. The text node
+        // is one anonymous flex item whichever way the label is aligned; a run list under
+        // the same parent would be one flex item PER RUN.
+        if (render === null) {
+            if (this._runSpan) {
+                this._runSpan.remove();
+                this._runSpan = null;
+                this._drawn = null;
+            }
+            this._draw(this, text, render, drawn);
+            return;
+        }
+
+        if (!this._runSpan) {
+            this.textContent = '';
+            this._runSpan = document.createElement('span');
+            this._runSpan.className = 'adw-label-runs';
+            this.appendChild(this._runSpan);
+            // A NEW, EMPTY box: whatever `_drawn` described was in the old one.
+            this._drawn = null;
+        }
+        this._draw(this._runSpan, text, render, drawn);
+    }
+
+    /**
+     * `render`'s runs — or `text` when there are none — into `target`.
+     *
+     * A PLAIN LABEL KEEPS ITS SINGLE TEXT NODE: `textContent` is still the whole of the
+     * write whenever there is no markup to draw, so the shape `gtk-label.spec.ts` asserts
+     * for the XSS answer (no elements at all) is unchanged for every label that does not
+     * ask for markup.
+     */
+    private _draw(target: HTMLElement, text: string, render: LabelMarkupRender | null, drawn: string | null): void {
+        if (render === null) {
+            this._drawn = null;
+            if (target.textContent !== text) target.textContent = text;
+            return;
+        }
+        if (this._drawn === drawn) return;
+        this._drawn = drawn;
+        target.replaceChildren(...labelMarkupNodes(render, target.ownerDocument, this.useUnderline));
+    }
+
+    /**
+     * ONE delegated `click` listener, added once and never removed: the anchors are rebuilt
+     * on every render, so a listener per anchor would have to be re-added with them, and
+     * the element is the node they are always under.
+     */
+    private _wire(): void {
+        if (this._wired) return;
+        this._wired = true;
+        this.addEventListener('click', (event) => this._click(event));
+    }
+
+    private _click(event: MouseEvent): void {
+        const target = event.target;
+        const anchor = target instanceof Element ? target.closest(`a[${LABEL_LINK_ATTRIBUTE}]`) : null;
+        if (anchor === null) return;
+        const index = labelMarkupAnchorIndex(anchor);
+        const link = index === null ? undefined : this._links[index];
+        if (index === null || link === undefined) return;
+
+        // THE DEFAULT IS CANCELLED, every time. The anchor carries a real `href` — it has
+        // to, or it is not a link to the keyboard, to the accessibility tree or to "copy
+        // link address" — and a browser would therefore NAVIGATE this window. GTK does
+        // not: `gtk_label_activate_link` hands the URI to the desktop and leaves the
+        // window standing. So the signal runs in the navigation's place.
+        event.preventDefault();
+        const visited = labelActivateLink(link.href, {
+            // `GTK_IS_WINDOW (gtk_widget_get_root (widget))` — a label with no window
+            // above it launches nothing. A document with no `defaultView` (one built by
+            // `DOMParser`, a template's content) is this port's version of that: there is
+            // no window to open anything from.
+            rooted: this.isConnected && this.ownerDocument.defaultView !== null,
+            emit: () =>
+                !this.dispatchEvent(
+                    new CustomEvent('activate-link', { bubbles: true, cancelable: true, detail: { uri: link.href } }),
+                ),
+            launch: (uri) => this.launch(uri),
+        });
+        if (!visited) return;
+        this._links = labelLinkVisited(this._links, index);
+        this._paintVisited();
+    }
+
+    /**
+     * The launcher call, on its own method so a caller (or a spec) can stand in for the
+     * window the desktop would have opened — `<gtk-link-button>`'s `launch`, and the same
+     * door, because the two must not disagree about what following a link does.
+     */
+    protected launch(uri: string): void {
+        window.open(uri, '_blank', 'noopener');
+    }
+
+    /**
+     * `visited` onto the anchors already in the DOM, rather than through a re-render: the
+     * link that was just clicked holds the focus, and rebuilding the runs under it would
+     * take that away for a change of one class.
+     */
+    private _paintVisited(): void {
+        for (const anchor of labelMarkupAnchors(this)) {
+            const index = labelMarkupAnchorIndex(anchor);
+            if (index !== null) anchor.classList.toggle('visited', this._links[index]?.visited === true);
+        }
     }
 
     /**
@@ -415,15 +595,25 @@ export class GtkLabel extends WidgetElement {
      * min-content/max-content gap, the exact shrink-to-fit collapse the wrapped case above
      * was already written for. One code path now, for both.
      */
-    private _renderSpan(text: string, clamped: boolean): void {
+    private _renderSpan(text: string, render: LabelMarkupRender | null, drawn: string | null, clamped: boolean): void {
+        // THIS BOX SUPERSEDES THE RUN BOX. `.adw-label-text` is `display: block`, so the
+        // runs inside it are inline boxes and the flex-item problem {@link _runSpan}
+        // answers cannot arise — one box, not two nested ones.
+        if (this._runSpan) {
+            this._runSpan.remove();
+            this._runSpan = null;
+            this._drawn = null;
+        }
         if (!this._wrapSpan) {
             this.textContent = '';
             this._wrapSpan = document.createElement('span');
             this._wrapSpan.className = 'adw-label-text';
             this.appendChild(this._wrapSpan);
+            // A NEW, EMPTY box: whatever `_drawn` described was in the old one.
+            this._drawn = null;
         }
         this._wrapSpan.classList.toggle('adw-label-clamp', clamped);
-        if (this._wrapSpan.textContent !== text) this._wrapSpan.textContent = text;
+        this._draw(this._wrapSpan, text, render, drawn);
         this._remeasure();
     }
 }

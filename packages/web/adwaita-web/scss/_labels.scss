@@ -109,6 +109,25 @@ gtk-label {
     max-width: 100%;
   }
 
+  // `gtk-label.ts`'s run-render path, SINGLE-LINE: the markup's runs move into this span
+  // because this element is a flex container (the two spacers above), and a node directly
+  // under one is a FLEX ITEM, not text — `vertical-align` does not apply to a flex item,
+  // so `<sup>`/`<sub>` stop being raised, and `align-items` centres each run on its own
+  // instead of the line sharing one baseline. Plain text never needed a box: a bare text
+  // node is ONE anonymous item, where a run list is one item per run.
+  //
+  // NO `max-width` HERE, unlike `.adw-label-text`: this box only ever holds ONE line (the
+  // host's `white-space: pre`, and this path is the not-wrapping, not-ellipsizing case),
+  // so there is no shrink-to-fit collapse to measure around — a single-line label as wide
+  // as its text, overflowing a narrower container, is what GtkLabel does and what
+  // `gtk-label.spec.ts` already pins for the plain-text path. The box's own size is its
+  // text's: `flex-basis: auto` over `width: auto` is the item's max-content width, which
+  // leaves the two spacers the free space `xalign` splits.
+  .adw-label-runs {
+    // Blockified by spec as a flex item; spelled out as `.adw-label-text` spells it out.
+    display: block;
+  }
+
   // `wrap-mode` — Pango's break-opportunity choice — is a real `word-break`/
   // `overflow-wrap` mapping, not a declared gap: CSS's `break-all` is Pango's CHAR (break
   // anywhere), and `overflow-wrap: anywhere` is Pango's WORD_CHAR (word boundaries, falling
