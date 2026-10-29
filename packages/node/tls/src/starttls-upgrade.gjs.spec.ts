@@ -10,11 +10,10 @@
 // after it has spoken plaintext — `@gjsify/tls`'s own `TLSServer` always
 // upgrades immediately on 'connection' (no plaintext phase), so it can't
 // play the STARTTLS server here. Server-side STARTTLS
-// (`new tls.TLSSocket(socket, {isServer: true})`) isn't implemented in
-// `@gjsify/tls` at all yet — out of scope for the client-side fix this
-// test covers — so the server below is built directly over Gio, standing
-// in for a real STARTTLS-aware server (imap/smtp/xmpp) purely to give the
-// CLIENT under test something correct to upgrade against.
+// (`new tls.TLSSocket(socket, {isServer: true})`) is covered by
+// `starttls-server.spec.ts`; the server below is built directly over Gio,
+// standing in for a real STARTTLS-aware server (imap/smtp/xmpp) purely to
+// give the CLIENT under test something correct to upgrade against.
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import Gio from '@girs/gio-2.0';
