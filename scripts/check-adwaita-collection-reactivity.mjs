@@ -72,8 +72,9 @@
 // entry that becomes replaceable FAILS, so the list empties itself instead of rotting into
 // a permanent exemption. {@link COLLECTION_CENSUS} is the other half — see § 4.
 //
-// KNOWN LIMITS, stated rather than papered over. Both are about REACH, and the census in
-// § 4 is what keeps either from turning into a silent pass:
+// KNOWN LIMITS, stated rather than papered over — two about REACH and one about
+// VOCABULARY, and the census in § 4 is what keeps any of them from turning into a silent
+// pass:
 //
 //   · INHERITANCE. Every reader here works on the tag's OWN class, sliced out of its file.
 //     A collection a BASE class owns is invisible: the call site is outside the slice for
@@ -95,6 +96,24 @@
 //     list out — rather than listing them, because a hand-kept list has the same failure
 //     one rename later. All four widgets are held by rules 2 and 3 now, and
 //     `gtk-menu-button` has its first census entry.
+//   · WHAT A COLLECTION IS SPELLED AS — CLOSED, and it is the same shape a third time.
+//     Every reader here asked for a BRACKET, so a collection stopped being one the moment
+//     it was handed over as an object: ADR 0122 made `Adw.ComboRow:model` and
+//     `Gtk.DropDown:model` a real `Gio.ListModel`, `ComboState.setModel` took a
+//     `ComboWatchableModel`, and in one commit rule 1 went quiet on all FOUR selectors,
+//     rule 3 reported two of them as publishing "list setters: [none]" with `set model`
+//     on the line above, and the census read the loss as widgets removed.
+//     {@link coreListModelTypes} DERIVES the model types from the `Gio.ListModel` reading
+//     pair — the same duck test `list.ts` applies — so a collection counts whether it
+//     arrives as an array or as the model itself. Measured both ways: on the pre-0122 tree
+//     the new reader prints the old verdict unchanged, down to the counts.
+//
+//     Its other half is that a class which IS a model is NOT a state holding one, so its
+//     own mutators are skipped ({@link coreCollectionSetters}). Without that,
+//     `GjsifyOptionList.splice` — a public method named after an `Array` one — collected
+//     `<gtk-level-bar>`'s `this._offsets.splice(…)` over a plain array of tuples, through
+//     the unresolved-receiver fallback, and demanded a census entry for a collection that
+//     widget does not have.
 //
 // Plain Node over the repo's own files — no install, no build — so it runs in
 // `audit-runtimes.yml` next to the other repo-scoped Adwaita guards.
@@ -229,6 +248,78 @@ function coreListAliases() {
     return aliases;
 }
 
+/** A top-level declaration, exported or not — the partition {@link coreListModelTypes} reads over. */
+const TOP_LEVEL_DECLARATION =
+    /(?:^|\n)(?:export\s+)?(?:declare\s+)?(?:abstract\s+)?(?:async\s+)?(?:interface|class|type|function|const|let|var|enum)\s+([A-Za-z0-9_$]+)/g;
+
+/**
+ * The `Gio.ListModel` reading pair — `g_list_model_get_n_items` and `g_list_model_get_item`
+ * — DECLARED rather than called.
+ *
+ * The lookbehind is the whole of that distinction and it was measured: `FileDialog` reads a
+ * `GioListStore` (`store.get_n_items()`, `store.get_item(i)`) inside its own body, so a plain
+ * `\bget_n_items\b` made the dialog a list model — a HOLDER filed as the collection, which is
+ * the confusion this set exists to resolve. It also keeps `vfunc_get_n_items`, the
+ * implementation side, from counting as the interface.
+ */
+const LIST_MODEL_PAIR = [/(?<![.\w])get_n_items\s*[(:]/, /(?<![.\w])get_item\s*[(:]/];
+
+/**
+ * Core's exported types that ARE a `Gio.ListModel` — they declare the reading pair, or
+ * (ONE hop) extend something that does.
+ *
+ * MEASURED, and it is why this exists: ADR 0122 turned `Adw.ComboRow:model` and
+ * `Gtk.DropDown:model` from an array into a real list model, so `ComboState.setModel`
+ * became `(model: ComboWatchableModel | null)` and both widgets' `set model` became
+ * `(value: ComboWatchableModel | string | null)`. Not one bracket between them.
+ * {@link LIST_TYPE} saw no list, {@link coreListAliases} saw no alias, and in one commit
+ * `setModel` stopped being a collection setter at all: rule 1 went quiet on FOUR widgets,
+ * rule 3 reported two of them as taking `model` through the attribute with "list setters:
+ * [none]" while `set model` sat on the line above, and the census lost the collection in
+ * the direction that says a widget was removed. A collection does not stop being one for
+ * being handed over as an object instead of an array — and handing a model over by
+ * IDENTITY is the opposite of the JSON round-trip rule 3 exists to stop.
+ *
+ * DERIVED from the reading pair rather than listed, for {@link coreListParsers}' reason:
+ * a hand-kept list of model type names has the same failure one rename later. The pair is
+ * what `list.ts` itself duck-tests for ("anything with `get_n_items` and `get_item`"), so
+ * this reader and the code it reads agree on what a model is.
+ *
+ * ONE HOP, the same bound as the aliases above: `ComboWatchableModel extends
+ * AdwListModelSource` adds only the optional signal pair and declares neither getter, so
+ * without the hop the published property type of both selectors is invisible. An heir of
+ * an heir is not followed.
+ */
+function coreListModelTypes() {
+    const models = new Set();
+    const heirs = new Map();
+    for (const file of sourcesUnder(CORE_SRC)) {
+        const code = stripComments(readFileSync(join(ROOT, file), 'utf8'));
+        // Partitioned on EVERY top-level declaration, not only the exported ones: with the
+        // loose partition, `list.ts`'s non-exported `readListModel` — which calls both
+        // getters — fell inside the preceding `export type AdwListModelInput` and made it a
+        // model type. A declaration's text has to stop where the next declaration starts.
+        const tops = [...code.matchAll(TOP_LEVEL_DECLARATION)];
+        for (const [index, top] of tops.entries()) {
+            if (!/\bexport\s/.test(top[0]) || !/\b(?:interface|class|type)\s/.test(top[0])) continue;
+            const next = tops[index + 1];
+            const text = code.slice(top.index, next === undefined ? code.length : next.index);
+            if (LIST_MODEL_PAIR.every((member) => member.test(text))) models.add(top[1]);
+            else heirs.set(top[1], headerOf(text));
+        }
+    }
+    for (const [name, header] of heirs) {
+        if ([...models].some((model) => new RegExp(`\\b${model}\\b`).test(header))) models.add(name);
+    }
+    return models;
+}
+
+/** A declaration's head — what it extends or is aliased to, without its body. */
+function headerOf(text) {
+    const ends = [text.indexOf('{'), text.indexOf(';')].filter((at) => at !== -1);
+    return ends.length === 0 ? text : text.slice(0, Math.min(...ends));
+}
+
 /**
  * A list of `unknown` / `any` — an untyped argument bag, not a collection.
  *
@@ -241,10 +332,14 @@ function coreListAliases() {
  */
 const UNTYPED_LIST = /\b(?:unknown|any)\s*\[\s*\]|\b(?:ReadonlyArray|Array)\s*<\s*(?:unknown|any)\s*>/g;
 
-/** Whether a signature names a list, directly or through one of core's list aliases. */
-const namesAList = (signature, aliases) => {
+/**
+ * Whether a signature names a collection — a bracketed list, or one of core's own
+ * collection types: a list alias ({@link coreListAliases}) or a list MODEL
+ * ({@link coreListModelTypes}).
+ */
+const namesAList = (signature, types) => {
     const typed = signature.replace(UNTYPED_LIST, '');
-    return LIST_TYPE.test(typed) || [...aliases].some((alias) => new RegExp(`\\b${alias}\\b`).test(typed));
+    return LIST_TYPE.test(typed) || [...types].some((type) => new RegExp(`\\b${type}\\b`).test(typed));
 };
 
 /**
@@ -468,20 +563,32 @@ function sourcesUnder(dir) {
  * names a list. `set x(v: T[])` accessors are deliberately not in here: this map exists to
  * attribute a widget's CALL SITE (`this._state.setModel(…)`), and an accessor is never
  * called by name.
+ *
+ * A CLASS THAT IS A LIST MODEL IS SKIPPED — it is the collection, not a holder of one, so
+ * `list.splice(…)` mutates a collection rather than handing one over, and the
+ * replaceability question is asked where the model is HELD (`ComboState.setModel`). Two
+ * things measured on `GjsifyOptionList`, added by ADR 0122 as the markup door's own model:
+ * its `reconcile` made both selectors "feed a collection only from connectedCallback"
+ * while `set model` reaches it, and — worse — its public `splice` collides with
+ * `Array.prototype.splice`, so `<gtk-level-bar>`'s `this._offsets.splice(…)` over a plain
+ * array of tuples was credited to it. That is the fallback {@link coreCallSites} documents
+ * (an unresolvable receiver takes the setter's single owner) meeting a method name the
+ * language already owns; excluding the model classes keeps the fallback from inventing a
+ * collection out of an array method.
  */
-function coreCollectionSetters() {
-    const aliases = coreListAliases();
+function coreCollectionSetters(types, listModels) {
     const byName = new Map();
     for (const file of sourcesUnder(CORE_SRC)) {
         const code = stripComments(readFileSync(join(ROOT, file), 'utf8'));
         for (const declaration of code.matchAll(/\bexport\s+class\s+([A-Za-z0-9_$]+)/g)) {
             const className = declaration[1];
+            if (listModels.has(className)) continue;
             const body = classBody(code, className);
             if (body === null) continue;
             const members = membersOfClass(body.text);
             for (const member of members) {
                 if (member.kind !== 'method' || member.name.startsWith('_') || member.name.startsWith('#')) continue;
-                if (!namesAList(signatureOf(body.text, members, member), aliases)) continue;
+                if (!namesAList(signatureOf(body.text, members, member), types)) continue;
                 if (!INTAKE_RETURN.test(returnClause(memberText(body.text, members, member)))) continue;
                 if (!byName.has(member.name)) byName.set(member.name, []);
                 byName.get(member.name).push({ className, file, line: lineOf(code, body.offset + member.index) });
@@ -498,7 +605,7 @@ function coreCollectionSetters() {
  * Read one widget class: its settable collection properties, and the attributes it parses
  * as lists.
  */
-function readWidget(text, className, coreClasses, parseCalls, aliases) {
+function readWidget(text, className, coreClasses, parseCalls, types) {
     const code = stripComments(text);
     const body = classBody(code, className);
     if (body === null) return null;
@@ -507,12 +614,12 @@ function readWidget(text, className, coreClasses, parseCalls, aliases) {
     const fields = stateFields(body.text, coreClasses);
 
     // `namesAList`, not a bare bracket test: rule 3 asks whether the widget publishes a
-    // setter for the collection its attribute carries, and both of the collections whose
-    // authored form has a NAME — `AdwMenuInput`, `AdwListModelInput` — are spelled with
-    // that name at the setter. A bracket test reported all four widgets that take one as
-    // having "list setters: [none]" while the setter was on the line above the attribute.
+    // setter for the collection its attribute carries, and the collections whose handed-over
+    // form has a NAME — `AdwMenuInput`, and now `ComboWatchableModel` — are spelled with that
+    // name at the setter. A bracket test reported all four widgets that take one as having
+    // "list setters: [none]" while the setter was on the line above the attribute.
     const listSetters = members
-        .filter((member) => member.kind === 'set' && namesAList(signatureOf(body.text, members, member), aliases))
+        .filter((member) => member.kind === 'set' && namesAList(signatureOf(body.text, members, member), types))
         .map((member) => member.name);
 
     // Members whose body turns text into a list — where a collection attribute is read.
@@ -701,7 +808,19 @@ function localClassesUnder(dir) {
 // ---------------------------------------------------------------------------
 // 3. The two corpora, and the rules over them.
 
-const coreSetters = coreCollectionSetters();
+/** Core's types that ARE a list model — read once, and the one set two rules below share. */
+const CORE_LIST_MODELS = coreListModelTypes();
+if (CORE_LIST_MODELS.size === 0) {
+    fail([
+        `no list-model type was found under ${CORE_SRC}. Core declares several (\`AdwListModelSource\`, ` +
+            '`GjsifyOptionList`, `GtkStringList`), so an empty set means the reading pair stopped ' +
+            'matching — and with it every `model` setter goes back to looking like no collection at all.',
+    ]);
+}
+/** Every core type a signature can name a collection with: the list aliases plus the models. */
+const CORE_COLLECTION_TYPES = new Set([...coreListAliases(), ...CORE_LIST_MODELS]);
+
+const coreSetters = coreCollectionSetters(CORE_COLLECTION_TYPES, CORE_LIST_MODELS);
 if (coreSetters.size === 0) {
     fail([
         `no collection setter was found on any exported state class under ${CORE_SRC}. Either the ` +
@@ -711,10 +830,8 @@ if (coreSetters.size === 0) {
 }
 /** The state classes a widget field may be believed to hold. */
 const coreClasses = new Set([...coreSetters.values()].flat().map((owner) => owner.className));
-/** Core's exported type aliases that ARE lists — read once, used by three rules. */
-const CORE_LIST_ALIASES = coreListAliases();
 /** Every spelling of "this text becomes a list", as one regex alternation. */
-const PARSE_CALLS = ['JSON\\.parse', ...[...coreListParsers(CORE_LIST_ALIASES)].sort()].join('|');
+const PARSE_CALLS = ['JSON\\.parse', ...[...coreListParsers(CORE_COLLECTION_TYPES)].sort()].join('|');
 
 const RENDERERS = [
     {
@@ -750,7 +867,7 @@ for (const renderer of RENDERERS) {
     for (const [tag, file] of [...renderer.tags].sort()) {
         const className = tagClass(tag);
         const text = readFileSync(join(ROOT, file), 'utf8');
-        const widget = readWidget(text, className, coreClasses, PARSE_CALLS, CORE_LIST_ALIASES);
+        const widget = readWidget(text, className, coreClasses, PARSE_CALLS, CORE_COLLECTION_TYPES);
         if (widget === null) continue;
         // A class with code in it but no readable member is the vacuous pass this whole
         // file exists to refuse — its call sites would read as none. A marker class
