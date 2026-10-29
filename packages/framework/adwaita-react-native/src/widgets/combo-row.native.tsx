@@ -37,10 +37,10 @@
 // `ComboState.select` guard — bounds and no-op-on-same — so the arithmetic under it is the
 // shipped one.
 
-import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
-import { ComboState, normalizeComboOptions } from '@gjsify/adwaita-core';
+import { ComboState, GjsifyOptionList, normalizeComboOptions } from '@gjsify/adwaita-core';
 
 import type { AdwComboRowProps } from '../props.js';
 import { ADW_ROW_HIDDEN_STYLE, ADW_ROW_STYLE, AdwRowLabels } from '../row-shell.native.js';
@@ -80,9 +80,18 @@ export function AdwComboRow({
     // SEEDED IN THE INITIALISER, not in an effect: an effect runs after the first paint, so a
     // row mounted with `selected` would render the wrong label for a frame — and, worse, the
     // chevron would appear a frame after the row it belongs to.
+    // The AUTHORED list, held for the row's whole life. `model` is an object property over a
+    // real `Gio.ListModel` since ADR 0122 § 4, so a prop door that built a FRESH list per
+    // content change would hand the state a new identity — and a new identity resets the
+    // selection to 0 (measured, `combo-probe2.js`). Re-authoring the same JSX prop is not a
+    // model swap, it is the same list with different items, so this half reconciles INTO the
+    // list it already holds, which emits the one minimal splice and lets the selection follow
+    // `items-changed`. That is what `@gjsify/gtk-host`'s `reconcileStringList` does at the
+    // ParamSpec seam for the GTK half, so the two stay the same row.
+    const [authored] = useState(() => GjsifyOptionList.new(normalizeComboOptions(model)));
     const [row] = useState(() => {
         const state = new ComboState();
-        state.setModel(normalizeComboOptions(model));
+        state.setModel(authored);
         if (selected !== undefined) state.setSelectedIndex(selected);
         return state;
     });
@@ -113,24 +122,21 @@ export function AdwComboRow({
     // occur in an authored label, so `['a b']` and `['a', 'b']` are two keys and not one.
     const key = optionsKey(model);
 
-    // `setModel` IS THE ONE SETTER WITH NO GUARD, and it needs this latch rather than
-    // deserving one. Every other setter in the core early-outs on an unchanged value, so a
-    // mount effect that re-applies what the initialiser already set is silent; `setModel`
-    // ALWAYS emits, because the label is read out of the MODEL and can change at an
-    // unchanged index. Measured before this ref existed: mounting a combo row called
-    // `onNotifySelected(0)` with nothing having happened — `[0, 1]` where a single press
-    // should report `[1]` — and a one-option row, which cannot be picked at all, reported
-    // `[0]`. The GTK half is silent there (setting a model that does not move the selection
-    // fires no `notify::selected`), so this is the two halves agreeing, not a convenience.
-    const appliedOptions = useRef(key);
+    // RECONCILE, NOT REPLACE, and the latch this effect used to carry went into the core with
+    // it. `setModel` was the one setter with no guard — it ALWAYS emitted, because the label is
+    // read out of the MODEL and can change at an unchanged index — so a mount effect that
+    // re-applied what the initialiser had already set was NOT silent. Measured before the latch
+    // existed: mounting a combo row called `onNotifySelected(0)` with nothing having happened —
+    // `[0, 1]` where a single press should report `[1]` — and a one-option row, which cannot be
+    // picked at all, reported `[0]`. `reconcile` answers equal contents with no splice and no
+    // emit at all, so the guard is the list's now and a `useRef` beside it would be a second
+    // copy that no test could turn red.
     useEffect(() => {
-        if (appliedOptions.current === key) return;
-        appliedOptions.current = key;
-        row.setModel(normalizeComboOptions(model));
+        authored.reconcile(normalizeComboOptions(model));
         // `key` and not `model` in the dependency, and `model` read inside: an inline
         // `model={['a','b']}` literal is a new array on every render, so depending on its
-        // IDENTITY would re-run this — and therefore re-emit — forever.
-    }, [row, key]);
+        // IDENTITY would re-run this on every one.
+    }, [authored, key]);
     useEffect(() => {
         if (selected !== undefined) row.setSelectedIndex(selected);
     }, [row, selected]);
