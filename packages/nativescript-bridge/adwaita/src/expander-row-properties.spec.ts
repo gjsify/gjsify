@@ -26,6 +26,11 @@
 // at module scope, reachable only under that entry's `--alias`.
 
 import { describe, expect, it } from '@gjsify/unit';
+import {
+    EXPANDER_ROW_CONSTRUCT_VECTORS,
+    EXPANDER_ROW_INITIAL,
+    EXPANDER_ROW_VECTORS,
+} from '@gjsify/adwaita-core/conformance';
 
 import * as Adw from './namespace/adw.js';
 import {
@@ -54,6 +59,37 @@ function xml(row: Adw.ExpanderRow, name: string, value: string): void {
 }
 
 export const AdwExpanderRowPropertiesNsTest = async () => {
+    await describe('Adw.ExpanderRow expanded / enable-expansion (shared conformance vectors)', async () => {
+        for (const vector of EXPANDER_ROW_VECTORS) {
+            await it(`notifies and holds through: ${vector.name}`, () => {
+                const row = new Adw.ExpanderRow();
+                const seen: string[] = [];
+                for (const name of ['expanded', 'enable-expansion'])
+                    row.connect(`notify::${name}`, () => seen.push(name));
+                expect(row.expanded).toBe(EXPANDER_ROW_INITIAL.expanded);
+                expect(row.enableExpansion).toBe(EXPANDER_ROW_INITIAL.enableExpansion);
+
+                for (const step of vector.steps) {
+                    seen.length = 0;
+                    if (step.op === 'expanded') row.expanded = step.value;
+                    else row.enableExpansion = step.value;
+                    expect(seen.join()).toBe(step.notified.join());
+                    expect(row.expanded).toBe(step.expanded);
+                    expect(row.enableExpansion).toBe(step.enableExpansion);
+                }
+            });
+        }
+
+        for (const vector of EXPANDER_ROW_CONSTRUCT_VECTORS) {
+            await it(`constructed with expanded=${vector.expanded}, enable-expansion=${vector.enableExpansion} — ${vector.rule}`, () => {
+                const props = { expanded: vector.expanded, enableExpansion: vector.enableExpansion };
+                const reversed = { enableExpansion: vector.enableExpansion, expanded: vector.expanded };
+                expect(new Adw.ExpanderRow(props).expanded).toBe(vector.resultExpanded);
+                expect(new Adw.ExpanderRow(reversed).expanded).toBe(vector.resultExpanded);
+            });
+        }
+    });
+
     await describe('Adw.ExpanderRow properties on the pure-JS engine', async () => {
         await it('runs on the subset here, which is what the rest of this suite measures', () => {
             const mixin = Object.getPrototypeOf(Adw.ExpanderRow) as object;

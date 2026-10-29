@@ -43,6 +43,7 @@
 
 import type { View } from '@nativescript/core';
 import { GridLayout, ItemSpec, StackLayout, Label, type EventData } from '@nativescript/core';
+import { adwSubtitleWriteNotifies } from '@gjsify/adwaita-core';
 import { ActionRowState, isViewSensitive, rowLabelVisuals } from './row-state.js';
 import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
@@ -72,7 +73,17 @@ export class AdwActionRow extends withSignals(GridLayout, {
     GTypeName: 'AdwActionRow',
     Properties: {
         title: { kind: 'string', default: '', blurb: 'The title of the row' },
-        subtitle: { kind: 'string', default: '', blurb: 'The subtitle of the row' },
+        // `adw_action_row_set_subtitle` (adw-action-row.c:571) guards on `g_strcmp0 (label text,
+        // subtitle)`, and the label text is never NULL: a `null` write is never the early
+        // return, notifies every time and reads `""` back. `''` against `''` is silent.
+        subtitle: {
+            kind: 'string',
+            default: '',
+            blurb: 'The subtitle of the row',
+            normalize: (value) => (value === null || value === undefined ? '' : String(value)),
+            changed: (next, held, written) =>
+                adwSubtitleWriteNotifies(String(held), written === null || written === undefined ? null : String(next)),
+        },
         // Canonical and dashed, as GObject spells it; the seam generates all three spellings.
         'icon-name': { kind: 'string', default: '', blurb: 'The icon name for this row' },
         activatable: { kind: 'boolean', default: false, blurb: 'Whether this row can be activated' },

@@ -89,6 +89,7 @@ export type {
 // --- Action-row family (Adw.ActionRow/SwitchRow/ButtonRow/WindowTitle) vectors ---
 export {
     ACTION_ROW_ACTIVATION_VECTORS,
+    ACTION_ROW_SUBTITLE_VECTORS,
     BUTTON_ROW_ACTIVATABLE_VECTORS,
     BUTTON_ROW_ICON_VECTORS,
     LABEL_VISIBILITY_VECTORS,
@@ -97,6 +98,8 @@ export {
 } from './action-row.js';
 export type {
     ActionRowActivationVector,
+    ActionRowSubtitleStep,
+    ActionRowSubtitleVector,
     ActionRowStep,
     ButtonRowActivatableVector,
     ButtonRowIconVector,
@@ -174,6 +177,15 @@ export type {
     ComboSpliceStep,
     ToggleActiveNameVector,
 } from './rows.js';
+
+// --- Expander row (Adw.ExpanderRow expanded / enable-expansion coupling) vectors ---
+export { EXPANDER_ROW_CONSTRUCT_VECTORS, EXPANDER_ROW_INITIAL, EXPANDER_ROW_VECTORS } from './expander-row.js';
+export type {
+    ExpanderRowConstructVector,
+    ExpanderRowProperty,
+    ExpanderRowStep,
+    ExpanderRowVector,
+} from './expander-row.js';
 
 // --- View stack selection (Adw.ViewStack) vectors ---
 export { VIEW_STACK_ICON_NAME_VECTORS, VIEW_STACK_PAGE_VECTORS, VIEW_STACK_VECTORS } from './view-stack.js';

@@ -31,7 +31,7 @@
 // Reference: refs/libadwaita/src/adw-window-title.c, adw-window-title.ui
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { stringIsNotEmpty } from './glib.js';
+import { adwSubtitleWriteNotifies, stringIsNotEmpty } from './glib.js';
 
 /** A title/subtitle label pair with the visibility the bindings give it. */
 export interface AdwRowLabels {
@@ -138,12 +138,15 @@ export class ActionRowState<TWidget = unknown> {
         return this._subtitle;
     }
 
-    /** Set the subtitle. Returns whether it changed (the `notify::subtitle` gate). */
+    /**
+     * Set the subtitle. Returns whether the write notifies (the `notify::subtitle` gate) —
+     * which is NOT whether the text moved: a `null` write notifies every time
+     * ({@link adwSubtitleWriteNotifies}).
+     */
     setSubtitle(subtitle: string | null | undefined): boolean {
-        const next = subtitle ?? '';
-        if (next === this._subtitle) return false;
-        this._subtitle = next;
-        return true;
+        const notifies = adwSubtitleWriteNotifies(this._subtitle, subtitle);
+        this._subtitle = subtitle ?? '';
+        return notifies;
     }
 
     /** `AdwActionRow:activatable-widget` — `null` when unset. */

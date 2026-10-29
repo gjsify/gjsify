@@ -13,6 +13,7 @@ import {
 } from './action-row.js';
 import {
     ACTION_ROW_ACTIVATION_VECTORS,
+    ACTION_ROW_SUBTITLE_VECTORS,
     BUTTON_ROW_ACTIVATABLE_VECTORS,
     BUTTON_ROW_ICON_VECTORS,
     LABEL_VISIBILITY_VECTORS,
@@ -62,6 +63,24 @@ export default async () => {
                 subtitle: '',
                 subtitleVisible: false,
             });
+        });
+    });
+
+    await describe('ActionRowState subtitle (Adw.ActionRow notify gate)', async () => {
+        for (const vector of ACTION_ROW_SUBTITLE_VECTORS) {
+            await it(`${vector.name} — ${vector.rule}`, () => {
+                const row = new ActionRowState<string>();
+                for (const step of vector.steps) {
+                    expect(row.setSubtitle(step.write)).toBe(step.notified);
+                    expect(row.subtitle).toBe(step.subtitle);
+                }
+            });
+        }
+
+        await it('leaves the title gate alone: null and "" never notify on an empty title', () => {
+            const row = new ActionRowState<string>();
+            expect(row.setTitle(null)).toBe(false);
+            expect(row.setTitle('')).toBe(false);
         });
     });
 
@@ -122,7 +141,8 @@ export default async () => {
             const row = new ActionRowState();
             expect(row.setTitle('Wi-Fi')).toBe(true);
             expect(row.setTitle('Wi-Fi')).toBe(false);
-            expect(row.setSubtitle(null)).toBe(false); // already ''
+            expect(row.setSubtitle(null)).toBe(true); // g_strcmp0 ("", NULL) != 0 — see the vectors
+            expect(row.setSubtitle('')).toBe(false);
             expect(row.setSubtitle('On')).toBe(true);
         });
 

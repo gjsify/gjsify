@@ -411,6 +411,7 @@ export type {
     ComboStateChange,
     ComboStateListener,
     ComboWatchableModel,
+    ExpanderNotify,
     ExpanderStateListener,
     ToggleGroupStateChange,
     ToggleGroupStateListener,
@@ -454,7 +455,7 @@ export type {
 } from './label.js';
 
 // --- GLib primitives Adwaita arithmetic is written in ---
-export { glibClamp, gStrStrip, gtkButtonIconNameReadback, stringIsNotEmpty } from './glib.js';
+export { adwSubtitleWriteNotifies, glibClamp, gStrStrip, gtkButtonIconNameReadback, stringIsNotEmpty } from './glib.js';
 export {
     AppLaunchContext as GdkAppLaunchContext,
     ContentFormats,

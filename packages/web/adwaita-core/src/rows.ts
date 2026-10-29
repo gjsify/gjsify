@@ -2,7 +2,7 @@
 //
 // The selection / disclosure / clamp-and-snap logic behind the Libadwaita row widgets, so
 // every renderer shares ONE behavior:
-//   - {@link ExpanderState}    — `Adw.ExpanderRow`'s expanded/collapsed disclosure.
+//   - {@link ExpanderState}    — `Adw.ExpanderRow`'s disclosure and its `enable-expansion` gate.
 //   - {@link ComboState}       — `Adw.ComboRow`'s selectedIndex↔selectedValue mapping
 //                                over an options list, with empty/out-of-range guards.
 //   - {@link SpinState}        — `Adw.SpinRow`'s adjustment: a watchable `Gtk.Adjustment`
@@ -42,13 +42,25 @@ export type { SpinStateChange, SpinStateListener, SpinStateRangeListener } from 
 export type ExpanderStateListener = (expanded: boolean) => void;
 
 /**
- * The disclosure state of an expander row: a single boolean that toggles between
- * revealed and collapsed. Idempotent — setting the current value again is a no-op
- * and fires no notification. Both programmatic and interactive changes notify (as
- * `Adw.ExpanderRow` does).
+ * The `notify::*` an expander-row write emits, in emission order. A renderer that owns real
+ * GObject properties re-emits it verbatim; `expanded` leads `enable-expansion` because the
+ * C setter cross-writes `expanded` before it notifies its own property.
+ */
+export type ExpanderNotify = 'expanded' | 'enable-expansion';
+
+/**
+ * The state of an expander row: whether the disclosure is revealed, and whether it may be.
+ *
+ * The two are coupled the way `adw-expander-row.c` couples them. `setExpanded` coerces
+ * `expanded && enableExpansion` before its equal-return (C:264), so opening a disabled row is
+ * a silent no-op rather than a refusal. `setEnableExpansion` stores, drives `expanded` to the
+ * new value (C:310) and only then notifies its own property — enabling EXPANDS, disabling
+ * COLLAPSES. Idempotent — setting a current value again fires nothing. Both programmatic and
+ * interactive changes notify (as `Adw.ExpanderRow` does).
  */
 export class ExpanderState {
     private _expanded = false;
+    private _enableExpansion = true;
     private readonly _listeners = new Set<ExpanderStateListener>();
 
     /** Subscribe to expanded-state changes. Returns an unsubscribe function. */
@@ -70,13 +82,33 @@ export class ExpanderState {
         return this._expanded;
     }
 
-    /** Set the expanded flag. Notifies only on an actual change. Returns whether it changed. */
+    /** Whether the row can be expanded at all. */
+    get enableExpansion(): boolean {
+        return this._enableExpansion;
+    }
+
+    /**
+     * Set the expanded flag, held `false` while expansion is disabled. Notifies only on an
+     * actual change. Returns whether it changed.
+     */
     setExpanded(value: boolean): boolean {
-        const next = !!value;
+        const next = !!value && this._enableExpansion;
         if (next === this._expanded) return false;
         this._expanded = next;
         this._emit();
         return true;
+    }
+
+    /**
+     * Set `enable-expansion` and drive `expanded` to the same value. Returns the properties
+     * the write notifies, in order: empty for an equal write, `['enable-expansion']` when
+     * `expanded` already held the value, `['expanded', 'enable-expansion']` otherwise.
+     */
+    setEnableExpansion(value: boolean): readonly ExpanderNotify[] {
+        const next = !!value;
+        if (next === this._enableExpansion) return [];
+        this._enableExpansion = next;
+        return this.setExpanded(next) ? ['expanded', 'enable-expansion'] : ['enable-expansion'];
     }
 
     /** Flip expanded↔collapsed (the disclosure tap). Returns whether it changed. */
