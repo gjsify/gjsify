@@ -92,6 +92,12 @@
             "property": "maxLines",
             "registeredOn": "Style",
             "source": "ui/text-base/text-base-common.ts"
+        },
+        {
+            "class": "Label",
+            "property": "formattedText",
+            "registeredOn": "TextBaseCommon",
+            "source": "ui/text-base/text-base-common.ts"
         }
     ]
 }

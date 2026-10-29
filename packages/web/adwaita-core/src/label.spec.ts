@@ -1,6 +1,7 @@
-// What a `Gtk.Label` SHOWS — the markup reduction and the mnemonic — and how an authored
-// `xalign`/`justify` becomes the property. Both label renderers (`<gtk-label>` on the web,
-// `GtkLabel` on NativeScript) draw through `label.ts`, so it is asserted once, here.
+// What a `Gtk.Label` reports as its TEXT — the markup reduction and the mnemonic — and how
+// an authored `xalign`/`justify` becomes the property. Both label renderers (`<gtk-label>`
+// on the web, `GtkLabel` on NativeScript) draw through `label.ts`, so it is asserted once,
+// here. What a label DRAWS from the same string is `label-markup.spec.ts`.
 //
 // The rows GTK was measured against are `conformance/label.ts`; the hand-written cases
 // are the reduction's edges the table does not need to carry.
@@ -60,7 +61,7 @@ export default async () => {
         });
     });
 
-    await describe('labelDisplayText — markup on: REDUCED to its plain text, never rendered', async () => {
+    await describe('labelDisplayText — markup on: the TEXT, which is not what gets drawn', async () => {
         await it('drops the tags GTK would have drawn', () => {
             expect(labelDisplayText('<b>Bold</b> and <i>italic</i>', true, false)).toBe('Bold and italic');
         });

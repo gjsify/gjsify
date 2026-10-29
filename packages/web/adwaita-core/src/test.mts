@@ -56,6 +56,7 @@ import checkGroupOracleTestSuite from './check-group.gjs.spec.js';
 import wrapBoxTestSuite from './wrap-box.spec.js';
 import boxTestSuite from './box.spec.js';
 import labelTestSuite from './label.spec.js';
+import labelMarkupTestSuite from './label-markup.spec.js';
 import spinnerTestSuite from './spinner.spec.js';
 import shortcutLabelTestSuite from './shortcut-label.spec.js';
 import shortcutFormatTestSuite from './shortcut-format.spec.js';
@@ -168,6 +169,7 @@ run({
     wrapBoxTestSuite,
     boxTestSuite,
     labelTestSuite,
+    labelMarkupTestSuite,
     spinnerTestSuite,
     shortcutLabelTestSuite,
     shortcutFormatTestSuite,

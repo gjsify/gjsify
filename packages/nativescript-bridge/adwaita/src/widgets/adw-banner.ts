@@ -11,9 +11,16 @@
 // puts on the button, which must not paint as a literal underscore.
 //
 // FIDELITY: approximated for the reveal and for markup. `Adw.Banner` slides in through
-// a `GtkRevealer`; the NS subset has none, so `revealed` toggles `visibility`. The NS
-// CSS subset has no inline markup, so a markup title is reduced to its plain text
-// rather than painted with its tags — see `bannerTitleText`.
+// a `GtkRevealer`; the NS subset has none, so `revealed` toggles `visibility`. A markup
+// title is reduced to its plain text rather than painted with its tags — see
+// `bannerTitleText`.
+//
+// THE REDUCTION IS NOW A CHOICE, NOT A MISSING LAYER. `Gtk.Label` DRAWS markup on this
+// platform (`widgets/label-markup.ts`), so the banner could too; it does not, because its
+// title is a plain `Label` fed from `bannerTitleText`, which is core's `stripMarkup` —
+// the pango-only parse, shared with search, preferences and `Adw.AlertDialog`. Moving the
+// banner onto the drawn path is a separate change with its own vectors, not a side effect
+// of the label gaining them.
 //
 // Reference: refs/libadwaita/src/adw-banner.c (AdwBanner)
 // Reference: refs/libadwaita/src/adw-banner.ui (the template both labels come from)
@@ -95,8 +102,8 @@ export class AdwBanner extends withSignals(GridLayout) {
      * Whether {@link title} is Pango markup. Defaults to TRUE, as in libadwaita
      * (:422-425).
      *
-     * NS has no inline-markup layer, so markup is reduced to its plain text —
-     * closer to what GTK paints than the raw tags would be.
+     * Markup is reduced to its plain text here — closer to what GTK paints than the raw
+     * tags would be, and deliberately not the drawn path `Gtk.Label` takes: see the header.
      */
     get useMarkup(): boolean {
         return this._props.useMarkup;

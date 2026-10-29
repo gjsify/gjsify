@@ -1,11 +1,14 @@
 // DOM-level tests for <gtk-label>.
 //
-// Three things matter more than the attribute round-trips. The text reaches the DOM as ONE
-// TEXT NODE whatever it holds — `use-markup` included, which is where an `innerHTML` port
-// would execute a string. `xalign` is read off where the text actually SITS in the label's
-// box, not off a style the element wrote. And the typography classes from `_labels.scss`
-// apply to the element, including inside another widget whose isolation floor would
-// otherwise repaint it (`_reset.scss`).
+// Four things matter more than the attribute round-trips. A label WITHOUT `use-markup`
+// reaches the DOM as one text node, and one WITH it is drawn as the styled runs core
+// derived — built node by node, so no string the label carries is ever parsed as markup
+// (the `<img>` row: markup pango rejects stays text, it does not become an element).
+// `<a href>` is a real anchor whose click is cancelled in favour of `activate-link`.
+// `xalign` is read off where the text actually SITS in the label's box, not off a style the
+// element wrote. And the typography classes from `_labels.scss` apply to the element,
+// including inside another widget whose isolation floor would otherwise repaint it
+// (`_reset.scss`).
 
 import { describe, expect, it } from '@gjsify/unit';
 
@@ -16,16 +19,21 @@ import {
     LABEL_ELLIPSIZE_OVERFLOW_VECTORS,
     LABEL_ELLIPSIZE_VECTORS,
     LABEL_JUSTIFY_VECTORS,
+    LABEL_MARKUP_LINK_VECTORS,
+    LABEL_MARKUP_RUN_VECTORS,
     LABEL_WIDTH_CHARS_EXTENT_VECTORS,
     LABEL_WRAP_MODE_VECTORS,
     LABEL_XALIGN_VECTORS,
     LABEL_YALIGN_ALIGN_ITEMS_VECTORS,
     LABEL_YALIGN_VECTORS,
+    type LabelMarkupLinkExpectation,
+    type LabelMarkupRunExpectation,
 } from '@gjsify/adwaita-core/conformance';
 
 import type { GtkLabel } from './elements/gtk-label.js';
+import { labelMarkupAnchorIndex, labelMarkupAnchors } from './label-markup.js';
 
-function mount(label: string, parent?: HTMLElement): { el: GtkLabel; host: HTMLElement } {
+function mount(label: string, parent?: HTMLElement): { el: GtkLabel; host: HTMLElement; opened: string[] } {
     const host = document.createElement('div');
     host.style.width = '400px';
     document.body.appendChild(host);
@@ -33,13 +41,149 @@ function mount(label: string, parent?: HTMLElement): { el: GtkLabel; host: HTMLE
     el.label = label;
     (parent ?? host).appendChild(el);
     if (parent) host.appendChild(parent);
-    return { el, host };
+    // `window.open` is the launcher call; a spec must not open a tab to prove a click.
+    const opened: string[] = [];
+    (el as unknown as { launch: (uri: string) => void }).launch = (uri: string) => opened.push(uri);
+    return { el, host, opened };
+}
+
+/** One click a user could make, cancelable so the spec can read back whether it was. */
+function click(target: Element): MouseEvent {
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+    target.dispatchEvent(event);
+    return event;
+}
+
+/** Collect the `detail` of every `event` dispatched on (or bubbling to) `el`. */
+function record(el: HTMLElement, event: string): unknown[] {
+    const details: unknown[] = [];
+    el.addEventListener(event, (e) => details.push((e as CustomEvent).detail));
+    return details;
+}
+
+/**
+ * Every text node under `root`, in reading order — ONE PER DRAWN RUN, because a run is
+ * built as a chain of elements around a single text node (`label-markup.ts`, `buildRun`).
+ * So this list and the vector's `runs` line up position for position, and a renderer that
+ * failed to merge two adjacent equal-styled runs produces one node too many.
+ */
+function textNodes(root: Node): Text[] {
+    const found: Text[] = [];
+    for (const child of root.childNodes) {
+        if (child.nodeType === Node.TEXT_NODE) found.push(child as Text);
+        else found.push(...textNodes(child));
+    }
+    return found;
+}
+
+/** A run as the DOM holds it, in the shape {@link LabelMarkupRunExpectation} states it. */
+interface DrawnRun {
+    text: string;
+    bold: boolean;
+    italic: boolean;
+    underline: boolean;
+    strikethrough: boolean;
+    monospace: boolean;
+    sizeSteps: number;
+    script: 'sub' | 'sup' | null;
+    link: number | null;
+    /** How many `<span>` attribute sets the run sits in — the COUNT, see below. */
+    spans: number;
+}
+
+/**
+ * `node`'s run, read back off its ancestors up to `root`.
+ *
+ * THE `<span>`S ARE COUNTED, NOT COMPARED. `tt`, `big` and `small` are each drawn as a
+ * `<span>` carrying the one CSS property `TAG_STYLES` gives them, so those three are
+ * recognised by that property and everything else that is a `<span>` came from a pango
+ * `<span>` element. Its ATTRIBUTES are not asserted here: `applySpanAttributes` drops
+ * every attribute outside its whitelist (`foreground` among them), so the mapping is
+ * `pango-markup.spec.ts`'s subject and what matters at this level is that each `<span>` in
+ * the run's stack became one element in the chain, in order.
+ */
+function drawnRun(node: Text, root: Element): DrawnRun {
+    const run: DrawnRun = {
+        text: node.data,
+        bold: false,
+        italic: false,
+        underline: false,
+        strikethrough: false,
+        monospace: false,
+        sizeSteps: 0,
+        script: null,
+        link: null,
+        spans: 0,
+    };
+    for (let el = node.parentElement; el !== null && el !== root; el = el.parentElement) {
+        const tag = el.tagName.toLowerCase();
+        if (tag === 'b') run.bold = true;
+        else if (tag === 'i') run.italic = true;
+        else if (tag === 'u') run.underline = true;
+        else if (tag === 's') run.strikethrough = true;
+        else if (tag === 'sub' || tag === 'sup') run.script = tag;
+        else if (tag === 'a') run.link = labelMarkupAnchorIndex(el);
+        // THE TWO BOXES ARE THE ELEMENT'S OWN, not a run's: `.adw-label-text` is the
+        // wrap/ellipsize box (`_renderSpan`), `.adw-label-runs` the single-line one the
+        // runs need because the label is a flex container (`_runSpan`). Neither carries
+        // style a run asked for, so neither counts as a `<span>` from the markup.
+        else if (el.classList.contains('adw-label-text') || el.classList.contains('adw-label-runs')) continue;
+        else if (el.style.fontFamily === 'monospace') run.monospace = true;
+        else if (el.style.fontSize === 'larger') run.sizeSteps += 1;
+        else if (el.style.fontSize === 'smaller') run.sizeSteps -= 1;
+        else run.spans += 1;
+    }
+    return run;
+}
+
+/** The same shape from the vector, where every omitted field means "not set". */
+function expectedRun(run: LabelMarkupRunExpectation): DrawnRun {
+    return {
+        text: run.text,
+        bold: run.bold ?? false,
+        italic: run.italic ?? false,
+        underline: run.underline ?? false,
+        strikethrough: run.strikethrough ?? false,
+        monospace: run.monospace ?? false,
+        sizeSteps: run.sizeSteps ?? 0,
+        script: run.script ?? null,
+        link: run.link ?? null,
+        spans: run.spans?.length ?? 0,
+    };
+}
+
+/**
+ * The text the DOM can give the anchor for `links[index]`: the link's range, minus the
+ * range of any link nested INSIDE it.
+ *
+ * THE ONE PLACE THE ANCHORS ARE NOT THE RANGES. GTK's ranges may overlap —
+ * `<a href="outer">out <a href="inner">in</a></a>` is two links and the outer's range
+ * covers the inner's text — and one DOM element cannot hold text another also holds. The
+ * inner anchor owns that text, as the inner link owns it in GTK too (`finish_text`
+ * attributes to the open element), and the outer's node keeps the rest of its range.
+ */
+function anchorText(text: string, links: ReadonlyArray<LabelMarkupLinkExpectation>, index: number): string {
+    const link = links[index]!;
+    const inner = links.filter(
+        (other, at) => at !== index && other.end > other.start && other.start >= link.start && other.end <= link.end,
+    );
+    let kept = '';
+    for (let at = link.start; at < link.end; at += 1)
+        if (!inner.some((nested) => nested.start <= at && at < nested.end)) kept += text[at];
+    return kept;
 }
 
 /** Where the rendered TEXT sits, measured on the text node rather than the element. */
 function textRect(el: HTMLElement): DOMRect {
     const range = document.createRange();
     range.selectNodeContents(el);
+    return range.getBoundingClientRect();
+}
+
+/** Where one drawn run's GLYPHS sit — the text node's own box, not its element's. */
+function runRect(node: Text): DOMRect {
+    const range = document.createRange();
+    range.selectNodeContents(node);
     return range.getBoundingClientRect();
 }
 
@@ -50,14 +194,290 @@ export const GtkLabelTest = async () => {
                 const { el, host } = mount(vector.label);
                 el.useMarkup = vector.useMarkup;
                 el.useUnderline = vector.useUnderline;
-                // What reached the SCREEN, and that it is one text node: no row may build
-                // an element, whatever its markup says.
+                // What reached the SCREEN. `textContent` is the display text whichever
+                // path drew it — a plain text node, or the run elements concatenated —
+                // so this is the assertion that says the two agree.
                 expect(el.textContent).toBe(vector.text);
                 expect(el.getText()).toBe(vector.text);
-                expect(el.childElementCount).toBe(0);
+                // NO ELEMENT WAS PARSED FROM THE STRING, which is the XSS answer and a
+                // different claim from "no elements at all": a row whose markup PARSES is
+                // now drawn as runs (`<b>` is a `<b>`), so the check is that nothing the
+                // markup named as a foreign tag became a node. The `<img>` row is the one
+                // that matters — it does not parse, so it stays text.
+                expect(el.querySelectorAll('img, script, iframe').length).toBe(0);
                 host.remove();
             });
         }
+    });
+
+    await describe('<gtk-label> against LABEL_MARKUP_RUN_VECTORS — the runs as DRAWN nodes', async () => {
+        for (const vector of LABEL_MARKUP_RUN_VECTORS) {
+            await it(vector.rule, () => {
+                const { el, host } = mount(vector.markup);
+                el.useMarkup = true;
+
+                // The row with NO runs is markup pango rejects, and GTK then shows the
+                // raw string: one text node, the markup included, no element built.
+                if (vector.runs.length === 0) {
+                    expect(el.textContent).toBe(vector.text);
+                    expect(el.childElementCount).toBe(0);
+                    host.remove();
+                    return;
+                }
+
+                const drawn = textNodes(el).map((node) => drawnRun(node, el));
+                expect(drawn).toStrictEqual(vector.runs.map(expectedRun));
+                // The runs' text concatenated IS the display text — `gtk_label_get_text`
+                // and what the user sees cannot be two different strings.
+                expect(el.textContent).toBe(vector.text);
+                expect(el.getText()).toBe(vector.text);
+                host.remove();
+            });
+        }
+    });
+
+    await describe('<gtk-label> draws its runs as TEXT, not as flex items', async () => {
+        await it('puts the runs in one box of their own, and takes it away again', () => {
+            const { el, host } = mount('<b>Bold</b> and <i>italic</i>');
+            el.useMarkup = true;
+            // ONE element child, holding every run. The label itself is a flex container
+            // (the `xalign` spacers, `_labels.scss`), so a run list directly under it is
+            // one FLEX ITEM PER RUN — three boxes shrinking independently, not a line of
+            // text. The box is the item; the runs inside it are inline.
+            expect(el.childElementCount).toBe(1);
+            expect(el.firstElementChild?.classList.contains('adw-label-runs')).toBe(true);
+            expect(textNodes(el).length).toBe(3);
+
+            // And it is GONE when there is no markup to draw: a plain label is back to the
+            // single text node the XSS note pins, no leftover box.
+            el.useMarkup = false;
+            expect(el.childElementCount).toBe(0);
+            expect(el.textContent).toBe('<b>Bold</b> and <i>italic</i>');
+            host.remove();
+        });
+
+        await it('hands the box over to the wrap box, never nests the two', () => {
+            const { el, host } = mount('<b>Bold</b> and <i>italic</i>');
+            el.useMarkup = true;
+            el.wrap = true;
+            // `.adw-label-text` is `display: block`, so the runs in it are already inline
+            // boxes — a second box inside it would be one box too many, and `_remeasure`
+            // would then be pinning the wrong element's width.
+            expect(el.childElementCount).toBe(1);
+            expect(el.firstElementChild?.classList.contains('adw-label-text')).toBe(true);
+            expect(el.querySelectorAll('.adw-label-runs').length).toBe(0);
+            expect(el.textContent).toBe('Bold and italic');
+
+            el.wrap = false;
+            expect(el.childElementCount).toBe(1);
+            expect(el.firstElementChild?.classList.contains('adw-label-runs')).toBe(true);
+            expect(el.querySelectorAll('.adw-label-text').length).toBe(0);
+            host.remove();
+        });
+
+        await it('raises sup above sub — the proof the runs are text and not items', () => {
+            const { el, host } = mount('x<sub>2</sub> and y<sup>3</sup>');
+            el.useMarkup = true;
+            const [, sub, , sup] = textNodes(el);
+            // THE ASSERTION THAT CATCHES THE FLEX ITEM. `vertical-align` does not apply to
+            // a flex item: as items these two would each be laid out by the container's
+            // `align-items: center`, landing at the SAME height, and a formula would read
+            // `x2 and y3` flat. As inline text `<sup>` is raised and `<sub>` lowered, so
+            // the one sits strictly above the other.
+            expect(runRect(sup!).top).toBeLessThan(runRect(sub!).top);
+            // Both still on the label's own one line: neither escaped the line box.
+            const whole = textRect(el);
+            expect(runRect(sub!).bottom).toBeLessThanOrEqual(Math.ceil(whole.bottom));
+            expect(runRect(sup!).top).toBeGreaterThanOrEqual(Math.floor(whole.top));
+            host.remove();
+        });
+
+        await it('still offsets the whole line by xalign', () => {
+            const { el, host } = mount('<b>Hi</b> there');
+            el.useMarkup = true;
+            host.style.width = '400px';
+            // The box sizes to its text (`flex-basis: auto` over `display: block`), which
+            // is what leaves the two spacer pseudo-elements free space to split — the
+            // whole of `xalign`. A box stretched to the container would have none, and the
+            // text would sit at the left whatever `xalign` said.
+            el.xalign = 0;
+            const left = textRect(el);
+            el.xalign = 1;
+            const right = textRect(el);
+            expect(Math.round(left.left)).toBeLessThan(Math.round(right.left));
+            expect(Math.round(right.width)).toBe(Math.round(left.width));
+            host.remove();
+        });
+    });
+
+    await describe('<gtk-label> against LABEL_MARKUP_LINK_VECTORS — the anchors', async () => {
+        for (const vector of LABEL_MARKUP_LINK_VECTORS) {
+            await it(vector.rule, () => {
+                const { el, host } = mount(vector.markup);
+                el.useMarkup = true;
+
+                // `null` is markup that does not parse: no links, and so neither of the
+                // two things `gtk_label_set_markup` puts on the widget for having them.
+                const links = vector.links ?? [];
+                const anchors = labelMarkupAnchors(el);
+                expect(anchors.length).toBe(links.length);
+                expect(el.classList.contains('link')).toBe(vector.cssClass);
+                expect(el.hasAttribute('has-tooltip')).toBe(vector.hasTooltip);
+
+                for (const [index, link] of links.entries()) {
+                    const anchor = anchors[index]!;
+                    // The anchor is a REAL link: `href` is set, which is what makes it one
+                    // to the keyboard, to the accessibility tree and to "copy link
+                    // address". `getAttribute`, not `.href`, because the property
+                    // resolves a relative URI against the document.
+                    expect(anchor.getAttribute('href')).toBe(link.href);
+                    expect(labelMarkupAnchorIndex(anchor)).toBe(index);
+                    expect(anchor.classList.contains('link')).toBe(true);
+                    // GTK's `link` class and `<a class>`'s value sit on the same node.
+                    if (link.cssClass !== null) expect(anchor.classList.contains(link.cssClass)).toBe(true);
+                    // An EMPTY `title` attribute is a tooltip in some browsers, so a link
+                    // without one must not carry the attribute at all.
+                    expect(anchor.hasAttribute('title')).toBe(link.title !== null);
+                    if (link.title !== null) expect(anchor.title).toBe(link.title);
+                    // THE OFFSETS REACHED THE DOM: the characters the row's range cuts out
+                    // of the display text are the characters under this anchor.
+                    expect(anchor.textContent).toBe(anchorText(el.textContent ?? '', links, index));
+                }
+                host.remove();
+            });
+        }
+    });
+
+    await describe('<gtk-label> activate-link', async () => {
+        const markup = 'Read the <a href="https://gtk.org">docs</a> first';
+
+        await it('cancels the browser navigation and launches the uri instead', () => {
+            const { el, host, opened } = mount(markup);
+            el.useMarkup = true;
+            const details = record(el, 'activate-link');
+            const anchor = labelMarkupAnchors(el)[0]!;
+
+            // `preventDefault`ed EVERY time: the anchor has a real `href`, so a browser
+            // would navigate this window, and GTK never does — `gtk_label_activate_link`
+            // hands the URI to the desktop and leaves the window standing.
+            expect(click(anchor).defaultPrevented).toBe(true);
+            expect(opened).toStrictEqual(['https://gtk.org']);
+            expect(details).toStrictEqual([{ uri: 'https://gtk.org' }]);
+            expect(anchor.classList.contains('visited')).toBe(true);
+            host.remove();
+        });
+
+        await it('a handler that handles it stops the launch — and still visits the link', () => {
+            const { el, host, opened } = mount(markup);
+            el.useMarkup = true;
+            // `preventDefault` is a handler returning TRUE under the boolean accumulator,
+            // so the class handler never runs and nothing is launched.
+            el.addEventListener('activate-link', (event) => event.preventDefault());
+            const anchor = labelMarkupAnchors(el)[0]!;
+            click(anchor);
+            expect(opened).toStrictEqual([]);
+            // VISITED ALL THE SAME, and this is where the label and `<gtk-link-button>`
+            // part ways. `emit_activate_link` (gtklabel.c:2053) reads the ACCUMULATED
+            // result — `if (handled && !link->visited)` — so a handler that followed the
+            // link its own way has followed it. `GtkLinkButton` instead sets `visited`
+            // inside its own default handler (gtklinkbutton.c:521), which a cancelling
+            // handler skips. Two widgets, two places, and only the C says which is which.
+            expect(anchor.classList.contains('visited')).toBe(true);
+            host.remove();
+        });
+
+        await it('visits every link to the same uri, and leaves the others alone', () => {
+            const { el, host, opened } = mount('<a href="a">one</a> <a href="b">two</a> <a href="a">three</a>');
+            el.useMarkup = true;
+            const anchors = labelMarkupAnchors(el);
+            click(anchors[0]!);
+            // BY URI, not by index (gtklabel.c:3635-3647): two links to the same place are
+            // one visited state, so following either marks both.
+            expect(anchors[0]!.classList.contains('visited')).toBe(true);
+            expect(anchors[2]!.classList.contains('visited')).toBe(true);
+            expect(anchors[1]!.classList.contains('visited')).toBe(false);
+            expect(opened).toStrictEqual(['a']);
+            host.remove();
+        });
+
+        await it('carries visited across a re-render, by uri', () => {
+            const { el, host } = mount(markup);
+            el.useMarkup = true;
+            click(labelMarkupAnchors(el)[0]!);
+            // Rewriting the text AROUND a link has not un-followed it.
+            el.label = 'Now read the <a href="https://gtk.org">manual</a>';
+            expect(labelMarkupAnchors(el)[0]!.classList.contains('visited')).toBe(true);
+            host.remove();
+        });
+
+        await it('ignores a click that is not on a link', () => {
+            const { el, host, opened } = mount(markup);
+            el.useMarkup = true;
+            const details = record(el, 'activate-link');
+            expect(click(el).defaultPrevented).toBe(false);
+            expect(opened).toStrictEqual([]);
+            expect(details).toStrictEqual([]);
+            host.remove();
+        });
+
+        await it('keeps the run elements across a render that did not touch the text', () => {
+            const { el, host } = mount(markup);
+            el.useMarkup = true;
+            const anchor = labelMarkupAnchors(el)[0]!;
+            // `_render` runs on EVERY observed attribute, and rebuilding the runs for one
+            // that never touched the text would drop a selection and the focus inside a
+            // link — so the nodes have to be the SAME nodes.
+            el.xalign = 1;
+            expect(labelMarkupAnchors(el)[0]).toBe(anchor);
+            host.remove();
+        });
+
+        await it('declares activate-link, so connect() takes it', () => {
+            const { el, host } = mount(markup);
+            el.useMarkup = true;
+            const connectable = el as unknown as { connect(signal: string, handler: () => void): number };
+            expect(() => connectable.connect('activate-link', () => {})).not.toThrow();
+            host.remove();
+        });
+    });
+
+    await describe('<gtk-label> gives its anchors the link treatment', async () => {
+        const markup = 'Read the <a href="https://gtk.org">docs</a> first';
+
+        await it('underlines the anchor and recolours it, where the text around it is plain', () => {
+            const { el, host } = mount(markup);
+            el.useMarkup = true;
+            const anchor = labelMarkupAnchors(el)[0]!;
+            // `_link.scss`'s `link`-node rule, upstream's `_links.scss:1-5`. The label is
+            // NOT a link even though it carries the `.link` style class (gtklabel.c:3896),
+            // so the treatment has to stop at the anchor.
+            expect(getComputedStyle(anchor).textDecorationLine).toBe('underline');
+            expect(getComputedStyle(el).textDecorationLine).toBe('none');
+            expect(getComputedStyle(anchor).color === getComputedStyle(el).color).toBe(false);
+            host.remove();
+        });
+
+        await it('keeps the label text weight inside the link', () => {
+            const { el, host } = mount('<b>bold <a href="https://gtk.org">link</a></b>');
+            el.useMarkup = true;
+            const anchor = labelMarkupAnchors(el)[0]!;
+            // `font-weight: inherit` (`_links.scss:4`): a link inside bold markup stays
+            // bold, where a UA's own `<a>` styling would not care.
+            expect(getComputedStyle(anchor).fontWeight).toBe(getComputedStyle(anchor.parentElement!).fontWeight);
+            host.remove();
+        });
+
+        await it('draws a followed link in a different colour', () => {
+            const { el, host } = mount(markup);
+            el.useMarkup = true;
+            const fresh = getComputedStyle(labelMarkupAnchors(el)[0]!).color;
+            click(labelMarkupAnchors(el)[0]!);
+            // `.visited`, the class `_paintVisited` writes — NOT the `:visited`
+            // pseudo-class, which is the user's browsing history and would colour a link
+            // in a label that was never clicked.
+            expect(getComputedStyle(labelMarkupAnchors(el)[0]!).color === fresh).toBe(false);
+            host.remove();
+        });
     });
 
     await describe('<gtk-label> against LABEL_XALIGN_VECTORS and LABEL_JUSTIFY_VECTORS', async () => {

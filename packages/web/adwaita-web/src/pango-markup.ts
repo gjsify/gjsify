@@ -51,7 +51,7 @@ import { parsePangoMarkup, type PangoMarkupNode } from '@gjsify/adwaita-core';
  * presentational UA rule covers it. Every entry is a CLOSED set: a tag missing here is a
  * parse error, so there is no default branch to fall through.
  */
-const TAG_STYLES: Readonly<Record<string, { element: string; style?: Readonly<Record<string, string>> }>> = {
+export const TAG_STYLES: Readonly<Record<string, { element: string; style?: Readonly<Record<string, string>> }>> = {
     b: { element: 'b' },
     i: { element: 'i' },
     u: { element: 'u' },
@@ -140,8 +140,14 @@ function buildNode(node: PangoMarkupNode, doc: Document): Node | null {
     return el;
 }
 
-/** Write the recognised `<span>` attributes onto `el` as style declarations. */
-function applySpanAttributes(el: HTMLElement, attributes: Readonly<Record<string, string>>): void {
+/**
+ * Write the recognised `<span>` attributes onto `el` as style declarations.
+ *
+ * Exported for `label-markup.ts`, which draws a `Gtk.Label`'s markup from flat RUNS rather
+ * than from this file's tree: the whitelist and its value tables are the part the two must
+ * share, so an attribute is added once and both renderers gain it.
+ */
+export function applySpanAttributes(el: HTMLElement, attributes: Readonly<Record<string, string>>): void {
     // Additive, so `<span underline="single" strikethrough="true">` draws BOTH —
     // `text-decoration` is a shorthand that would drop the first one.
     const decorations: string[] = [];

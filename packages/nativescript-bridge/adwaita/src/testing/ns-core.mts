@@ -173,6 +173,8 @@ function unloadView(view: View): void {
  */
 export class Style extends Observable {
     direction?: 'ltr' | 'rtl' | null = null;
+    /** In DIPs, and unset until written: `fontSizeProperty` carries no `defaultValue`. */
+    fontSize?: number;
     readonly viewRef: WeakRef<View>;
     #visibility = 'visible';
 
@@ -663,8 +665,181 @@ export class GridLayout extends LayoutBase {
     }
 }
 
+/**
+ * A `Span`'s style — NOT a {@link View}'s {@link Style}.
+ *
+ * `Span extends ViewBase` upstream, so it has none of `View`'s shortcuts and carries only
+ * what a span can be given. Every member is unset until written, which is what the font
+ * properties answer on a device: `fontSizeProperty` and `fontFamilyProperty` are registered
+ * with no `defaultValue` (`ui/styling/style-properties.ts`).
+ */
+export class SpanStyle extends Observable {
+    fontFamily: string | undefined;
+    fontSize: number | undefined;
+    fontStyle: string | undefined;
+    fontWeight: string | undefined;
+    textDecoration: string | undefined;
+    verticalAlignment: string | undefined;
+}
+
+/**
+ * One styled stretch of a {@link FormattedString}.
+ *
+ * The font and decoration members are ACCESSORS OVER `style`, as `ui/text-base/span.ts`
+ * has them — a double that made them own fields could not report a widget that wrote one
+ * and expected the other to see it.
+ */
+export class Span extends Observable {
+    static readonly linkTapEvent = 'linkTap';
+
+    readonly _style: SpanStyle = new SpanStyle();
+
+    get style(): SpanStyle {
+        return this._style;
+    }
+
+    /** NativeScript unescapes the two whitespace spellings a markup file can carry. */
+    private _text = '';
+
+    get text(): string {
+        return this._text;
+    }
+
+    set text(value: string) {
+        this._text = String(value ?? '')
+            .replace(/\\n/g, '\n')
+            .replace(/\\t/g, '\t');
+    }
+
+    get fontFamily(): string | undefined {
+        return this._style.fontFamily;
+    }
+
+    set fontFamily(value: string | undefined) {
+        this._style.fontFamily = value;
+    }
+
+    get fontSize(): number | undefined {
+        return this._style.fontSize;
+    }
+
+    set fontSize(value: number | undefined) {
+        this._style.fontSize = value;
+    }
+
+    get fontStyle(): string | undefined {
+        return this._style.fontStyle;
+    }
+
+    set fontStyle(value: string | undefined) {
+        this._style.fontStyle = value;
+    }
+
+    get fontWeight(): string | undefined {
+        return this._style.fontWeight;
+    }
+
+    set fontWeight(value: string | undefined) {
+        this._style.fontWeight = value;
+    }
+
+    get textDecoration(): string | undefined {
+        return this._style.textDecoration;
+    }
+
+    set textDecoration(value: string | undefined) {
+        this._style.textDecoration = value;
+    }
+
+    /**
+     * DERIVED, never written — upstream flips it from `addEventListener` /
+     * `removeEventListener` through `_setTappable(this.hasListeners(Span.linkTapEvent))`,
+     * and `setSpanModifiers` attaches the native `ClickableSpan` only for a tappable span.
+     * So subscribing IS what makes a span a link, and this reads the listeners rather than
+     * a flag a caller could set without one.
+     */
+    get tappable(): boolean {
+        return (listenersOf(this).get(Span.linkTapEvent)?.length ?? 0) > 0;
+    }
+}
+
+/**
+ * The `ObservableArray<Span>` behind {@link FormattedString.spans}, as the four members
+ * that collection really offers.
+ *
+ * NOT A PLAIN ARRAY, and a double that used one would be the easier lie: `ObservableArray`
+ * reads by `getItem(pos)` and has no index access at all, so `spans[0]` is `undefined` on a
+ * device. A spec written against an array would pass here and read nothing there.
+ */
+export class SpanList {
+    private readonly _items: Span[] = [];
+
+    get length(): number {
+        return this._items.length;
+    }
+
+    push(span: Span): number {
+        return this._items.push(span);
+    }
+
+    /** A negative `pos` counts from the end, as upstream's does. */
+    getItem(pos: number): Span {
+        return this._items[pos < 0 ? this._items.length + pos : pos]!;
+    }
+
+    *[Symbol.iterator](): Generator<Span, void, unknown> {
+        yield* this._items;
+    }
+}
+
+/** The rich-text value of a {@link Label} — a FLAT list of spans, no nesting. */
+export class FormattedString extends Observable {
+    readonly spans: SpanList = new SpanList();
+
+    /** `formatted-string.ts`: the span texts concatenated, nothing between them. */
+    toString(): string {
+        let text = '';
+        for (const span of this.spans) text += span.text;
+        return text;
+    }
+}
+
 export class Label extends View {
-    text = '';
+    private _text = '';
+    private _formattedText: FormattedString | null | undefined;
+
+    /**
+     * A write is a NO-OP while {@link formattedText} is set, as on a device:
+     * `[textProperty.setNative]` returns early when the label carries rich text
+     * (`ui/text-base/index.android.ts:192-195`), so the spans are what shows and this
+     * property is whatever the spans last said.
+     */
+    get text(): string {
+        return this._text;
+    }
+
+    set text(value: string) {
+        if (this._formattedText === null || this._formattedText === undefined) this._text = value;
+    }
+
+    /**
+     * Unset until something writes it — `formattedTextProperty` carries no `defaultValue`
+     * (`ui/text-base/text-base-common.ts:194`), so a label that was never given rich text
+     * reads `undefined`, not `null`.
+     */
+    get formattedText(): FormattedString | null | undefined {
+        return this._formattedText;
+    }
+
+    set formattedText(value: FormattedString | null | undefined) {
+        this._formattedText = value;
+        // The device re-derives the plain text from the spans on BOTH legs:
+        // `[formattedTextProperty.setNative]` calls
+        // `textProperty.nativeValueChange(this, value?.toString() ?? '')`, which is why a
+        // `text` written BEFORE the clear would be wiped to the empty string.
+        this._text = value?.toString() ?? '';
+    }
+
     textWrap = false;
     textAlignment = 'initial';
     textOverflow = 'initial';

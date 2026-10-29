@@ -4,12 +4,12 @@
 // adwaita-web's `gtk-label.spec.ts` against the element's attributes and rendered text.
 //
 // THE DISPLAY ROWS ARE GTK'S, measured under gjs 1.88.1 / gtk 4.22.4 with
-// `Gtk.Label.get_text()` read back after each write — except the one row marked as the
-// declared divergence: GTK RENDERS markup bold, and a LABEL reduces it to text on both
-// ports, because `Gtk.Label` is a single measured run of text and this element's box is
-// composed around ONE span (see `label.ts`'s header — the bold IS drawable here, the
-// banner and the alert dialog draw it). The ports show the markup's TEXT, which is what
-// `get_text()` returns anyway.
+// `Gtk.Label.get_text()` read back after each write. They are the TEXT question and not
+// the drawing one: `get_text()` is the markup with its tags removed, which is what a
+// measurement, an accessible name and a search want. What gets DRAWN is the sibling file's
+// question: `LABEL_MARKUP_RUN_VECTORS` and `LABEL_MARKUP_LINK_VECTORS` in
+// `conformance/label-markup.ts`. Both ports render the styled runs now (`label-markup.ts`),
+// so there is no divergence row left here.
 //
 // THE INT/ENUM ROWS BELOW ARE THE PSPEC'S, measured the same way — `width-chars` /
 // `max-width-chars` / `lines` against `label.set_property()` on gjs 1.88.1 / gtk 4.22.5
@@ -51,7 +51,7 @@ export const LABEL_DISPLAY_TEXT_VECTORS: ReadonlyArray<LabelDisplayTextVector> =
         useMarkup: true,
         useUnderline: false,
         text: 'Bold & plain',
-        rule: 'use-markup shows the markup as its text — the declared divergence: GTK also draws it bold',
+        rule: 'get_text() is the markup with its tags gone and its entities resolved',
     },
     {
         label: 'a < b',
@@ -87,6 +87,13 @@ export const LABEL_DISPLAY_TEXT_VECTORS: ReadonlyArray<LabelDisplayTextVector> =
         useUnderline: true,
         text: 'Big',
         rule: 'markup is reduced BEFORE the mnemonic, so an underscore inside a tag is not one',
+    },
+    {
+        label: 'Read the <a href="https://gtk.org">docs</a>',
+        useMarkup: true,
+        useUnderline: false,
+        text: 'Read the docs',
+        rule: "`<a href>` is Gtk.Label's own tag, and get_text() is the text without it",
     },
 ];
 

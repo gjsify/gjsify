@@ -453,6 +453,22 @@ export type {
     LabelWidthCharsExtent,
     LabelWrapMode,
 } from './label.js';
+export {
+    LABEL_MARKUP_STYLE_PLAIN,
+    labelActivateLink,
+    labelHasLinks,
+    labelLinkVisited,
+    labelLinksHaveTooltip,
+    labelLinksInheritVisited,
+    labelMarkupRender,
+} from './label-markup.js';
+export type {
+    LabelActivateLinkSteps,
+    LabelLink,
+    LabelMarkupRender,
+    LabelMarkupRun,
+    LabelMarkupStyle,
+} from './label-markup.js';
 
 // --- GLib primitives Adwaita arithmetic is written in ---
 export { adwSubtitleWriteNotifies, glibClamp, gStrStrip, gtkButtonIconNameReadback, stringIsNotEmpty } from './glib.js';
@@ -939,8 +955,15 @@ export {
 } from './preferences.js';
 
 // --- Pango markup: the parse, and the text reduction over it ---
-export { PANGO_MARKUP_TAGS, escapeMarkup, parsePangoMarkup, stripMarkup } from './pango-markup.js';
-export type { PangoMarkupNode, PangoMarkupTag } from './pango-markup.js';
+export {
+    PANGO_MARKUP_TAGS,
+    escapeMarkup,
+    parseLabelMarkup,
+    parsePangoMarkup,
+    stripLabelMarkup,
+    stripMarkup,
+} from './pango-markup.js';
+export type { LabelMarkupNode, PangoMarkupNode, PangoMarkupTag } from './pango-markup.js';
 
 export type {
     CaseFolder,

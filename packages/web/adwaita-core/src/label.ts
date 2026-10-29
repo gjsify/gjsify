@@ -5,20 +5,25 @@
 // two things they must not decide separately are here: the text reduction and the
 // property readings.
 //
-// MARKUP IS REDUCED TO ITS PLAIN TEXT, AND THAT IS A STATED DIVERGENCE, NOT A LIMIT OF
-// THE PARSE. `use-markup` says the label is Pango markup. `parsePangoMarkup` (this
-// package's `pango-markup.ts`) turns such a string into a TREE — elements with `<span>`
-// attributes — and `Adw.Banner:use-markup` and `Adw.AlertDialog:{heading,body}-use-markup`
-// are rendered from that tree, so bold IS drawable on this package's web port.
-// A LABEL reduces it to text anyway: `Gtk.Label` is a single run of text, its `label` is
-// the property a caller sets on a plain widget rather than the markup surface of a
-// dialog, and the web element composes its measured box around ONE span (`_renderSpan`)
-// — admitting nested elements would mean re-measuring that box, which is a different
-// element's job. So both renderers show the TEXT, through the same `stripMarkup` (the
-// reduction over that same parse) that `GtkInscription:markup` uses, and unparseable
-// markup keeps the raw string, which is the C fallback (`gtk_label_set_markup` warns and
-// shows the text as given). `use-markup` defaults to FALSE, as in GTK, so a `<` in
-// ordinary prose is shown literally unless a caller asks otherwise.
+// MARKUP IS DRAWN, AND THE TEXT READING BELOW IS A DIFFERENT QUESTION FROM IT. `use-markup`
+// says the label is Pango markup plus `Gtk.Label`'s own `<a href>`; `parseLabelMarkup`
+// (this package's `pango-markup.ts`) turns such a string into a TREE, `label-markup.ts`
+// flattens that tree into the styled runs a platform without nesting can draw, and both
+// renderers draw the bold. {@link labelDisplayText} is what `gtk_label_get_text()` returns
+// — the markup's TEXT, tags removed, `<a>` elements removed with them — which is what a
+// measurement, an accessible name and a search want, and what a renderer falls back to
+// when it has no rich-text surface at hand. Unparseable markup keeps the raw string, which
+// is the C fallback (`gtk_label_set_markup` warns and shows the text as given).
+// `use-markup` defaults to FALSE, as in GTK, so a `<` in ordinary prose is shown literally
+// unless a caller asks otherwise.
+//
+// THE REDUCTION USED TO BE THE WHOLE STORY, AND THAT WAS THE DIVERGENCE THIS REPLACES.
+// Both label renderers once showed `labelDisplayText` and nothing else: GTK drew the bold,
+// the ports showed the word. It was declared, not accidental — but a measured corpus of
+// 155 authored labels carried 350 `<tt>`, 24 `<a href>`, 19 `<b>`, 6 `<i>` and a `<sub>`,
+// and a port that shows a code span in body text, a link as dead words and `x<sub>2</sub>`
+// as `x2` is not drawing the same program. So the runs are drawn now; what the web element
+// had to gain for it is a measured box composed around the run LIST rather than one span.
 //
 // THE MNEMONIC IS STRIPPED, NOT UNDERLINED OR BOUND: neither renderer has GTK's
 // accelerator layer behind a label. Same reduction `Adw.ButtonContent` makes.
@@ -58,7 +63,7 @@
 // Copyright (c) The GTK Team. LGPLv2.1+.
 
 import { glibClamp, stripMnemonic } from './glib.js';
-import { stripMarkup } from './pango-markup.js';
+import { stripLabelMarkup } from './pango-markup.js';
 
 /** `Gtk.Label:xalign`'s default — `0.5` in the pspec: a label centres its text. */
 export const DEFAULT_LABEL_XALIGN = 0.5;
@@ -76,16 +81,22 @@ export type LabelJustification = (typeof LABEL_JUSTIFICATIONS)[number];
  * of the resulting TEXT, so an `_` inside a tag's attributes is not a mnemonic. Doing it
  * the other way round would let `<span font_desc="Sans">` lose its underscore and stop
  * parsing.
+ *
+ * THE PARSE IS THE LABEL'S, `stripLabelMarkup` — pango's tags PLUS `<a href>`, which is
+ * what `gtk_label_get_text()` returns, because `parse_uri_markup` lifts the `<a>` elements
+ * out before pango ever sees the string. A surface that is NOT a label does not come here:
+ * `Gtk.Inscription` has no `::activate-link` and its `markup` goes through
+ * `pango_parse_markup` alone, so `<a>` is an unknown tag there and the raw string stands.
  */
 export function labelDisplayText(label: string, useMarkup: boolean, useUnderline: boolean): string {
     const text = label ?? '';
-    const plain = useMarkup ? (stripMarkup(text) ?? text) : text;
+    const plain = useMarkup ? (stripLabelMarkup(text) ?? text) : text;
     return useUnderline ? stripMnemonic(plain) : plain;
 }
 
 /** Whether `label` carries markup that could not be reduced, so the raw string is shown. */
 export function labelMarkupIsUnparseable(label: string, useMarkup: boolean): boolean {
-    return useMarkup && stripMarkup(label ?? '') === null;
+    return useMarkup && stripLabelMarkup(label ?? '') === null;
 }
 
 /**
