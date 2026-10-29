@@ -1,12 +1,55 @@
 import type {
     DownloadTarget,
     ReleaseAsset,
+    Signing,
     SiteComponent,
     SiteDownloadConfig,
     TargetArch,
     TargetFormat,
     TargetPlatform,
 } from './types.js';
+
+/** What `gjsify ship` appends to an artifact's name for its release record (ADR 0124). */
+export const RELEASE_RECORD_SUFFIX = '.gjsify-release.json';
+
+/** The artifact a release-record asset describes, or `undefined` when the asset is not a record. */
+export function recordedArtifact(name: string): string | undefined {
+    return name.endsWith(RELEASE_RECORD_SUFFIX) ? name.slice(0, -RELEASE_RECORD_SUFFIX.length) : undefined;
+}
+
+/**
+ * What a release record proves about one asset. The record is a file anyone with upload rights can
+ * write, so it counts only when its hash is the one GitHub computed for the asset; an asset GitHub
+ * gave no digest, a record for other bytes, or no record at all is `unsigned`. An ad-hoc signature
+ * is `unsigned` too: Gatekeeper and SmartScreen both treat it as no publisher at all.
+ */
+export function signingOf(asset: ReleaseAsset, record: unknown): Signing {
+    if (typeof record !== 'object' || record === null) return 'unsigned';
+    const fields = record as {
+        schema?: unknown;
+        artifact?: unknown;
+        sha256?: unknown;
+        signature?: { kind?: unknown };
+        notarized?: unknown;
+    };
+    if (fields.schema !== 1 || fields.artifact !== asset.name) return 'unsigned';
+    if (!asset.sha256 || typeof fields.sha256 !== 'string' || fields.sha256.toLowerCase() !== asset.sha256) {
+        return 'unsigned';
+    }
+    if (fields.signature?.kind !== 'identity') return 'unsigned';
+    return fields.notarized === true ? 'notarized' : 'signed';
+}
+
+/**
+ * Whether the visitor's OS will stop this download and ask to be overruled. macOS opens only a
+ * notarised app without asking; Windows SmartScreen is content with a signature.
+ */
+export function needsOpenAnywayHint(target: Pick<DownloadTarget, 'os' | 'signing'>): boolean {
+    if (target.signing === undefined) return false;
+    if (target.os === 'darwin') return target.signing !== 'notarized';
+    if (target.os === 'win32') return target.signing === 'unsigned';
+    return false;
+}
 
 /** Browser extensions are listed after the OS builds; a page usually has only one kind. */
 export const PLATFORM_ORDER: readonly TargetPlatform[] = [
@@ -154,6 +197,8 @@ export interface DownloadSources {
     configured?: readonly SiteDownloadConfig[];
     /** `gjsify.site.components`, in install order; empty when the product is one thing to download. */
     components?: readonly SiteComponent[];
+    /** Parsed release records, by the artifact name they describe; see {@link signingOf}. */
+    records?: ReadonlyMap<string, unknown>;
 }
 
 /**
@@ -196,6 +241,7 @@ export function buildDownloadTargets(sources: DownloadSources): DownloadTarget[]
     for (const asset of sources.assets) {
         const kind = classifyAsset(asset);
         if (!kind) continue;
+        const gated = kind.os === 'darwin' || kind.os === 'win32';
         targets.push({
             ...kind,
             component: componentOf(asset.name, components),
@@ -205,6 +251,7 @@ export function buildDownloadTargets(sources: DownloadSources): DownloadTarget[]
             size: asset.size,
             downloadCount: asset.downloadCount,
             recommended: false,
+            ...(gated ? { signing: signingOf(asset, sources.records?.get(asset.name)) } : {}),
         });
     }
 

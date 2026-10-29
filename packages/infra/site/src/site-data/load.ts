@@ -2,9 +2,9 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { parseSiteConfig, type RootManifest } from './config.js';
-import { buildDownloadTargets } from './downloads.js';
+import { buildDownloadTargets, recordedArtifact } from './downloads.js';
 import { fetchFlathubStats, fetchFlathubSummary } from './flathub.js';
-import { fetchLatestRelease } from './github.js';
+import { fetchLatestRelease, fetchReleaseRecords } from './github.js';
 import { parseMetainfo } from './metainfo.js';
 import type { NetworkOptions } from './network.js';
 import { minimumAge } from './oars.js';
@@ -128,6 +128,7 @@ export async function loadSiteData(options: LoadOptions): Promise<SiteData> {
     let latestRelease: LatestRelease | null = null;
     let hasReleases = true;
     let flathubSize: number | undefined;
+    let records: Map<string, unknown> | undefined;
     const stats: Stats = {};
     if (!options.offline) {
         const network = options.network ?? {};
@@ -140,7 +141,11 @@ export async function loadSiteData(options: LoadOptions): Promise<SiteData> {
             latestRelease = release.value;
             hasReleases = latestRelease !== null;
             if (latestRelease) {
-                stats.githubDownloads = latestRelease.assets.reduce((sum, asset) => sum + asset.downloadCount, 0);
+                // A release record is fetched by every site build, not by a person installing.
+                stats.githubDownloads = latestRelease.assets
+                    .filter((asset) => recordedArtifact(asset.name) === undefined)
+                    .reduce((sum, asset) => sum + asset.downloadCount, 0);
+                if (config.releaseAssets) records = await fetchReleaseRecords(latestRelease.assets, network, warn);
             }
         } else {
             warn(
@@ -204,6 +209,7 @@ export async function loadSiteData(options: LoadOptions): Promise<SiteData> {
                 assets: config.releaseAssets ? (latestRelease?.assets ?? []) : [],
                 configured: config.downloads,
                 components: config.components,
+                records,
                 flathub: config.flathub,
                 flathubSize,
                 webAppUrl: config.webApp ? `${config.base}${config.webApp.replace(/^\//, '')}` : undefined,

@@ -19,6 +19,9 @@ import {
     classifyAsset,
     componentOf,
     defaultLabel,
+    RELEASE_RECORD_SUFFIX,
+    recordedArtifact,
+    signingOf,
 } from './downloads.js';
 import { parseFlathubStats, parseFlathubSummary } from './flathub.js';
 import { fetchLatestRelease, parseLatestRelease } from './github.js';
@@ -256,6 +259,40 @@ export default async () => {
                 'win32',
                 'web',
             ]);
+        });
+
+        await it('believes a release record only when its hash is the one GitHub computed', async () => {
+            const sha = 'a'.repeat(64);
+            const dmg = { ...asset('App-1.0-arm64.dmg'), sha256: sha };
+            const record = (fields: Record<string, unknown> = {}) => ({
+                schema: 1,
+                artifact: dmg.name,
+                sha256: sha,
+                signature: { kind: 'identity', identity: 'Developer ID Application: X (T)' },
+                notarized: true,
+                ...fields,
+            });
+            expect(signingOf(dmg, record())).toBe('notarized');
+            expect(signingOf(dmg, record({ notarized: false }))).toBe('signed');
+            expect(signingOf(dmg, record({ sha256: 'b'.repeat(64) }))).toBe('unsigned');
+            expect(signingOf(dmg, record({ artifact: 'Other.dmg' }))).toBe('unsigned');
+            expect(signingOf(dmg, record({ schema: 2 }))).toBe('unsigned');
+            expect(signingOf(dmg, record({ signature: { kind: 'adhoc' } }))).toBe('unsigned');
+            expect(signingOf(dmg, undefined)).toBe('unsigned');
+            // No digest from GitHub: nothing to check the record against, so nothing is believed.
+            expect(signingOf(asset(dmg.name), record())).toBe('unsigned');
+
+            const targets = buildDownloadTargets({
+                assets: [dmg, asset('a.msi'), asset('a.deb'), asset(`${dmg.name}${RELEASE_RECORD_SUFFIX}`)],
+                records: new Map([[dmg.name, record()]]),
+            });
+            expect(targets.map((target) => [target.format, target.signing])).toStrictEqual([
+                ['deb', undefined],
+                ['dmg', 'notarized'],
+                ['msi', 'unsigned'],
+            ]);
+            expect(recordedArtifact(`${dmg.name}${RELEASE_RECORD_SUFFIX}`)).toBe(dmg.name);
+            expect(recordedArtifact(dmg.name)).toBeUndefined();
         });
 
         await it('prefers a Flatpak bundle over an AppImage on Linux, Flathub over both', async () => {
@@ -541,12 +578,21 @@ export default async () => {
                 tag_name: 'v1',
                 html_url: 'u',
                 assets: [
-                    { name: 'a.deb', size: 3, download_count: 4, browser_download_url: 'https://x/a.deb' },
+                    {
+                        name: 'a.deb',
+                        size: 3,
+                        download_count: 4,
+                        browser_download_url: 'https://x/a.deb',
+                        digest: `sha256:${'AB'.repeat(32)}`,
+                    },
+                    { name: 'b.deb', browser_download_url: 'https://x/b.deb', digest: 'sha512:00' },
                     { nope: true },
                 ],
             });
-            expect(release.assets.length).toBe(1);
+            expect(release.assets.length).toBe(2);
             expect(release.assets[0]!.downloadCount).toBe(4);
+            expect(release.assets[0]!.sha256).toBe('ab'.repeat(32));
+            expect('sha256' in release.assets[1]!).toBe(false);
             expect(() => parseLatestRelease({})).toThrow(/Unexpected/);
             expect(parseFlathubStats({ installs_total: 5, installs_last_month: 1 }).installsTotal).toBe(5);
             expect(() => parseFlathubStats({})).toThrow(/Unexpected/);

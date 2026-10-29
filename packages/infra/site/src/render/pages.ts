@@ -2,6 +2,7 @@ import {
     epcPayload,
     formatIban,
     isBrowserPlatform,
+    needsOpenAnywayHint,
     PLATFORM_ORDER,
     pickByLanguage,
     relatedText,
@@ -156,6 +157,27 @@ function osName(os: TargetPlatform, t: Translate): string {
         firefox: t('Firefox'),
         chromium: t('Chromium'),
     }[os];
+}
+
+/**
+ * How to get past the OS's warning for a download without the signature it wants (ADR 0124). The
+ * wording follows each system's own button labels, which is what the visitor has to find.
+ */
+function openAnywayHint(os: TargetPlatform, t: Translate): string | undefined {
+    if (os === 'darwin') {
+        return t(
+            'macOS asks before opening an app Apple has not checked. Try to open it once, then choose System Settings → Privacy & Security → Open Anyway.',
+        );
+    }
+    if (os === 'win32') {
+        return t('Windows may warn about an unknown publisher. Choose More info → Run anyway.');
+    }
+    return undefined;
+}
+
+/** The short form beside the target itself; the group's note says what to do about it. */
+function unsignedMark(os: TargetPlatform, t: Translate): string {
+    return os === 'darwin' ? t('Not notarized') : t('Unsigned');
 }
 
 function sizeLabel(bytes: number | undefined, lang: string): string {
@@ -328,10 +350,12 @@ function componentBlocks(data: SiteData): ComponentBlock[] {
 function targetItem(target: DownloadTarget, ctx: DownloadContext): string {
     const { t, lang } = ctx;
     const size = sizeLabel(target.size, lang);
+    const unsigned = target.available && needsOpenAnywayHint(target);
     const meta = [
         target.arch === 'noarch' ? '' : target.arch,
         target.recommended ? t('Recommended') : '',
         target.available ? '' : t('Not yet available'),
+        unsigned ? unsignedMark(target.os, t) : '',
     ]
         .filter(Boolean)
         .join(' · ');
@@ -344,6 +368,7 @@ ${size ? `<span class="target-size">${esc(size)}</span>` : ''}`;
         'data-arch': target.arch,
         'data-recommended': target.recommended,
         'data-unavailable': !target.available,
+        'data-unsigned': unsigned,
         'data-cta': target.available ? ctaLabel(target, t) : undefined,
         'data-size': size || undefined,
     })}>
@@ -391,6 +416,7 @@ function componentSection(block: ComponentBlock, slug: string, step: number | un
 ${own.map((target) => targetItem(target, ctx)).join('\n')}
 </ul>
 ${os === 'darwin' ? `<p class="os-note">${esc(t('Apple Silicon is assumed. Pick the Intel build if your Mac has an Intel processor.'))}</p>` : ''}
+${own.some((target) => target.available && needsOpenAnywayHint(target)) ? `<p class="os-note os-note-unsigned">${esc(openAnywayHint(os, t) ?? '')}</p>` : ''}
 </section>`,
     );
     const head = block.name

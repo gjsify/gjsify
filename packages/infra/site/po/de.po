@@ -141,6 +141,18 @@ msgstr "Firefox"
 msgid "Chromium"
 msgstr "Chromium"
 
+msgid "macOS asks before opening an app Apple has not checked. Try to open it once, then choose System Settings → Privacy & Security → Open Anyway."
+msgstr "macOS fragt nach, bevor es eine App öffnet, die Apple nicht geprüft hat. Einmal öffnen, dann Systemeinstellungen → Datenschutz & Sicherheit → Dennoch öffnen wählen."
+
+msgid "Windows may warn about an unknown publisher. Choose More info → Run anyway."
+msgstr "Windows warnt eventuell vor einem unbekannten Herausgeber. Weitere Informationen → Trotzdem ausführen wählen."
+
+msgid "Not notarized"
+msgstr "Nicht notarisiert"
+
+msgid "Unsigned"
+msgstr "Nicht signiert"
+
 msgid "Install from Flathub"
 msgstr "Über Flathub installieren"
 
