@@ -19,6 +19,7 @@ import type { LeafCommand } from '../types/index.js';
 import {
     applyDevLinks,
     consumerKnownNames,
+    consumerNestedPlacements,
     DEV_LINK_FILE,
     devLinkPath,
     type DevLink,
@@ -62,7 +63,7 @@ export const linkCommand: LeafCommand<unknown, LinkOptions> = {
             })
             .option('packages', {
                 description:
-                    "Name glob selecting which of the checkout's workspace packages take part (repeatable; default: all of them). Matched against the package NAME with the same single-segment dialect as `gjsify foreach --include`, so a whole scope is `@gjsify/*` — a bare `*` matches no scoped name. Only packages this project actually depends on are ever linked.",
+                    "Name glob selecting which of the checkout's workspace packages take part (repeatable; default: all of them). Matched against the package NAME with the same single-segment dialect as `gjsify foreach --include`, so a whole scope is `@gjsify/*` — a bare `*` matches no scoped name. Only packages this project actually uses are linked: declared dependencies plus everything in its lockfile or installed node_modules, transitive and nested copies included.",
                 type: 'string',
                 array: true,
             })
@@ -90,12 +91,13 @@ export const linkCommand: LeafCommand<unknown, LinkOptions> = {
             workspaces,
             patterns,
             knownNames: consumerKnownNames(consumerRoot),
+            nested: consumerNestedPlacements(consumerRoot),
         });
 
         if (links.length === 0) {
             console.error(
                 `gjsify link: nothing to link — ${checkout} has ${workspaces.length} workspace package(s), ` +
-                    `none of which ${consumerRoot} depends on${patterns.length === 0 ? '' : ` and matches ${patterns.join(', ')}`}.\n` +
+                    `none of which ${consumerRoot} uses (declared, locked or installed)${patterns.length === 0 ? '' : ` and matches ${patterns.join(', ')}`}.\n` +
                     `A link that links nothing is a silent no-op, so this is an error. Check the --packages ` +
                     `pattern, or run \`gjsify install\` first so the dependency tree exists.`,
             );

@@ -48,7 +48,7 @@ import {
     scanDevLinks,
     writeDevLinkOverride,
 } from './dev-link.js';
-import { linkCommand } from '../commands/link.js';
+import { linkCommand, unlinkCommand } from '../commands/link.js';
 
 /** `realpathSync` because macOS `tmpdir()` is `/var/…` → `/private/var/…`. */
 function scratch(): string {
@@ -304,6 +304,79 @@ export default async () => {
         await it('passes when there is no override', async () => {
             const root = scratch();
             assertNoDevLinkUnderImmutable(root);
+            rmSync(root, { recursive: true, force: true });
+        });
+    });
+
+    await describe('packages the consumer only reaches transitively', async () => {
+        const realPackage = (dir: string, name: string): void =>
+            writeJson(join(dir, 'package.json'), { name, version: '0.0.1' });
+
+        await it('links an undeclared package that only the lockfile names', async () => {
+            const root = scratch();
+            const checkout = makeCheckout(join(root, 'checkout'));
+            const consumer = makeConsumer(join(root, 'consumer'), []);
+            writeJson(join(consumer, 'gjsify-lock.json'), {
+                lockfileVersion: 4,
+                packages: {
+                    'node_modules/dep': { version: '1.0.0' },
+                    'node_modules/dep/node_modules/@gjsify/utils': { version: '0.0.1' },
+                },
+            });
+            runLink(consumer, { checkout, packages: ['@gjsify/*'] });
+            expect(lstatSync(join(consumer, 'node_modules', '@gjsify/utils')).isSymbolicLink()).toBe(true);
+            expect(existsSync(join(consumer, 'node_modules', '@gjsify/gtk-host'))).toBe(false);
+            rmSync(root, { recursive: true, force: true });
+        });
+
+        await it('replaces nested copies too, and unlink removes them again', async () => {
+            const root = scratch();
+            const checkout = makeCheckout(join(root, 'checkout'));
+            const consumer = makeConsumer(join(root, 'consumer'), ['dep']);
+            const nested = join(consumer, 'node_modules', 'dep', 'node_modules', '@gjsify', 'utils');
+            realPackage(join(consumer, 'node_modules', 'dep'), 'dep');
+            realPackage(nested, '@gjsify/utils');
+            realPackage(join(consumer, 'node_modules', '@gjsify', 'utils'), '@gjsify/utils');
+
+            runLink(consumer, { checkout, packages: ['@gjsify/*'] });
+            expect(lstatSync(join(consumer, 'node_modules', '@gjsify/utils')).isSymbolicLink()).toBe(true);
+            expect(lstatSync(nested).isSymbolicLink()).toBe(true);
+            expect(
+                scanDevLinks(consumer, [checkout])
+                    .map((l) => l.linkPath)
+                    .includes(nested),
+            ).toBe(true);
+            // Idempotent: a second link neither fails nor duplicates.
+            runLink(consumer, { checkout, packages: ['@gjsify/*'] });
+            expect(lstatSync(nested).isSymbolicLink()).toBe(true);
+
+            const saved = { log: console.log, warn: console.warn, error: console.error };
+            const previousCwd = process.cwd();
+            try {
+                process.chdir(consumer);
+                console.log = console.warn = console.error = (): void => {};
+                await unlinkCommand.handler({ install: false, 'dry-run': false } as never);
+            } finally {
+                Object.assign(console, saved);
+                process.chdir(previousCwd);
+            }
+            expect(scanDevLinks(consumer, [checkout]).length).toBe(0);
+            expect(existsSync(nested)).toBe(false);
+            rmSync(root, { recursive: true, force: true });
+        });
+
+        await it('does not link a nested copy that sits under a package being linked itself', async () => {
+            const root = scratch();
+            const checkout = makeCheckout(join(root, 'checkout'));
+            const consumer = makeConsumer(join(root, 'consumer'), ['@gjsify/utils']);
+            realPackage(join(consumer, 'node_modules', '@gjsify', 'utils'), '@gjsify/utils');
+            realPackage(join(consumer, 'node_modules', '@gjsify', 'utils', 'node_modules', '@gjsify', 'gtk-host'), '@gjsify/gtk-host');
+            runLink(consumer, { checkout, packages: ['@gjsify/*'] });
+            const links = scanDevLinks(consumer, [checkout]).map((l) => l.linkPath);
+            expect(links.join(',')).toBe(
+                [join(consumer, 'node_modules', '@gjsify', 'gtk-host'), join(consumer, 'node_modules', '@gjsify', 'utils')].join(','),
+            );
+            expect(existsSync(join(checkout, 'packages', 'utils', 'node_modules'))).toBe(false);
             rmSync(root, { recursive: true, force: true });
         });
     });
