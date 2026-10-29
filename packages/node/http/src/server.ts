@@ -239,7 +239,10 @@ export class ServerResponse extends OutgoingMessage {
               ? Buffer.from(chunk, encoding as BufferEncoding)
               : Buffer.from(chunk as Uint8Array);
         this._startStreaming();
-        this._bridge.write_chunk(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
+        // libsoup asserts `size > 0` in soup_message_body_append_bytes; Node accepts empty chunks silently.
+        if (buf.byteLength > 0) {
+            this._bridge.write_chunk(new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength));
+        }
         callback();
     }
 

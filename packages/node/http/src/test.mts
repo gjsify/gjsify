@@ -8,6 +8,7 @@ import streamingTestSuite from './streaming.spec.js';
 import timeoutTestSuite from './timeout.spec.js';
 import upgradeTestSuite from './upgrade.spec.js';
 import listenErrorTestSuite from './listen-error.spec.js';
+import emptyBodyTestSuite from './empty-body.gjs.spec.js';
 
 run({
     testSuite,
@@ -17,4 +18,5 @@ run({
     timeoutTestSuite,
     upgradeTestSuite,
     listenErrorTestSuite,
+    emptyBodyTestSuite,
 });
