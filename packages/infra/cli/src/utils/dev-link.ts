@@ -47,7 +47,7 @@ import {
     statSync,
     writeFileSync,
 } from 'node:fs';
-import { dirname, isAbsolute, join, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import { discoverWorkspaces, filterWorkspaces, type Workspace } from '@gjsify/workspace';
 
@@ -245,7 +245,56 @@ export function consumerKnownNames(consumerRoot: string): Set<string> {
         }
     }
     for (const pkg of scanPrefix(consumerRoot)) names.add(pkg.name);
+    // The lockfile answers for a consumer that has not installed yet (or was
+    // cleaned): its keys are the whole resolved closure, transitive packages
+    // included, so a link made before the first install covers them too.
+    for (const name of lockfileNames(consumerRoot)) names.add(name);
     return names;
+}
+
+/** Package names behind the `node_modules/…` keys of `gjsify-lock.json`; empty when unreadable. */
+function lockfileNames(consumerRoot: string): string[] {
+    try {
+        const lock = JSON.parse(readFileSync(join(consumerRoot, 'gjsify-lock.json'), 'utf-8')) as {
+            packages?: Record<string, unknown>;
+        };
+        const names: string[] = [];
+        for (const key of Object.keys(lock.packages ?? {})) {
+            const at = key.lastIndexOf('node_modules/');
+            if (at !== -1) names.push(key.slice(at + 'node_modules/'.length));
+        }
+        return names;
+    } catch {
+        return [];
+    }
+}
+
+/** A package copy that sits below another package's `node_modules`, not at the consumer's top level. */
+export interface NestedPlacement {
+    name: string;
+    /** Absolute path of the copy. */
+    dir: string;
+}
+
+/**
+ * Real (non-symlink) copies installed below `<consumer>/node_modules/<pkg>/node_modules`.
+ *
+ * Node resolves the nearest copy, so a top-level link alone leaves a nested
+ * registry copy in charge for everything under its parent — the same silent
+ * "testing the published copy" this feature exists to prevent. Only what is on
+ * disk counts: the installer excludes linked names from its fetch set at every
+ * depth, so a nested copy that is not there yet will not appear.
+ */
+export function consumerNestedPlacements(consumerRoot: string): NestedPlacement[] {
+    const top = join(consumerRoot, 'node_modules') + sep;
+    const nested: NestedPlacement[] = [];
+    for (const pkg of scanPrefix(consumerRoot)) {
+        if (pkg.linked) continue;
+        const rel = pkg.dir.startsWith(top) ? pkg.dir.slice(top.length) : '';
+        if (!rel.includes(`${sep}node_modules${sep}`)) continue;
+        nested.push({ name: pkg.name, dir: pkg.dir });
+    }
+    return nested;
 }
 
 /**
@@ -263,6 +312,8 @@ export function planDevLinks(opts: {
     workspaces: readonly Workspace[];
     patterns: readonly string[];
     knownNames: ReadonlySet<string>;
+    /** Installed copies below another package's `node_modules`; see {@link consumerNestedPlacements}. */
+    nested?: readonly NestedPlacement[];
 }): DevLink[] {
     // No pattern is NOT `['*']` — see {@link DevLinkOverride.packages}: a bare star
     // matches no scoped name, so spelling the default as one would select nothing.
@@ -280,7 +331,19 @@ export function planDevLinks(opts: {
             linkPath: join(opts.consumerRoot, 'node_modules', ws.name),
         });
     }
-    links.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    // A nested copy under a package that is itself being linked disappears with
+    // that package's directory and resolves into the checkout's own tree instead.
+    const topLevel = links.map((l) => l.linkPath + sep);
+    const byName = new Map(links.map((l) => [l.name, l]));
+    for (const copy of opts.nested ?? []) {
+        const link = byName.get(copy.name);
+        if (!link) continue;
+        if (topLevel.some((prefix) => copy.dir.startsWith(prefix))) continue;
+        links.push({ name: copy.name, target: link.target, linkPath: copy.dir });
+    }
+    links.sort((a, b) =>
+        a.name < b.name ? -1 : a.name > b.name ? 1 : a.linkPath < b.linkPath ? -1 : a.linkPath > b.linkPath ? 1 : 0,
+    );
     return links;
 }
 
@@ -299,6 +362,7 @@ export function prepareDevLinks(consumerRoot: string): ActiveDevLinks | null {
         workspaces,
         patterns: override.packages,
         knownNames: consumerKnownNames(consumerRoot),
+        nested: consumerNestedPlacements(consumerRoot),
     });
     return {
         overridePath,
@@ -394,9 +458,9 @@ function linkAlreadyPointsAt(linkPath: string, target: string): boolean {
  * it removed the override (the escape route) before hitting the same abort. Only a
  * hand-written `rm` got the project back.
  *
- * So the ground truth for "what is linked" is the tree, not the file. Reads one
- * level of `node_modules` plus one level into each `@scope/`, which is where
- * top-level links live; `.bin` and real directories are skipped by construction.
+ * So the ground truth for "what is linked" is the tree, not the file. Walks every
+ * `node_modules` level (top-level and nested copies) without following links;
+ * `.bin` and real directories are skipped by construction.
  */
 export function scanDevLinks(consumerRoot: string, checkouts: readonly string[]): DevLink[] {
     const roots: string[] = [];
@@ -410,42 +474,28 @@ export function scanDevLinks(consumerRoot: string, checkouts: readonly string[])
         }
     }
     if (roots.length === 0) return [];
-    const nodeModules = join(consumerRoot, 'node_modules');
+    // Every depth: `assertNodeModulesDest` aborts on a link out of `node_modules`
+    // wherever it sits, and `scanPrefix` never descends into a link itself.
     const found: DevLink[] = [];
-    const consider = (name: string): void => {
-        const linkPath = join(nodeModules, name);
+    for (const pkg of scanPrefix(consumerRoot)) {
+        if (!pkg.linked) continue;
         let target: string;
         try {
-            if (!lstatSync(linkPath).isSymbolicLink()) return;
-            target = realpathSync(linkPath);
+            target = realpathSync(pkg.dir);
         } catch {
-            return;
-        }
-        if (!roots.some((root) => target === root || target.startsWith(root + sep))) return;
-        found.push({ name, target, linkPath });
-    };
-    let entries: string[];
-    try {
-        entries = readdirSync(nodeModules);
-    } catch {
-        return [];
-    }
-    for (const entry of entries) {
-        if (entry.startsWith('.')) continue;
-        if (entry.startsWith('@')) {
-            let scoped: string[];
-            try {
-                scoped = readdirSync(join(nodeModules, entry));
-            } catch {
-                continue;
-            }
-            for (const inner of scoped) consider(`${entry}/${inner}`);
             continue;
         }
-        consider(entry);
+        if (!roots.some((root) => target === root || target.startsWith(root + sep))) continue;
+        found.push({ name: packageNameAt(consumerRoot, pkg.dir), target, linkPath: pkg.dir });
     }
-    found.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+    found.sort((a, b) => (a.linkPath < b.linkPath ? -1 : a.linkPath > b.linkPath ? 1 : 0));
     return found;
+}
+
+/** `@scope/name` of the last `node_modules/` segment in `dir`. */
+function packageNameAt(consumerRoot: string, dir: string): string {
+    const rel = relative(consumerRoot, dir).split(sep).join('/');
+    return rel.slice(rel.lastIndexOf('node_modules/') + 'node_modules/'.length);
 }
 
 /**

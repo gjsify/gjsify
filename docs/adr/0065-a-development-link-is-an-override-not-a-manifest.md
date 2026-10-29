@@ -92,7 +92,10 @@ two named values in `install-backend-native.ts` (`nodes` and `fetchable`) and mu
 ### What `link` links
 
 The checkout's workspace packages, narrowed by `--packages`, **intersected** with what the
-consumer actually depends on (its manifests plus its installed tree). Without the intersection
+consumer actually depends on: its manifests, its `gjsify-lock.json` and its installed tree, so a
+package only reached transitively counts. Copies nested below another package's `node_modules`
+are linked in place too (Node resolves the nearest one), and `scanDevLinks` finds them at every
+depth so `unlink` and a narrower re-link restore them. Without the intersection
 a 200-member monorepo drops 200 directories into a consumer that uses two, and `unlink` has no
 honest answer about what to restore. An intersection that comes out empty is an error, not a
 no-op — the rule `gjsify foreach --include` already applies to a filter that selects nothing.
