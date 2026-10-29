@@ -98,13 +98,16 @@ export const AdwSplitButtonTest = async () => {
                     }
 
                     // The element re-emits libadwaita's notify sequence verbatim, so the
-                    // ORDER — cleared slots first, then the set one — is DOM-observable.
+                    // ORDER — the property SET first, then the slots that were filled
+                    // before it — is DOM-observable.
                     expect(seen).toStrictEqual([...step.notified]);
                     expect(el.label).toBe(step.label);
                     expect(el.iconName).toBe(step.iconName);
-                    // An empty label is SET but paints nothing — the `label[0]`
-                    // distinction, on screen.
-                    const painted = step.mode === 'icon' ? 'icon' : (step.label ?? '').length > 0 ? 'label' : 'empty';
+                    // What is PAINTED follows the two readbacks, not the content mode: an
+                    // empty label is SET but paints nothing (the `label[0]` distinction),
+                    // and an icon name set to `''` leaves the internal GtkImage EMPTY, so
+                    // an icon-mode button with a NULL readback paints nothing either.
+                    const painted = step.iconName !== null ? 'icon' : (step.label ?? '').length > 0 ? 'label' : 'empty';
                     expect(renderedMode(el)).toBe(painted);
                     expect(rootStyleClasses(el)).toStrictEqual([...step.styleClasses]);
                 }

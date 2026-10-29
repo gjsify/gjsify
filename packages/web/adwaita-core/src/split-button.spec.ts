@@ -234,13 +234,78 @@ export default async () => {
             expect(notified).toBe(3);
         });
 
-        await it('the cleared property is notified before the set one', () => {
+        // Measured on GJS 1.88.1 / libadwaita 1.9.4: either setter notifies BOTH
+        // properties, `menu-model` then `popover` when one is SET and the other way round
+        // when one is CLEARED. Upstream only counts per-property notifications, so this
+        // order comes from the runtime, not from tests/test-split-button.c.
+        const dropdownOrder = (
+            pre: (state: SplitButtonState) => void,
+            act: (state: SplitButtonState) => void,
+        ): readonly SplitButtonProperty[] => {
             const state = new SplitButtonState();
-            state.setMenuModel(model1);
+            pre(state);
             const emissions: (readonly SplitButtonProperty[])[] = [];
             state.subscribe((change) => emissions.push(change.notified));
-            state.setPopover({ popover: true });
-            expect([...emissions[0]!]).toStrictEqual(['menu-model', 'popover']);
+            act(state);
+            return emissions[0] ?? [];
+        };
+
+        await it('setting either dropdown property notifies menu-model then popover', () => {
+            // From empty, from a menu model, from a popover — the order never varies, and
+            // a popover on a button that never had a menu model still notifies menu-model.
+            for (const pre of [
+                () => {},
+                (s: SplitButtonState) => s.setMenuModel(model1),
+                (s: SplitButtonState) => s.setPopover({ popover: 'pre' }),
+            ]) {
+                expect([...dropdownOrder(pre, (s) => s.setMenuModel(model2))]).toStrictEqual(['menu-model', 'popover']);
+                expect([...dropdownOrder(pre, (s) => s.setPopover({ popover: 'next' }))]).toStrictEqual([
+                    'menu-model',
+                    'popover',
+                ]);
+            }
+        });
+
+        await it('clearing a live dropdown reverses to popover then menu-model', () => {
+            expect([
+                ...dropdownOrder(
+                    (s) => s.setMenuModel(model1),
+                    (s) => s.setMenuModel(null),
+                ),
+            ]).toStrictEqual(['popover', 'menu-model']);
+            expect([
+                ...dropdownOrder(
+                    (s) => s.setMenuModel(model1),
+                    (s) => s.setPopover(null),
+                ),
+            ]).toStrictEqual(['popover', 'menu-model']);
+            expect([
+                ...dropdownOrder(
+                    (s) => s.setPopover({ popover: 'pre' }),
+                    (s) => s.setPopover(null),
+                ),
+            ]).toStrictEqual(['popover', 'menu-model']);
+        });
+
+        await it('each setter guards on ITS OWN slot, so a cross-clear emits nothing', () => {
+            // `menu_model = null` on a popover-only button returns at
+            // `menu_model == self->menu_model` and leaves the popover alone.
+            const state = new SplitButtonState();
+            const popover = { popover: 'kept' };
+            state.setPopover(popover);
+            expect(state.setMenuModel(null)).toBe(false);
+            expect(state.popover).toBe(popover);
+            expect(state.dropdownEnabled).toBe(true);
+
+            const bare = new SplitButtonState();
+            expect(bare.setPopover(null)).toBe(false);
+        });
+
+        await it('handing back the model-derived popover is a no-op', () => {
+            const state = new SplitButtonState();
+            state.setMenuModel(model1);
+            expect(state.setPopover(state.popover)).toBe(false);
+            expect(state.menuModel).not.toBe(null);
         });
 
         await it('re-setting the same model is a no-op', () => {
