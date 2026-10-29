@@ -141,13 +141,11 @@ export default async () => {
         await it('filters calendar-query by UID, escaped, together with a time range', async () => {
             const m = mock([{ ...MS, body: LIST }]);
             const base = 'https://dav.example.org/calendars/bernard/work/';
-            const objs = await m
-                .client()
-                .listObjects(base, 'caldav', {
-                    component: 'VTODO',
-                    range: { start: '20260101T000000Z' },
-                    uid: 'a<b&"c',
-                });
+            const objs = await m.client().listObjects(base, 'caldav', {
+                component: 'VTODO',
+                range: { start: '20260101T000000Z' },
+                uid: 'a<b&"c',
+            });
             const body = m.calls[0].body!;
             expect(objs[0].etag).toBe('"e1"');
             expect(
