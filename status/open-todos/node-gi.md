@@ -481,7 +481,13 @@ marker) is not statically implementable on this path, and a `gi://` specifier is
 requirement under `giRenderer` — it resolves to the JS renderer, not to a typelib.
 
 Stage 1b's rest: `@gjsify/gi-runtime-android-gtk`, the `release.yml` job that publishes core and
-add-ons in lockstep, and the startup check against a mixed set.
+add-ons in lockstep, and the startup check against a mixed set. All three wait on one sysroot
+release: the add-on needs `cairo-1.0`, `freetype2-2.0` and `fontconfig-2.0` typelibs that tag
+`2026.10.13` does not carry. The startup check has a second prerequisite of its own —
+`gi-runtime.json` is written beside the AAR and never into it, so the sysroot identity it compares
+is not on the device; it has to travel as an AAR asset and be read through NativeScript's file
+API, not `node:fs`. Written before the first add-on it would also be a check over a one-element
+set, which cannot refuse anything. Both facts are in ADR 0117's 1b block.
 
 Two things need Pascal before stage 2 can start: the TLS backend (OpenSSL or GnuTLS — the Android
 argument is that p11-kit's trust module sits behind a compiled-in path with no env override and

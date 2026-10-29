@@ -454,6 +454,29 @@ What 1b found wiring the Vite path:
   `giNamespaces: ["Gtk", "Adw"]` of a Learn6502-shaped app and then fail in `planTypelibSet`,
   which cannot satisfy either on the pinned sysroot — a gate that breaks the one app it guards.
 
+What 1b found about the REST of its own list, scoping the startup check (the decisions in § 1 and
+§ 5 stand; these are the facts the next person needs before writing it):
+
+- **`gi-runtime.json` does not reach the device.** `aarEntries`
+  (`gi-runtime-android/scripts/build-gi-runtime-android.mjs`) puts exactly four kinds of entry in
+  the AAR: `AndroidManifest.xml`, an empty `classes.jar`, `jni/<abi>/*.so`, and
+  `assets/app/girepository-1.0/*.typelib`. The manifest is written BESIDE the AAR, for the host
+  side — `readRuntimeManifest()` in `index.js` reads it with `node:fs`, which exists on a build
+  machine and not in `host.nativescript.js`. So the recorded sysroot identity the check is to
+  compare is, today, not on the device at all. The check therefore has a prerequisite: ship each
+  package's manifest as an AAR asset under a per-package path (one `assets/` tree per AAR, and
+  AGP merges them, so the paths must not collide) and read it through NativeScript's file API, not
+  through `node:fs`.
+- **There is nothing yet to compare against.** `packages/node-gi/` holds one runtime package. A
+  check over a one-element set cannot refuse anything, so writing it before the first add-on would
+  add a device-side file reader and an untestable branch whose first real exercise is months out.
+  It belongs in the same change as `@gjsify/gi-runtime-android-gtk`, which is where the mixed set
+  first becomes possible.
+
+Both are why 1b stops after the Vite path: the add-on needs `cairo-1.0`, `freetype2-2.0` and
+`fontconfig-2.0` typelibs that the pinned sysroot (`gjsify/android-sysroot` tag `2026.10.13`) does
+not carry, and § 4 reserves the release to the owner.
+
 ## Amendment 2026-10-16: the sysroot has a CI path
 
 Stage 0 of this ADR assumed the sysroot cannot be built in CI because g-ir-scanner must run a
