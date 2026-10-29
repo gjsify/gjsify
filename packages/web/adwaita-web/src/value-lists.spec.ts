@@ -51,8 +51,8 @@ export const AdwValueListsTest = async () => {
             await it(vector.rule, () => {
                 mounted(blueprintTree(vector.blueprint), (root) => {
                     if (vector.strings !== undefined) {
-                        const model = (root as unknown as Pick<AdwComboRow, 'model'>).model;
-                        expect(JSON.stringify(model.map((option) => option.label))).toBe(
+                        const options = (root as unknown as Pick<AdwComboRow, 'options'>).options;
+                        expect(JSON.stringify(options.map((option) => option.label))).toBe(
                             JSON.stringify(vector.strings),
                         );
                         expect(JSON.stringify(paintedOptions(root))).toBe(JSON.stringify(vector.strings));

@@ -9,6 +9,7 @@ import {
     type ConstructVector,
     type SharedTreeNode,
 } from '@gjsify/adwaita-core/conformance';
+import { GjsifyOptionList } from '@gjsify/adwaita-core';
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { AdwAlertDialog } from './elements/adw-alert-dialog.js';
@@ -280,7 +281,7 @@ export const AdwConstructVectorsTest = async () => {
         });
         await it('dispatches DropDown `notify::selected-item` after `notify::selected`, on a real change only', () => {
             const dropDown = document.createElement('gtk-drop-down') as HTMLElement & {
-                model: string[];
+                model: unknown;
                 selected: number;
             };
             const seen: string[] = [];
@@ -288,7 +289,8 @@ export const AdwConstructVectorsTest = async () => {
                 dropDown.addEventListener(name, () => seen.push(name));
             document.body.append(dropDown);
             try {
-                dropDown.model = ['a', 'b'];
+                // `model` takes a real list model, never an array (ADR 0122 § 4).
+                dropDown.model = GjsifyOptionList.new(['a', 'b']);
                 seen.length = 0;
                 dropDown.selected = 1;
                 dropDown.selected = 1;

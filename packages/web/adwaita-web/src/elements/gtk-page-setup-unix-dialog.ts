@@ -178,12 +178,14 @@ export class GtkPageSetupUnixDialog extends AdwDialog {
      */
     set pageSetup(value: PageSetup) {
         const index = this._setups.findIndex((setup) => pageSetupEquals(setup, value));
-        if (index < 0) {
-            this._setups.push(value);
-            this._paperEl.selected = this._setups.length - 1;
-        } else if (this._paperEl.selected !== index) {
-            this._paperEl.selected = index;
-        }
+        if (index < 0) this._setups.push(value);
+        // The row list GROWS BEFORE the selection moves. The drop-down refuses an index its
+        // model does not address, and a splice that lands at or before the selection shifts
+        // it rather than leaving it standing (ADR 0122 § 4). Selecting first worked only
+        // while the appended row happened to fall where `Manage Custom Sizes…` already was.
+        if (this._built) this._renderSetup();
+        const wanted = index < 0 ? this._setups.length - 1 : index;
+        if (this._paperEl.selected !== wanted) this._paperEl.selected = wanted;
         this._setOrientation(value.orientation);
         if (this._built) this._renderSetup();
     }

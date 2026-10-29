@@ -383,7 +383,7 @@ export const GtkControlsNsTest = async () => {
 
     await describe('Gtk.DropDown selected accessors', async () => {
         await it('reads and writes the selection through get_selected and set_selected', () => {
-            const drop = new Gtk.DropDown({ model: ['a', 'b', 'c'] });
+            const drop = new Gtk.DropDown({ model: new Gtk.StringList({ strings: ['a', 'b', 'c'] }) });
             expect(drop.get_selected()).toBe(0);
             drop.set_selected(2);
             expect(drop.get_selected()).toBe(2);

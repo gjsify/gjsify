@@ -54,7 +54,7 @@ import type {
     AdwListModelInput,
     AdwListModelSource,
 } from '../list.js';
-import type { GjsifyOptionList } from '../option-list.js';
+import { GjsifyOptionList } from '../option-list.js';
 import { tabViewItemsChanged } from '../tab-view.js';
 import type { TabViewPagesChange } from '../tab-view.js';
 
@@ -164,6 +164,22 @@ export const LIST_NORMALIZE_VECTORS: ReadonlyArray<ListNormalizeVector> = [
         rule: 'an item with neither half is the empty descriptor `{}` already is — drawing it would need `expression`, which ADR 0122 leaves out',
     },
 ];
+
+/**
+ * A {@link LIST_NORMALIZE_VECTORS} row as the value a `model` PROPERTY write takes.
+ *
+ * ADR 0122 § 4 took the array arm off that property, so the ARRAY rows go in as a list built
+ * out of the array: the normaliser still runs on them, one step further in, as
+ * {@link GjsifyOptionList}'s own constructor. The model-source rows go STRAIGHT through —
+ * that is the shape the door now takes, and they are what proves a surface reads items by
+ * position rather than recognising one class.
+ *
+ * Lives here rather than in each driving suite because WHICH door a row reaches through is
+ * part of what the table claims, and two copies of that answer are two claims.
+ */
+export function listModelForInput(input: AdwListModelInput): AdwListModelSource {
+    return Array.isArray(input) ? GjsifyOptionList.new(input) : (input as AdwListModelSource);
+}
 
 /** One {@link parseListModel} expectation — the JSON attribute door. */
 export interface ListParseVector {

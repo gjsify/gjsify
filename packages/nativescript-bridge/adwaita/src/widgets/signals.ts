@@ -166,7 +166,13 @@
 // registration skips it rather than shadowing it, and says so in the frozen `$foreignSkipped`.
 
 import type { EventData, Observable } from '@nativescript/core';
-import { engineForTarget, type ForeignClassMeta, type ForeignProperty } from '@gjsify/adwaita-core';
+import {
+    engineForTarget,
+    type ForeignClassMeta,
+    type ForeignObjectProperty,
+    type ForeignProperty,
+    type ForeignScalarProperty,
+} from '@gjsify/adwaita-core';
 
 import { ENGINE_TARGET } from '../engine-target.js';
 import { camelProperty, readGtkProperty, writeGtkProperty } from './shadowed-properties.js';
@@ -174,10 +180,15 @@ import { withGtkWidgetLayout } from './widget-layout.js';
 import { watchMapping, WIDGET_SIGNALS } from './widget-mapping.js';
 
 /**
- * A declared property, plus the one thing the engine's vocabulary has no room for: how a value is
- * brought into the property's shape BEFORE it is stored. The engine never sees `normalize`.
+ * One arm of {@link ForeignProperty}, plus the one thing the engine's vocabulary has no room for:
+ * how a value is brought into the property's shape BEFORE it is stored. The engine never sees
+ * `normalize`.
+ *
+ * Applied per ARM rather than to the union, because `ForeignProperty` is a discriminated union
+ * since ADR 0122 § 6 and `property.kind === 'object'` has to keep narrowing to the arm that
+ * carries `valueType`.
  */
-export interface DeclaredProperty extends ForeignProperty {
+type Declared<P> = P & {
     /**
      * Replaces the seam's own coercion for EVERY write, typed or not — a floor, a clamp, a lenient
      * parse. Runs identically on both legs, ahead of the store and of the equal-write check, so a
@@ -189,7 +200,10 @@ export interface DeclaredProperty extends ForeignProperty {
      * here, since a write that resolves to the value already held is not a change.
      */
     readonly normalize?: (value: unknown, self: object) => unknown;
-}
+};
+
+/** A declared property of any kind, with its optional {@link Declared.normalize}. */
+export type DeclaredProperty = Declared<ForeignScalarProperty> | Declared<ForeignObjectProperty>;
 
 /** {@link ForeignClassMeta} whose properties may carry a {@link DeclaredProperty.normalize}. */
 export interface DeclaredClassMeta extends Omit<ForeignClassMeta, 'Properties'> {
@@ -226,6 +240,13 @@ function coerceDeclared(name: string, property: DeclaredProperty, value: unknown
 export function readDeclaredValue(name: string, kind: ForeignProperty['kind'], value: unknown): unknown {
     if (typeof value !== 'string' || kind === 'string') return value;
     const text = value.trim();
+    if (kind === 'object') {
+        // NOTHING is parsed into an object property. There is no spelling of a `Gio.ListModel` an
+        // XML attribute could carry, and a markup author who wants one writes the MODEL attribute
+        // the renderer's own door reads (ADR 0122 § 5) — so a string here is a mistake, and saying
+        // so beats storing a string in a property whose ParamSpec would refuse it one leg later.
+        throw new TypeError(`Property '${name}' holds an object; '${value}' is a string.`);
+    }
     if (kind === 'boolean') {
         const lowered = text.toLowerCase();
         if (lowered === 'true') return true;
@@ -1013,6 +1034,8 @@ function valuesOf(instance: object): Map<string, unknown> {
 
 /** What a declared property reads as before anything writes it — GObject's own kind defaults. */
 function defaultValueOf(property: ForeignProperty): unknown {
+    // `g_param_spec_object`'s default is always NULL, which is why the object arm carries none.
+    if (property.kind === 'object') return null;
     if (property.default !== undefined) return property.default;
     if (property.kind === 'string') return '';
     return property.kind === 'boolean' ? false : 0;

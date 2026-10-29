@@ -18,10 +18,12 @@ import {
     LIST_MODEL_OWNERSHIP_VECTORS,
     LIST_NORMALIZE_VECTORS,
     LIST_PARSE_VECTORS,
-    LIST_SELECTION_CLAMP_VECTORS,
+    applyListMutation,
     applyListReadback,
+    listModelForInput,
 } from '@gjsify/adwaita-core/conformance';
 import type { ComboSelectionStep } from '@gjsify/adwaita-core/conformance';
+import { GjsifyOptionList } from '@gjsify/adwaita-core';
 
 import type { AdwComboRow } from './elements/adw-combo-row.js';
 import type { AdwExpanderRow } from './elements/adw-expander-row.js';
@@ -51,17 +53,24 @@ function record(el: HTMLElement, event: string): { details: unknown[]; stop: () 
  *
  * The row can drive the table at all only because the model and the select-by-value are
  * now published; the conformance header names that as the condition for it inheriting
- * these rows. It drives EVERY row, including `an index past the end`, which
- * `<gtk-drop-down>` carves out: the row keeps `ComboState`'s permissive answer where the
- * drop-down's published `selected` contract rejects the set, and `ComboState.hasIndex`'s
- * doc is where that split is stated. So the carve-out is now visible from both sides.
+ * these rows. It drives EVERY row with no carve-out — `an index past the end` used to be
+ * the one the two browser selectors answered differently and ADR 0122 measured it instead,
+ * so the permissive half this element carried is gone.
+ *
+ * Every `setModel` builds a FRESH list, which is what makes `setModelAgain` — assigning the
+ * identity the row already holds — a distinct step rather than a repeat of the one above it.
  */
 function applyComboStep(row: AdwComboRow, step: ComboSelectionStep): void {
     const select = row.querySelector('select') as HTMLSelectElement;
     switch (step.op) {
         case 'setModel':
-            row.model = step.model;
+            row.model = GjsifyOptionList.new([...step.model]);
             return;
+        case 'setModelAgain': {
+            const held = row.model;
+            row.model = held;
+            return;
+        }
         case 'setSelectedIndex':
             row.selected = step.index;
             return;
@@ -155,7 +164,7 @@ export const AdwRowStateTest = async () => {
 
             // Through the PUBLISHED path a consumer has — the same `model` property
             // `<gtk-drop-down>` publishes, not a reach into the composed state.
-            row.model = ['One', 'Two'];
+            row.model = GjsifyOptionList.new(['One', 'Two']);
             expect(select.disabled).toBe(false);
             expect(row.dataset.presentsChooser).toBe('true');
 
@@ -177,10 +186,10 @@ export const AdwRowStateTest = async () => {
             const value = row.querySelector('.adw-row-value') as HTMLSpanElement;
             expect(select.options.length).toBe(2);
 
-            // The PROPERTY, with the plain-string vocabulary both selectors accept.
-            row.model = ['Cyan', 'Magenta', 'Yellow'];
+            // The PROPERTY, with the plain-string vocabulary `GjsifyOptionList` accepts.
+            row.model = GjsifyOptionList.new(['Cyan', 'Magenta', 'Yellow']);
             expect([...select.options].map((o) => o.textContent).join('|')).toBe('Cyan|Magenta|Yellow');
-            expect(row.model.map((o) => o.label).join('|')).toBe('Cyan|Magenta|Yellow');
+            expect(row.options.map((o) => o.label).join('|')).toBe('Cyan|Magenta|Yellow');
             // The model was replaced under an index the new one still has, so autoselect
             // keeps 0 and the inline label has to follow the NEW option at that index.
             expect(value.textContent).toBe('Cyan');
@@ -205,12 +214,12 @@ export const AdwRowStateTest = async () => {
             );
             const select = row.querySelector('select') as HTMLSelectElement;
 
-            row.model = [
+            row.model = GjsifyOptionList.new([
                 { value: 'r', label: 'Red' },
                 { value: 'g', label: 'Green' },
-            ];
+            ]);
             expect([...select.options].map((o) => o.textContent).join('|')).toBe('Red|Green');
-            expect(row.model.map((o) => o.value).join('|')).toBe('r|g');
+            expect(row.options.map((o) => o.value).join('|')).toBe('r|g');
 
             // And selection by VALUE, the drop-down's other published setter.
             row.selectedValue = 'g';
@@ -223,42 +232,50 @@ export const AdwRowStateTest = async () => {
         // The row publishes the drop-down's property set apart from `enableSearch` and
         // `active`, which are that element's popover chrome. `selectedItem` is NOT chrome —
         // it is `Adw.ComboRow:selected-item` — so it is here, read-only as the GObject
-        // property is, and `null` rather than a blank descriptor when nothing is addressed.
-        await it('reads the selected descriptor back, and null when nothing is addressed', async () => {
+        // property is, and `null` rather than a blank item when nothing is addressed.
+        //
+        // THE MODEL'S OWN ITEM, by identity (ADR 0122 § 4): `row.selectedItem ===
+        // model.get_item(row.selected)`, which is the comparison a `selected-item` consumer
+        // writes and the one a normalised descriptor would have failed.
+        await it('reads the selected item back by identity, and null when nothing is addressed', async () => {
             const { el: row, host } = parse<AdwComboRow>(
                 `<adw-combo-row title="Pick"></adw-combo-row>`,
                 'adw-combo-row',
             );
 
+            // No model at all — `null` and not an item of an empty list.
+            expect(row.model).toBeNull();
             expect(row.selectedItem).toBeNull();
 
-            row.model = [
+            const model = GjsifyOptionList.new([
                 { value: 'r', label: 'Red' },
                 { value: 'g', label: 'Green' },
-            ];
-            expect(row.selectedItem?.value).toBe('r');
+            ]);
+            row.model = model;
+            expect(row.model === model).toBe(true);
+            expect(row.selectedItem === model.get_item(0)).toBe(true);
             row.selected = 1;
-            expect(row.selectedItem?.label).toBe('Green');
+            expect(row.selectedItem === model.get_item(1)).toBe(true);
 
-            // The one row of the shared contract the two selectors answer differently: an
-            // index past the end is ACCEPTED here (`ComboState.setSelectedIndex` mirrors a
-            // guint property) where `<gtk-drop-down>` rejects the set. So the index moves,
-            // and everything read out of the model reads empty.
+            // An index past the end is IGNORED, as measured in libadwaita — the selection
+            // stays where it was, and nothing reads empty. This element used to ACCEPT the
+            // set and read back blank, the one row of the shared table the two browser
+            // selectors answered differently; the permissive half was ours, not GTK's.
             row.selected = 9;
-            expect(row.selected).toBe(9);
-            expect(row.selectedItem).toBeNull();
-            expect(row.selectedValue).toBe('');
-            expect((row.querySelector('.adw-row-value') as HTMLSpanElement).textContent).toBe('');
+            expect(row.selected).toBe(1);
+            expect(row.selectedValue).toBe('g');
+            expect((row.querySelector('.adw-row-value') as HTMLSpanElement).textContent).toBe('Green');
 
             host.remove();
         });
     });
 
-    // The portable list model (ADR 0046), driven through this row's own `model` door.
+    // The portable list model (ADR 0046), driven through this row's own `model` doors — the
+    // property for a real model, the attribute for markup.
     //
     // The ITEMS-CHANGED rows are the ones that could not be asserted anywhere else: they
-    // compare `<option>` node IDENTITY across a replacement, which is the difference
-    // between splicing the model and rebuilding it — a difference no assertion about the
+    // compare `<option>` node IDENTITY across a markup update, which is the difference
+    // between splicing the list and rebuilding it — a difference no assertion about the
     // model, the labels or the selection can see. Before the splice landed, every row with
     // a non-zero `survivors` scored 0.
     await describe('adw-combo-row list model (portable list-model vectors)', async () => {
@@ -268,8 +285,10 @@ export const AdwRowStateTest = async () => {
                     `<adw-combo-row title="Pick"></adw-combo-row>`,
                     'adw-combo-row',
                 );
-                row.model = vector.input;
-                expect(row.model).toStrictEqual([...vector.model]);
+                // `listModelForInput` is the table's own answer to which door a row reaches
+                // through now that `model` takes no array (ADR 0122 § 4).
+                row.model = listModelForInput(vector.input);
+                expect(row.options).toStrictEqual([...vector.model]);
                 const select = row.querySelector('select') as HTMLSelectElement;
                 expect([...select.options].map((option) => option.textContent)).toStrictEqual(
                     vector.model.map((item) => item.label),
@@ -287,7 +306,7 @@ export const AdwRowStateTest = async () => {
                 // Set AFTER connect, so the attribute reaches the callback rather than the
                 // seeding path: a total parser has to be total on the live door too.
                 row.setAttribute('model', vector.attribute);
-                expect(row.model).toStrictEqual([...vector.model]);
+                expect(row.options).toStrictEqual([...vector.model]);
                 host.remove();
             });
         }
@@ -299,10 +318,16 @@ export const AdwRowStateTest = async () => {
                     'adw-combo-row',
                 );
                 const select = row.querySelector('select') as HTMLSelectElement;
-                row.model = vector.previous;
+                // Driven through the MARKUP door, which is the one that still computes a
+                // splice: the attribute reconciles the element's own authored list (ADR 0122
+                // amendment A4), keeping its identity, so the survivors these rows count are
+                // the `<option>` nodes a minimal splice left alone. A `model` PROPERTY write
+                // cannot answer them any more — a different list is a replacement, and a
+                // replacement carries nothing over by definition.
+                row.setAttribute('model', JSON.stringify(vector.previous));
                 const before = [...select.options];
 
-                row.model = vector.next;
+                row.setAttribute('model', JSON.stringify(vector.next));
 
                 const after = [...select.options];
                 expect(after.map((option) => option.textContent)).toStrictEqual(vector.next.map((item) => item.label));
@@ -311,10 +336,10 @@ export const AdwRowStateTest = async () => {
             });
         }
 
-        // WHO OWNS the array `model` hands back. The DOM is what makes these rows worth
-        // driving at the element: without the copy the MODEL still reads correctly on the
-        // mutate-then-assign rows — it is `_options` itself that was mutated — and only the
-        // `<option>` list shows that no splice was ever emitted.
+        // WHO OWNS the options on either side of the model, and what the model's own API
+        // moves. The DOM is what makes these rows worth driving at the element: on the
+        // caller-side rows the descriptors still read correctly from the model itself, and
+        // only the `<option>` list shows whether a splice was emitted for them.
         for (const vector of LIST_MODEL_OWNERSHIP_VECTORS) {
             await it(`ownership — ${vector.rule}`, async () => {
                 const { el: row, host } = parse<AdwComboRow>(
@@ -323,36 +348,20 @@ export const AdwRowStateTest = async () => {
                 );
                 const select = row.querySelector('select') as HTMLSelectElement;
                 const input = vector.initial.map((item) => ({ ...item }));
-                row.model = input;
+                const list = GjsifyOptionList.new(input);
+                row.model = list;
                 const before = [...select.options];
 
-                const mutated = applyListReadback(vector.source === 'input' ? input : row.model, vector.op);
-                if (vector.assign) row.model = mutated;
+                if (vector.source === 'model') applyListMutation(list, vector.op);
+                else applyListReadback(vector.source === 'input' ? input : row.options, vector.op);
 
-                expect(row.model).toStrictEqual([...vector.model]);
+                expect(row.options).toStrictEqual([...vector.model]);
+                // None of these ops is a replacement, so the element must still be pointing
+                // at the list it was handed.
+                expect(row.model).toBe(list);
                 const after = [...select.options];
                 expect(after.map((option) => option.textContent)).toStrictEqual(vector.model.map((item) => item.label));
                 expect(before.filter((option) => after.includes(option)).length).toBe(vector.survivors);
-                host.remove();
-            });
-        }
-
-        for (const vector of LIST_SELECTION_CLAMP_VECTORS) {
-            await it(`autoselect — ${vector.rule}`, async () => {
-                const { el: row, host } = parse<AdwComboRow>(
-                    `<adw-combo-row title="Pick"></adw-combo-row>`,
-                    'adw-combo-row',
-                );
-                // Seed a model long enough to hold the starting index, then replace it with
-                // one of the vector's length. NARROWER THAN THE VECTOR ON ONE ROW, and it
-                // says so: this element cannot HOLD a non-finite index — `setSelectedIndex`
-                // folds it to 0 before the clamp is reached — so that row asserts the same
-                // outcome by a different route here, and the non-finite input itself is
-                // driven in the core suite.
-                row.model = Array.from({ length: 8 }, (_, i) => `item ${i}`);
-                row.setAttribute('selected', String(vector.selected));
-                row.model = Array.from({ length: vector.length }, (_, i) => `next ${i}`);
-                expect(row.selected).toBe(vector.result);
                 host.remove();
             });
         }

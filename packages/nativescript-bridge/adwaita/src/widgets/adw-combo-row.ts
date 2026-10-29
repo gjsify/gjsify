@@ -23,8 +23,8 @@
 
 import { panDownSymbolic } from '@gjsify/adwaita-icons/ui';
 import { action, Label, StackLayout, type EventData, type View } from '@nativescript/core';
-import { ComboState, normalizeComboOptions, parseListModel } from '@gjsify/adwaita-core';
-import type { AdwComboOption, AdwListModelInput } from '@gjsify/adwaita-core';
+import { ComboState, GjsifyOptionList, readModelWrite } from '@gjsify/adwaita-core';
+import type { AdwComboOption, ComboWatchableModel } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';
 import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { GtkImage } from './gtk-image.js';
@@ -63,6 +63,13 @@ export class AdwComboRow extends AdwActionRow {
     protected readonly _chevron: GtkImage;
     /** The headless options list + selectedIndex↔selectedValue state machine (ADR 0004). */
     private readonly _state = new ComboState();
+    /**
+     * The list the MARKUP door fills — `<adw:ComboRow model='[…]'>` is JSON text, and a real
+     * `Gio.ListModel` has no attribute spelling (ADR 0122 § 5). Held for the row's whole life so
+     * re-parsing the attribute splices the list the row already points at rather than replacing
+     * it, which would reset the selection.
+     */
+    private readonly _authored = GjsifyOptionList.new(null);
     /**
      * A `selected` written while the row has no model yet. NativeScript's XML builder assigns
      * every attribute before it adds the children, so `<adw:ComboRow selected="1">` reaches
@@ -142,7 +149,7 @@ export class AdwComboRow extends AdwActionRow {
         // `n_items > 1`: a single option is not a choice, and libadwaita makes
         // the row non-activatable rather than opening a sheet with one entry.
         if (!this._state.presentsChooser) return;
-        const labels = this._state.model.map((o) => o.label);
+        const labels = this._state.options.map((o) => o.label);
         const chosen = await action({
             title: this.title || undefined,
             cancelButtonText: 'Cancel',
@@ -153,40 +160,50 @@ export class AdwComboRow extends AdwActionRow {
         this._state.select(labels.indexOf(chosen));
     }
 
-    /** The list model (`Adw.ComboRow:model`). Updates the inline value label. */
-    get model(): AdwComboOption[] {
+    /**
+     * The list model (`Adw.ComboRow:model`) — the OBJECT that was assigned, by identity, as
+     * `row.model === model` is measured to hold in libadwaita (ADR 0122 § 4). The normalised
+     * descriptors are {@link options}.
+     */
+    get model(): ComboWatchableModel | null {
         return this._state.model;
     }
 
-    set model(value: AdwListModelInput | string) {
-        // The SAME normaliser the browser elements run, so one authored model — bare
-        // strings included — moves between the surfaces unchanged. This setter used to
-        // take descriptors only, so `model = ['a','b']` stored strings and every label
-        // read back `undefined`.
-        // The XML attribute door hands the list over as JSON text, the same `model='[…]'` the
-        // browser elements read — a `Gtk.StringList` cannot be filled from an attribute of its
-        // own, `strings` being construct-only (ADR 0122).
-        this._state.setModel(typeof value === 'string' ? parseListModel(value) : normalizeComboOptions(value));
-        if (this._pendingSelected !== null && this._pendingSelected < this._state.model.length) {
+    set model(value: ComboWatchableModel | string | null) {
+        // ONE door for every surface: a real model by identity, `null` for none, a STRING for
+        // the XML attribute (`model='[…]'`, JSON — a `Gio.ListModel` has no attribute spelling),
+        // and a `TypeError` in the property's own words for anything else, an array included.
+        this._state.setModel(readModelWrite(value, this._authored));
+        if (this._pendingSelected !== null && this._state.hasIndex(this._pendingSelected)) {
             const index = this._pendingSelected;
             this._pendingSelected = null;
             this._state.setSelectedIndex(index);
         }
     }
 
+    /** The held model's items as `{ value, label }` descriptors. */
+    get options(): AdwComboOption[] {
+        return this._state.options;
+    }
+
     /** `adw_combo_row_set_model`. */
-    set_model(model: AdwListModelInput | null): void {
-        this.model = model ?? [];
+    set_model(model: ComboWatchableModel | null): void {
+        this.model = model;
+    }
+
+    /** `adw_combo_row_get_model`. */
+    get_model(): ComboWatchableModel | null {
+        return this.model;
     }
 
     /**
-     * XML inflation: a child at `model` is the row's list — a `Gtk.StringList` is already an
-     * `AdwListModelInput`, so it goes through the same setter as the property. Everything
-     * else is a row edge, as on any action row.
+     * XML inflation: a child at `model` is the row's list — a `Gtk.StringList` IS a
+     * `Gio.ListModel`, so it goes through the same setter as the property. Everything else is a
+     * row edge, as on any action row.
      */
     _addChildFromBuilder(name: string, child: View): void {
         if (resolveBuilderSlot(name, ['model'], 'edge') === 'model') {
-            this.model = child as unknown as AdwListModelInput;
+            this.model = child as unknown as ComboWatchableModel;
             return;
         }
         super._addChildFromBuilder(name, child);
@@ -199,7 +216,7 @@ export class AdwComboRow extends AdwActionRow {
 
     set selected(raw: number | string) {
         const value = xmlNumber(raw, this.selected);
-        if (this._state.model.length === 0) {
+        if (this._state.count === 0) {
             this._pendingSelected = value;
             return;
         }
@@ -221,5 +238,20 @@ export class AdwComboRow extends AdwActionRow {
 
     set selectedValue(value: string) {
         this._state.setSelectedValue(value);
+    }
+
+    /**
+     * The selected ITEM (`Adw.ComboRow:selected-item`) — the model's own object at
+     * {@link selected}, read through `get_item`, so the identity comparison a `selected-item`
+     * consumer writes holds. `null` for the sentinel and for no model. Read-only, as in
+     * libadwaita.
+     */
+    get selectedItem(): unknown {
+        return this._state.selectedItem;
+    }
+
+    /** `adw_combo_row_get_selected_item`. */
+    get_selected_item(): unknown {
+        return this.selectedItem;
     }
 }

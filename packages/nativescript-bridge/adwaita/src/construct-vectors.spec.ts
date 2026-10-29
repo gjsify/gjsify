@@ -38,7 +38,9 @@ function observe(vector: ConstructVector): unknown {
             return [{ label: accessibilityLabel, description: accessibilityHint }];
         }
         case 'strings':
-            return (build(vector.tree) as unknown as Pick<AdwComboRow, 'model'>).model.map((option) => option.label);
+            return (build(vector.tree) as unknown as Pick<AdwComboRow, 'options'>).options.map(
+                (option) => option.label,
+            );
         case 'responses':
             return (buildDialog(vector.tree) as unknown as AdwAlertDialog).responses.map(
                 ({ id, label, appearance, enabled }) => ({ id, label, appearance, enabled }),

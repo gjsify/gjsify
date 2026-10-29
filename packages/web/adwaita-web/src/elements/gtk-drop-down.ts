@@ -32,16 +32,24 @@
 // shifted a row would have selected the wrong item. The handler now asks the list where
 // the row IS.
 //
+// THE `model` PROPERTY IS A REAL `Gio.ListModel` (ADR 0122 § 4), held by identity, and an
+// array written to it is a `TypeError` in GJS's own words. The ARRAY spellings are the
+// MARKUP doors — the JSON attribute and the `<gtk-string-list slot="model">` child — and they
+// fill one list this element owns for its whole life, so re-parsing the attribute splices
+// that list rather than replacing it. `options` is where the normalised `{ value, label }`
+// descriptors moved; everything that draws a row reads them from there.
+//
 // Attributes:
 //   model           — JSON array: `["a","b"]` or `[{"value":"a","label":"A"}]`.
 //   selected        — the selected index (number).
 //   enable-search   — boolean; show a filtering search entry in the popover.
 //   disabled        — boolean; a disabled dropdown does not open.
 // Properties (mirroring Gtk.DropDown):
-//   model           — the list model ({ value, label }[]) (get/set).
+//   model           — the list model, a real `Gio.ListModel` or null (get/set).
+//   options         — the model's items as { value, label } descriptors (get).
 //   selected        — the selected index (get/set; bounds-guarded).
 //   selectedValue   — the selected option's value ('' when empty) (get/set-by-value).
-//   selectedItem    — the selected option descriptor (or null).
+//   selectedItem    — the model's own selected item, or null (get).
 //   enableSearch    — whether the search entry is shown (get/set).
 //   active          — whether the popover is open (get).
 // Events:
@@ -67,8 +75,8 @@
 import './gtk-popover.js';
 import type { GtkPopover } from './gtk-popover.js';
 
-import { ComboState, normalizeComboOptions, parseListModel } from '@gjsify/adwaita-core';
-import type { AdwComboOption, AdwListItemsChanged, AdwListModelInput } from '@gjsify/adwaita-core';
+import { ComboState, GjsifyOptionList, parseListModel, readModelWrite } from '@gjsify/adwaita-core';
+import type { AdwComboOption, AdwListItemsChanged, ComboWatchableModel } from '@gjsify/adwaita-core';
 
 import { bindSlottedChildren } from '../slotted-children.js';
 import type { DispatchedSignals } from '../signals.js';
@@ -99,6 +107,14 @@ export class GtkDropDown extends WidgetElement {
     private _itemButtons: HTMLButtonElement[] = [];
     /** The headless options list + selectedIndex↔selectedValue machine (ADR 0004). */
     private readonly _state = new ComboState();
+    /**
+     * The list the MARKUP doors fill — the `model` ATTRIBUTE is JSON text and a
+     * `<gtk-string-list slot="model">` child is strings, and a real `Gio.ListModel` has no
+     * spelling in either (ADR 0122 § 5). Held for the element's whole life so re-parsing the
+     * attribute splices the list the element already points at rather than replacing it, which
+     * would reset the selection.
+     */
+    private readonly _authored = GjsifyOptionList.new(null);
     private _initialized = false;
     private _typeAheadBuffer = '';
     private _typeAheadTimer: ReturnType<typeof setTimeout> | null = null;
@@ -107,15 +123,35 @@ export class GtkDropDown extends WidgetElement {
         return ['model', 'selected', 'enable-search', 'disabled'];
     }
 
-    /** The list model (`Gtk.DropDown:model`). Setting it splices the popover and clamps the selection. */
-    get model(): GtkDropDownOption[] {
+    /**
+     * The list model (`Gtk.DropDown:model`) — the OBJECT that was assigned, by identity, as
+     * `dropdown.model === model` is measured to hold in GTK (ADR 0122 § 4). The normalised
+     * descriptors are {@link options}. Assigning splices the popover and re-runs autoselect.
+     */
+    get model(): ComboWatchableModel | null {
         return this._state.model;
     }
 
-    set model(value: AdwListModelInput) {
-        // `setModel` resets the index to 0 when it no longer fits — the same
-        // clamp this element used to spell out.
-        this._state.setModel(normalizeComboOptions(value));
+    set model(value: ComboWatchableModel | string | null) {
+        // ONE door for every surface: a real model by identity, `null` for none, a STRING for
+        // the `model` attribute (JSON), and a `TypeError` in the property's own words for
+        // anything else, an array included.
+        this._state.setModel(readModelWrite(value, this._authored));
+    }
+
+    /** The held model's items as `{ value, label }` descriptors. */
+    get options(): AdwComboOption[] {
+        return this._state.options;
+    }
+
+    /** `gtk_drop_down_set_model`. */
+    set_model(model: ComboWatchableModel | null): void {
+        this.model = model;
+    }
+
+    /** `gtk_drop_down_get_model`. */
+    get_model(): ComboWatchableModel | null {
+        return this.model;
     }
 
     /** The selected index. Out-of-range values are ignored (Gtk.DropDown:selected). */
@@ -143,12 +179,23 @@ export class GtkDropDown extends WidgetElement {
     }
 
     set selectedValue(value: string) {
-        const index = this._state.model.findIndex((o) => o.value === value);
+        const index = this._state.options.findIndex((o) => o.value === value);
         if (index >= 0) this._selectIndex(index);
     }
 
-    get selectedItem(): GtkDropDownOption | null {
-        return this._state.model[this._state.selectedIndex] ?? null;
+    /**
+     * The selected ITEM, or `null` (Gtk.DropDown:selected-item).
+     *
+     * The MODEL'S OWN object rather than a descriptor, so the identity comparison a
+     * `selected-item` consumer writes holds (ADR 0122 § 4).
+     */
+    get selectedItem(): unknown {
+        return this._state.selectedItem;
+    }
+
+    /** `gtk_drop_down_get_selected_item`. */
+    get_selected_item(): unknown {
+        return this.selectedItem;
     }
 
     get enableSearch(): boolean {
@@ -200,21 +247,47 @@ export class GtkDropDown extends WidgetElement {
         this._popoverEl.appendChild(this._listEl);
 
         // A `<gtk-string-list slot="model">` child is the list a `.blp` authored (ADR 0072),
-        // consumed first so the attribute seed below sees a model and leaves it alone.
-        bindSlottedChildren(this, [stringListSlot((model) => this._state.setModel(model))]).install(
-            this._buttonEl,
-            this._popoverEl,
-        );
+        // consumed first so the attribute seed below sees a model and leaves it alone. The
+        // slot hands over DESCRIPTORS, which the authored list adopts — the same list the
+        // `model` attribute fills, because the two are one markup door and an author who
+        // wrote both should not get two lists.
+        bindSlottedChildren(this, [
+            stringListSlot((options) => {
+                this._authored.reconcile(options);
+                this._state.setModel(this._authored);
+            }),
+        ]).install(this._buttonEl, this._popoverEl);
 
         // Seed options BEFORE anything subscribes, so building the initial DOM below is
-        // not driven by a change notification.
-        if (this._state.count === 0) this._state.setModel(parseListModel(this.getAttribute('model')));
+        // not driven by a change notification. Two tests, and both are needed. `model ===
+        // null` and no longer "holds no items" is the test for "the slot above did not
+        // already set it": a model is an object now, so an EMPTY one is a model the author
+        // meant and the count test would have thrown it away. The ATTRIBUTE'S PRESENCE is
+        // the test for whether to seed at all — a fresh widget with no authored model has
+        // `model === null`, as GTK's does, and seeding the empty authored list
+        // unconditionally would hand every unconfigured drop-down a model.
+        const authoredModel = this.getAttribute('model');
+        if (this._state.model === null && authoredModel !== null) {
+            this._authored.reconcile(parseListModel(authoredModel));
+            this._state.setModel(this._authored);
+        }
         const attrSelected = Number.parseInt(this.getAttribute('selected') ?? '', 10);
         if (this._state.hasIndex(attrSelected)) this._state.setSelectedIndex(attrSelected);
 
         // WHERE the model changed. Subscribed before the first render so every later
         // assignment reaches the splice rather than a rebuild.
         this._state.subscribeItems((change) => this._applyItemsChanged(change));
+
+        // THAT the selection moved, for the moves this element did not ask for: a `model`
+        // write re-runs autoselect and lands the selection on 0 (ADR 0122 § 4), and an
+        // `items-changed` clamp moves it too. Neither goes through `_selectIndex`, and a
+        // model of EQUAL shape splices nothing, so `subscribeItems` alone would leave the
+        // button reading the old item's label. The DOM half only — `_selectIndex` owns the
+        // `notify::` dispatch and the `change` event, so there is still one emitter.
+        this._state.subscribe(() => {
+            this._updateLabel();
+            this._updateSelectedStates();
+        });
 
         this._popoverEl.anchor = this._buttonEl;
         this._popoverEl.subscribe((open) => this._onPopoverToggled(open));
@@ -230,7 +303,7 @@ export class GtkDropDown extends WidgetElement {
         if (name === 'model') {
             // No render call: the splice subscription does the DOM half, so the markup door
             // and the property door cannot drift into two update paths.
-            this._state.setModel(parseListModel(value));
+            this.model = value;
         } else if (name === 'selected') {
             const index = Number.parseInt(value ?? '', 10);
             if (!Number.isNaN(index)) this._selectIndex(index, { fromAttr: true });
@@ -243,9 +316,9 @@ export class GtkDropDown extends WidgetElement {
     }
 
     private _selectIndex(index: number, opts: { fromAttr?: boolean; fromUser?: boolean } = {}): void {
-        // The bounds arithmetic is `ComboState`'s; the POLICY of rejecting an
-        // out-of-range set is this element's published `selected` contract, and
-        // `<adw-combo-row>` deliberately answers it the other way (`ComboState.hasIndex`).
+        // The bounds arithmetic AND the policy are `ComboState`'s: an index the model does
+        // not address is ignored silently, measured on both widgets (ADR 0122 § 4). This
+        // element and `<adw-combo-row>` once answered it differently; neither does now.
         if (!this._state.hasIndex(index)) return;
         // Both core setters return "did it change", which is what gates the notify — no
         // second copy of the current index is kept here, so `setModel`' own label
@@ -258,7 +331,10 @@ export class GtkDropDown extends WidgetElement {
             this.setAttribute('selected', String(index));
         }
         if (changed) {
-            const option = this._state.model[index];
+            // The MODEL'S OWN item, not a descriptor: `selected-item` is an identity in GTK
+            // (ADR 0122 § 4), so a listener comparing it against the item it put in the model
+            // has to match.
+            const item = this._state.selectedItem;
             // `notify::selected` mirrors GObject property-notify: EVERY change,
             // programmatic included.
             this.dispatchEvent(new CustomEvent('notify::selected', { bubbles: true, detail: { selected: index } }));
@@ -266,7 +342,7 @@ export class GtkDropDown extends WidgetElement {
             this.dispatchEvent(
                 new CustomEvent('notify::selected-item', {
                     bubbles: true,
-                    detail: { 'selected-item': option ?? null },
+                    detail: { 'selected-item': item ?? null },
                 }),
             );
             // `change` mirrors the DOM <select> contract: ONLY a user-initiated change. A
@@ -276,7 +352,7 @@ export class GtkDropDown extends WidgetElement {
                 this.dispatchEvent(
                     new CustomEvent('change', {
                         bubbles: true,
-                        detail: { index, value: option?.value ?? '', label: option?.label ?? '' },
+                        detail: { index, value: this._state.selectedValue, label: this._state.selectedLabel },
                     }),
                 );
             }
@@ -319,7 +395,7 @@ export class GtkDropDown extends WidgetElement {
         this._typeAheadBuffer += char.toLowerCase();
         if (this._typeAheadTimer) clearTimeout(this._typeAheadTimer);
         this._typeAheadTimer = setTimeout(() => (this._typeAheadBuffer = ''), 800);
-        const match = this._state.model.findIndex((o) => o.label.toLowerCase().startsWith(this._typeAheadBuffer));
+        const match = this._state.options.findIndex((o) => o.label.toLowerCase().startsWith(this._typeAheadBuffer));
         if (match < 0) return;
         if (this._popoverEl.open) this._itemButtons[match]?.focus();
         else this._selectIndex(match, { fromUser: true });
@@ -329,9 +405,9 @@ export class GtkDropDown extends WidgetElement {
         const q = query.trim().toLowerCase();
         // Hoisted for the reason `_applyItemsChanged` gives: this runs on every keystroke of
         // the search field, over every row.
-        const model = this._state.model;
+        const options = this._state.options;
         this._itemButtons.forEach((button, index) => {
-            const match = q.length === 0 || (model[index]?.label.toLowerCase().includes(q) ?? false);
+            const match = q.length === 0 || (options[index]?.label.toLowerCase().includes(q) ?? false);
             button.hidden = !match;
         });
     }
@@ -380,7 +456,7 @@ export class GtkDropDown extends WidgetElement {
             if (existing) existing.remove();
         }
 
-        for (const option of this._state.model) {
+        for (const option of this._state.options) {
             const item = this._createItem(option);
             this._listEl.appendChild(item);
             this._itemButtons.push(item);
@@ -439,11 +515,11 @@ export class GtkDropDown extends WidgetElement {
         }
         const before = this._itemButtons[change.position] ?? null;
         const inserted: HTMLButtonElement[] = [];
-        // Read ONCE: `model` hands back a copy (ADR 0046), so reading it per item would make
-        // a splice of n items O(n²) instead of the O(n) the splice is.
-        const model = this._state.model;
+        // Read ONCE: `options` normalises every item on each call (ADR 0046), so reading it
+        // per item would make a splice of n items O(n²) instead of the O(n) the splice is.
+        const options = this._state.options;
         for (let i = 0; i < change.added; i++) {
-            const option = model[change.position + i];
+            const option = options[change.position + i];
             if (!option) continue;
             const item = this._createItem(option);
             this._listEl.insertBefore(item, before);

@@ -324,6 +324,7 @@ export {
     TAB_PAGES_ITEMS_CHANGED_VECTORS,
     applyListMutation,
     applyListReadback,
+    listModelForInput,
     replayTabPagesAsSplices,
 } from './list.js';
 export type {

@@ -177,7 +177,9 @@ function installForeignSurface(prototype: Record<string, unknown>, meta: Foreign
 
     for (const [name, property] of Object.entries(meta.Properties ?? {})) {
         const fallback =
-            property.default ?? (property.kind === 'string' ? '' : property.kind === 'boolean' ? false : 0);
+            property.kind === 'object'
+                ? null
+                : (property.default ?? (property.kind === 'string' ? '' : property.kind === 'boolean' ? false : 0));
         for (const spelling of new Set([name, name.replace(/-/g, '_'), camel(name)])) {
             define(spelling, {
                 get(this: object): unknown {

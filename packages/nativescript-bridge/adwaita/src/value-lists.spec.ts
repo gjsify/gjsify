@@ -36,8 +36,8 @@ export const AdwValueListsNsTest = async () => {
             await it(vector.rule, () => {
                 const tree = blueprintTree(vector.blueprint);
                 if (vector.strings !== undefined) {
-                    const row = build(tree) as unknown as Pick<AdwComboRow, 'model' | 'selectedValue'>;
-                    expect(JSON.stringify(row.model.map((option) => option.label))).toBe(
+                    const row = build(tree) as unknown as Pick<AdwComboRow, 'options' | 'selectedValue'>;
+                    expect(JSON.stringify(row.options.map((option) => option.label))).toBe(
                         JSON.stringify(vector.strings),
                     );
                     // GTK selects the first item of a fresh model, and so must the port.
