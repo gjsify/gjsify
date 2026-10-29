@@ -1,5 +1,68 @@
 # Changelog
 
+## [0.64.12](https://github.com/gjsify/gjsify/compare/v0.64.11...v0.64.12) (2026-10-29)
+
+### Features
+
+* `Graphene.Point` and Gtk.Widget.compute_point for web and NativeScript ([#2397](https://github.com/gjsify/gjsify/issues/2397)) ([ea3059f](https://github.com/gjsify/gjsify/commit/ea3059ff7b626fead333065b8169e5f269b457a4))
+* **adwaita-core:** `Gtk.StringList` as real Gio.ListModel (ADR 0122) ([#2432](https://github.com/gjsify/gjsify/issues/2432)) ([c4d2e26](https://github.com/gjsify/gjsify/commit/c4d2e266c0d9849860b9828c14ebfe37b6d493b8))
+* **adwaita-core:** `Gtk.Window` default size pair ([#2409](https://github.com/gjsify/gjsify/issues/2409)) ([34968b7](https://github.com/gjsify/gjsify/commit/34968b79848698072151b1ed66ad37632b1e88b8))
+* **adwaita-nativescript:** `Gtk.ApplicationWindow` ([#2412](https://github.com/gjsify/gjsify/issues/2412)) ([8cfd6b6](https://github.com/gjsify/gjsify/commit/8cfd6b6ee81c57c7e27392cb0f84d7714b77f58f))
+* **adwaita-nativescript:** type window action map ([#2419](https://github.com/gjsify/gjsify/issues/2419)) ([862acc8](https://github.com/gjsify/gjsify/commit/862acc816056fa46624b4bebb28d11ea23b1d774))
+* **adwaita-web:** `Gtk.Widget` tree links on elements ([#2407](https://github.com/gjsify/gjsify/issues/2407)) ([23beeff](https://github.com/gjsify/gjsify/commit/23beeffc4fecceb3c1148c6dd515022548caae3e))
+* **adwaita-web:** add Gtk.Box remove and ordering ([#2422](https://github.com/gjsify/gjsify/issues/2422)) ([50cec66](https://github.com/gjsify/gjsify/commit/50cec66ba4bf410c3044cd7958ef29442d22c7b2))
+* **adwaita-web:** add hide_on_close property ([#2421](https://github.com/gjsify/gjsify/issues/2421)) ([2b68722](https://github.com/gjsify/gjsify/commit/2b687226232dcf4899b399fd0aa8da09127ec2a9))
+* **adwaita-web:** type connect on every widget ([#2425](https://github.com/gjsify/gjsify/issues/2425)) ([0a9185d](https://github.com/gjsify/gjsify/commit/0a9185d91127072fce6aa54dc126e87e6ecd0c3d))
+* **adwaita:** `StyleManager` high-contrast, accent ([#2400](https://github.com/gjsify/gjsify/issues/2400)) ([fd32b57](https://github.com/gjsify/gjsify/commit/fd32b578efeda411e38305941174ec3b4e55b5ca))
+* **adwaita:** add GIR names for split and menu ([#2410](https://github.com/gjsify/gjsify/issues/2410)) ([def38ff](https://github.com/gjsify/gjsify/commit/def38ff1ca168667102b5288f2fa207a50b68788))
+* **adwaita:** add GIR names to stack widgets ([#2408](https://github.com/gjsify/gjsify/issues/2408)) ([27b6e3d](https://github.com/gjsify/gjsify/commit/27b6e3d9a655439e2858726abfae3b94339304de))
+* **adwaita:** allow sibling objects in templates ([#2435](https://github.com/gjsify/gjsify/issues/2435)) ([2bb9e23](https://github.com/gjsify/gjsify/commit/2bb9e237273337b18886ff560b0a3c09de689997))
+* **adwaita:** observable Gtk.Adjustment ([#2405](https://github.com/gjsify/gjsify/issues/2405)) ([063906c](https://github.com/gjsify/gjsify/commit/063906c76aea81c701af4aa1b843e6684652e04e))
+* **adwaita:** put Adw.ComboRow and Gtk.DropDown on a real Gio.ListModel ([#2445](https://github.com/gjsify/gjsify/issues/2445)) ([1905c13](https://github.com/gjsify/gjsify/commit/1905c1367004b4519cc4da17d2cd5a7d0f089372)), closes [#2433](https://github.com/gjsify/gjsify/issues/2433)
+* **cli,site:** release record per artifact (ADR 0124) ([#2443](https://github.com/gjsify/gjsify/issues/2443)) ([f657671](https://github.com/gjsify/gjsify/commit/f657671f5ae9ae382eb0f38d8d6bab865a0067b0)), closes [#2442](https://github.com/gjsify/gjsify/issues/2442)
+* **cli:** sign the .dmg, link /Applications ([#2442](https://github.com/gjsify/gjsify/issues/2442)) ([5e08930](https://github.com/gjsify/gjsify/commit/5e089309e2389fa479f7b2590e9a084412a6a10e))
+* **nativescript:** button content as a GObject ([#2424](https://github.com/gjsify/gjsify/issues/2424)) ([6eceb6c](https://github.com/gjsify/gjsify/commit/6eceb6c438abb2c4b90873b30387c22240c44bcf))
+* **nativescript:** button declares clicked ([#2413](https://github.com/gjsify/gjsify/issues/2413)) ([5ae976f](https://github.com/gjsify/gjsify/commit/5ae976fd5c292153618a2f5d03d0d2a4e109b3cd)), closes [#2396](https://github.com/gjsify/gjsify/issues/2396)
+* **nativescript:** deliver Android back as Gdk.KEY_Back ([#2444](https://github.com/gjsify/gjsify/issues/2444)) ([9052311](https://github.com/gjsify/gjsify/commit/90523116d9b99eeb9e7bc692bbecf376ad23bf1d))
+* **nativescript:** expander row as a GObject ([#2403](https://github.com/gjsify/gjsify/issues/2403)) ([ab48745](https://github.com/gjsify/gjsify/commit/ab487457d4f4f889e6d1586253206fbafcbb2a7d))
+* **nativescript:** split button as a GObject ([#2428](https://github.com/gjsify/gjsify/issues/2428)) ([ba8599c](https://github.com/gjsify/gjsify/commit/ba8599cfd6b690bb7bfa51f8940e9137f6bb0eb3)), closes [#2413](https://github.com/gjsify/gjsify/issues/2413) [#2424](https://github.com/gjsify/gjsify/issues/2424)
+* **node-gi:** prototype real GObject in WebAssembly ([#2398](https://github.com/gjsify/gjsify/issues/2398)) ([69510bd](https://github.com/gjsify/gjsify/commit/69510bd555d5124365a3a3b3f91941771a120b31))
+* **node-gi:** read .mo files on Android ([#2438](https://github.com/gjsify/gjsify/issues/2438)) ([a86082b](https://github.com/gjsify/gjsify/commit/a86082b34b60f60e9924b3644c3934c47e491647))
+* **site:** developer link and support note ([#2446](https://github.com/gjsify/gjsify/issues/2446)) ([8bad15c](https://github.com/gjsify/gjsify/commit/8bad15c0969271f00e7f4d156a5096673eb81dc3))
+* **site:** developer page and blog ([#2393](https://github.com/gjsify/gjsify/issues/2393)) ([e9026ad](https://github.com/gjsify/gjsify/commit/e9026ad9f11b386102628e9e6fb93cb8b6cbd5ee))
+* **speech-synthesis:** add Web Speech synthesis on libspiel ([#2394](https://github.com/gjsify/gjsify/issues/2394)) ([61a72b0](https://github.com/gjsify/gjsify/commit/61a72b0dfcb34ae47c92f99cc1edc78c113ca6c1))
+* **spiel-native:** ship libspiel as a prebuild ([#2395](https://github.com/gjsify/gjsify/issues/2395)) ([04067b5](https://github.com/gjsify/gjsify/commit/04067b51627c5b15d873282f8ca596ae995fb7ed))
+* **sqlite:** run node:sqlite on libsqlite3 via sqlite-native ([#2431](https://github.com/gjsify/gjsify/issues/2431)) ([a7951d9](https://github.com/gjsify/gjsify/commit/a7951d9cbb3ef6be4bbb0df6841d0be494a230f8)), closes [#2430](https://github.com/gjsify/gjsify/issues/2430) [#2427](https://github.com/gjsify/gjsify/issues/2427) [#2418](https://github.com/gjsify/gjsify/issues/2418)
+
+### Bug Fixes
+
+* **adwaita-nativescript:** close open bottom sheet on back ([#2434](https://github.com/gjsify/gjsify/issues/2434)) ([18c234b](https://github.com/gjsify/gjsify/commit/18c234b7077526ca605aad1d91820a0f70575dca))
+* **adwaita-nativescript:** make Window.close() work on Android ([#2437](https://github.com/gjsify/gjsify/issues/2437)) ([a1b737e](https://github.com/gjsify/gjsify/commit/a1b737e1771aa66d33b40dce544ce97d99d29832))
+* **adwaita-web:** deliver a signal to its own element only ([#2420](https://github.com/gjsify/gjsify/issues/2420)) ([dcc5879](https://github.com/gjsify/gjsify/commit/dcc587985d13d827c67d13c721809f17c2b42735))
+* **adwaita:** read the NS system accent without android.R ([#2404](https://github.com/gjsify/gjsify/issues/2404)) ([c2955ca](https://github.com/gjsify/gjsify/commit/c2955cabfe25906cadd46c904c629414368673bc))
+* **child_process,process:** child keepalive, stdin async iter ([#2388](https://github.com/gjsify/gjsify/issues/2388)) ([fd76841](https://github.com/gjsify/gjsify/commit/fd76841cb7ff8698b9330cf20993503974c6dd9e)), closes [#13](https://github.com/gjsify/gjsify/issues/13)
+* **fs:** add realpath.native to the callback API ([#2426](https://github.com/gjsify/gjsify/issues/2426)) ([2362898](https://github.com/gjsify/gjsify/commit/2362898df31817a0c8c1d3047fc908d758c00c6a)), closes [#2423](https://github.com/gjsify/gjsify/issues/2423)
+* **nativescript:** emit only declared signals ([#2396](https://github.com/gjsify/gjsify/issues/2396)) ([b2048c1](https://github.com/gjsify/gjsify/commit/b2048c11b71708470087d910fff8721b45c68edf))
+* **prebuilds:** commit sqlite + spiel prebuilds ([#2441](https://github.com/gjsify/gjsify/issues/2441)) ([dd5bd57](https://github.com/gjsify/gjsify/commit/dd5bd57ac11396728fe1496abe35b35e49465cec)), closes [#2395](https://github.com/gjsify/gjsify/issues/2395) [#2440](https://github.com/gjsify/gjsify/issues/2440)
+* **tls:** upgrade a plain socket as server on GJS ([#2448](https://github.com/gjsify/gjsify/issues/2448)) ([2f75fda](https://github.com/gjsify/gjsify/commit/2f75fda45fa3eb4a5cb2366d35d73c7cb3499b65))
+* **vite-plugin-gjsify:** dedupe workspace links ([#2411](https://github.com/gjsify/gjsify/issues/2411)) ([30af0ce](https://github.com/gjsify/gjsify/commit/30af0ce4fecba99b9bddf3be943ceb5fa2da396b))
+
+### Performance Improvements
+
+* **node-gi:** fast paths for property writes ([#2406](https://github.com/gjsify/gjsify/issues/2406)) ([6e85e75](https://github.com/gjsify/gjsify/commit/6e85e756f4ff5aeb0dd488c43d8265939a67174e))
+* **sqlite:** decode BLOBs in one pass ([#2417](https://github.com/gjsify/gjsify/issues/2417)) ([81ff025](https://github.com/gjsify/gjsify/commit/81ff02508e75b17a22f6566d986fe70908811b7a)), closes [#2416](https://github.com/gjsify/gjsify/issues/2416)
+
+### Documentation
+
+* **adr:** accept 0117 ([#2399](https://github.com/gjsify/gjsify/issues/2399)) ([bd57480](https://github.com/gjsify/gjsify/commit/bd57480355eca309f371cced2c886a9211941df8))
+* **adr:** accept 0120 developer page and blog ([#2392](https://github.com/gjsify/gjsify/issues/2392)) ([f6553c3](https://github.com/gjsify/gjsify/commit/f6553c3b7e6eb778e4f3342d656fd63deeb82a54))
+* **adr:** accept 0122 string list as a real list model ([#2429](https://github.com/gjsify/gjsify/issues/2429)) ([2336c16](https://github.com/gjsify/gjsify/commit/2336c16d4109b23835bd0d21fe04c8042892b24e)), closes [#2424](https://github.com/gjsify/gjsify/issues/2424)
+* **node-gi:** measure the wasm boundary cost ([#2402](https://github.com/gjsify/gjsify/issues/2402)) ([2c6ecb0](https://github.com/gjsify/gjsify/commit/2c6ecb0eb925d46e2f9c20cd3869fbb5df02c3e4))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([824e34b](https://github.com/gjsify/gjsify/commit/824e34bd22e601eb6fd69d3ea1364261ce2c4bfa))
+
 ## [0.64.11](https://github.com/gjsify/gjsify/compare/v0.64.10...v0.64.11) (2026-10-25)
 
 ### Bug Fixes

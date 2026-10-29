@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/sqlite-native",
-    "version": "0.64.11",
+    "version": "0.64.12",
     "description": "Optional Vala/GObject bridge over the system libsqlite3, exposing the parts of the C API that cannot be expressed in JavaScript: a connection handle, prepared statements with 1-based parameter binding, and a typed column cursor. Errors carry sqlite's extended result code. Used by @gjsify/sqlite to implement node:sqlite directly on sqlite3 instead of through libgda.",
     "type": "module",
     "main": "lib/esm/index.js",

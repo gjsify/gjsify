@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/spiel-native",
-    "version": "0.64.11",
+    "version": "0.64.12",
     "description": "libspiel, the GNOME Spiel speech-synthesis client library, built as one relocatable shared library plus its typelib so `gi://Spiel` can be imported without a system libspiel — the backend of @gjsify/speech-synthesis. The prebuilt library arrives through per-target optionalDependencies; this package adds only the probe that says where Spiel came from.",
     "type": "module",
     "main": "lib/esm/index.js",

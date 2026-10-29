@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/sqlite-native-darwin-x64",
-    "version": "0.64.11",
+    "version": "0.64.12",
     "description": "darwin-x64 prebuilt native library + GObject-Introspection typelib for @gjsify/sqlite-native. Installed automatically on darwin/x64 as an optionalDependency of that package (ADR 0017) and skipped everywhere else. Contains no JavaScript.",
     "license": "MIT",
     "os": [

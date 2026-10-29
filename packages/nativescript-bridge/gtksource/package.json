@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/gtksource-nativescript",
-    "version": "0.64.11",
+    "version": "0.64.12",
     "description": "GtkSource.View for NativeScript — an Android EditText with incremental syntax highlighting, a line-number gutter and GtkSourceView language/scheme managers, driven by @gjsify/gtksource-core",
     "type": "module",
     "module": "lib/esm/index.js",
