@@ -781,6 +781,36 @@ export function readLicenseCorpus(dir) {
     return out;
 }
 
+/**
+ * The sysroot's `libintl.so` is proxy-libintl, which never opens a `.mo`: every dgettext
+ * answers its msgid. The AAR carries this package's own reader instead (libintl/libintl.c,
+ * same `g_libintl_*` surface), compiled here with the NDK so the sysroot pin need not move.
+ */
+export const LIBINTL_SONAME = 'libintl.so';
+const LIBINTL_TARGETS = { 'arm64-v8a': 'aarch64-linux-android', x86_64: 'x86_64-linux-android' };
+
+function buildLibintl(ndk, abi, abiStage) {
+    const clang = ndkTool(ndk, 'clang');
+    const strip = ndkTool(ndk, 'llvm-strip');
+    const out = join(abiStage, 'libintl.built.so');
+    execFileSync(clang, [
+        `--target=${LIBINTL_TARGETS[abi]}24`,
+        '-shared',
+        '-fPIC',
+        '-Os',
+        '-fvisibility=hidden',
+        '-Wl,-soname,libintl.so',
+        '-Wl,--gc-sections',
+        '-o',
+        out,
+        join(pkgDir, 'libintl', 'libintl.c'),
+    ]);
+    execFileSync(strip, ['--strip-unneeded', out]);
+    const bytes = readFileSync(out);
+    rmSync(out);
+    return bytes;
+}
+
 function main() {
     const opts = parseArgs(process.argv.slice(2));
     const ndk = requireDir('--ndk', opts.ndk, 'set ANDROID_NDK_HOME or pass --ndk');
@@ -843,6 +873,7 @@ function main() {
                 execFileSync(strip, ['--strip-unneeded', '-o', dst, src]);
                 const bytes = readFileSync(dst);
                 if (soname === 'libnode_gi.so') nodeGi = bytes;
+                else if (soname === LIBINTL_SONAME) libs.set(soname, buildLibintl(ndk, abi, abiStage));
                 else libs.set(soname, bytes);
             }
             perAbiPayload[abi] = { nodeGi, libs };

@@ -63,3 +63,6 @@ export interface GettextModule {
 
 declare const Gettext: GettextModule;
 export default Gettext;
+
+/** Re-derive message languages from the platform (Android); null elsewhere. */
+export function refreshLocale(): string | null;

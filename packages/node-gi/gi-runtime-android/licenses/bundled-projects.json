@@ -45,7 +45,7 @@
         "libpng16.so": "libpng",
         "libxml2.so": "libxml2",
         "libffi.so": "libffi",
-        "libintl.so": "proxy-libintl"
+        "libintl.so": "gjsify-libintl"
     },
     "projects": {
         "glib": {
@@ -138,10 +138,10 @@
             "upstream": "https://github.com/libffi/libffi",
             "licenseFiles": ["LICENSE"]
         },
-        "proxy-libintl": {
-            "name": "proxy-libintl",
-            "upstream": "https://github.com/frida/proxy-libintl",
-            "licenseFiles": ["COPYING"]
+        "gjsify-libintl": {
+            "name": "libintl (gjsify .mo reader, replaces the sysroot's proxy-libintl)",
+            "upstream": "https://github.com/gjsify/gjsify/tree/main/packages/node-gi/gi-runtime-android",
+            "licenseFiles": ["LICENSE"]
         }
     }
 }

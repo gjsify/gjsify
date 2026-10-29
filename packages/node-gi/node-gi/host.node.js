@@ -32,7 +32,21 @@ import { setImmediate, setInterval, clearInterval } from 'node:timers';
 // loop-liveness hooks in gi.js would silently never fire.
 import runtimeProcess from 'node:process';
 
-export { setImmediate, setInterval, clearInterval, runtimeProcess, windowingEnvWrites, bundledLocaleDir };
+// Only Android derives the locale from the platform (host.nativescript.js); a desktop
+// process already has LANG, so there is nothing to refresh.
+function refreshLocale() {
+    return null;
+}
+
+export {
+    setImmediate,
+    setInterval,
+    clearInterval,
+    runtimeProcess,
+    windowingEnvWrites,
+    bundledLocaleDir,
+    refreshLocale,
+};
 
 const require = createRequire(import.meta.url);
 const here = packageRoot;

@@ -217,3 +217,13 @@ import { isPresent, aarPath, deviceTypelibSubdir, readRuntimeManifest } from '@g
 `readRuntimeManifest()` returns `gi-runtime.json` — the ABIs, the GI prefix the payload
 was built from, every library and typelib with its size and `sha256`, and the AAR's own
 digest — or `null` when the payload was never built.
+
+## Translations: `libintl/libintl.c`
+
+The sysroot's `libintl.so` is proxy-libintl, which never reads a `.mo`. The AAR carries its
+own reader instead, compiled by `build-gi-runtime-android.mjs` with the NDK (same
+`g_libintl_*` surface, ~13 KB). It reads the language from `LANGUAGE`/`LC_ALL`/`LC_MESSAGES`/`LANG`
+on every lookup and never calls `setlocale` (bionic accepts only `C`/`C.UTF-8`).
+`@gjsify/node-gi`'s NativeScript host sets `LANGUAGE` from the platform's locale list at load;
+call `refreshLocale()` from `@gjsify/node-gi/gettext` after the user changes the app language.
+Catalogs are UTF-8 only; `bind_textdomain_codeset` records the name and converts nothing.

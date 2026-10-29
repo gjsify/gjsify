@@ -70,6 +70,10 @@ export const runtimeProcess = {
 };
 
 // No bundled-GTK windowing loader here: nothing was written, nothing to replay.
+export function refreshLocale() {
+    return null;
+}
+
 export function windowingEnvWrites() {
     return [];
 }

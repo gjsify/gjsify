@@ -121,6 +121,65 @@ function setNativeEnv(name, value) {
     globalThis.android?.system?.Os?.setenv(name, value, true);
 }
 
+/**
+ * The LANGUAGE value for a list of BCP-47 tags: `de-DE` → `de_DE:de`, `zh-Hans-CN` → `zh_CN:zh`,
+ * de-duplicated, with `C` last as GLib orders it. Bionic's setlocale accepts only C/C.UTF-8
+ * and Android sets no LANG, so GLib's language list (and the libintl in gi-runtime-android,
+ * which reads LANGUAGE on every lookup) has nothing else to go on. Pure — no device needed.
+ * @param {string[]} tags
+ * @returns {string}
+ */
+export function languageFromBcp47(tags) {
+    const out = [];
+    const add = (name) => {
+        if (!out.includes(name)) out.push(name);
+    };
+    for (const tag of tags) {
+        const parts = String(tag).split(/[-_]/).filter(Boolean);
+        if (parts.length === 0 || !/^[A-Za-z]{2,3}$/.test(parts[0])) continue;
+        const lang = parts[0].toLowerCase();
+        const region = parts.slice(1).find((p) => /^([A-Za-z]{2}|\d{3})$/.test(p));
+        if (region) add(`${lang}_${region.toUpperCase()}`);
+        add(lang);
+    }
+    add('C');
+    return out.join(':');
+}
+
+function platformLanguageTags() {
+    const locales = globalThis.android?.content?.res?.Resources?.getSystem?.()?.getConfiguration?.()?.getLocales?.();
+    const tags = [];
+    if (locales) {
+        for (let i = 0; i < locales.size(); i++) tags.push(String(locales.get(i).toLanguageTag()));
+    }
+    if (tags.length === 0) {
+        const one = globalThis.java?.util?.Locale?.getDefault?.();
+        if (one) tags.push(String(one.toLanguageTag()));
+    }
+    return tags;
+}
+
+/**
+ * Point LANGUAGE at the platform's current locale list. Call it again when the user
+ * switches the app's language: libintl and GLib re-read the variable, nothing is cached.
+ * The explicit __NODE_GI_LANGUAGE global wins, for a host that manages its own.
+ * @returns {string | null} the value set, or null when the platform gave nothing
+ */
+export function refreshLocale() {
+    let value = globalThis.__NODE_GI_LANGUAGE;
+    if (typeof value !== 'string' || value === '') {
+        try {
+            const tags = platformLanguageTags();
+            value = tags.length > 0 ? languageFromBcp47(tags) : null;
+        } catch {
+            value = null;
+        }
+    }
+    if (value === null || value === undefined) return null;
+    setNativeEnv('LANGUAGE', value);
+    return value;
+}
+
 function appDirectory() {
     const set = globalThis.__NODE_GI_APP_DIR;
     if (typeof set === 'string' && set !== '') return set;
@@ -165,6 +224,7 @@ function ensureJavaVm(native) {
 }
 
 function configureEnvironment() {
+    refreshLocale();
     const systemDir = globalThis.__NODE_GI_SYSTEM_DIR;
     if (typeof systemDir === 'string' && systemDir !== '') {
         setNativeEnv('XDG_DATA_DIRS', `${systemDir}/share`);
