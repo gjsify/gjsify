@@ -471,12 +471,17 @@ Two things stage 1a turned up. The pinned sysroot has the cairo, freetype and fo
 LIBRARIES but no typelib for any of them, so `["Gtk"]` — ADR 0117's own acceptance (b) — fails
 today, as do Gdk, Gsk, Adw, GdkAndroid and Pango; only `Graphene`, `GdkPixbuf` and `GdkPixdata`
 resolve. Generating those three typelibs is the next sysroot task and it needs no new third-party
-code. And `@gjsify/nativescript-vite`, which is how a real app builds, does not run the gate yet —
-only `gjsify build --app nativescript` does.
+code. And `@gjsify/nativescript-vite`, which is how a real app builds, did not run the gate.
 
-Stage 1b is the rest of ADR 0117 § 1: `@gjsify/gi-runtime-android-gtk`, the `release.yml` job that
-publishes core and add-ons in lockstep, the startup check against a mixed set, and the
-`nativescript-vite` path.
+**The Vite path now does.** `defineNativescriptConfig({ giNamespaces: [...] })` runs the same gate
+over the emitted bundle; the scanner and the planner moved from `@gjsify/cli` (whose `exports: {}`
+made them unreachable) into `@gjsify/rolldown-plugin-gjsify`, so there is one definition and no
+second parse. Two findings went back into ADR 0117: the suggested second input (a `requireGi`
+marker) is not statically implementable on this path, and a `gi://` specifier is not a payload
+requirement under `giRenderer` — it resolves to the JS renderer, not to a typelib.
+
+Stage 1b's rest: `@gjsify/gi-runtime-android-gtk`, the `release.yml` job that publishes core and
+add-ons in lockstep, and the startup check against a mixed set.
 
 Two things need Pascal before stage 2 can start: the TLS backend (OpenSSL or GnuTLS — the Android
 argument is that p11-kit's trust module sits behind a compiled-in path with no env override and

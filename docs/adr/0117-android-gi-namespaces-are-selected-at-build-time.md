@@ -376,9 +376,10 @@ note that stage 1 lands the `release.yml` job "for all of them together or not a
 1b, and nothing in 1a publishes anything.
 
 **Stage 1a — the selection mechanism** (#2280). `nativescript.giNamespaces` in the app config, validated
-in `packages/infra/cli/src/config.ts`; `planGiSelection`
-(`packages/infra/cli/src/utils/ship/gi-selection.ts`) reconciles it against `scanGiNamespaces` of
-the emitted bundle, as a post-bundle gate in `build.ts` beside the GJS and node ones. On the AAR
+in `packages/infra/cli/src/config.ts`; `planGiSelection` reconciles it against `scanGiNamespaces`
+of the emitted bundle, as a post-bundle gate in `build.ts` beside the GJS and node ones. (1a put
+both in `packages/infra/cli/src/utils/ship/`; 1b moved them to
+`packages/infra/rolldown-plugin-gjsify/src/utils/` so the Vite path shares them — see below.) On the AAR
 side, `planGiRoots` turns the requested namespaces into SEEDS — walked and bundled — which
 `planClosure` now accepts next to `roots`, and `planTypelibSet` stays the single judge of what
 ships. `--gi-namespaces` / `NODE_GI_ANDROID_NAMESPACES` drive the same path from the command line.
@@ -416,14 +417,42 @@ What 1a found that § 4 and § 5 get wrong:
   empty scan can only fail to warn, never wrongly fail a build.
 
 Not in 1a, and deliberately: `@gjsify/nativescript-vite` (`defineNativescriptConfig`), which is
-how a real app builds, does not run the gate — only `gjsify build --app nativescript` does. Wiring
-it there is 1b, with `tests/integration/nativescript-gi/` as its subject, and it is the same place
-the scan's blind spot above gets a second input (node-gi's own `requireGi` wrapper can emit the
-`gi://`-style marker ADR 0087 already uses for optional namespaces).
+how a real app builds, did not run the gate — only `gjsify build --app nativescript` did. Wiring it
+there was 1b's first change, and it is where the scan's blind spot was to get a second input
+(node-gi's own `requireGi` wrapper emitting the `gi://`-style marker ADR 0087 uses for optional
+namespaces). The gate landed; the second input did not, and cannot — see below.
 
 **Stage 1b — the package split.** `@gjsify/gi-runtime-android-gtk` and the `release.yml` job that
 publishes core and add-ons together, the startup check that refuses a mixed set, the three missing
 typelibs in the sysroot, and the `nativescript-vite` path.
+
+What 1b found wiring the Vite path:
+
+- **The scanner and the planner had to MOVE, because the CLI cannot be imported from.**
+  `@gjsify/cli` declares `exports: {}`, so `@gjsify/vite-plugin-gjsify` could not reach
+  `scanGiNamespaces` or `planGiSelection` where 1a put them. A second parse on the Vite side is
+  exactly the "one definition of what this bundle imports" rule this ADR set in § 2, so instead
+  both modules moved down into `@gjsify/rolldown-plugin-gjsify`, the dependency the CLI and the
+  Vite plugin already share. The move also removed a cross-package `GI_OPTIONAL_MARKER` import
+  that pointed the wrong way, and `config.ts`'s entry-shape validation became
+  `assertGiNamespaceEntries`, one definition for both paths. `planGiSelection`'s semantics are
+  unchanged and the emitted bundle is still the oracle: the plugin reads it in `writeBundle`, the
+  way `build.ts` reads it after emit.
+
+- **The suggested second input is not statically implementable.** The marker idea assumes
+  `requireGi` calls that a bundle pass can see. On this path they are inside the bundled gjsify
+  packages, reached through an inlined local binding, and their arguments are frequently computed
+  — a renderer picks a namespace by name at runtime. There is no honest static marker to emit, so
+  on the Vite path the config is not merely authoritative, it is the only input. That is sound for
+  the same reason § 2's lower-bound rule is: a missing scan can only fail to warn, never wrongly
+  fail a build.
+
+- **A `gi://` specifier in the module graph is not a payload requirement under `giRenderer`.** The
+  tempting Vite-path input is a `resolveId` observer counting `gi://` specifiers. It is wrong: with
+  `giRenderer: true` every `gi://Ns` resolves to the JS renderer, not to a typelib, so a
+  `gi://Gtk` import demands nothing of the AAR. Feeding those to `planGiSelection` would require
+  `giNamespaces: ["Gtk", "Adw"]` of a Learn6502-shaped app and then fail in `planTypelibSet`,
+  which cannot satisfy either on the pinned sysroot — a gate that breaks the one app it guards.
 
 ## Amendment 2026-10-16: the sysroot has a CI path
 

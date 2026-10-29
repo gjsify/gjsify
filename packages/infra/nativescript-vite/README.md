@@ -48,7 +48,7 @@ import { defineNativescriptConfig } from '@gjsify/nativescript-vite';
 export default defineNativescriptConfig();
 ```
 
-It returns an async Vite config **function**, so Vite resolves `mode` and passes it through; the upstream `@nativescript/vite` config is built for the right mode before the fixes + gjsify transforms are applied. The first argument is forwarded to the `gjsifyNativescript()` preset from `@gjsify/vite-plugin-gjsify` (`{ reflection?, aliases?, optimizeDepsExclude? }`); an optional second argument is a Vite config (object or `(env) => config`) that is `mergeConfig`'d in last, so you can compose your own settings on top.
+It returns an async Vite config **function**, so Vite resolves `mode` and passes it through; the upstream `@nativescript/vite` config is built for the right mode before the fixes + gjsify transforms are applied. The first argument is forwarded to the `gjsifyNativescript()` preset from `@gjsify/vite-plugin-gjsify` (`{ reflection?, aliases?, optimizeDepsExclude?, giRenderer?, locale?, giNamespaces? }`); an optional second argument is a Vite config (object or `(env) => config`) that is `mergeConfig`'d in last, so you can compose your own settings on top.
 
 `nativescript.config.ts` — select the Vite bundler:
 
@@ -68,6 +68,33 @@ Then build as usual:
 ```bash
 ns prepare android   # or: ns run android / ns run ios
 ```
+
+## Declaring the GI namespaces your APK carries
+
+An Android APK carries its whole GI stack or does without it: there is no `apt install gir1.2-soup-3.0` on a device, so a namespace that is not in the APK surfaces as a throw at the first `requireGi`. `@gjsify/gi-runtime-android` therefore ships a fixed CORE set — `GLib`, `GObject`, `Gio` and the other typelibs its link closure happens to contain — and anything beyond that is **declared**, per app, at build time ([ADR 0117](https://github.com/gjsify/gjsify/blob/main/docs/adr/0117-android-gi-namespaces-are-selected-at-build-time.md)).
+
+The declaration is `giNamespaces` in the first argument, `Ns` or `Ns-Version`:
+
+```ts
+import { defineNativescriptConfig } from '@gjsify/nativescript-vite';
+
+export default defineNativescriptConfig({
+  giNamespaces: ['Soup-3.0', 'Json'],
+});
+```
+
+Two things follow from it:
+
+- **The build refuses to emit a bundle that imports a namespace the list omits**, naming the chunk the import was read from and the line to add. This is the direction that matters: a missing declaration is a crash on the device, so it is a build failure here.
+- **A declared namespace the bundle does not appear to import is a warning**, not a failure. `GLib.Module`, a plugin loaded by name and `Gio.DBusProxy` reaching a namespace through a string are all legitimate and invisible to a scanner, and the declaration is how an app says so. The warning exists because every selected namespace costs APK size.
+
+Declaring nothing selects exactly the core payload, which is what every app built before this option got — so adding the option to an existing config changes no bytes until you list something.
+
+Under `giRenderer: true` a `gi://Gtk` import is **not** a reason to declare `Gtk`: the renderer answers those specifiers with `@gjsify/adwaita-nativescript`, no typelib is involved, and the scan reads the emitted bundle precisely so that it sees what survived the renderer rather than what the module graph contained.
+
+The same declaration under `gjsify build --app nativescript` is `nativescript.giNamespaces` in `gjsify.config.ts`. Both paths share one scanner and one planner (in `@gjsify/rolldown-plugin-gjsify`), so a config means the same thing whichever drives the build.
+
+What a namespace can resolve to is bounded by the pinned Android sysroot: a namespace whose backing library or typelib the sysroot does not carry fails the AAR build naming what is missing, rather than shipping a typelib that dies in `g_module_open`.
 
 ## Audio-context note
 

@@ -126,8 +126,11 @@ backer is missing still fails the build rather than shipping a typelib that dies
 Selecting nothing selects exactly today's payload, which
 `gi-runtime-android/payload-baseline.json` freezes (the pinned prefix's link graph) and
 `test/gi-runtime-android.test.mjs` replays. On the app side the declaration is
-`nativescript.giNamespaces` in `gjsify.config.ts`, and `gjsify build --app nativescript` fails
-naming any GI namespace the emitted bundle imports that the config does not list.
+`nativescript.giNamespaces` — in `gjsify.config.ts` for `gjsify build --app nativescript`, or as
+`defineNativescriptConfig({ giNamespaces: [...] })` for a Vite-built app — and both paths fail the
+build naming any GI namespace the emitted bundle imports that the declaration does not list. They
+share one scanner and one planner (`@gjsify/rolldown-plugin-gjsify`'s `utils/gi-namespaces.ts` and
+`utils/gi-selection.ts`), so the two cannot drift apart.
 
 `android-*` still does not enter `gjsify.platforms` (ADR 0104's conformance rule); the package
 declares `runtimes.nativescript: 'native'` and `gjsify.nativescriptPlatforms: ["android"]` instead.
