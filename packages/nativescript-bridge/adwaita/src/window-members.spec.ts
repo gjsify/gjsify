@@ -6,6 +6,8 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import * as Adw from './namespace/adw.js';
+import * as Gdk from './namespace/gdk.js';
+import * as GObject from './namespace/gobject.js';
 import * as Gtk from './namespace/gtk.js';
 import { useWindowHost, type WindowHost } from './window-host.js';
 import type { View } from '@nativescript/core';
@@ -63,6 +65,12 @@ function fakeHost(canFinish: boolean): FakeHost {
     return host;
 }
 
+/** A window class applications register (`GObject.registerClass`), which is what carries `add_controller`. */
+class KeyWindow extends Gtk.Window {}
+GObject.registerClass({ GTypeName: 'BackKeyWindow' }, KeyWindow);
+class KeyAdwWindow extends Adw.Window {}
+GObject.registerClass({ GTypeName: 'BackKeyAdwWindow' }, KeyAdwWindow);
+
 /** A window the platform has loaded, so it is "realized". */
 function loadedWindow(): Gtk.Window {
     const window = new Gtk.Window();
@@ -77,8 +85,12 @@ function loaded<T extends object>(view: T): T {
 }
 
 /** A window whose back handling is armed, asking `close-request` into `asked`. */
-function backWindow(host: FakeHost, content: object): { window: Adw.Window; asked: () => number } {
-    const window = loaded(new Adw.Window());
+function backWindow(
+    host: FakeHost,
+    content: object,
+    Window: typeof Adw.Window = Adw.Window,
+): { window: Adw.Window; asked: () => number } {
+    const window = loaded(new Window());
     window.content = content as never;
     window.onLoaded();
     let asked = 0;
@@ -176,6 +188,90 @@ export const GtkWindowMembersNsTest = async () => {
                 expect(host.pressBack()).toBe(true);
                 expect(asked).toBe(1);
                 expect(host.finished).toBe(1);
+            } finally {
+                useWindowHost(null);
+            }
+        });
+
+        await it('back is a Gdk.KEY_Back key-pressed on the window: handled means no close-request', () => {
+            const host = fakeHost(true);
+            useWindowHost(host);
+            try {
+                const window = Object.defineProperty(new KeyWindow(), 'isLoaded', { value: true });
+                window.onLoaded();
+                let asked = 0;
+                window.connect('close-request', () => {
+                    asked++;
+                    return false;
+                });
+                const keys: number[] = [];
+                const controller = new Gtk.EventControllerKey();
+                controller.connect('key-pressed', (_c, keyval) => {
+                    keys.push(keyval);
+                    return true;
+                });
+                (window as unknown as { add_controller(c: unknown): void }).add_controller(controller);
+                expect(host.pressBack()).toBe(true);
+                expect(keys).toStrictEqual([Gdk.KEY_Back]);
+                expect(asked).toBe(0);
+                expect(host.finished).toBe(0);
+            } finally {
+                useWindowHost(null);
+            }
+        });
+
+        await it('back a key controller leaves unhandled (false) continues to close-request', () => {
+            const host = fakeHost(true);
+            useWindowHost(host);
+            try {
+                const window = Object.defineProperty(new KeyWindow(), 'isLoaded', { value: true });
+                window.onLoaded();
+                let asked = 0;
+                window.connect('close-request', () => {
+                    asked++;
+                    return false;
+                });
+                let seen = 0;
+                const controller = new Gtk.EventControllerKey();
+                controller.connect('key-pressed', () => {
+                    seen++;
+                    return false;
+                });
+                (window as unknown as { add_controller(c: unknown): void }).add_controller(controller);
+                expect(host.pressBack()).toBe(true);
+                expect(seen).toBe(1);
+                expect(asked).toBe(1);
+                expect(host.finished).toBe(1);
+                // a removed controller is not asked again
+                (window as unknown as { remove_controller(c: unknown): void }).remove_controller(controller);
+                host.pressBack();
+                expect(seen).toBe(1);
+            } finally {
+                useWindowHost(null);
+            }
+        });
+
+        await it('back pops a navigation page before the window key controllers see Gdk.KEY_Back', () => {
+            const host = fakeHost(true);
+            useWindowHost(host);
+            try {
+                const nav = loaded(new Adw.NavigationView());
+                nav.add(new Gtk.Box() as never);
+                nav.push(new Gtk.Box() as never);
+                const { window, asked } = backWindow(host, nav, KeyAdwWindow);
+                let seen = 0;
+                const controller = new Gtk.EventControllerKey();
+                controller.connect('key-pressed', () => {
+                    seen++;
+                    return true;
+                });
+                (window as unknown as { add_controller(c: unknown): void }).add_controller(controller);
+                host.pressBack();
+                expect(nav.depth).toBe(1);
+                expect(seen).toBe(0);
+                host.pressBack();
+                expect(seen).toBe(1);
+                expect(asked()).toBe(0);
             } finally {
                 useWindowHost(null);
             }

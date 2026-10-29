@@ -57,6 +57,8 @@ export const GDK_KEYS = Object.freeze({
     KEY_Up: 0xff52,
     KEY_Right: 0xff53,
     KEY_Down: 0xff54,
+    /** XF86Back: the hardware / mouse back key, and what Android's back button is delivered as. */
+    KEY_Back: 0x1008ff26,
 } as const);
 
 const NAMED_KEYS: Readonly<Record<string, number>> = {
@@ -67,6 +69,7 @@ const NAMED_KEYS: Readonly<Record<string, number>> = {
     ArrowUp: GDK_KEYS.KEY_Up,
     ArrowRight: GDK_KEYS.KEY_Right,
     ArrowDown: GDK_KEYS.KEY_Down,
+    BrowserBack: GDK_KEYS.KEY_Back,
 };
 
 /** A DOM `key` as the keysym GTK would deliver: a Latin-1 character is its own code point, lowercased. */
@@ -297,6 +300,28 @@ export function createGtkPlatform(host: PlatformHost): GtkPlatform {
     };
 }
 
+const controllersOf = new WeakMap<object, Set<EventControllerKey>>();
+const ownerOf = new WeakMap<EventControllerKey, object>();
+
+function forget(controller: EventControllerKey): void {
+    const owner = ownerOf.get(controller);
+    if (owner) controllersOf.get(owner)?.delete(controller);
+    ownerOf.delete(controller);
+}
+
+/**
+ * Runs `event` through the key controllers attached to `widget`, as GTK does for a key the widget's
+ * toplevel receives: the first controller whose `key-pressed` / `key-released` handler returns true
+ * takes it. For keys the platform delivers by another road than the widget's own key listener (the
+ * Android back button); the result is whether a controller handled it.
+ */
+export function deliverKeyToControllers(widget: object, event: HostKeyEvent): boolean {
+    for (const controller of Array.from(controllersOf.get(widget) ?? [])) {
+        if (EventControllerKey.dispatch(controller, event)) return true;
+    }
+    return false;
+}
+
 /** `Gtk.Widget.add_controller` / `remove_controller` for the widgets of a port. */
 export function widgetControllerMembers(host: PlatformHost): {
     add_controller(this: object, controller: EventControllerKey): void;
@@ -304,12 +329,18 @@ export function widgetControllerMembers(host: PlatformHost): {
 } {
     return {
         add_controller(this: object, controller) {
+            forget(controller);
             EventControllerKey.attach(
                 controller,
                 host.listenKeys(this, (event) => EventControllerKey.dispatch(controller, event)),
             );
+            let set = controllersOf.get(this);
+            if (!set) controllersOf.set(this, (set = new Set()));
+            set.add(controller);
+            ownerOf.set(controller, this);
         },
         remove_controller(controller) {
+            forget(controller);
             EventControllerKey.attach(controller, null);
         },
     };

@@ -143,8 +143,13 @@ from the legacy `onBackPressed` AND from the AndroidX `OnBackPressedCallback` it
 activity's dispatcher for API 33+, where predictive back needs a registered callback. A second
 dispatcher callback of our own would race NS's for the gesture, so there is none.
 
-Order, toplevel window only: topmost open dialog, innermost `Adw.NavigationView.popFromShortcut()`,
-then `close-request` (a handler returning true keeps the window, else `finish()`). The window always
+Order, toplevel window only: topmost open dialog, open bottom sheet, innermost
+`Adw.NavigationView.popFromShortcut()`, then the window's key controllers get a `key-pressed` of
+`Gdk.KEY_Back` (XF86Back, the key GTK delivers for a hardware back key; `state` 0) and the first handler
+returning true takes the press, then `close-request` (a handler returning true keeps the window, else
+`finish()`). An application binds Back as it would on GNOME (`Gtk.EventControllerKey` on the window) and
+`close-request` stays what the X button and Ctrl+W mean. The press reaches the controllers by this event, not
+through the view's key listener, so a controller sees it once. The window always
 sets `cancel`. A window nested in another window subscribes nothing; `onUnloaded` unsubscribes.
 Unverified on a device.
 

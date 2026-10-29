@@ -15,7 +15,9 @@
 //                  returning true keeps the window. On Android the back button / gesture of the
 //                  TOPLEVEL window asks the same question, after nested things had their turn:
 //                  1 the topmost presented dialog closes (`can-close` false keeps it, still
-//                  consumed), 2 the innermost `Adw.NavigationView` pops (`popFromShortcut`), 3
+//                  consumed), 2 the innermost `Adw.NavigationView` pops (`popFromShortcut`), 3 the
+//                  window's own key controllers get `Gdk.KEY_Back` (XF86Back, what GTK delivers
+//                  for a hardware back key) and one returning true takes the press, 4
 //                  `close-request` — a handler returning true keeps the window, else `finish()`.
 //                  iOS has no back button: nothing is watched there.
 //   close()        Android `finish()` of the foreground activity. iOS has no public API to close the
@@ -32,7 +34,14 @@
 // Reference: refs/gtk/gtk/gtkwindow.c (GtkWindow)
 // Copyright (c) GNOME contributors (GTK). LGPLv2.1+.
 
-import { CloseRequestState, HandledAccumulator, WindowMemberState, stepDefaultSize } from '@gjsify/adwaita-core';
+import {
+    CloseRequestState,
+    GDK_KEYS,
+    HandledAccumulator,
+    WindowMemberState,
+    deliverKeyToControllers,
+    stepDefaultSize,
+} from '@gjsify/adwaita-core';
 import type { EventData, View } from '@nativescript/core';
 
 import { windowHost } from '../window-host.js';
@@ -196,7 +205,7 @@ export class GtkWindow extends AdwSingleChildBase {
 
     /**
      * What the back button does, in order: the topmost dialog, an open bottom sheet, the innermost
-     * navigation view, then `close-request`. The sheet sits over the content a navigation view lives
+     * navigation view, the window's key controllers (`Gdk.KEY_Back`), then `close-request`. The sheet sits over the content a navigation view lives
      * in, and libadwaita closes it on Escape before anything under it sees the key. Always consumes the press — the system's own back would `finish()` too, but
      * without asking the handlers.
      */
@@ -204,8 +213,24 @@ export class GtkWindow extends AdwSingleChildBase {
         if (this._consumeBack()) return true;
         if (closeOpenBottomSheet(this)) return true;
         if (popInnermostNavigation(this)) return true;
+        if (this._deliverBackKey()) return true;
         this._requestClose();
         return true;
+    }
+
+    /**
+     * Back as GTK would see it: a `key-pressed` of `Gdk.KEY_Back` reaching the toplevel's key
+     * controllers AFTER the focused content (dialog, sheet, navigation view) had its turn, since the
+     * key travels from the focus up. The press arrives by NativeScript's back event, not through
+     * the view's key listener, so it is handed to the controllers here.
+     */
+    private _deliverBackKey(): boolean {
+        return deliverKeyToControllers(this, {
+            key: 'BrowserBack',
+            keycode: GDK_KEYS.KEY_Back,
+            state: 0,
+            pressed: true,
+        });
     }
 
     /** A subclass that shows things over the window (dialogs) takes the press first; true = taken. */
