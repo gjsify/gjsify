@@ -419,6 +419,13 @@ const ABC: ReadonlyArray<AdwComboOption> = [
  * because what changed is the item and the index is downstream of it. The shift row
  * notifies `selected` ALONE for the mirror-image reason (the item did not change, only its
  * position), and the replace-in-place row notifies `selected-item` alone.
+ *
+ * `<adw-combo-row>` drives the table through its own DOM, which is where the splice has to
+ * land for a user to see it: the outcome columns, the rebuilt `<option>` list, and the
+ * SILENCE a DOM surface owes (a model moving underneath is not a user pick, so no
+ * `notify::selected` event). The `notified` column itself stays with the core suite — it is
+ * a GObject property feed, and no port publishes one for this path yet; `subscribeNotify`
+ * is the seam a host that owns real properties will re-emit from.
  */
 export const COMBO_ITEMS_CHANGED_VECTORS: ReadonlyArray<ComboItemsChangedVector> = [
     {

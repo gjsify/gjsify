@@ -13,6 +13,7 @@ import {
     ADJUSTMENT_AUTHORED_VECTORS,
     ADJUSTMENT_PARSE_VECTORS,
     COMBO_CHOOSER_VECTORS,
+    COMBO_ITEMS_CHANGED_VECTORS,
     COMBO_SELECTION_VECTORS,
     LIST_ITEMS_CHANGED_VECTORS,
     LIST_MODEL_OWNERSHIP_VECTORS,
@@ -396,6 +397,53 @@ export const AdwRowStateTest = async () => {
                         .filter((change) => change.interactive)
                         .map((change) => ({ selected: change.selected })),
                 );
+
+                events.stop();
+                host.remove();
+            });
+        }
+    });
+
+    // The model MOVING under a live row — the axis that only exists since `model` holds a
+    // real `Gio.ListModel` (ADR 0122 § 6). Nothing re-assigns `model` here: the list is
+    // spliced through its own API and the row has to follow, which is what separates this
+    // from every replacement row above it.
+    //
+    // What a DOM surface can show is the OUTCOME — `selected`, `selectedValue`, the inline
+    // label and the rebuilt `<option>` list — plus the silence: a model moving underneath is
+    // not a user pick, so `notify::selected` must not fire. The vectors' `notified` column is
+    // the GObject half this element has no spelling for and the core suite asserts alone.
+    await describe('adw-combo-row items-changed on the held model (GtkSingleSelection)', async () => {
+        for (const vector of COMBO_ITEMS_CHANGED_VECTORS) {
+            await it(`${vector.name} — ${vector.rule}`, async () => {
+                const { el: row, host } = parse<AdwComboRow>(
+                    `<adw-combo-row title="Pick"></adw-combo-row>`,
+                    'adw-combo-row',
+                );
+                const select = row.querySelector('select') as HTMLSelectElement;
+                const value = row.querySelector('.adw-row-value') as HTMLSpanElement;
+
+                const list = GjsifyOptionList.new([...vector.initial]);
+                row.model = list;
+                if (vector.selected >= 0) row.selected = vector.selected;
+                expect(row.selected, 'the row set up the selection it says it did').toBe(vector.selected);
+
+                const events = record(row, 'notify::selected');
+                list.splice(vector.splice.position, vector.splice.removed, [...vector.splice.added]);
+
+                const expected = [...vector.initial];
+                expected.splice(vector.splice.position, vector.splice.removed, ...vector.splice.added);
+
+                expect(row.selected).toBe(vector.result);
+                expect(row.selectedValue).toBe(vector.value);
+                expect(value.textContent).toBe(expected[vector.result]?.label ?? '');
+                // The drawn list follows the MODEL: the row was never re-assigned, so a
+                // `<select>` still showing the old options is exactly the bug the
+                // `items-changed` channel exists to prevent.
+                expect([...select.options].map((option) => option.textContent)).toStrictEqual(
+                    expected.map((option) => option.label),
+                );
+                expect(events.details).toStrictEqual([]);
 
                 events.stop();
                 host.remove();

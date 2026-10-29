@@ -195,10 +195,11 @@ export class ComboState {
      * Subscribe to the `notify::*` each transition owes, delivered one at a time IN ORDER.
      *
      * Separate from {@link subscribe} because the two answer different questions and the
-     * ordering is the whole content of this one. A renderer that owns GObject properties
-     * (`Adw.ComboRow` on the NativeScript host, the GJS subset) re-emits these verbatim; a
-     * renderer that owns DOM (`<adw-combo-row>`) does not have them and uses
-     * {@link subscribe} instead.
+     * ordering is the whole content of this one. It is the seam for a renderer that owns real
+     * GObject properties — none does today: both ports render DOM or NativeScript views and
+     * use {@link subscribe}, so this channel is measured in core alone (its table says so).
+     * Re-emitting it verbatim is what a host with real properties has to do, and the reason
+     * the order is recorded here rather than re-derived there.
      *
      * The ORDER is not derived, it is measured, and it is not the same on both paths
      * (`~/.cache/gjsify-android/combo-probe2.js`, GJS 1.88.01 / libadwaita 1.9.4):
