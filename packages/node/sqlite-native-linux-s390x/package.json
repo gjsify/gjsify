@@ -13,8 +13,8 @@
         "prebuilds"
     ],
     "gjsify": {
-        "platformsUncommitted": {
-            "linux-s390x": "the bridge is new and no prebuild exists yet; prebuilds.yml builds it under QEMU emulation and `commit-prebuilds` commits it back, which retires this entry on that same run"
+        "glibcRequires": {
+            "linux-s390x": "2.2"
         },
         "platforms": [
             "linux-s390x"

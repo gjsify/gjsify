@@ -1,14 +1,5 @@
 # @gjsify/spiel-native-linux-x64
 
-> **No artifact in this tarball yet.** `linux-x64` is declared by
-> `@gjsify/spiel-native` and built by CI, but not committed to the repository:
-> prebuilds.yml builds it in the Fedora container and its `commit-prebuilds` job commits it back; a developer host would bake that host's glibc floor into the artifact instead of the CI baseline
->
-> The package exists so the artifact has somewhere to land — and so its npm name
-> is claimed before the release that first ships it. Until then installing it is
-> harmless and does nothing: `@gjsify/spiel-native` finds no typelib and takes its
-> no-native path, exactly as if this package were absent.
-
 
 The **linux-x64** native artifacts of [`@gjsify/spiel-native`](https://www.npmjs.com/package/@gjsify/spiel-native) — a shared
 library plus its GObject-Introspection typelib, and nothing else. There is no
