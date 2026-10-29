@@ -89,6 +89,7 @@ export type {
 // --- Action-row family (Adw.ActionRow/SwitchRow/ButtonRow/WindowTitle) vectors ---
 export {
     ACTION_ROW_ACTIVATION_VECTORS,
+    ACTION_ROW_SUBTITLE_VECTORS,
     BUTTON_ROW_ACTIVATABLE_VECTORS,
     BUTTON_ROW_ICON_VECTORS,
     LABEL_VISIBILITY_VECTORS,
@@ -97,6 +98,8 @@ export {
 } from './action-row.js';
 export type {
     ActionRowActivationVector,
+    ActionRowSubtitleStep,
+    ActionRowSubtitleVector,
     ActionRowStep,
     ButtonRowActivatableVector,
     ButtonRowIconVector,

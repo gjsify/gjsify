@@ -236,13 +236,6 @@ is no `notify::child` in the sequence, which is the one part of the measured ord
 cannot reach. Specs: `split-button-properties.spec.ts` (pure-JS),
 `signals-gobject.spec.ts` (the two hooks), `specs/split-button.ts` (device).
 
-APPLY NEXT, same mechanism: `AdwActionRow`/`AdwExpanderRow` `subtitle`. Measured on the same
-build — `subtitle = null` notifies EVERY time while the value stays `''` (the C guard reads back
-`""` from a `GtkLabel` that stores no NULL), and `subtitle = ''` notifies nothing. Both legs hold
-the opposite today. NOT done here: it changes what an absent attribute means, and the web
-renderer reads `subtitle` at eight call sites — WAITS FOR AN OWNER DECISION on whether `null` and
-`''` stay distinguishable to a caller.
-
 DONE (`widgets/adw-button-content.ts`): `icon-name`, `label`, `use-underline`, `can-shrink` are declared
 through `withSignals(StackLayout, …)`; each renders from its own `notify::`. `hostButton` is a
 NATIVESCRIPT-ONLY accessor, deliberately NOT declared: `Adw.ButtonContent` has no `host-button` in C

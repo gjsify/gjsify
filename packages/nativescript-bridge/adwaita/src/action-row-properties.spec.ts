@@ -22,6 +22,8 @@
 import { describe, expect, it } from '@gjsify/unit';
 import { Label, Switch } from '@nativescript/core';
 
+import { ACTION_ROW_SUBTITLE_VECTORS } from '@gjsify/adwaita-core/conformance';
+
 import * as Adw from './namespace/adw.js';
 import { ACTIVATED } from './widgets/adw-action-row.js';
 
@@ -155,6 +157,27 @@ export const AdwActionRowPropertiesNsTest = async () => {
             row.subtitle = 'Connected';
             expect(titles).toStrictEqual(['Wi-Fi', 'Bluetooth']);
             expect(subtitles).toStrictEqual(['Connected']);
+        });
+
+        for (const vector of ACTION_ROW_SUBTITLE_VECTORS) {
+            for (const ctor of [Adw.ActionRow, Adw.ExpanderRow]) {
+                await it(`${ctor.name} subtitle: ${vector.name} — ${vector.rule}`, () => {
+                    const row = new ctor();
+                    let emissions = 0;
+                    row.connect('notify::subtitle', () => emissions++);
+                    for (const step of vector.steps) {
+                        emissions = 0;
+                        row.subtitle = step.write as string;
+                        expect(emissions).toBe(step.notified ? 1 : 0);
+                        expect(row.subtitle).toBe(step.subtitle);
+                    }
+                });
+            }
+        }
+
+        await it('reads a null subtitle back as the empty string, at construction too', () => {
+            const row = new Adw.ActionRow({ subtitle: null as unknown as string });
+            expect(row.subtitle).toBe('');
         });
 
         await it('notifies icon-name under its canonical detail', () => {

@@ -64,6 +64,27 @@ export function gtkButtonIconNameReadback(stored: string | null): string | null 
 }
 
 /**
+ * Whether `adw_action_row_set_subtitle` passes its guard (adw-action-row.c:571):
+ * `g_strcmp0 (gtk_label_get_text (priv->subtitle), subtitle) == 0` returns early.
+ *
+ * `g_strcmp0` orders `NULL` before every string, `''` included, so a `NULL` write is NEVER
+ * equal to the label text — which always reads `''`, never `NULL`. A `null` subtitle therefore
+ * passes the guard, relabels with `""` and notifies on EVERY write, held value unmoved. A
+ * `''` write against `''` is the ordinary idempotent case.
+ *
+ * Measured on GJS 1.88.1 / libadwaita 1.9.4: `subtitle = null` on a fresh `Adw.ActionRow` and
+ * `Adw.ExpanderRow` emits `notify::subtitle` each time and reads `""` back; `subtitle = ''`
+ * emits nothing. `title` was measured on the same rows and does NOT behave this way, so this is one
+ * property's rule, not a general one.
+ *
+ * @param held     The label text now, never `null`.
+ * @param written  What the caller passed.
+ */
+export function adwSubtitleWriteNotifies(held: string, written: string | null | undefined): boolean {
+    return written === null || written === undefined || written !== held;
+}
+
+/**
  * GLib's `CLAMP`, which tests the HIGH bound FIRST:
  * `x > high ? high : (x < low ? low : x)`.
  *

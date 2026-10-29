@@ -19,6 +19,7 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import {
     ACTION_ROW_ACTIVATION_VECTORS,
+    ACTION_ROW_SUBTITLE_VECTORS,
     BUTTON_ROW_ACTIVATABLE_VECTORS,
     BUTTON_ROW_ICON_VECTORS,
     LABEL_VISIBILITY_VECTORS,
@@ -96,6 +97,24 @@ export const AdwActionRowsTest = async () => {
             expect((el.querySelector('.adw-row-title') as HTMLElement).textContent).toBe(' ');
             host.remove();
         });
+    });
+
+    await describe('<adw-action-row> subtitle (libadwaita conformance vectors)', async () => {
+        // The element is attribute-driven and publishes no `notify::subtitle`, so only the
+        // value the vectors hold afterwards is observable; `null` is an absent attribute.
+        for (const vector of ACTION_ROW_SUBTITLE_VECTORS) {
+            await it(`${vector.name} — ${vector.rule}`, () => {
+                const { el: row, host } = mount<AdwActionRow>('adw-action-row');
+                for (const step of vector.steps) {
+                    if (step.write === null) row.removeAttribute('subtitle');
+                    else row.setAttribute('subtitle', step.write);
+                    const label = row.querySelector('.adw-row-subtitle') as HTMLElement;
+                    expect(label.textContent).toBe(step.subtitle);
+                    expect(label.hidden).toBe(step.subtitle === '');
+                }
+                host.remove();
+            });
+        }
     });
 
     await describe('<adw-action-row> activatable-widget (libadwaita conformance vectors)', async () => {

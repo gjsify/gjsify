@@ -458,3 +458,77 @@ export const WINDOW_TITLE_VECTORS: ReadonlyArray<WindowTitleVector> = [
         rule: 'DIVERGENCE: libadwaita notifies here, via `g_strcmp0 ("", NULL) == 1`',
     },
 ];
+
+/** One `subtitle` write and whether it notifies. */
+export interface ActionRowSubtitleStep {
+    /** What the caller passed: `null` is a distinct write from `''`. */
+    write: string | null;
+    /** Whether `notify::subtitle` is emitted for this write. */
+    notified: boolean;
+    /** `get_subtitle()` afterwards — never `null`. */
+    subtitle: string;
+}
+
+/** A scripted sequence of subtitle writes applied to a FRESH `Adw.ActionRow` / `Adw.ExpanderRow`. */
+export interface ActionRowSubtitleVector {
+    name: string;
+    steps: readonly ActionRowSubtitleStep[];
+    rule: string;
+}
+
+/**
+ * `adw_action_row_set_subtitle` (adw-action-row.c:562-577), which `Adw.ExpanderRow` inherits.
+ *
+ * The guard is `g_strcmp0 (gtk_label_get_text (priv->subtitle), subtitle) == 0`. The label's
+ * text is never `NULL` and `g_strcmp0` never calls `NULL` equal to a string, so a `NULL` write
+ * passes the guard EVERY time, rewrites `""` over `""` and notifies. An empty string against
+ * the empty label is the ordinary idempotent case.
+ *
+ * Every row is a runtime measurement on GJS 1.88.1 / libadwaita 1.9.4 / GTK 4.22.5, on both
+ * `Adw.ActionRow` and `Adw.ExpanderRow`. `title` was measured on the same rows and does NOT
+ * behave this way, so these vectors are about the subtitle alone.
+ */
+export const ACTION_ROW_SUBTITLE_VECTORS: ReadonlyArray<ActionRowSubtitleVector> = [
+    {
+        name: 'null-notifies-every-time',
+        steps: [
+            { write: null, notified: true, subtitle: '' },
+            { write: null, notified: true, subtitle: '' },
+        ],
+        rule: 'g_strcmp0 ("", NULL) != 0, so a NULL write is never the early return',
+    },
+    {
+        name: 'empty-is-idempotent-on-a-fresh-row',
+        steps: [
+            { write: '', notified: false, subtitle: '' },
+            { write: '', notified: false, subtitle: '' },
+        ],
+        rule: 'the label text and the write are both "": the guard returns',
+    },
+    {
+        name: 'empty-after-null-is-silent',
+        steps: [
+            { write: null, notified: true, subtitle: '' },
+            { write: '', notified: false, subtitle: '' },
+        ],
+        rule: 'null left the label at "", so "" has nothing to change',
+    },
+    {
+        name: 'text-notifies-once',
+        steps: [
+            { write: 'x', notified: true, subtitle: 'x' },
+            { write: 'x', notified: false, subtitle: 'x' },
+        ],
+        rule: 'an ordinary string is idempotent',
+    },
+    {
+        name: 'clearing-with-null-or-empty',
+        steps: [
+            { write: 'x', notified: true, subtitle: 'x' },
+            { write: null, notified: true, subtitle: '' },
+            { write: 'x', notified: true, subtitle: 'x' },
+            { write: '', notified: true, subtitle: '' },
+        ],
+        rule: 'either clears a held subtitle, and each is a real change',
+    },
+];
