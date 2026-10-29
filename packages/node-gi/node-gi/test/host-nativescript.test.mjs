@@ -217,19 +217,20 @@ test('nativescript.webpack.js adds the nativescript condition (and require() han
     assert.deepEqual(set, [['conditionNames', ['nativescript', '...']]]);
 });
 
-test('languageFromBcp47 turns platform tags into a LANGUAGE list, C last', () => {
+test('languageFromBcp47 turns platform tags into a LANGUAGE list, C last, nothing after English', () => {
     const out = probe(
         ['--conditions=nativescript'],
         `import * as h from '#host';
          console.log(JSON.stringify([
              h.languageFromBcp47(['de-DE']),
              h.languageFromBcp47(['de-DE', 'en-US', 'de-AT']),
+             h.languageFromBcp47(['en-US', 'de-DE']),
              h.languageFromBcp47(['zh-Hans-CN']),
              h.languageFromBcp47(['es-419']),
              h.languageFromBcp47([]),
          ]))`,
     );
-    assert.deepEqual(out, ['de_DE:de:C', 'de_DE:de:en_US:en:de_AT:C', 'zh_CN:zh:C', 'es_419:es:C', 'C']);
+    assert.deepEqual(out, ['de_DE:de:C', 'de_DE:de:en_US:en:C', 'en_US:en:C', 'zh_CN:zh:C', 'es_419:es:C', 'C']);
 });
 
 test('refreshLocale sets LANGUAGE through the platform Os.setenv and honours the override', () => {

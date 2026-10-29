@@ -150,7 +150,7 @@ function setNativeEnv(name, value) {
 
 /**
  * The LANGUAGE value for a list of BCP-47 tags: `de-DE` → `de_DE:de`, `zh-Hans-CN` → `zh_CN:zh`,
- * de-duplicated, with `C` last as GLib orders it. Bionic's setlocale accepts only C/C.UTF-8
+ * de-duplicated, cut after the first English tag, with `C` last as GLib orders it. Bionic's setlocale accepts only C/C.UTF-8
  * and Android sets no LANG, so GLib's language list (and the libintl in gi-runtime-android,
  * which reads LANGUAGE on every lookup) has nothing else to go on. Pure — no device needed.
  * @param {string[]} tags
@@ -168,6 +168,10 @@ export function languageFromBcp47(tags) {
         const region = parts.slice(1).find((p) => /^([A-Za-z]{2}|\d{3})$/.test(p));
         if (region) add(`${lang}_${region.toUpperCase()}`);
         add(lang);
+        // English is the msgid language, so no catalog exists for it and gettext would go on to
+        // the NEXT entry: with the app switched to en-US over a German system the list is
+        // [en-US, de-DE], and every string came back German. Nothing after English may apply.
+        if (lang === 'en') break;
     }
     add('C');
     return out.join(':');
