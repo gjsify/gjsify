@@ -399,7 +399,7 @@ export type { GtkStringListProps } from './gtk-string-list.js';
 // NOT prefixed for a library, because no library has it: a `Gio.ListModel` of two-field option
 // items is what a GTK author builds out of `Gio.ListStore` plus a `GObject` subclass of their
 // own, and this is that subclass, written once (ADR 0122 § 6, `option-list.ts`).
-export { GjsifyOptionList, GjsifyOptionObject } from './option-list.js';
+export { GjsifyOptionList, GjsifyOptionObject, readModelWrite } from './option-list.js';
 export type { GjsifyOptionListProps } from './option-list.js';
 
 // --- Row interaction state machines (Adw.ExpanderRow/ComboRow/ToggleGroup) ---

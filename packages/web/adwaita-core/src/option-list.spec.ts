@@ -12,7 +12,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { GjsifyOptionList, GjsifyOptionObject } from './option-list.js';
+import { GjsifyOptionList, GjsifyOptionObject, readModelWrite } from './option-list.js';
 import { ListModel } from './gobject.js';
 import { INVALID_LIST_POSITION } from './gtk-string-list.js';
 import { normalizeComboOptions } from './list.js';
@@ -264,5 +264,70 @@ export default async () => {
         await it('reads an EMPTY list as an empty model, not as an absent one', () => {
             expect(normalizeComboOptions(new GjsifyOptionList())).toStrictEqual([]);
         });
+    });
+
+    // `readModelWrite` is the ONE `model` setter behind four surfaces (ADR 0122 § 5/§ 6), so its
+    // rules are measured once, here, rather than four times through four widgets. What the widgets
+    // then own is only that they CALL it — which is what their own `model`-door cases assert.
+    await describe('readModelWrite — the one model door', async () => {
+        await it('hands a real model through by IDENTITY, leaving the authored list alone', () => {
+            const authored = GjsifyOptionList.new([COUNTRIES[0]!]);
+            const given = GjsifyOptionList.new(COUNTRIES);
+
+            expect(readModelWrite(given, authored) === given).toBe(true);
+            expect(authored.n_items).toBe(1);
+        });
+
+        // The duck test, not `implementsInterface`: a real `Gio.ListStore` through node-gi is no
+        // registered class of this subset, and handing one to `model` is the point of having it.
+        await it('takes a model that is no registered class, because the two getters are the test', () => {
+            const foreign = {
+                get_n_items: () => 2,
+                get_item: (position: number) => (position < 2 ? GjsifyOptionObject.new(`v${position}`, '') : null),
+            };
+
+            expect(readModelWrite(foreign, new GjsifyOptionList()) === foreign).toBe(true);
+        });
+
+        await it('reads null and undefined as "no model", which is a value the property takes', () => {
+            const authored = GjsifyOptionList.new(COUNTRIES);
+
+            expect([readModelWrite(null, authored), readModelWrite(undefined, authored)]).toStrictEqual([null, null]);
+        });
+
+        // A STRING is the JSON markup attribute, and it reconciles the surface's OWN list instead
+        // of replacing it — the identity is what keeps an appended option a splice rather than a
+        // new model, which is what resets the selection.
+        await it('parses a string into the AUTHORED list and returns that same list', () => {
+            const authored = GjsifyOptionList.new([COUNTRIES[0]!]);
+
+            const read = readModelWrite(JSON.stringify(COUNTRIES), authored);
+
+            expect(read === authored).toBe(true);
+            expect(normalizeComboOptions(authored)).toStrictEqual(COUNTRIES);
+        });
+
+        await it('reconciles a second string write without replacing the list', () => {
+            const authored = GjsifyOptionList.new(COUNTRIES);
+            const log = recordEmissions(authored);
+
+            readModelWrite(JSON.stringify([...COUNTRIES, { value: 'cz', label: 'Česko' }]), authored);
+
+            expect(log.join(' ')).toBe('items-changed(3,0,1) notify::n-items');
+        });
+
+        // THE REFUSAL IS THE PROPERTY'S — `checkPropertyValue` against `model`'s own ParamSpec, so
+        // the wording is the one measured on `Gtk.DropDown:model` under GJS. An ARRAY above all:
+        // that is the Array-era write ADR 0122 closes, and it must name the type it wanted.
+        for (const [what, value, says] of [
+            ['an array', COUNTRIES, "Object is not a subclass of GObject_Object, it's a Array"],
+            ['a plain object', { value: 'de' }, "Object is not a subclass of GObject_Object, it's a Object"],
+            ['a number', 7, 'Wrong type number; object GListModel expected'],
+            ['a boolean', true, 'Wrong type boolean; object GListModel expected'],
+        ] as const) {
+            await it(`refuses ${what} by naming the type the property wanted`, () => {
+                expect(() => readModelWrite(value, new GjsifyOptionList())).toThrow(says);
+            });
+        }
     });
 };

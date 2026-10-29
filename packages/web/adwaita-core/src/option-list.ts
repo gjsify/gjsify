@@ -36,9 +36,25 @@
 // Copyright (c) GNOME contributors (GLib). LGPLv2.1+.
 
 import { MAXUINT32 } from './glib-paths.js';
-import { GObjectObject, ListModel, ParamFlags, ParamSpec, registerBaseClass, type GType } from './gobject.js';
+import {
+    checkPropertyValue,
+    GObjectObject,
+    ListModel,
+    ParamFlags,
+    ParamSpec,
+    registerBaseClass,
+    type GType,
+} from './gobject.js';
 import { INVALID_LIST_POSITION } from './gtk-string-list.js';
-import { listItemsChanged, normalizeComboOptions, type AdwComboOption, type AdwComboOptionInput } from './list.js';
+import {
+    listItemsChanged,
+    normalizeComboOptions,
+    parseListModel,
+    type AdwComboOption,
+    type AdwComboOptionInput,
+    type AdwListModelSource,
+} from './list.js';
+import type { ComboWatchableModel } from './rows.js';
 
 /** The two strings an item holds. State lives here, never in class fields (see `application.ts`). */
 const OPTION = new WeakMap<object, AdwComboOption>();
@@ -281,3 +297,45 @@ registerBaseClass(
     [ParamSpec.uint('n-items', '', '', ParamFlags.READABLE, 0, MAXUINT32, 0)],
     [ListModel],
 );
+
+/** `Adw.ComboRow:model`'s own ParamSpec, so {@link readModelWrite} refuses in its words. */
+const MODEL_SPEC = ParamSpec.object('model', '', '', ParamFlags.READWRITE, ListModel);
+
+/**
+ * What a write to a `model` property reads as — the ONE door, for all four surfaces.
+ *
+ * ADR 0122 § 6 makes `model` an object property over `Gio.ListModel`, and § 5 leaves the JSON
+ * markup attribute open, so every `model` setter in this repository has the same three-way
+ * answer to give. It is written here once because it was about to be written four times:
+ *
+ *   - a real model — anything with `get_n_items` and `get_item`, which is what
+ *     {@link AdwListModelSource}'s docblock argues is the test — is handed through by IDENTITY,
+ *     so `widget.model === model` holds as it is measured to in libadwaita;
+ *   - `null` / `undefined` is the "no model" write, which notifies `model` alone;
+ *   - a STRING is the markup attribute, parsed and reconciled into `authored` — the surface's
+ *     OWN list, whose identity survives the edit so an author appending one option to
+ *     `model='[…]'` gets one splice instead of a replacement that resets the selection;
+ *   - anything else, an ARRAY above all, is a `TypeError`.
+ *
+ * THE REFUSAL IS THE PROPERTY'S, not a second opinion: the message comes out of
+ * {@link checkPropertyValue} against `model`'s own ParamSpec, which is where GJS's measured
+ * wording lives. Reaching it is already the failure case, and it always throws for a value that
+ * gets that far — the one thing it accepts is a registered implementor of `Gio.ListModel`, and
+ * the interface installs the two getters the duck test above just failed to find.
+ *
+ * The duck test and not `checkPropertyValue` alone, because a REAL `Gio.ListStore` reached
+ * through node-gi (ADR 0104) is no registered class of this subset and `implementsInterface`
+ * would refuse it — and handing one to `Adw.ComboRow:model` is the whole point of having it.
+ */
+export function readModelWrite(value: unknown, authored: GjsifyOptionList): ComboWatchableModel | null {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'string') {
+        authored.reconcile(parseListModel(value));
+        return authored;
+    }
+    const source = value as Partial<AdwListModelSource>;
+    if (typeof source.get_n_items !== 'function' || typeof source.get_item !== 'function') {
+        checkPropertyValue(MODEL_SPEC, value);
+    }
+    return value as ComboWatchableModel;
+}
