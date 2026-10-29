@@ -39,7 +39,10 @@ export function useWindowHost(host: WindowHost | null): void {
 // leaves it (Android `onResume`/`onPause` of the activity, iOS `didBecomeActive`/`willResignActive`).
 // The application is in the foreground whenever a window is on screen to ask.
 export const nativeWindowHost: WindowHost = {
-    canFinish: canFinishWindow,
+    // Read per call, never captured: a value read at module load is the one a library build can fold.
+    get canFinish() {
+        return canFinishWindow();
+    },
     isForeground: () => true,
     watchForeground(onChange) {
         const resume = (): void => onChange(true);
