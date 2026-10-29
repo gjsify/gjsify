@@ -16,13 +16,18 @@ import {
     normalizeComboOptions,
     toggleIndexOfName,
 } from './rows.js';
-import type { ComboNotify, ComboStateChange, ToggleGroupStateChange } from './rows.js';
+import type { ComboNotify, ComboStateChange, ExpanderNotify, ToggleGroupStateChange } from './rows.js';
 import {
     COMBO_CHOOSER_VECTORS,
     COMBO_ITEMS_CHANGED_VECTORS,
     COMBO_SELECTION_VECTORS,
     TOGGLE_ACTIVE_NAME_VECTORS,
 } from './conformance/rows.js';
+import {
+    EXPANDER_ROW_CONSTRUCT_VECTORS,
+    EXPANDER_ROW_INITIAL,
+    EXPANDER_ROW_VECTORS,
+} from './conformance/expander-row.js';
 import type { ComboSelectionStep } from './conformance/rows.js';
 import { LIST_MODEL_OWNERSHIP_VECTORS, applyListMutation, applyListReadback } from './conformance/list.js';
 import { GjsifyOptionList } from './option-list.js';
@@ -93,6 +98,48 @@ export default async () => {
             expect(state.setExpanded(0 as unknown as boolean)).toBe(true);
             expect(state.expanded).toBe(false);
         });
+
+        await it('starts at adw_expander_row_init: collapsed, expansion enabled', () => {
+            const state = new ExpanderState();
+            expect(state.expanded).toBe(EXPANDER_ROW_INITIAL.expanded);
+            expect(state.enableExpansion).toBe(EXPANDER_ROW_INITIAL.enableExpansion);
+        });
+
+        for (const vector of EXPANDER_ROW_VECTORS) {
+            await it(`${vector.name} (shared conformance vectors)`, () => {
+                const state = new ExpanderState();
+                for (const step of vector.steps) {
+                    const flipped: boolean[] = [];
+                    const off = state.subscribe((expanded) => flipped.push(expanded));
+                    const notified: readonly ExpanderNotify[] =
+                        step.op === 'expanded'
+                            ? state.setExpanded(step.value)
+                                ? ['expanded']
+                                : []
+                            : state.setEnableExpansion(step.value);
+                    off();
+                    expect(notified.join()).toBe(step.notified.join());
+                    expect(state.expanded).toBe(step.expanded);
+                    expect(state.enableExpansion).toBe(step.enableExpansion);
+                    // The listener hears `expanded` and nothing else, exactly when it is notified.
+                    expect(flipped.length).toBe(step.notified.includes('expanded') ? 1 : 0);
+                }
+            });
+        }
+
+        for (const vector of EXPANDER_ROW_CONSTRUCT_VECTORS) {
+            await it(`built with expanded=${vector.expanded}, enable-expansion=${vector.enableExpansion} — ${vector.rule}`, () => {
+                const enableFirst = new ExpanderState();
+                enableFirst.setEnableExpansion(vector.enableExpansion);
+                enableFirst.setExpanded(vector.expanded);
+                expect(enableFirst.expanded).toBe(vector.resultExpanded);
+
+                const expandedFirst = new ExpanderState();
+                expandedFirst.setExpanded(vector.expanded);
+                expandedFirst.setEnableExpansion(vector.enableExpansion);
+                expect(expandedFirst.expanded).toBe(vector.resultExpanded);
+            });
+        }
 
         await it('unsubscribe stops further notifications', () => {
             const state = new ExpanderState();

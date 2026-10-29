@@ -411,6 +411,7 @@ export type {
     ComboStateChange,
     ComboStateListener,
     ComboWatchableModel,
+    ExpanderNotify,
     ExpanderStateListener,
     ToggleGroupStateChange,
     ToggleGroupStateListener,

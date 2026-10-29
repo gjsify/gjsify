@@ -175,6 +175,15 @@ export type {
     ToggleActiveNameVector,
 } from './rows.js';
 
+// --- Expander row (Adw.ExpanderRow expanded / enable-expansion coupling) vectors ---
+export { EXPANDER_ROW_CONSTRUCT_VECTORS, EXPANDER_ROW_INITIAL, EXPANDER_ROW_VECTORS } from './expander-row.js';
+export type {
+    ExpanderRowConstructVector,
+    ExpanderRowProperty,
+    ExpanderRowStep,
+    ExpanderRowVector,
+} from './expander-row.js';
+
 // --- View stack selection (Adw.ViewStack) vectors ---
 export { VIEW_STACK_ICON_NAME_VECTORS, VIEW_STACK_PAGE_VECTORS, VIEW_STACK_VECTORS } from './view-stack.js';
 export type {

@@ -206,6 +206,14 @@ export const GtkSwitchTest = async () => {
             parts(sw).slider.click();
             expect(row.expanded).toBe(false);
 
+            // The click turned the row's expansion OFF, and a disabled row refuses to
+            // disclose (libadwaita's `enable-expansion` gate); an enabled one discloses.
+            expect(row.enableExpansion).toBe(false);
+            (row.querySelector('.adw-expander-row-header') as HTMLElement).click();
+            expect(row.expanded).toBe(false);
+
+            row.enableExpansion = true;
+            row.expanded = false;
             (row.querySelector('.adw-expander-row-header') as HTMLElement).click();
             expect(row.expanded).toBe(true);
             host.remove();

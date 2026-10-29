@@ -13,10 +13,10 @@
 // listbox. The `notify::expanded` / `notify::enable-expansion` events are named after
 // Adw.ExpanderRow's GObject signals so one code path drives the web and GTK renderers.
 //
-// The DISCLOSURE state (the expanded flag and its idempotent, notify-on-change
-// transitions) is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as
-// {@link ExpanderState}; this element keeps only the DOM half — header/content markup,
-// the `expanded` attribute reflection and the event.
+// The DISCLOSURE state (the expanded flag, the `enable-expansion` gate over it and their
+// idempotent, notify-on-change transitions) is HEADLESS and lives in `@gjsify/adwaita-core`
+// (ADR 0004) as {@link ExpanderState}; this element keeps only the DOM half — header/content
+// markup, the `expanded` / `enable-expansion` attribute reflection and the events.
 //
 // Reference: refs/adwaita-web/adwaita-web/scss/_expander_row.scss
 // Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss (AdwExpanderRow)
@@ -70,8 +70,7 @@ export class AdwExpanderRow extends TooltipElement {
         // custom-element constructor rules allow it: nothing touches the DOM until the
         // state actually changes.
         this._state.subscribe((expanded) => {
-            if (expanded) this.setAttribute('expanded', '');
-            else this.removeAttribute('expanded');
+            this._reflectExpanded(expanded);
             if (this._initialized) this._render();
         });
     }
@@ -98,7 +97,7 @@ export class AdwExpanderRow extends TooltipElement {
     }
 
     get enableExpansion(): boolean {
-        return !this.hasAttribute('enable-expansion') || this.getAttribute('enable-expansion') !== 'false';
+        return this._state.enableExpansion;
     }
 
     set enableExpansion(value: boolean) {
@@ -138,7 +137,7 @@ export class AdwExpanderRow extends TooltipElement {
         // Clicking the enable switch does NOT toggle the disclosure.
         this._enableSwitch = document.createElement('gtk-switch') as GtkSwitch;
         this._enableSwitch.classList.add('adw-expander-row-enable-switch');
-        this._enableSwitch.active = this.enableExpansion;
+        this._enableSwitch.active = this._state.enableExpansion;
 
         this._chevronEl = createGtkImage('go-down', 'adw-expander-row-chevron');
 
@@ -197,25 +196,56 @@ export class AdwExpanderRow extends TooltipElement {
             event.stopPropagation();
             if (this._reflectingEnable) return;
             const enabled = this._enableSwitch.active;
+            // The state drives `expanded` BEFORE it notifies `enable-expansion`, and reports
+            // both in that order, so the events leave in the order libadwaita emits them.
+            const notified = this._state.setEnableExpansion(enabled);
             this.setAttribute('enable-expansion', enabled ? 'true' : 'false');
-            this.dispatchEvent(
-                new CustomEvent('notify::enable-expansion', {
-                    bubbles: true,
-                    detail: { enableExpansion: enabled },
-                }),
-            );
+            for (const property of notified) {
+                this.dispatchEvent(
+                    new CustomEvent(`notify::${property}`, {
+                        bubbles: true,
+                        detail: property === 'expanded' ? { expanded: this.expanded } : { enableExpansion: enabled },
+                    }),
+                );
+            }
         });
 
         // Seed the disclosure from the parsed markup: attributeChangedCallback is guarded
         // until the element is initialized, so a declarative `expanded` lands here.
+        // `enable-expansion` is already in the state (see attributeChangedCallback), so a
+        // markup `expanded` on a disabled row is refused as libadwaita refuses it.
         this._state.setExpanded(this.hasAttribute('expanded'));
+        this._reflectExpanded(this._state.expanded);
         this._render();
     }
 
     attributeChangedCallback(name: string) {
+        if (name === 'enable-expansion') {
+            // Taken before the init guard so `enableExpansion` answers a parsed attribute
+            // before the element connects. A programmatic write: the state drives `expanded`
+            // with it and the subscriber reflects that, silently. Only the switch publishes
+            // `notify::enable-expansion`.
+            this._state.setEnableExpansion(this._enableAttribute());
+        }
         if (!this._initialized) return;
-        if (name === 'expanded') this._state.setExpanded(this.hasAttribute('expanded'));
+        if (name === 'expanded') {
+            this._state.setExpanded(this.hasAttribute('expanded'));
+            // A refusal (disabled row) changes nothing, so no subscriber would take the
+            // attribute back down: the state is the truth, the attribute its reflection.
+            this._reflectExpanded(this._state.expanded);
+        }
         this._render();
+    }
+
+    /** The `enable-expansion` attribute as a flag: on unless it says `false`. */
+    private _enableAttribute(): boolean {
+        return this.getAttribute('enable-expansion') !== 'false';
+    }
+
+    private _reflectExpanded(expanded: boolean): void {
+        if (this.hasAttribute('expanded') === expanded) return;
+        if (expanded) this.setAttribute('expanded', '');
+        else this.removeAttribute('expanded');
     }
 
     private _render() {
@@ -234,7 +264,7 @@ export class AdwExpanderRow extends TooltipElement {
         this._enableSwitch.hidden = !showSwitch;
         // OUR write, not the user's — see `_reflectingEnable`.
         this._reflectingEnable = true;
-        this._enableSwitch.active = this.enableExpansion;
+        this._enableSwitch.active = this._state.enableExpansion;
         this._reflectingEnable = false;
 
         this.classList.toggle('expanded', this.expanded);

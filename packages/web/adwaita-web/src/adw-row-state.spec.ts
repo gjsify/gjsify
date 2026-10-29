@@ -15,6 +15,9 @@ import {
     COMBO_CHOOSER_VECTORS,
     COMBO_ITEMS_CHANGED_VECTORS,
     COMBO_SELECTION_VECTORS,
+    EXPANDER_ROW_CONSTRUCT_VECTORS,
+    EXPANDER_ROW_INITIAL,
+    EXPANDER_ROW_VECTORS,
     LIST_ITEMS_CHANGED_VECTORS,
     LIST_MODEL_OWNERSHIP_VECTORS,
     LIST_NORMALIZE_VECTORS,
@@ -776,6 +779,83 @@ export const AdwRowStateTest = async () => {
             expect(events.details.length).toBe(1);
 
             events.stop();
+            host.remove();
+        });
+
+        for (const vector of EXPANDER_ROW_VECTORS) {
+            await it(`holds ${vector.name} (shared conformance vectors)`, async () => {
+                const { el: row, host } = parse<AdwExpanderRow>(
+                    '<adw-expander-row title="More"><adw-action-row title="Nested"></adw-action-row></adw-expander-row>',
+                    'adw-expander-row',
+                );
+                expect(row.expanded).toBe(EXPANDER_ROW_INITIAL.expanded);
+                expect(row.enableExpansion).toBe(EXPANDER_ROW_INITIAL.enableExpansion);
+                for (const step of vector.steps) {
+                    if (step.op === 'expanded') row.expanded = step.value;
+                    else row.enableExpansion = step.value;
+                    // A DOM element publishes only the user's notifications, so `notified` is
+                    // not observable here — the held values and what they reflect to are.
+                    expect(row.expanded).toBe(step.expanded);
+                    expect(row.enableExpansion).toBe(step.enableExpansion);
+                    expect(row.hasAttribute('expanded')).toBe(step.expanded);
+                    expect(row.classList.contains('expanded')).toBe(step.expanded);
+                }
+                host.remove();
+            });
+        }
+
+        for (const vector of EXPANDER_ROW_CONSTRUCT_VECTORS) {
+            await it(`parses expanded=${vector.expanded}, enable-expansion=${vector.enableExpansion} — ${vector.rule}`, async () => {
+                const enable = `enable-expansion="${vector.enableExpansion}"`;
+                const expanded = vector.expanded ? 'expanded' : '';
+                // Both attribute orders: the parser delivers them in source order.
+                for (const attributes of [`${enable} ${expanded}`, `${expanded} ${enable}`]) {
+                    const { el: row, host } = parse<AdwExpanderRow>(
+                        `<adw-expander-row title="x" ${attributes}></adw-expander-row>`,
+                        'adw-expander-row',
+                    );
+                    expect(row.enableExpansion).toBe(vector.enableExpansion);
+                    expect(row.expanded).toBe(vector.resultExpanded);
+                    expect(row.hasAttribute('expanded')).toBe(vector.resultExpanded);
+                    host.remove();
+                }
+            });
+        }
+
+        await it('does not open on a header click while expansion is disabled', async () => {
+            const { el: row, host } = parse<AdwExpanderRow>(
+                '<adw-expander-row title="More" enable-expansion="false"></adw-expander-row>',
+                'adw-expander-row',
+            );
+            const header = row.querySelector('.adw-expander-row-header') as HTMLDivElement;
+            const events = record(row, 'notify::expanded');
+            header.click();
+            expect(row.expanded).toBe(false);
+            expect(events.details.length).toBe(0);
+            events.stop();
+            host.remove();
+        });
+
+        await it('the enable switch publishes expanded BEFORE enable-expansion, as libadwaita emits them', async () => {
+            const { el: row, host } = parse<AdwExpanderRow>(
+                '<adw-expander-row title="More" show-enable-switch enable-expansion="false"></adw-expander-row>',
+                'adw-expander-row',
+            );
+            const seen: string[] = [];
+            row.addEventListener('notify::expanded', () => seen.push('expanded'));
+            row.addEventListener('notify::enable-expansion', () => seen.push('enable-expansion'));
+            const toggle = row.querySelector('.adw-expander-row-enable-switch') as HTMLElement & { active: boolean };
+
+            toggle.active = true;
+            expect(seen.join()).toBe('expanded,enable-expansion');
+            expect(row.expanded).toBe(true);
+            expect(row.hasAttribute('expanded')).toBe(true);
+
+            seen.length = 0;
+            toggle.active = false;
+            expect(seen.join()).toBe('expanded,enable-expansion');
+            expect(row.expanded).toBe(false);
+            expect(row.hasAttribute('expanded')).toBe(false);
             host.remove();
         });
 

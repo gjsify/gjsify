@@ -428,11 +428,10 @@ than smoothed over.
   only — the suffix on the action row, the disclosure on the expander.
 - **`Adw.ExpanderRow` carries no `enable-expansion` and no `show-enable-switch`.** The
   enable switch is a SECOND control inside the row with its own veto over the disclosure,
-  and the rule tying the two flags together lives in no shared place:
-  `@gjsify/adwaita-core`'s `ExpanderState` — what all three renderers compose — models the
-  disclosure alone. Adding it here would create a fourth private copy of a rule three
-  renderers need; lifting it into the core first is what would close this, and this slice
-  does not do it.
+  and the rule tying the two flags together now lives in the shared place:
+  `@gjsify/adwaita-core`'s `ExpanderState` — what all three renderers compose — gates
+  `expanded` on `enable-expansion` as libadwaita does. The props are still absent here: this
+  slice does not surface them.
 - **A disclosed child must be a real row on GTK, and can be anything on React Native.**
   `adw_expander_row_add_row` hands the widget to an inner `Gtk.ListBox`, which wraps a
   non-row child in an implicit `GtkListBoxRow` that `remove` then cannot find — measured on
