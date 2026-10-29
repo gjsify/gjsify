@@ -73,6 +73,7 @@
         "@gjsify/rolldown-plugin-pnp": "workspace:^",
         "@gjsify/utils": "workspace:^",
         "@gjsify/vite-plugin-blueprint": "workspace:^",
+        "@gjsify/vite-plugin-gettext": "workspace:^",
         "@rollup/pluginutils": "^5.4.0",
         "acorn": "^8.17.0",
         "acorn-typescript": "^1.4.13",

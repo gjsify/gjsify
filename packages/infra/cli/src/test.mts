@@ -153,6 +153,8 @@ import installExtraneousSuite from './utils/install-extraneous.spec.js';
 import installFocusSuite from './utils/install-focus.spec.js';
 import unresolvedWorkspaceImportSuite from './unresolved-workspace-import.spec.js';
 import platformResolveSuite from './platform-resolve.spec.js';
+import nativescriptLocaleSuite from './nativescript-locale.spec.js';
+import nativescriptGettextAliasSuite from './nativescript-gettext-alias.spec.js';
 import reactNativeAliasSuite from './react-native-alias.spec.js';
 import reactNativeGateSuite from './react-native-gate.spec.js';
 import doubleDashArgsSuite from './utils/double-dash-args.spec.js';
@@ -422,6 +424,8 @@ run(
         unresolvedWorkspaceImportSuite,
         platformResolveSuite,
         doubleDashArgsSuite,
+        nativescriptGettextAliasSuite,
+        nativescriptLocaleSuite,
         reactNativeAliasSuite,
         reactNativeGateSuite,
         metainfoQualitySuite,

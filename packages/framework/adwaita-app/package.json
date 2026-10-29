@@ -10,6 +10,11 @@
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
         },
+        "./locale": {
+            "types": "./lib/types/locale.d.ts",
+            "nativescript": "./lib/esm/locale-nativescript.js",
+            "default": "./lib/esm/locale.js"
+        },
         "./appearance": {
             "types": "./lib/types/appearance/index.d.ts",
             "default": "./lib/esm/appearance/index.js"
@@ -59,6 +64,7 @@
         "@girs/gtk-4.0": "5.4.0",
         "@gjsify/adwaita-core": "workspace:^",
         "@gjsify/devtools": "workspace:^",
+        "@gjsify/node-gi": "workspace:^",
         "@gjsify/utils": "workspace:^"
     },
     "devDependencies": {
@@ -73,7 +79,7 @@
             "gjs": "polyfill",
             "node": "none",
             "browser": "none",
-            "nativescript": "none"
+            "nativescript": "partial"
         },
         "tier": 2,
         "os": {

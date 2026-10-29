@@ -490,6 +490,11 @@ export const ALIASES_NODE_FOR_NATIVESCRIPT = {
     timers: '@gjsify/timers',
     'timers/promises': '@gjsify/timers/promises',
 
+    // GJS built-in module name → the GLib gettext on Android (libintl reader in
+    // gi-runtime-android), so shared `import Gettext from 'gettext'` code keeps
+    // working as on GNOME. Not a Node built-in; kept here so both bundler tracks share it.
+    gettext: '@gjsify/node-gi/gettext',
+
     // Third-party
     'node-fetch': '@gjsify/empty', // NS has native fetch
     ws: '@gjsify/empty', // NS has its own WebSocket

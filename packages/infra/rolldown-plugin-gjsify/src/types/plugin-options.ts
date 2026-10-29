@@ -1,3 +1,4 @@
+import type { NativescriptLocaleOptions } from '../plugins/nativescript-locale.js';
 import type { App } from './app.js';
 import type { SourceDialect } from './source-dialect.js';
 
@@ -107,6 +108,12 @@ export interface PluginOptions {
      * every unanswerable namespace from a silent stub into a hard build failure.
      */
     giRenderer?: boolean;
+    /**
+     * `--app nativescript` only: compile this PO directory to
+     * `locale/<lang>/LC_MESSAGES/<domain>.mo` assets of the bundle, so the Android libintl
+     * reader finds them under `<filesDir>/app/locale`. See `plugins/nativescript-locale.ts`.
+     */
+    nativescriptLocale?: NativescriptLocaleOptions;
     /**
      * Where to look for a `@gjsify/*` the PROJECT cannot resolve, when the input is
      * TOOLCHAIN rather than user code: a file path inside the running CLI's own
