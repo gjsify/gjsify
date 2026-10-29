@@ -7,6 +7,7 @@ import {
     ctaLabel,
     downloadWidget,
     frameAttribute,
+    heroBy,
     legalNoticeUrl,
     linkCard,
     localizeOwnUrl,
@@ -160,6 +161,15 @@ export default async () => {
             });
             expect(named).toMatch(/<h3 class="component-title"><span>Desktop app<\/span>/);
             expect(named).not.toMatch(/component-step/);
+        });
+
+        await it('links the developer name to their site when one is configured', async () => {
+            const data = (developerUrl?: string) =>
+                ({ config: { developerUrl }, app: { developer: { name: 'Dev & Co' } } }) as unknown as SiteData;
+            expect(heroBy({ data: data(), t })).toBe('<p class="hero-by">by Dev &amp; Co</p>');
+            expect(heroBy({ data: data('https://example.org/'), t })).toBe(
+                '<p class="hero-by">by <a href="https://example.org/">Dev &amp; Co</a></p>',
+            );
         });
 
         await it('renders the related apps section only when there are apps', async () => {

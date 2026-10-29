@@ -103,6 +103,14 @@ export default async () => {
             expect(html).toMatch(/<p>Body<\/p>/);
         });
 
+        await it('ends a post with a note on the support page, if the site has one', async () => {
+            const posts = [post('a', 'en')];
+            const options = { posts, html: '<p>Body</p>', author: { name: 'Ada' } };
+            expect(renderBlogPost(shell('en'), posts[0]!, options)).not.toMatch(/post-support/);
+            const html = renderBlogPost(shell('en'), posts[0]!, { ...options, supportUrl: '/en/support/' });
+            expect(html).toMatch(/<aside class="post-support">[\s\S]*href="\/en\/support\/"/);
+        });
+
         await it('shows the newest posts of the language on a landing page, or nothing', async () => {
             const posts = ['a', 'b', 'c', 'd'].map((slug) => post(slug, 'en'));
             const html = latestPostsSection(shell('en'), posts);

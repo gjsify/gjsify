@@ -370,6 +370,10 @@ export function parseSiteConfig(manifest: RootManifest): SiteConfig {
         downloads: parseDownloads(raw, components),
         releaseAssets: parseReleaseAssets(raw),
         relatedApps: parseRelatedApps(raw.relatedApps, 'gjsify.site.relatedApps'),
+        developerUrl:
+            raw.developerUrl === undefined
+                ? undefined
+                : httpUrl(requireString(raw, 'developerUrl'), 'gjsify.site.developerUrl'),
     };
 }
 

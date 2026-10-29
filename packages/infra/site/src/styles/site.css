@@ -1549,6 +1549,22 @@ app-support {
   color: var(--muted);
 }
 
+.post-support {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block-start: 2.5rem;
+  padding: 1.25rem;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.post-support p {
+  margin: 0;
+}
+
 .latest-posts {
   margin-block: 2.5rem;
 }

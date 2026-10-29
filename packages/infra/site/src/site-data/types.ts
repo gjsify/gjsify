@@ -252,6 +252,8 @@ export interface SiteConfig extends SiteCommonConfig {
     releaseAssets: boolean;
     /** Sites of other apps to list under "More apps by <developer>", in order. Empty: no section. */
     relatedApps: SiteRelatedAppConfig[];
+    /** The developer's own site; the "by <developer>" line under the app name links to it. */
+    developerUrl?: string;
 }
 
 /**
