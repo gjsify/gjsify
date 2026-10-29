@@ -5,6 +5,7 @@ import constructsTestSuite from './constructs.spec.js';
 import viewStackTestSuite from './view-stack.spec.js';
 import navigationViewTestSuite from './navigation-view.spec.js';
 import sidebarTestSuite from './sidebar.spec.js';
+import defaultTranslateTestSuite from './default-translate.spec.js';
 import entryRowTestSuite from './entry-row.spec.js';
 import splitViewTestSuite from './split-view.spec.js';
 import splitButtonTestSuite from './split-button.spec.js';
@@ -142,6 +143,7 @@ run({
     viewStackTestSuite,
     navigationViewTestSuite,
     sidebarTestSuite,
+    defaultTranslateTestSuite,
     entryRowTestSuite,
     splitViewTestSuite,
     splitButtonTestSuite,

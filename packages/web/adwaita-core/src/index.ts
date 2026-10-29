@@ -1193,6 +1193,8 @@ export type {
     SignalMeta,
     TemplateScope,
 } from './gobject.js';
+export { registerDefaultTranslate, registeredDefaultTranslate } from './default-translate.js';
+export type { DefaultTranslate } from './default-translate.js';
 export { engineForTarget, registerGObjectEngine, registeredEngine, resetRegisteredEngine } from './engine.js';
 export type {
     EngineTarget,

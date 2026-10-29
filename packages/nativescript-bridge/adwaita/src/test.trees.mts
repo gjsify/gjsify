@@ -19,6 +19,7 @@ import { GioResourceNsTest } from './gio-resource.spec.js';
 import { AdwBlueprintTreesNsTest } from './blueprint-trees.spec.js';
 import { AdwBlueprintMarkupNsTest } from './blueprint-markup.spec.js';
 import { AdwClampClasslessChildNsTest } from './clamp-child.spec.js';
+import { AdwDefaultTranslateNsTest } from './default-translate.spec.js';
 import { AdwAboutDialogDoorsNsTest } from './about-dialog-doors.spec.js';
 import { AdwAboutDialogCreditsNsTest } from './about-dialog-credits.spec.js';
 import { AdwAboutDialogLinksNsTest } from './about-dialog-links.spec.js';
@@ -69,6 +70,7 @@ run({
     AdwSharedTreesNsTest,
     AdwRegisterBarrelNsTest,
     AdwClampClasslessChildNsTest,
+    AdwDefaultTranslateNsTest,
     AdwAboutDialogDoorsNsTest,
     AdwAboutDialogCreditsNsTest,
     AdwAboutDialogLinksNsTest,

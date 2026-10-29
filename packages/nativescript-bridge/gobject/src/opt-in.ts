@@ -29,8 +29,9 @@
 //
 // Calling it later throws rather than being ignored; the core's slot records that it was read.
 
-import { registerGObjectEngine, type GObjectEngine } from '@gjsify/adwaita-core';
+import { registerDefaultTranslate, registerGObjectEngine, type GObjectEngine } from '@gjsify/adwaita-core';
 
+import { glibTranslate } from './default-translate.js';
 import { createRealGioEngine, type RequireGi } from './engine.js';
 
 /** What a failed opt-in names, so the message points at a dependency and not at a stack frame. */
@@ -67,5 +68,6 @@ export function useRealGObjectEngine(requireGi: RequireGi): GObjectEngine {
         throw error;
     }
     registerGObjectEngine(engine);
+    registerDefaultTranslate(glibTranslate(requireGi));
     return engine;
 }

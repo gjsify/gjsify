@@ -33,6 +33,7 @@ import {
     createBreakpointDriver,
     menuAssignments,
     parseBreakpointCondition,
+    registeredDefaultTranslate,
     type BindingFlag,
     type BreakpointSize,
     type GObjectInstance,
@@ -251,8 +252,10 @@ export interface BuildOptions {
     template?: TemplateScope;
     /**
      * Translates a string the `.blp` marked with `_()` or `C_()`, as GtkBuilder does with its
-     * gettext domain. Called with the authored text and the `C_()` context, if any. Without it a
-     * marked string stays as authored, which is English: the marking is carried, not acted on.
+     * gettext domain. Called with the authored text and the `C_()` context, if any. Without it the
+     * translator the platform registered answers (`registerDefaultTranslate` — on Android the real
+     * opt-in installs GLib's default-domain gettext, as GtkBuilder uses when no domain is set), and
+     * with neither a marked string stays as authored, which is English: carried, not acted on.
      * Covers properties, the labels of `responses`, `strings [ ]` items and breakpoint setters.
      */
     translate?: (text: string, context?: string) => string;
@@ -414,7 +417,7 @@ function buildTree(
         menus: node.menus,
         scope: options.scope,
         template: options.template,
-        translate: options.translate,
+        translate: options.translate ?? registeredDefaultTranslate(),
         values: collectValues ? new Map() : undefined,
     };
     const root = buildNode(node, context, existing);
@@ -585,7 +588,7 @@ export function applyBreakpoints(
         breakpoints,
         new Map(Object.entries(ids)),
         options.observeSize ?? observeWindowSize,
-        options.translate,
+        options.translate ?? registeredDefaultTranslate(),
     );
 }
 
