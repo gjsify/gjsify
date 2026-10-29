@@ -23,6 +23,7 @@ import { realGioListStoreSuite } from './list-store.node-gi.spec.js';
 import { realGioFileChooserSuite } from './file-chooser.node-gi.spec.js';
 import { realGioSettingsSuite } from './settings.node-gi.spec.js';
 import optInTestSuite from './opt-in.spec.js';
+import defaultTranslateTestSuite from './default-translate.spec.js';
 
 run({
     realGioEngineTestSuite: realGioEngineSuite(requireGi),
@@ -33,4 +34,5 @@ run({
     realGioFileChooserStandInTestSuite: realGioFileChooserSuite(requireGi, true),
     // The opt-in's refusals need no GI stack — this is just the only entry the package has.
     optInTestSuite,
+    defaultTranslateTestSuite,
 });

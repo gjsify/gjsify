@@ -10,6 +10,11 @@
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
         },
+        "./locale": {
+            "types": "./lib/types/locale.d.ts",
+            "nativescript": "./lib/esm/locale-nativescript.js",
+            "default": "./lib/esm/locale.js"
+        },
         "./appearance": {
             "types": "./lib/types/appearance/index.d.ts",
             "default": "./lib/esm/appearance/index.js"
@@ -74,6 +79,14 @@
             "node": "none",
             "browser": "none",
             "nativescript": "none"
+        },
+        "runtimeSubpaths": {
+            "./locale": {
+                "gjs": "polyfill",
+                "node": "none",
+                "browser": "none",
+                "nativescript": "partial"
+            }
         },
         "tier": 2,
         "os": {

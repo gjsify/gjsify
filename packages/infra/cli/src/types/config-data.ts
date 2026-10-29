@@ -112,6 +112,12 @@ export interface ConfigData {
      * into a hard build failure.
      */
     giRenderer?: boolean;
+    /**
+     * `--app nativescript`: compile `poDirectory/<lang>.po` into
+     * `locale/<lang>/LC_MESSAGES/<domain>.mo` assets of the app, so the Android GLib gettext
+     * finds them under `<filesDir>/app/locale`. Config-file only (an object has no flag).
+     */
+    nativescriptLocale?: { poDirectory: string; domain: string; localeNames?: Record<string, string[]> };
     /** Comma-separated global identifiers to register. Format: see CliBuildOptions. */
     globals?: string;
     /**

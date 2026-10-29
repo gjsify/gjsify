@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
 // @gjsify/node-gi/gettext — types for the GJS `Gettext` module on Node.
 
+/**
+ * Re-derive the process's message languages from the platform. A no-op off Android; on Android
+ * call it after the user switches the app locale. Returns the `LANGUAGE` value set, or null.
+ */
+export function refreshLocale(): string | null;
 /** Look up `msgid` in the default domain. */
 export function gettext(msgid: string): string;
 /** Look up `msgid` in `domain`. */

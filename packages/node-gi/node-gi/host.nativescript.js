@@ -116,14 +116,41 @@ function deriveAppDir() {
     }
 }
 
+// A Vite-built app exposes only the `android.*` packages its own code touched, and nothing
+// touches `android.system` — so `android.system.Os` is undefined there and every setenv
+// silently did nothing (LANGUAGE and XDG_* never reached the native process). Reflection
+// reaches the class whatever the bundle referenced.
+function androidSetenv(name, value) {
+    const os = globalThis.android?.system?.Os;
+    if (os) {
+        os.setenv(name, value, true);
+        return;
+    }
+    const java = globalThis.java;
+    if (!java?.lang?.Class) return;
+    try {
+        const types = java.lang.reflect.Array.newInstance(java.lang.Class.class, 3);
+        java.lang.reflect.Array.set(types, 0, java.lang.String.class);
+        java.lang.reflect.Array.set(types, 1, java.lang.String.class);
+        java.lang.reflect.Array.set(types, 2, java.lang.Boolean.TYPE);
+        const args = java.lang.reflect.Array.newInstance(java.lang.Object.class, 3);
+        java.lang.reflect.Array.set(args, 0, name);
+        java.lang.reflect.Array.set(args, 1, value);
+        java.lang.reflect.Array.set(args, 2, java.lang.Boolean.TRUE);
+        java.lang.Class.forName('android.system.Os').getMethod('setenv', types).invoke(null, args);
+    } catch (e) {
+        globalThis.console?.warn?.(`node-gi: setenv(${name}) failed: ${e}`);
+    }
+}
+
 function setNativeEnv(name, value) {
     env[name] = value;
-    globalThis.android?.system?.Os?.setenv(name, value, true);
+    androidSetenv(name, value);
 }
 
 /**
  * The LANGUAGE value for a list of BCP-47 tags: `de-DE` → `de_DE:de`, `zh-Hans-CN` → `zh_CN:zh`,
- * de-duplicated, with `C` last as GLib orders it. Bionic's setlocale accepts only C/C.UTF-8
+ * de-duplicated, cut after the first English tag, with `C` last as GLib orders it. Bionic's setlocale accepts only C/C.UTF-8
  * and Android sets no LANG, so GLib's language list (and the libintl in gi-runtime-android,
  * which reads LANGUAGE on every lookup) has nothing else to go on. Pure — no device needed.
  * @param {string[]} tags
@@ -141,6 +168,10 @@ export function languageFromBcp47(tags) {
         const region = parts.slice(1).find((p) => /^([A-Za-z]{2}|\d{3})$/.test(p));
         if (region) add(`${lang}_${region.toUpperCase()}`);
         add(lang);
+        // English is the msgid language, so no catalog exists for it and gettext would go on to
+        // the NEXT entry: with the app switched to en-US over a German system the list is
+        // [en-US, de-DE], and every string came back German. Nothing after English may apply.
+        if (lang === 'en') break;
     }
     add('C');
     return out.join(':');
@@ -178,6 +209,37 @@ export function refreshLocale() {
     if (value === null || value === undefined) return null;
     setNativeEnv('LANGUAGE', value);
     return value;
+}
+
+let followingSystemLocale = false;
+
+/**
+ * Re-run `refreshLocale()` whenever the system configuration changes — a language switch is
+ * one. The Application-level ComponentCallbacks2 fires whether or not the activity declares
+ * `locale` in `configChanges`. Registered once, from the host that owns the LANGUAGE bridge,
+ * so no consumer has to know the variable exists.
+ * @returns {boolean} whether a callback is registered
+ */
+export function followSystemLocale() {
+    if (followingSystemLocale) return true;
+    try {
+        const app = globalThis.com?.tns?.NativeScriptApplication?.getInstance();
+        const ComponentCallbacks2 = globalThis.android?.content?.ComponentCallbacks2;
+        if (!app || !ComponentCallbacks2) return false;
+        app.registerComponentCallbacks(
+            new ComponentCallbacks2({
+                onConfigurationChanged: () => {
+                    refreshLocale();
+                },
+                onLowMemory: () => {},
+                onTrimMemory: () => {},
+            }),
+        );
+        followingSystemLocale = true;
+    } catch {
+        // A callback missing only costs the live switch; the locale at start is still set.
+    }
+    return followingSystemLocale;
 }
 
 function appDirectory() {
@@ -225,6 +287,7 @@ function ensureJavaVm(native) {
 
 function configureEnvironment() {
     refreshLocale();
+    followSystemLocale();
     const systemDir = globalThis.__NODE_GI_SYSTEM_DIR;
     if (typeof systemDir === 'string' && systemDir !== '') {
         setNativeEnv('XDG_DATA_DIRS', `${systemDir}/share`);

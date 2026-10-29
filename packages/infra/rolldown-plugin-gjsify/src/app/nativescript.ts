@@ -49,6 +49,7 @@ import type { PluginOptions } from '../types/plugin-options.js';
 import { globToEntryPoints } from '../utils/entry-points.js';
 import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
 import { giRendererPlugin } from '../plugins/gi-renderer.js';
+import { nativescriptLocalePlugin } from '../plugins/nativescript-locale.js';
 import { blueprintTemplateExit } from '../utils/blueprint-template-exit.js';
 import {
     platformResolvePlugin,
@@ -229,6 +230,9 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
         // holds the author's intent; the guard and the absence are untouched.
         gschemaPlugin({ mode: 'emit', register: GSCHEMA_REGISTER.nativescript }),
         gresourcePlugin({ compressed: 'strip' }),
+        ...(input.pluginOptions.nativescriptLocale
+            ? [nativescriptLocalePlugin(input.pluginOptions.nativescriptLocale)]
+            : []),
         implicitGlobalAssignPlugin(),
         // NO cssAsStringPlugin — NS ships its own CSS pipeline via
         // @nativescript/core; .css imports are handled by the consuming

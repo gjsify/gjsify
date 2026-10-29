@@ -217,19 +217,20 @@ test('nativescript.webpack.js adds the nativescript condition (and require() han
     assert.deepEqual(set, [['conditionNames', ['nativescript', '...']]]);
 });
 
-test('languageFromBcp47 turns platform tags into a LANGUAGE list, C last', () => {
+test('languageFromBcp47 turns platform tags into a LANGUAGE list, C last, nothing after English', () => {
     const out = probe(
         ['--conditions=nativescript'],
         `import * as h from '#host';
          console.log(JSON.stringify([
              h.languageFromBcp47(['de-DE']),
              h.languageFromBcp47(['de-DE', 'en-US', 'de-AT']),
+             h.languageFromBcp47(['en-US', 'de-DE']),
              h.languageFromBcp47(['zh-Hans-CN']),
              h.languageFromBcp47(['es-419']),
              h.languageFromBcp47([]),
          ]))`,
     );
-    assert.deepEqual(out, ['de_DE:de:C', 'de_DE:de:en_US:en:de_AT:C', 'zh_CN:zh:C', 'es_419:es:C', 'C']);
+    assert.deepEqual(out, ['de_DE:de:C', 'de_DE:de:en_US:en:C', 'en_US:en:C', 'zh_CN:zh:C', 'es_419:es:C', 'C']);
 });
 
 test('refreshLocale sets LANGUAGE through the platform Os.setenv and honours the override', () => {
@@ -247,4 +248,57 @@ test('refreshLocale sets LANGUAGE through the platform Os.setenv and honours the
     assert.equal(out.a, 'de_DE:de:C');
     assert.equal(out.b, 'fr');
     assert.equal(out.set.LANGUAGE, 'fr');
+});
+
+test('refreshLocale reaches android.system.Os by reflection when the bundle never touched that package', () => {
+    const out = probe(
+        ['--conditions=nativescript'],
+        `import * as h from '#host';
+         const set = {};
+         const arrays = [];
+         const klass = (name) => ({ name });
+         globalThis.java = {
+             lang: {
+                 String: { class: klass('String') },
+                 Object: { class: klass('Object') },
+                 Class: {
+                     class: klass('Class'),
+                     forName: (n) => ({ getMethod: (m, types) => ({ invoke: (_o, args) => { set[args[0]] = args[1]; set.__call = [n, m, types.length]; } }) }),
+                 },
+                 Boolean: { TYPE: klass('boolean'), TRUE: true },
+                 reflect: { Array: { newInstance: (_c, n) => { const a = new Array(n); arrays.push(a); return a; }, set: (a, i, v) => { a[i] = v; } } },
+             },
+             util: { Locale: { getDefault: () => ({ toLanguageTag: () => 'de-DE' }) } },
+         };
+         h.refreshLocale();
+         console.log(JSON.stringify({ set }))`,
+    );
+    assert.equal(out.set.LANGUAGE, 'de_DE:de:C');
+    assert.deepEqual(out.set.__call, ['android.system.Os', 'setenv', 3]);
+});
+
+test('followSystemLocale registers one ComponentCallbacks2 and only once', () => {
+    const out = probe(
+        ['--conditions=nativescript'],
+        `import * as h from '#host';
+         const registered = [];
+         globalThis.com = { tns: { NativeScriptApplication: { getInstance: () => ({ registerComponentCallbacks: (cb) => registered.push(cb) }) } } };
+         globalThis.android = { content: { ComponentCallbacks2: function (impl) { return impl; } } };
+         const first = h.followSystemLocale();
+         const second = h.followSystemLocale();
+         console.log(JSON.stringify({ first, second, n: registered.length, hasConfig: typeof registered[0]?.onConfigurationChanged }))`,
+    );
+    assert.equal(out.first, true);
+    assert.equal(out.second, true);
+    assert.equal(out.n, 1);
+    assert.equal(out.hasConfig, 'function');
+});
+
+test('followSystemLocale is false, not a throw, without the Android classes', () => {
+    const out = probe(
+        ['--conditions=nativescript'],
+        `import * as h from '#host';
+         console.log(JSON.stringify({ r: h.followSystemLocale() }))`,
+    );
+    assert.equal(out.r, false);
 });

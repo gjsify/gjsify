@@ -56,6 +56,8 @@ import {
     gresourcePlugin,
     gschemaPlugin,
     GSCHEMA_REGISTER,
+    nativescriptLocalePlugin,
+    type NativescriptLocaleOptions,
 } from '@gjsify/rolldown-plugin-gjsify';
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
@@ -259,6 +261,12 @@ export interface GjsifyNativescriptOptions {
      * `gi://` line). Off by default: it makes the widget toolkit a build-time dependency.
      */
     giRenderer?: boolean;
+    /**
+     * Compile `poDirectory/<lang>.po` into `locale/<lang>/LC_MESSAGES/<domain>.mo` assets of the
+     * build, so the Android GLib gettext finds them under `<filesDir>/app/locale` — the Vite mirror
+     * of `gjsify build --app nativescript`'s `nativescriptLocale`. Needs `msgfmt` on PATH.
+     */
+    locale?: NativescriptLocaleOptions;
 }
 
 /**
@@ -580,6 +588,7 @@ export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plu
         gresourcePlugin({ compressed: 'strip' }) as unknown as Plugin,
         // `import './x.gschema.xml?schema'` registers the schema (ADR 0099 § 1), as `--app nativescript`.
         gschemaPlugin({ mode: 'emit', register: GSCHEMA_REGISTER.nativescript }) as unknown as Plugin,
+        ...(options.locale ? [nativescriptLocalePlugin(options.locale) as unknown as Plugin] : []),
         deepkitPlugin({ reflection: options.reflection }) as unknown as Plugin,
         configPlugin,
     ];

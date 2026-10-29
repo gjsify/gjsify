@@ -249,6 +249,11 @@ const MODULE_REASONS = {
     // renderers drive is the open item.
     'breakpoint-driver': { gap: NO_TABLE_LEDGER },
     'color-scheme': { gap: NO_TABLE_LEDGER },
+    // The process-global slot a builder reads for `_()` / `C_()` when its caller passed no
+    // `translate`. Its only behaviour is register / read, which no vector row states; what it
+    // translates is GLib's gettext, not a derivation of ours. `default-translate.spec.ts` holds
+    // it in core and in `@gjsify/adwaita-gobject-native`, which fills it.
+    'default-translate': { gap: NO_TABLE_LEDGER },
     // `Graphene.Point` and the `compute_point` geometry: `graphene.spec.ts` holds them in core,
     // each port's widget spec drives the real classes. No GTK-oracle vector table yet.
     graphene: { gap: NO_TABLE_LEDGER },
