@@ -16,9 +16,24 @@
 // Reference: GTK gtk/gtkwidget.c (gtk_widget_set_visible, gtk_widget_set_tooltip_text)
 // Copyright (c) GNOME contributors (GTK). LGPLv2.1+.
 
+import { isWidgetNode } from '@gjsify/adwaita-core';
+
 import { WIDGET_VISIBLE_GETTERS, installElementApi, markLazyElementApi, notifyElement } from './gobject-elements.js';
 import { dispatchedSignalsOf, type DispatchedSignals } from './signals.js';
 import { isMapped } from './widget-mapping.js';
+
+/** Element links, walked until one lands on a widget: `isWidgetNode` says which those are. */
+type ElementLink =
+    | 'firstElementChild'
+    | 'lastElementChild'
+    | 'nextElementSibling'
+    | 'previousElementSibling'
+    | 'parentElement';
+
+function widgetChild(from: Element, first: ElementLink, next: ElementLink): Element | null {
+    for (let at = from[first]; at !== null; at = at[next]) if (isWidgetNode(at)) return at;
+    return null;
+}
 
 export class WidgetElement extends HTMLElement {
     /** `Gtk.Widget::map` / `::unmap`, which every subclass inherits (`dispatchedSignalsOf`). */
@@ -41,25 +56,31 @@ export class WidgetElement extends HTMLElement {
     set_visible(visible: boolean): void {
         this.visible = visible;
     }
-    /** `gtk_widget_get_first_child`: the first child element, `null` for a leaf. */
+    /**
+     * `gtk_widget_get_first_child`: the first child WIDGET, `null` for a leaf.
+     *
+     * The five walkers skip the elements a port builds for its own insides — `isWidgetNode`
+     * in `@gjsify/adwaita-core` carries the rule and the incident behind it, and the
+     * registered-class copy in `widgetTreeMembers()` answers from the same function.
+     */
     get_first_child(): Element | null {
-        return this.firstElementChild;
+        return widgetChild(this, 'firstElementChild', 'nextElementSibling');
     }
     /** `gtk_widget_get_last_child`. */
     get_last_child(): Element | null {
-        return this.lastElementChild;
+        return widgetChild(this, 'lastElementChild', 'previousElementSibling');
     }
     /** `gtk_widget_get_next_sibling`. */
     get_next_sibling(): Element | null {
-        return this.nextElementSibling;
+        return widgetChild(this, 'nextElementSibling', 'nextElementSibling');
     }
     /** `gtk_widget_get_prev_sibling`. */
     get_prev_sibling(): Element | null {
-        return this.previousElementSibling;
+        return widgetChild(this, 'previousElementSibling', 'previousElementSibling');
     }
-    /** `gtk_widget_get_parent`. */
+    /** `gtk_widget_get_parent`: the nearest ancestor that is a widget, not a port's own wrapper. */
     get_parent(): Element | null {
-        return this.parentElement;
+        return widgetChild(this, 'parentElement', 'parentElement');
     }
     /** `gtk_widget_get_width`: the layout box in CSS px; 0 until the widget is rendered. */
     get_width(): number {
