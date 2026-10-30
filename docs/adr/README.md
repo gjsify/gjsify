@@ -144,6 +144,7 @@ the TODO records the *what's left*.
 | [0122](0122-a-string-list-is-a-real-list-model.md) | A string list is a REAL list model, and `registerClass` learns `Implements` | Accepted |
 | [0123](0123-node-sqlite-runs-on-libsqlite3-through-a-vala-bridge.md) | `node:sqlite` runs on libsqlite3 through a Vala bridge, not on libgda | Accepted |
 | [0124](0124-ship-writes-a-release-record-per-artifact.md) | `gjsify ship` writes a release record beside every artifact, and the site reads signing from it | Accepted |
+| [0125](0125-glib-gettext-is-the-translation-api-on-every-target.md) | GLib gettext is the translation API on every target | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
