@@ -9,7 +9,7 @@ import { Readable, Writable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { gbytesToUint8Array, deferEmit } from '@gjsify/utils';
 // SUBPATH, not the barrel: same Node-safe single-file surface `worker_threads` holds the process with.
-import { acquireMainLoop, releaseMainLoop } from '@gjsify/utils/main-loop';
+import { acquireMainLoop, releaseMainLoop, trackedCallback } from '@gjsify/utils/main-loop';
 import { communicateWithTimeout } from './communicate.js';
 import { applyArgv0, detachedPrefix, killProcess, shellArgv } from './platform/index.js';
 
@@ -27,7 +27,7 @@ class GioInputStreamReadable extends Readable {
             Math.max(size, 4096),
             GLib.PRIORITY_DEFAULT,
             this._cancellable,
-            (_source, result) => {
+            trackedCallback((_source: unknown, result: Gio.AsyncResult) => {
                 try {
                     const gbytes = this._stream.read_bytes_finish(result);
                     const data = gbytes.get_data();
@@ -41,7 +41,7 @@ class GioInputStreamReadable extends Readable {
                         this.destroy(err as Error);
                     }
                 }
-            },
+            }),
         );
     }
 
@@ -89,7 +89,7 @@ class GioOutputStreamWritable extends Writable {
             new GLib.Bytes(bytes),
             GLib.PRIORITY_DEFAULT,
             this._cancellable,
-            (_source: unknown, result: Gio.AsyncResult) => {
+            trackedCallback((_source: unknown, result: Gio.AsyncResult) => {
                 try {
                     this._stream.write_bytes_finish(result);
                     callback();
@@ -101,7 +101,7 @@ class GioOutputStreamWritable extends Writable {
                         callback(err as Error);
                     }
                 }
-            },
+            }),
         );
     }
 
