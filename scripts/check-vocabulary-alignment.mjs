@@ -674,6 +674,18 @@ const NS_PROPERTY_ALIGNMENT = {
     'adw-carousel.pageWidth': {
         own: 'GTK sizes carousel pages from the allocation, so there is no page-width property on `Adw.Carousel` to converge towards. The port needs an explicit DIP number because its scroll arithmetic is its own — "Set this to the carousel\'s on-screen width so `scrollToPage` lands cleanly" (adw-carousel.ts:285-289).',
     },
+    'adw-combo-row.selected-item': {
+        own: "`Adw.ComboRow:selected-item` is READ-ONLY in the GIR — measured on libadwaita 1.9.4, where its pspec carries READABLE alone — so generated/props.ts, which emits writable properties only, has no key for it. It appears on this side because the property is DECLARED at the seam (ADR 0122 § 4) and every declared name is reachable; the declaration refuses a write in `normalize`, resolving to the state's own `selectedItem`. The port keeps GTK's spelling, and GTK's read-only-ness with it.",
+    },
+    'adw-combo-row.selectedItem': {
+        own: 'The camelCase half of `adw-combo-row.selected-item` above: the seam installs every declared property under both spellings, so both are reachable and both are refused the same way. One GObject key, two names, and no writable counterpart to converge towards.',
+    },
+    'gtk-drop-down.selected-item': {
+        own: '`Gtk.DropDown:selected-item` is READ-ONLY in the GIR, exactly as `Adw.ComboRow:selected-item` is above — the two classes carry the same three properties and this port declares them verbatim. generated/props.ts emits writable properties only, so there is no key here either.',
+    },
+    'gtk-drop-down.selectedItem': {
+        own: 'The camelCase half of `gtk-drop-down.selected-item` above, installed by the same seam under the same rule.',
+    },
     'adw-combo-row.selectedValue': {
         own: "GTK exposes the selected ITEM as `Adw.ComboRow:selected-item`, which is read-only and therefore not a writable key. The port returns the selected option's `value`, or `''` when out of range (adw-combo-row.ts:156-160) — a convenience over the index, with nothing settable on the GTK side to name it after.",
     },

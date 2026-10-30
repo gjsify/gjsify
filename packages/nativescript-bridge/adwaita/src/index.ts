@@ -184,8 +184,6 @@ export type {
     AdwComboOption,
     ComboStateChange,
     ComboStateListener,
-    NotifySelectedEventData,
-    NotifyDropDownSelectedEventData,
     NotifyValueEventData,
     SpinStateChange,
     SpinStateListener,

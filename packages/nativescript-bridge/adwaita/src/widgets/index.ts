@@ -56,11 +56,10 @@ export type { NotifyEntryTextEventData } from './gtk-entry.js';
 // selection state machine (ComboState + AdwComboOption) is headless
 // (`@gjsify/adwaita-core`, ADR 0004), re-exported here for consumers.
 export { AdwComboRow, ComboState, NOTIFY_SELECTED } from './adw-combo-row.js';
-export type { AdwComboOption, ComboStateChange, ComboStateListener, NotifySelectedEventData } from './adw-combo-row.js';
+export type { AdwComboOption, ComboStateChange, ComboStateListener } from './adw-combo-row.js';
 // GtkDropDown is the STANDALONE dropdown (Gtk.DropDown's shape) over the very
 // same `ComboState` the row composes — one selection model, two surfaces.
 export { GtkDropDown, NOTIFY_SELECTED as NOTIFY_DROP_DOWN_SELECTED } from './gtk-drop-down.js';
-export type { NotifyDropDownSelectedEventData } from './gtk-drop-down.js';
 // AdwSpinRow keeps the NS stepper render; the clamp/step state machine (SpinState)
 // is headless (`@gjsify/adwaita-core`, ADR 0004), re-exported here for consumers.
 export { AdwSpinRow, NOTIFY_VALUE, SpinState } from './adw-spin-row.js';

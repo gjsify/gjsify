@@ -23,6 +23,7 @@ import { storybookSpec } from './specs/storybook.js';
 import { buttonSpec } from './specs/button.js';
 import { buttonContentSpec } from './specs/button-content.js';
 import { splitButtonSpec } from './specs/split-button.js';
+import { comboRowSpec } from './specs/combo-row.js';
 import { spinnerSpec } from './specs/spinner.js';
 import { windowTitleSpec } from './specs/window-title.js';
 import { rowsSpec } from './specs/rows.js';
@@ -100,6 +101,10 @@ async function runSuite(): Promise<void> {
                 await buttonContentSpec(engine)();
                 // Two signals and five properties of a split button.
                 await splitButtonSpec(engine)();
+                // The first OBJECT-typed properties on this port — a list model and the item it
+                // derives — held by the seam rather than by the GObject, and the notify orders
+                // ADR 0122 § 5 measured.
+                await comboRowSpec(engine)();
             }
             if (optedIn) await inversionSpec();
             if (optedIn) await foreignParentSpec();

@@ -30,37 +30,86 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { panDownSymbolic } from '@gjsify/adwaita-icons/ui';
-import { action, Label, StackLayout, type EventData, type View } from '@nativescript/core';
-import { ComboState, GjsifyOptionList, readModelWrite } from '@gjsify/adwaita-core';
-import type { AdwComboOption, ComboWatchableModel } from '@gjsify/adwaita-core';
+import { action, Label, StackLayout, type View } from '@nativescript/core';
+import {
+    ADW_COMBO_NO_SELECTION,
+    ComboState,
+    GjsifyOptionList,
+    ListModel,
+    TYPE_OBJECT,
+    readModelWrite,
+} from '@gjsify/adwaita-core';
+import type { AdwComboOption, ComboNotify, ComboWatchableModel } from '@gjsify/adwaita-core';
 import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
-import { xmlNumber } from './xml-values.js';
 import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
-import { withSignals } from './signals.js';
+import { pushDeclared, readDeclaredValue, withSignals, type GObjectNotify } from './signals.js';
 
-/** Event name emitted when {@link GtkDropDown.selected} changes through a pick. Mirrors GObject `notify::selected`. */
+/** Event name emitted when {@link GtkDropDown.selected} changes. Mirrors GObject `notify::selected`. */
 export const NOTIFY_SELECTED = 'notify::selected';
 
 /** Mirrors GObject `notify::selected-item`; fired right after the one above, on the same change. */
 export const NOTIFY_SELECTED_ITEM = 'notify::selected-item';
 
-/** Payload of the `notify::selected` event. */
-export interface NotifyDropDownSelectedEventData extends EventData {
-    /** The newly-selected index. */
-    selected: number;
-    /** The newly-selected option's `value`. */
-    value: string;
-    /** The newly-selected option's `label` — what the button now shows. */
-    label: string;
+/**
+ * What a declared property's {@link DeclaredProperty.normalize} reads off the widget. Structural,
+ * because `normalize` is handed a bare `object` while the instance may still be constructing (the
+ * `EntryRowValues` precedent) — and because these members are private to the class, which a cast
+ * to `GtkDropDown` could not reach. The twin of `ComboRowValues`, as the two widgets are twins.
+ */
+interface DropDownValues {
+    readonly _state: ComboState;
+    readonly _authored: GjsifyOptionList;
+    _pendingSelected: number | null;
+    readonly model: ComboWatchableModel | null;
+    readonly selected: number;
+    _applyModel(): void;
+    _applySelected(): void;
 }
 
-export class GtkDropDown extends withSignals(StackLayout) {
+export class GtkDropDown extends withSignals(StackLayout, {
+    GTypeName: 'GtkDropDown',
+    // THE SAME THREE DECLARATIONS AS `AdwComboRow`, deliberately verbatim: the two widgets are
+    // one selection (`ComboState`) behind two renderers, held to one conformance table, and a
+    // declaration that differed between them would be a drift the table cannot catch. Why each
+    // is `explicitNotify`, why two are object-kind, and why `selected` is `int` where GTK says
+    // `guint` — see `adw-combo-row.ts`, which states it once.
+    Properties: {
+        model: {
+            kind: 'object',
+            valueType: ListModel,
+            explicitNotify: true,
+            blurb: 'Model for the displayed items',
+            normalize: (value, self) => readModelWrite(value, (self as DropDownValues)._authored),
+            afterNotify: (self) => (self as DropDownValues)._applyModel(),
+        },
+        selected: {
+            kind: 'int',
+            default: ADW_COMBO_NO_SELECTION,
+            explicitNotify: true,
+            blurb: 'Position of the selected item',
+            normalize: (value, self) => {
+                const dropDown = self as DropDownValues;
+                const next = readDeclaredValue('selected', 'int', value) as number;
+                if (dropDown._state.count === 0) {
+                    dropDown._pendingSelected = next;
+                    return dropDown.selected;
+                }
+                return dropDown._state.hasIndex(next) ? next : dropDown.selected;
+            },
+            afterNotify: (self) => (self as DropDownValues)._applySelected(),
+        },
+        'selected-item': {
+            kind: 'object',
+            valueType: TYPE_OBJECT,
+            explicitNotify: true,
+            blurb: 'The selected item',
+            normalize: (_value, self) => (self as DropDownValues)._state.selectedItem,
+        },
+    },
+}) {
     static readonly GTypeName: string = 'GtkDropDown';
-
-    /** The GTK signals this widget emits through `connect` — read by the shared-tree builder (ADR 0093). */
-    static readonly emittedSignals: readonly string[] = [NOTIFY_SELECTED, NOTIFY_SELECTED_ITEM];
 
     /**
      * `model` only: `model: Gtk.StringList { strings [ … ] }` in a `.blp` places the list at
@@ -83,6 +132,53 @@ export class GtkDropDown extends withSignals(StackLayout) {
     private readonly _authored = GjsifyOptionList.new(null);
     /** Title shown atop the substituted `action()` sheet. */
     private _chooserTitle = '';
+    /**
+     * A `selected` written while the widget has no model yet — the twin of
+     * {@link AdwComboRow}'s. NativeScript's XML builder assigns every attribute before it adds
+     * the children, so `<gtk:DropDown selected="1">` reached this widget before its
+     * `<gtk:DropDown.model>` list did and the index was DROPPED; the row has held it since it
+     * was written and the drop-down does now too.
+     */
+    private _pendingSelected: number | null = null;
+
+    /** `Gtk.DropDown:model` — the list, by identity. Declared above; the seam installs it. */
+    declare model: ComboWatchableModel | null;
+
+    /**
+     * `Gtk.DropDown:selected` — the selected position, or {@link ADW_COMBO_NO_SELECTION}.
+     * Declared above; not `readonly` in TypeScript because the seam installs one accessor pair
+     * per declared property and this widget is what writes the derived value.
+     */
+    declare selected: number;
+
+    /**
+     * `Gtk.DropDown:selected-item` — the model's OWN object at {@link selected}, so the identity
+     * comparison a `selected-item` consumer writes holds. `null` for the sentinel and for no
+     * model. Read-only by derivation (see the declaration).
+     */
+    declare selectedItem: unknown;
+
+    /** GJS's `notify('<prop>')` beside NativeScript's `notify({ eventName })`; see the seam. */
+    declare notify: GObjectNotify;
+
+    /**
+     * What a `model` write does, once the seam has stored the normalized value — the twin of
+     * `AdwComboRow._applyModel`, which says why the body sits on the class and not in the
+     * declaration.
+     */
+    private _applyModel(): void {
+        this._state.setModel(this.model);
+        const pending = this._pendingSelected;
+        if (pending !== null && this._state.hasIndex(pending)) {
+            this._pendingSelected = null;
+            this._state.setSelectedIndex(pending);
+        }
+    }
+
+    /** What a `selected` write does: emits `selected` then `selected-item` through the relay. */
+    private _applySelected(): void {
+        this._state.setSelectedIndex(this.selected);
+    }
 
     constructor(props?: ConstructProps<GtkDropDown>) {
         super();
@@ -108,22 +204,19 @@ export class GtkDropDown extends withSignals(StackLayout) {
         this._label = label;
         this._chevron = chevron;
 
-        // The core state drives the button label on every change and the
-        // notify::selected on an interactive pick.
+        // The core state drives the button label on every change, and PUSHES the derived
+        // properties silently — see `AdwComboRow`'s constructor for why the push and the
+        // emission have to be two channels.
         this._state.subscribe((change) => {
+            pushDeclared(this, 'selected', change.selected);
+            pushDeclared(this, 'selected-item', this._state.selectedItem);
             this._label.text = change.label;
-            if (change.interactive) {
-                for (const eventName of [NOTIFY_SELECTED, NOTIFY_SELECTED_ITEM]) {
-                    const data: NotifyDropDownSelectedEventData = {
-                        eventName,
-                        object: this,
-                        selected: change.selected,
-                        value: change.value,
-                        label: change.label,
-                    };
-                    this.notify(data);
-                }
-            }
+        });
+
+        // ...and this is the one that emits, in the measured order, one `notify::` at a time.
+        this._state.subscribeNotify((property: ComboNotify) => {
+            pushDeclared(this, property, this._valueOf(property));
+            this.notify(property);
         });
 
         this.addEventListener('tap', () => {
@@ -133,6 +226,12 @@ export class GtkDropDown extends withSignals(StackLayout) {
         attachRowPressFeedback(this);
 
         applyConstructProps(this, props);
+    }
+
+    /** What the relay pushes for each of the three — the state's reading, never the store's. */
+    private _valueOf(property: ComboNotify): unknown {
+        if (property === 'model') return this._state.model;
+        return property === 'selected' ? this._state.selectedIndex : this._state.selectedItem;
     }
 
     /** Open the native chooser and apply the picked option. */
@@ -148,22 +247,6 @@ export class GtkDropDown extends withSignals(StackLayout) {
         // returns -1 for the cancel label) and the no-op re-pick, and notifies
         // `interactive`, so the subscriber re-emits `notify::selected`.
         this._state.select(labels.indexOf(chosen));
-    }
-
-    /**
-     * The list model (`Gtk.DropDown:model`) — the OBJECT that was assigned, by identity, as
-     * `dropdown.model === model` is measured to hold in GTK (ADR 0122 § 4). The normalised
-     * descriptors are {@link options}.
-     */
-    get model(): ComboWatchableModel | null {
-        return this._state.model;
-    }
-
-    set model(value: ComboWatchableModel | string | null) {
-        // ONE door for every surface: a real model by identity, `null` for none, a STRING for
-        // the XML attribute (`model='[…]'`, JSON — a `Gio.ListModel` has no attribute spelling),
-        // and a `TypeError` in the property's own words for anything else, an array included.
-        this._state.setModel(readModelWrite(value, this._authored));
     }
 
     /** The held model's items as `{ value, label }` descriptors. */
@@ -192,16 +275,6 @@ export class GtkDropDown extends withSignals(StackLayout) {
         this.model = child as unknown as ComboWatchableModel;
     }
 
-    /** The selected option index (`Gtk.DropDown:selected`). */
-    get selected(): number {
-        return this._state.selectedIndex;
-    }
-
-    set selected(raw: number | string) {
-        const value = xmlNumber(raw, this.selected);
-        this._state.setSelectedIndex(value);
-    }
-
     /** `gtk_drop_down_get_selected`. */
     get_selected(): number {
         return this.selected;
@@ -219,15 +292,6 @@ export class GtkDropDown extends withSignals(StackLayout) {
 
     set selectedValue(value: string) {
         this._state.setSelectedValue(value);
-    }
-
-    /**
-     * The selected ITEM (`Gtk.DropDown:selected-item`) — the model's own object at
-     * {@link selected}, read through `get_item`, so the identity comparison a `selected-item`
-     * consumer writes holds. `null` for the sentinel and for no model. Read-only, as in GTK.
-     */
-    get selectedItem(): unknown {
-        return this._state.selectedItem;
     }
 
     /** `gtk_drop_down_get_selected_item`. */

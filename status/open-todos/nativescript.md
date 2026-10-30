@@ -244,15 +244,60 @@ legs: identity equality, no `notify::host-button`. CONSUMER-VISIBLE: `useUnderli
 go through the seam's coercion, so `'maybe'` throws (it used to keep the old value silently); the four
 notifies now fire. Specs: `button-content-properties.spec.ts` (pure-JS), `specs/button-content.ts` (device).
 
-MIGRATE NEXT: `widgets/adw-combo-row.ts`. The QUESTION: `model` and `selected-item` ARE real GObject
-properties in GJS, so the object-kind question arises here for real. Option A: GObject-only values,
-identity compare. GJS probe (registered subclass, `ParamSpec.object`, `Gio.ListStore` values):
+DONE (`widgets/adw-combo-row.ts`): `model`, `selected` and `selected-item` are declared. The
+object-kind question above is ANSWERED (owner, 2026-10-29): `model` and `selected-item` are
+`kind: 'object'`, all three are `explicitNotify`, and `isSeamOwned` (`kind === 'object' ||
+explicitNotify`) gives such a property a seam-backed accessor on ROUTE D too — so one off-device
+spec speaks for both legs, where route D has no harness. The accepted cost is ADR 0122 § A2's:
+`g_object_get`, `bind_property` and GtkBuilder read the pspec default forever. `selected` is
+declared `kind: 'int'`, NOT `uint` as GTK has it: `GObject.ParamSpec.uint(…, -1)` throws
+`value is out of range for uint32`, and the sentinel has to be representable.
 
-- write object A: 1 notify; A again: 0; object B: 1; `null`: 1; `null` again: 0; A: 1.
+Measured, GJS 1.88.1 / libadwaita 1.9.4, and now replayed against the widget: a new model notifies
+`selected, selected-item, model`; `selected = 2` → `selected, selected-item`; an equal or
+out-of-range write → nothing; `model = null` → `model` ALONE while both derived values move
+silently; a splice that drops the selected item → `selected-item, selected`, the INVERSE of a
+write. The two channels that produce this: `ComboState.subscribe` PUSHES the derived values
+silently (`pushDeclared`), `subscribeNotify` pushes then emits, one name at a time.
 
-So GJS compares by identity. WAITS FOR AN OWNER DECISION on the list-model design: option A, a real
-StringList GObject model; option B, a Gio.ListStore of `{value,label}` items. The probe
-`~/.cache/gjsify-android/combo-row-probe.js` stays in place.
+CONSUMER-VISIBLE: a programmatic write now notifies — conformance divergence #1 (the `interactive`
+carve-out) is a DOM-renderer rule only, and the header in `conformance/rows.ts` says so now;
+`NotifySelectedEventData` and `NotifyDropDownSelectedEventData` are DELETED, so
+`notify({ eventName: 'notify::selected' })` throws and the value comes off the emitter (the
+`NOTIFY_SELECTED` / `NOTIFY_SELECTED_ITEM` consts stay); `selected="second"` throws where it used
+to keep the held value silently; and a write to `selected-item` is a silent no-op where libadwaita
+THROWS — the seam has no read-only arm, and `normalize` resolving to the derived value is the
+existing spelling for one (`AdwEntryRow:text-length`). Specs: `combo-row-properties.spec.ts`
+(pure-JS), `specs/combo-row.ts` (device).
+
+DONE (`widgets/gtk-drop-down.ts`): the same three declarations, deliberately VERBATIM — the two
+widgets are one `ComboState` behind two renderers, and a declaration that differed between them is
+a drift the conformance table cannot catch. Both vector suites therefore run against BOTH widgets.
+The rationale is stated once, in `adw-combo-row.ts`. CONSUMER-VISIBLE beyond the row's list: the
+drop-down gains `_pendingSelected`, so `<gtk:DropDown selected="1">` is no longer DROPPED when the
+XML builder assigns it before `<gtk:DropDown.model>` (a real bug, the row has held it for a while);
+and its hand-rolled `static emittedSignals` is gone, so the list is the seam's — `map, unmap,
+notify::model, notify::selected, notify::selected-item`, which first offers `notify::model` to a
+builder `bind`. Specs: `drop-down-properties.spec.ts` (pure-JS, the twin of the row's),
+`drop-down.spec.ts` unchanged below it (it drives `ComboState` from the non-trees entry).
+
+1768 tests / 4701 assertions and 1092 / 3368 trees, node and gjs alike.
+
+SPLIT-BUTTON REMAINDERS, re-examined with the object-kind decision in hand and still NOT taken:
+`menuModel` holds a plain `AdwMenuModel` array, not a GObject, so there is no `valueType` to
+declare and route D's `g_value_copy` refuses the value — the same wall `AdwButtonContent.hostButton`
+documents. It also reads back a different shape than it takes (`AdwMenuInput` in, `AdwMenuModel`
+out), which one declared store cannot express without changing the public contract. `popover` and
+`child` are not properties of this class at all. Leaving them hand-written is the decision, not the
+backlog.
+
+MIGRATE NEXT: `widgets/gtk-entry.ts`. Its twin `AdwEntryRow` is already declared with the same
+`text` plus `changed` and `activate`, so the declarations lift across the way the drop-down's
+lifted from the combo row — the cheapest remaining migration with a measured precedent. It also
+removes the second hand-rolled `static emittedSignals` (`CHANGED, NOTIFY_TEXT, ACTIVATE`), which
+`construct-vectors.spec.ts` still pins by hand. The scalars beside `text` (`maxLength`,
+`placeholderText`, `editable`) coerce their own strings today and would go through the seam's,
+which is the consumer-visible part to measure first.
 
 RESOLVED (owner, 2026-10-27): `emit('<undeclared>')` throws `No signal '<name>' on object '<class>'`,
 as in GJS, on both legs. `emit` is GObject's only; a NativeScript event goes through

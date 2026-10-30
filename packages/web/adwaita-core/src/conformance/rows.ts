@@ -13,6 +13,13 @@
 //      as the port rule. The flag is here so a renderer that mixes the two paths up fails
 //      a test — do not read it as GTK's.
 //
+//      THE CARVE-OUT IS A DOM-RENDERER RULE, AND NO LONGER A UNIVERSAL ONE. A surface that
+//      owns real GObject properties has no such choice: a declared `selected` notifies
+//      whatever moved it, so NativeScript's `AdwComboRow` matches the C and reads the
+//      `notified` column rather than `emitted`'s `interactive` gate. The flag still holds
+//      for every renderer whose "selection" is a DOM attribute, which is both browser
+//      elements and every port surface that has not been declared yet.
+//
 //   2. "Nothing is selected" is `ADW_COMBO_NO_SELECTION` (-1), the TS spelling of
 //      `GTK_INVALID_LIST_POSITION` (= G_MAXUINT), matching `ADW_SIDEBAR_NO_SELECTION`.
 //      The SIGN is the divergence and all of it: the position is otherwise GTK's, and an

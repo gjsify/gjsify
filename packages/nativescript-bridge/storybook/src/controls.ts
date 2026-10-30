@@ -33,7 +33,6 @@ import {
     NOTIFY_SLIDER_VALUE,
     NOTIFY_TEXT,
     NOTIFY_VALUE,
-    type NotifySelectedEventData,
     type NotifySliderValueEventData,
     type NotifyValueEventData,
 } from '@gjsify/adwaita-nativescript';
@@ -135,7 +134,12 @@ const ADWAITA_NS_FACTORY: ControlWidgetFactory<View> = {
         // control's option carries a `value` beside its `label`.
         row.model = GjsifyOptionList.new(options.map((o) => ({ label: o.label, value: String(o.value) })));
         let cb: (v: number) => void = () => {};
-        row.addEventListener(NOTIFY_SELECTED, (e) => cb((e as NotifySelectedEventData).selected));
+        // `connect` and not `addEventListener`: `selected` sits on the declared seam since ADR
+        // 0122 § 4, so on Android the emission belongs to the GObject and no NativeScript
+        // listener is on that path — measured on a Galaxy S9, where this was the one case the
+        // off-device suite could not have caught, because there both doors reach the same bus.
+        // The handler carries no payload beyond the sender and reads the value off the row.
+        row.connect(NOTIFY_SELECTED, () => cb(row.selected));
         return {
             node: row,
             get: () => row.selected,
