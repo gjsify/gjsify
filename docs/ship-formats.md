@@ -874,6 +874,20 @@ Linux has no row and `--sign` there is refused with the mechanism rather than a 
 an `.rpm` ARE signed, by the repository that serves them (`debsigs`, `rpmsign`), with that
 repository's key and not with a build-time identity.
 
+**A non-ASCII display name needs an explicit `--identifier` on the images.** `codesign` derives an
+image's identifier from its FILE NAME, and the darwin layout names the interpreter after the app
+(`Contents/Helpers/<display name>`, `app-runtime.ts`), so "Steuererklärung" hands it NFD bytes
+(`…61cc88…`). With a named identity the designated requirement pins that identifier, and
+`codesign --verify --strict <App>.app` then fails with *"the sealed resource directory is invalid"*;
+ad-hoc (a cdhash requirement, no identifier at all) and ASCII names are unaffected, and an NFC
+spelling does not help — the value has to be plain ASCII. `asciiCodesignIdentifier` folds a
+non-ASCII leaf (NFD, combining marks stripped, everything outside `[A-Za-z0-9.-]` collapsed to `-`,
+`x-<hex>` when nothing Latin survives) and `signPayload` passes the result as `--identifier` for
+IMAGES only: the bundle seal keeps `CFBundleIdentifier` from `Info.plist`, which is the identifier
+the system reads. An ASCII leaf sends no flag, so codesign's default stays byte-for-byte what it
+was. Measured on macOS 2026-10-30 — mini bundles, plus a named Developer ID run that signed and
+notarised an ASCII app; reproduced in steuererklaerung CI 41050980433.
+
 **Absent identity ⇒ skip, loudly, exit 0.** Unsigned is the default path and a legitimate
 deliverable; what ADR 0024 § 5 refuses is the other direction, claiming a signature that was not
 made. The skip goes to stderr and names the step it skipped — the reference's own two scripts both

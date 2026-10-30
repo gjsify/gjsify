@@ -75,7 +75,7 @@
 // the Developer ID that notarisation will actually require.
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, sep } from 'node:path';
+import { basename, dirname, join, sep } from 'node:path';
 
 import { isOnPath } from '../check-system-deps.js';
 import { describeExit, spawnToCompletion } from '../spawn.js';
@@ -153,6 +153,49 @@ export interface SignerDescriptor {
 }
 
 /**
+ * An explicit `--identifier` for an image whose FILE NAME is not ASCII, or
+ * `undefined` when codesign's own default is already right.
+ *
+ * WHY THIS EXISTS, measured on macOS 2026-10-30 (steuererklaerung CI run
+ * 41050980433, plus mini bundles beside it): the darwin layout puts the
+ * interpreter at `Contents/Helpers/<display name>`, so an app called
+ * "Steuererklärung" carries a non-ASCII leaf. codesign derives an image's code
+ * identifier from that file name; with a NAMED identity the designated
+ * requirement becomes `identifier "<derived>" and certificate leaf …`, and
+ * `codesign --verify --strict <App>.app` then fails with *"the sealed resource
+ * directory is invalid"* for the NFD-derived identifier (`…61cc88…`); why
+ * codesign rejects it is not established, only that it does. Ad-hoc (a cdhash
+ * requirement, no identifier at all) and ASCII names are unaffected; the same
+ * bundle with `--identifier eu.test.x.helper` verifies, and an NFC identifier
+ * still does not, so the value has to be plain ASCII rather than merely
+ * normalised.
+ *
+ * Hence: an ASCII leaf keeps codesign's default (this returns `undefined` and
+ * the flag is not sent, so every name that already worked is unchanged), and
+ * only a non-ASCII leaf gets a stable ASCII identifier. NFD first, so a
+ * precomposed "ä" and a decomposed "a"+U+0308 fold to the same value instead of
+ * to two identifiers that differ by bytes nobody can see.
+ */
+export function asciiCodesignIdentifier(fileName: string): string | undefined {
+    // `fileName` may be a path, and codesign derives the identifier from the
+    // LEAF — so both the ASCII test and the fallback bytes are about the leaf.
+    const leaf = basename(fileName);
+    if ([...leaf].every((char) => (char.codePointAt(0) ?? 0) < 0x80)) return undefined;
+    const slug = leaf
+        .normalize('NFD')
+        .replace(/\p{M}+/gu, '')
+        .replace(/[^A-Za-z0-9.-]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    if (/[A-Za-z0-9]/.test(slug)) return slug;
+    // Nothing Latin survives (a name that is entirely CJK or emoji): a readable
+    // slug would be the empty string, which is not an identifier, so the UTF-8
+    // bytes are spelled out — ASCII, unique, and reproducible from the name it
+    // came from.
+    const bytes = new TextEncoder().encode(leaf);
+    return `x-${[...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
  * The signers, keyed by the LAYOUT they sign — never by the host they run on.
  *
  * Linux is deliberately absent rather than present-and-empty. A `.deb` and an
@@ -187,16 +230,25 @@ export const SIGNERS: Partial<Record<HostOs, SignerDescriptor>> = {
         // the timestamp authority service cannot be contacted … the signing
         // operation will fail", which is not a failure worth inventing for a
         // signature that cannot carry the result.
-        args: ({ identity, file, entitlements, adhoc }) => [
-            '--force',
-            '--sign',
-            identity,
-            '--options',
-            'runtime',
-            ...(entitlements === undefined ? [] : ['--entitlements', entitlements]),
-            ...(adhoc ? [] : ['--timestamp']),
-            file,
-        ],
+        args: ({ identity, file, entitlements, adhoc, seal }) => {
+            // A non-ASCII leaf gets an explicit ASCII identifier — see
+            // {@link asciiCodesignIdentifier}. NEVER for the seal: the bundle
+            // takes its identifier from `CFBundleIdentifier` in `Info.plist`,
+            // and overriding that would make the seal disagree with the bundle
+            // the system reads.
+            const derived = seal ? undefined : asciiCodesignIdentifier(file);
+            return [
+                '--force',
+                '--sign',
+                identity,
+                '--options',
+                'runtime',
+                ...(entitlements === undefined ? [] : ['--entitlements', entitlements]),
+                ...(adhoc ? [] : ['--timestamp']),
+                ...(derived === undefined ? [] : ['--identifier', derived]),
+                file,
+            ];
+        },
         // FIVE OF THE REFERENCE'S SIX for an ad-hoc identity, FOUR for a real one,
         // and the difference is the one § A16 left open — now MEASURED, on
         // darwin-arm64 with the published `@gjsify/gtk-runtime-darwin-arm64` staged
@@ -254,7 +306,9 @@ export const SIGNERS: Partial<Record<HostOs, SignerDescriptor>> = {
             'the images are signed and the bundle is sealed, and the seal survives both the `.zip` and the ' +
             '`.dmg` round trip; § A16 stands measured in ONE direction only — library validation refuses an ' +
             'ad-hoc-signed dylib, so the ad-hoc identity grants `disable-library-validation` while a named ' +
-            'one does not, and no run in this repository has ever held the named one',
+            'one does not; a named Developer ID was signed and notarised on 2026-10-30 for an ASCII-named ' +
+            'app, and a non-ASCII image name verifies only with the explicit ASCII `--identifier` this ' +
+            'signer now passes',
     },
     win32: {
         layoutOs: 'win32',
@@ -425,6 +479,17 @@ export interface SignArgs {
     entitlements?: string;
     /** Is {@link identity} the reserved ad-hoc `-`? */
     adhoc: boolean;
+    /**
+     * Is {@link file} the bundle DIRECTORY being sealed, rather than one image
+     * inside it?
+     *
+     * A signer needs the distinction because the two invocations are not the
+     * same operation on the same kind of object: a bundle takes its identifier
+     * from `Info.plist` and must never be given one, while an image's identifier
+     * is derived from its own file name — which is where a non-ASCII helper name
+     * becomes a problem ({@link asciiCodesignIdentifier}).
+     */
+    seal: boolean;
 }
 
 /** `codesign --sign -`: the one identity value that names no identity at all. */
@@ -491,8 +556,14 @@ export async function signPayload(input: SignPayloadInput): Promise<PayloadEntry
         writeFileSync(input.entitlementsPath, renderEntitlements(granted));
         entitlements = input.entitlementsPath;
     }
-    const run = async (file: string, what: string): Promise<void> => {
-        const args = signer.args({ identity: input.identity, file, adhoc, ...(entitlements ? { entitlements } : {}) });
+    const run = async (file: string, what: string, seal: boolean): Promise<void> => {
+        const args = signer.args({
+            identity: input.identity,
+            file,
+            adhoc,
+            seal,
+            ...(entitlements ? { entitlements } : {}),
+        });
         if (input.verbose) input.log(`${signer.tool} ${args.join(' ')}`);
         const result = await spawnToCompletion(signer.tool, args, {
             completion: 'return',
@@ -528,7 +599,7 @@ export async function signPayload(input: SignPayloadInput): Promise<PayloadEntry
     }
 
     for (const entry of signable) {
-        await run(join(workDir, entry.path.split('/').join(sep)), entry.path);
+        await run(join(workDir, entry.path.split('/').join(sep)), entry.path, false);
     }
 
     // THE IMAGES FIRST, THE SEAL LAST, and the order is not stylistic: a bundle
@@ -545,7 +616,7 @@ export async function signPayload(input: SignPayloadInput): Promise<PayloadEntry
             );
         }
         sealPrefix = signer.sealAddPrefix(input.bundleRoot);
-        await run(join(workDir, input.bundleRoot.split('/').join(sep)), `${input.bundleRoot} (bundle seal)`);
+        await run(join(workDir, input.bundleRoot.split('/').join(sep)), `${input.bundleRoot} (bundle seal)`, true);
     }
 
     // THE FILE SET MAY ONLY GROW WHERE THE SEAL WRITES. Both tools rewrite an
