@@ -59,6 +59,8 @@ interface ComboRowValues {
     _pendingSelected: number | null;
     readonly model: ComboWatchableModel | null;
     readonly selected: number;
+    _applyModel(): void;
+    _applySelected(): void;
 }
 
 export class AdwComboRow extends withProperties(AdwActionRow, {
@@ -89,19 +91,7 @@ export class AdwComboRow extends withProperties(AdwActionRow, {
             // of the held model with nothing, and the splice has already emitted what a splice
             // emits through `items-changed`.
             normalize: (value, self) => readModelWrite(value, (self as ComboRowValues)._authored),
-            afterNotify: (self) => {
-                const row = self as ComboRowValues;
-                // `setModel` emits `selected`, `selected-item`, `model` through the relay, in
-                // that order and all three — see `ComboState.setModel`.
-                row._state.setModel(row.model);
-                // The index that arrived before the model did (see `_pendingSelected`). Applied
-                // AFTER, so it reads as what it is: a second write that found its model.
-                const pending = row._pendingSelected;
-                if (pending !== null && row._state.hasIndex(pending)) {
-                    row._pendingSelected = null;
-                    row._state.setSelectedIndex(pending);
-                }
-            },
+            afterNotify: (self) => (self as ComboRowValues)._applyModel(),
         },
         // `int`, where libadwaita declares `guint`. The port's "nothing selected" is
         // `ADW_COMBO_NO_SELECTION` (-1) — the recorded divergence #2 of the conformance table
@@ -130,11 +120,7 @@ export class AdwComboRow extends withProperties(AdwActionRow, {
                 // included. Resolving back to the held value is what makes the write silent.
                 return row._state.hasIndex(next) ? next : row.selected;
             },
-            afterNotify: (self) => {
-                const row = self as ComboRowValues;
-                // Emits `selected` then `selected-item` through the relay.
-                row._state.setSelectedIndex(row.selected);
-            },
+            afterNotify: (self) => (self as ComboRowValues)._applySelected(),
         },
         // READ-ONLY by derivation, the way `AdwEntryRow:text-length` is: a write resolves to the
         // value already held, so it changes nothing and notifies nothing. libadwaita THROWS on a
@@ -195,6 +181,33 @@ export class AdwComboRow extends withProperties(AdwActionRow, {
      * model. Read-only by derivation (see the declaration).
      */
     declare selectedItem: unknown;
+
+    /**
+     * What a `model` write DOES, once the seam has stored the normalized value.
+     *
+     * A method on the class and not a body inside the declaration, because the descriptor sits
+     * outside the class and reaches the state through a cast — and a reader keyed on
+     * `this.<field>` cannot tell `ComboState.setModel` from `ListViewState.setModel` through
+     * one (`check-adwaita-collection-reactivity.mjs`). Guessing there would merge two different
+     * collections into one comparison, so the call is made where the field's type is declared.
+     */
+    private _applyModel(): void {
+        // `setModel` emits `selected`, `selected-item`, `model` through the relay, in that order
+        // and all three — see `ComboState.setModel`.
+        this._state.setModel(this.model);
+        // The index that arrived before the model did (see `_pendingSelected`). Applied AFTER,
+        // so it reads as what it is: a second write that found its model.
+        const pending = this._pendingSelected;
+        if (pending !== null && this._state.hasIndex(pending)) {
+            this._pendingSelected = null;
+            this._state.setSelectedIndex(pending);
+        }
+    }
+
+    /** What a `selected` write does: emits `selected` then `selected-item` through the relay. */
+    private _applySelected(): void {
+        this._state.setSelectedIndex(this.selected);
+    }
 
     constructor(props?: ConstructProps<AdwComboRow>) {
         super();

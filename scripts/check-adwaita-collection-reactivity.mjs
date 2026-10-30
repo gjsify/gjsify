@@ -127,6 +127,8 @@ import { fileURLToPath } from 'node:url';
 import {
     adwaitaNativeScriptWidgets,
     adwaitaWebElements,
+    camelOf,
+    declaredGObjectProperties,
     observedAttributesByClass,
     stripComments,
     tagClass,
@@ -523,8 +525,21 @@ function isPublicMember(member) {
  * ONE hop, the same bound `check-adwaita-connect-rebind.mjs`'s `reach()` takes and for the
  * same reason: a transitive walk reports a path because something four methods away
  * mentions the applier, which is not the same claim.
+ *
+ * A MIGRATED WIDGET HAS NO PUBLIC MEMBER FOR ITS PROPERTIES AT ALL. `<adw-combo-row>` declares
+ * `model` at its `extends` (route D, ADR 0105 § 2) and the seam installs the accessor, so a
+ * reader keyed on the class body sees a widget whose only path into `ComboState.setModel` is a
+ * private `_applyModel` — and scores a property a consumer writes every day as connect-time
+ * only. The declaration IS the public member here, and its descriptor is the hop: `afterNotify`
+ * runs on every write, which is the same claim `set model(…)` makes one line further down the
+ * class. Read through {@link declaredGObjectProperties} so this file and the XML doors turn on
+ * ONE reading of that declaration.
+ *
+ * @param {string} body the class body text
+ * @param {{ name: string }[]} members the class's readable members
+ * @param {string} text the whole module, for the declarations that sit outside the class body
  */
-function consumerReachableNames(body, members) {
+function consumerReachableNames(body, members, text) {
     const names = new Set();
     for (const member of members) {
         if (!isPublicMember(member)) continue;
@@ -533,6 +548,20 @@ function consumerReachableNames(body, members) {
             /\bthis\.([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g,
         )) {
             names.add(called);
+        }
+    }
+    for (const property of declaredGObjectProperties(text)) {
+        names.add(property.name);
+        names.add(camelOf(property.name));
+        // A descriptor's receiver is the `self` the seam hands it, not `this`, and it is almost
+        // always written through the cast that gives the private members a type —
+        // `(self as ComboRowValues)._applyModel()`. Both spellings, and nothing looser: a bare
+        // `).name(` would take the tail of any call chain as a hop, which is the transitive walk
+        // the bound above exists to refuse.
+        for (const [, cast, bare] of property.executable.matchAll(
+            /\(\s*\w+\s+as\s+[\w.<>[\]|\s]+\)\s*\.([A-Za-z_$][A-Za-z0-9_$]*)\s*\(|\bself\.([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g,
+        )) {
+            names.add(cast ?? bare);
         }
     }
     return names;
@@ -883,7 +912,7 @@ for (const renderer of RENDERERS) {
         }
 
         const census = [];
-        const reachableNames = consumerReachableNames(widget.body.text, widget.members);
+        const reachableNames = consumerReachableNames(widget.body.text, widget.members, text);
 
         // Rule 1 — collect; the verdict is per widget, with its siblings named, below.
         for (const [setter, owners] of coreSetters) {

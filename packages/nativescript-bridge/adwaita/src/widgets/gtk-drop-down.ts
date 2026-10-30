@@ -64,6 +64,8 @@ interface DropDownValues {
     _pendingSelected: number | null;
     readonly model: ComboWatchableModel | null;
     readonly selected: number;
+    _applyModel(): void;
+    _applySelected(): void;
 }
 
 export class GtkDropDown extends withSignals(StackLayout, {
@@ -80,15 +82,7 @@ export class GtkDropDown extends withSignals(StackLayout, {
             explicitNotify: true,
             blurb: 'Model for the displayed items',
             normalize: (value, self) => readModelWrite(value, (self as DropDownValues)._authored),
-            afterNotify: (self) => {
-                const dropDown = self as DropDownValues;
-                dropDown._state.setModel(dropDown.model);
-                const pending = dropDown._pendingSelected;
-                if (pending !== null && dropDown._state.hasIndex(pending)) {
-                    dropDown._pendingSelected = null;
-                    dropDown._state.setSelectedIndex(pending);
-                }
-            },
+            afterNotify: (self) => (self as DropDownValues)._applyModel(),
         },
         selected: {
             kind: 'int',
@@ -104,10 +98,7 @@ export class GtkDropDown extends withSignals(StackLayout, {
                 }
                 return dropDown._state.hasIndex(next) ? next : dropDown.selected;
             },
-            afterNotify: (self) => {
-                const dropDown = self as DropDownValues;
-                dropDown._state.setSelectedIndex(dropDown.selected);
-            },
+            afterNotify: (self) => (self as DropDownValues)._applySelected(),
         },
         'selected-item': {
             kind: 'object',
@@ -169,6 +160,25 @@ export class GtkDropDown extends withSignals(StackLayout, {
 
     /** GJS's `notify('<prop>')` beside NativeScript's `notify({ eventName })`; see the seam. */
     declare notify: GObjectNotify;
+
+    /**
+     * What a `model` write does, once the seam has stored the normalized value — the twin of
+     * `AdwComboRow._applyModel`, which says why the body sits on the class and not in the
+     * declaration.
+     */
+    private _applyModel(): void {
+        this._state.setModel(this.model);
+        const pending = this._pendingSelected;
+        if (pending !== null && this._state.hasIndex(pending)) {
+            this._pendingSelected = null;
+            this._state.setSelectedIndex(pending);
+        }
+    }
+
+    /** What a `selected` write does: emits `selected` then `selected-item` through the relay. */
+    private _applySelected(): void {
+        this._state.setSelectedIndex(this.selected);
+    }
 
     constructor(props?: ConstructProps<GtkDropDown>) {
         super();
