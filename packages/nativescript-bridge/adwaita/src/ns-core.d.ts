@@ -376,6 +376,13 @@ declare module '@nativescript/core' {
          * objected — `AdwExpanderRow` took a `View`, and only a consumer saw it.
          */
         removeRow(itemSpec: ItemSpec): void;
+        /**
+         * `GridLayoutBase.removeColumn(itemSpec: ItemSpec)`
+         * (`ui/layouts/grid-layout/grid-layout-common.d.ts:42`) — BY SPEC like
+         * `removeRow`, which is why a track list is dropped from the END backwards:
+         * removing a leading column renumbers the specs still to remove.
+         */
+        removeColumn(itemSpec: ItemSpec): void;
         /** Remove every column definition (lets a layout re-declare its columns,
          *  e.g. to flip the fixed/expanding column for a trailing sidebar). */
         removeColumns(): void;

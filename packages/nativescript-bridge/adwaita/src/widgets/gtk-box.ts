@@ -39,12 +39,15 @@ import { GridLayout, ItemSpec, type View } from '@nativescript/core';
 
 import {
     boxChildTrack,
+    boxPlacementStart,
     boxSpacingChanges,
+    boxTrackDiff,
     boxTrackPlan,
     DEFAULT_BOX_SPACING,
     normalizeBoxSpacing,
     resolveBoxChildOrder,
     type BoxOrientation,
+    type BoxTrack,
 } from './box-layout.js';
 import { normalizeBoxOrientation } from '@gjsify/adwaita-core';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
@@ -63,9 +66,16 @@ export class GtkBox extends AdwStyledLayoutBase {
     private _spacing = DEFAULT_BOX_SPACING;
     private _orientation: BoxOrientation = 'horizontal';
     private _homogeneous = false;
-    // What the track lists were last built for. NOT `_rows`/`_cols`: `GridLayoutBase` owns
-    // `_rows` and assigns it in its constructor, and a subclass field of that name replaces it.
-    private _trackKey = '';
+    // The track list along the axis as it was last APPLIED, the axis it was applied for, and
+    // the specs that carry it. NOT `_rows`/`_cols`: `GridLayoutBase` owns those and assigns
+    // them in its constructor, so a subclass field of either name replaces the platform's own
+    // list — and `getRows()` / `getColumns()` hand out a copy, which is a per-call O(n) the
+    // whole point of the diff is to avoid. The specs this box made itself are the same list.
+    private _tracks: readonly BoxTrack[] = [];
+    private _tracksVertical: boolean | null = null;
+    private readonly _specs: ItemSpec[] = [];
+    // The children in the order their cells were last written, for {@link boxPlacementStart}.
+    private _placed: readonly View[] = [];
     private readonly _followers = new Map<View, () => void>();
 
     constructor(props?: ConstructProps<GtkBox>) {
@@ -226,10 +236,13 @@ export class GtkBox extends AdwStyledLayoutBase {
     /**
      * Give every child its track and the box the track list that matches.
      *
-     * The WHOLE set, not just the newcomer: adding a second child changes the FIRST one's
-     * answer too when the box is re-ordered, and a removal shifts every index after it. The
-     * track list is rebuilt only when it differs, because re-adding every `ItemSpec` makes
-     * the platform re-measure.
+     * RE-PLANNED FROM THE WHOLE SET, APPLIED AS A DIFF. Adding a second child changes the
+     * FIRST one's answer too when the box is re-ordered, and a removal shifts every index
+     * after it, so the plan is always read off every child. But this runs on EVERY
+     * `addChild` / `insertChild` / `removeChild`, and re-adding every `ItemSpec` and
+     * re-writing every cell made that quadratic in the child count — `boxTrackDiff` and
+     * `boxPlacementStart` hold the measurement and the reasoning. An append and a
+     * remove-from-the-end are one track pair and one cell each.
      */
     private _applyChildren(): void {
         const vertical = this._orientation === 'vertical';
@@ -239,27 +252,42 @@ export class GtkBox extends AdwStyledLayoutBase {
             return (vertical ? flags.vexpand : flags.hexpand) === true;
         });
         const plan = boxTrackPlan(expands, this._spacing, this._homogeneous);
-        const key = `${vertical ? 'v' : 'h'}${plan.map(({ unit, value }) => `${unit}${value}`).join(',')}`;
-        if (key !== this._trackKey) {
-            this._trackKey = key;
+
+        if (vertical !== this._tracksVertical) {
+            // The axis itself moved, so the along-tracks are now the cross axis and there is
+            // no leading run to keep: the grid starts over. The cross axis is one `*` track —
+            // a child's own `halign` / `valign` place it in it.
             this.removeColumns();
             this.removeRows();
-            // The cross axis is one `*` track: a child's own `halign` / `valign` place it in it.
-            const cross = () => new ItemSpec(1, 'star');
-            const along = (add: (spec: ItemSpec) => void) => {
-                for (const { unit, value } of plan) add(new ItemSpec(value, unit));
-            };
-            if (vertical) {
-                this.addColumn(cross());
-                along((spec) => this.addRow(spec));
-            } else {
-                this.addRow(cross());
-                along((spec) => this.addColumn(spec));
-            }
+            if (vertical) this.addColumn(new ItemSpec(1, 'star'));
+            else this.addRow(new ItemSpec(1, 'star'));
+            this._tracksVertical = vertical;
+            this._tracks = [];
+            this._specs.length = 0;
+            this._placed = [];
         }
-        for (const [index, child] of children.entries()) {
+
+        const { keep, add } = boxTrackDiff(this._tracks, plan);
+        if (keep < this._tracks.length || add.length > 0) {
+            while (this._specs.length > keep) {
+                const spec = this._specs.pop();
+                if (vertical) this.removeRow(spec);
+                else this.removeColumn(spec);
+            }
+            for (const { unit, value } of add) {
+                const spec = new ItemSpec(value, unit);
+                this._specs.push(spec);
+                if (vertical) this.addRow(spec);
+                else this.addColumn(spec);
+            }
+            this._tracks = plan;
+        }
+
+        for (let index = boxPlacementStart(this._placed, children); index < children.length; index += 1) {
+            const child = children[index];
             GridLayout.setColumn(child, vertical ? 0 : boxChildTrack(index));
             GridLayout.setRow(child, vertical ? boxChildTrack(index) : 0);
         }
+        this._placed = children;
     }
 }

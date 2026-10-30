@@ -667,6 +667,12 @@ export class GridLayout extends LayoutBase {
         if (at !== -1) this._rows.splice(at, 1);
     }
 
+    /** `GridLayoutBase.removeColumn` — BY SPEC, like `removeRow`, not by index. */
+    removeColumn(itemSpec: ItemSpec): void {
+        const at = this._cols.indexOf(itemSpec);
+        if (at !== -1) this._cols.splice(at, 1);
+    }
+
     /** `GridLayoutBase.getColumns` — a copy, as on a device. */
     getColumns(): ItemSpec[] {
         return [...this._cols];
