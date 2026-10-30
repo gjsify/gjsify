@@ -202,9 +202,9 @@ type Declared<P> = P & {
     readonly normalize?: (value: unknown, self: object) => unknown;
 
     /**
-     * Replaces the equal-write check for this property on the PURE leg: `written` is the value as
-     * the caller spelled it, `next` what {@link Declared.normalize} made of it, `held` what the
-     * store holds — and the answer decides whether the write notifies at all.
+     * Replaces the equal-write check for this property: `written` is the value as the caller
+     * spelled it, `next` what {@link Declared.normalize} made of it, `held` what the store holds
+     * — and the answer decides whether the write notifies at all.
      *
      * WHY. A C setter guards on `g_strcmp0 (value, adw_…_get_…(self))`, against the GETTER
      * READBACK rather than the stored field. Where storage normalises, the two differ and the
@@ -213,13 +213,20 @@ type Declared<P> = P & {
      * libadwaita 1.9.4). Comparing the held value says the opposite, and only the property whose
      * `normalize` collapses distinct writes onto one held value can tell the difference.
      *
-     * The real leg has no use for it — there the guard IS the C one.
+     * RUNS ON BOTH LEGS. It used to run on the pure one alone, on the reasoning that "there the
+     * guard IS the C one" — which holds for a widget wrapping a real C object and not for a
+     * foreign-parent class, which has no C setter at all. On route D node-gi's generated setter
+     * is an identity guard and nothing more (`installForeignPropertyAccessors` in `gi.js`), so a
+     * property that left this to the real leg got the identity answer there and the measured one
+     * off-device — the per-leg difference this seam exists to close.
      */
     readonly changed?: (next: unknown, held: unknown, written: unknown, self: object) => boolean;
 
     /**
-     * The rest of the C setter, on the PURE leg: runs once this property's own `notify::<name>`
-     * is out, so a setter that also drives OTHER properties emits in the order C does.
+     * The rest of the C setter: runs once this property's own `notify::<name>` is out, so a
+     * setter that also drives OTHER properties emits in the order C does. For a property with
+     * {@link ForeignScalarProperty.explicitNotify} it runs INSTEAD of that notify, and owes every
+     * emission the write makes, its own included.
      *
      * WHY IT IS NOT `normalize`. A normalizer runs AHEAD of the store, so a cross-write made
      * there notifies before the property that caused it. `Adw.SplitButton` measures the other way
@@ -227,8 +234,9 @@ type Declared<P> = P & {
      * after — and the two cannot both be one hook. The SHAPE of a value still belongs to
      * `normalize`; what the write does to its siblings belongs here.
      *
-     * Not run on the real leg, where the C setter does this itself: a second pass would write the
-     * cleared slot a second time, and C answers a redundant `null` with a CRITICAL.
+     * RUNS ON BOTH LEGS, for the reason {@link Declared.changed} states: the foreign-parent class
+     * route D registers has no C setter to do this instead. `adw-split-button`'s label/icon-name
+     * mutual clear is the one that was silently missing on Android because of it.
      */
     readonly afterNotify?: (self: object) => void;
 };
@@ -580,6 +588,8 @@ interface Declaration {
     readonly prototype: Record<string, unknown>;
     /** Every spelling of this class's OWN declared properties, mapped to the canonical name. */
     readonly canonicalOf: ReadonlyMap<string, string>;
+    /** Canonical names of this class's {@link isSeamOwned} properties — what `pushDeclared` takes. */
+    readonly seamOwned: ReadonlySet<string>;
     /** This class's OWN declared signal names. */
     readonly declaredSignals: ReadonlySet<string>;
     /**
@@ -610,6 +620,7 @@ const SEAM_NOTIFY = new WeakSet<object>();
  */
 interface Resolved {
     readonly canonicalOf: ReadonlyMap<string, string>;
+    readonly seamOwned: ReadonlySet<string>;
     readonly declaredSignals: ReadonlySet<string>;
     readonly routeD: boolean;
     readonly giConnect: GiConnect | undefined;
@@ -641,9 +652,11 @@ function resolvedFor(ctor: object): Resolved {
     const cached = RESOLVED.get(ctor);
     if (cached !== undefined) return cached;
     const canonicalOf = new Map<string, string>();
+    const seamOwned = new Set<string>();
     const declaredSignals = new Set<string>();
     const resolved: Resolved = {
         canonicalOf,
+        seamOwned,
         declaredSignals,
         routeD: false,
         giConnect: undefined,
@@ -653,6 +666,7 @@ function resolvedFor(ctor: object): Resolved {
     const merged = resolved as { -readonly [K in keyof Resolved]: Resolved[K] };
     for (const declaration of declarationsOf(ctor)) {
         for (const [spelling, canonical] of declaration.canonicalOf) canonicalOf.set(spelling, canonical);
+        for (const name of declaration.seamOwned) seamOwned.add(name);
         for (const name of declaration.declaredSignals) declaredSignals.add(name);
         if (declaration.routeD) merged.routeD = true;
         if (declaration.giConnect !== undefined) merged.giConnect = declaration.giConnect;
@@ -687,14 +701,17 @@ function declare(
     routers: Readonly<Record<string, unknown>> | undefined,
 ): Declaration {
     const canonicalOf = new Map<string, string>();
-    for (const name of Object.keys(meta?.Properties ?? {})) {
+    const seamOwned = new Set<string>();
+    for (const [name, property] of Object.entries(meta?.Properties ?? {})) {
         for (const spelling of spellingsOf(name)) canonicalOf.set(spelling, name);
+        if (isSeamOwned(property)) seamOwned.add(name);
     }
     const declaration: Declaration = {
         meta,
         klass,
         prototype: klass.prototype as unknown as Record<string, unknown>,
         canonicalOf,
+        seamOwned,
         declaredSignals: new Set(Object.keys(meta?.Signals ?? {})),
         routers,
         realized: false,
@@ -819,9 +836,80 @@ function refuseDeclaredNotifyPayload(
 }
 
 /**
- * Puts {@link coerceDeclared} in front of the accessors node-gi installed, so a string reaches
- * the GObject as the type the ParamSpec declares. A string-kind property with no `normalize`
- * has nothing to coerce and keeps node-gi's accessor untouched.
+ * Whether the SEAM owns this property's storage on EVERY leg, rather than node-gi owning it on
+ * route D. Two shapes of property need it, for two reasons that land in the same place:
+ *
+ *   - OBJECT-KIND. node-gi marshals a write into a `GValue` of the ParamSpec's type
+ *     (`NodeGiSetProperty` → `g_value_copy` in `class.cc`), and every model this port holds —
+ *     `GjsifyOptionList`, `GjsifyOptionObject`, `GtkStringList` — is pure JS on every leg BY
+ *     CONSTRUCTION, because ADR 0122 § A3 refuses both a real-GObject stand-in and a `jsobject`
+ *     ParamSpec. Such a value cannot enter the GObject at all.
+ *   - {@link ForeignScalarProperty.explicitNotify}. node-gi's generated setter emits from inside
+ *     `native.setProperty` and cannot be told not to, so a write through it is never silent —
+ *     and a property whose widget owes an ORDER must be able to move its value without emitting
+ *     at that instant. `Adw.ComboRow:model = null` is the case that forces it: `selected` goes
+ *     to the sentinel SILENTLY while `model` alone notifies (measured, GJS 1.88 / libadwaita
+ *     1.9.4).
+ *
+ * THE COST, stated plainly: the GObject's own slot for such a property is never written, so
+ * `g_object_get`, `bind_property` and GtkBuilder read its default forever. ADR 0122 § A2 took
+ * that trade for `model` already, nothing on this leg reads a port widget's properties through
+ * C, and the alternative is emitting notifications libadwaita does not.
+ *
+ * What it BUYS is larger than what it costs: such a property runs the SAME accessor over the
+ * SAME store on both legs, so the off-device spec covers route D's behaviour too — and route D
+ * has no harness of its own.
+ */
+function isSeamOwned(property: DeclaredProperty): boolean {
+    return property.kind === 'object' || property.explicitNotify === true;
+}
+
+/**
+ * The accessor a SEAM-OWNED property gets, identical on both legs but for how it emits.
+ *
+ * Deliberately the same rules node-gi's own accessors follow, so a widget behaves alike
+ * wherever it runs — an equal write is not a change, and a read MATERIALISES the default so
+ * that a later default-equal write is not one either.
+ */
+function seamOwnedDescriptor(
+    name: string,
+    property: DeclaredProperty,
+    notify: (self: Observable, name: string) => void,
+): PropertyDescriptor {
+    const fallback = defaultValueOf(property);
+    return {
+        configurable: true,
+        enumerable: false,
+        get(this: object): unknown {
+            const values = valuesOf(this);
+            if (!values.has(name)) values.set(name, fallback);
+            return values.get(name);
+        },
+        set(this: Observable, raw: unknown): void {
+            const value = coerceDeclared(name, property, raw, this);
+            const values = valuesOf(this);
+            if (values.has(name) && !isDeclaredChange(property, value, values.get(name), raw, this)) return;
+            values.set(name, value);
+            // `explicitNotify` hands the whole emission to `afterNotify`, this property's own
+            // included — see {@link Declared.afterNotify}.
+            if (property.explicitNotify !== true) notify(this, name);
+            property.afterNotify?.(this);
+        },
+    };
+}
+
+/** Emit `notify::<name>` through whatever answers `notify` on this leg; both route a string. */
+function notifyThrough(self: Observable, name: string): void {
+    (self as unknown as { notify(propertyName: string): void }).notify(name);
+}
+
+/**
+ * Give the accessors node-gi installed what the declaration asks of them: {@link coerceDeclared}
+ * in front, and {@link Declared.changed} / {@link Declared.afterNotify} behind. A string-kind
+ * property that declares none of the three has nothing to add and keeps node-gi's untouched.
+ *
+ * A {@link isSeamOwned} property is REPLACED rather than wrapped — its value never enters the
+ * GObject.
  *
  * An accessor that is not there to wrap THROWS: it means the host chain owned the name and
  * node-gi skipped it, and a property that quietly bypasses the coercion is the very
@@ -830,21 +918,43 @@ function refuseDeclaredNotifyPayload(
 function wrapRouteDAccessors(declaration: Declaration): void {
     const { meta, prototype } = declaration;
     for (const [name, property] of Object.entries(meta!.Properties ?? {})) {
-        if (property.kind === 'string' && property.normalize === undefined) continue;
+        const hooks = property.changed !== undefined || property.afterNotify !== undefined;
+        const seamOwned = isSeamOwned(property);
+        if (!seamOwned && !hooks && property.kind === 'string' && property.normalize === undefined) continue;
         for (const spelling of spellingsOf(name)) {
             const installed = Object.getOwnPropertyDescriptor(prototype, spelling);
-            if (installed?.set === undefined) {
+            if (installed?.set === undefined || installed.get === undefined) {
                 throw new Error(
-                    `Registering '${meta!.GTypeName}' installed no setter for '${spelling}', so a ` +
+                    `Registering '${meta!.GTypeName}' installed no accessor for '${spelling}', so a ` +
                         'string from XML would reach the GObject uncoerced. The host chain probably ' +
                         "owns that name (see the class's $foreignSkipped); rename the property.",
                 );
             }
-            const set = installed.set;
+            if (seamOwned) {
+                Object.defineProperty(prototype, spelling, seamOwnedDescriptor(name, property, notifyThrough));
+                continue;
+            }
+            const { get, set } = installed;
             Object.defineProperty(prototype, spelling, {
                 ...installed,
-                set(this: object, value: unknown): void {
-                    set.call(this, coerceDeclared(name, property, value, this));
+                set(this: Observable, raw: unknown): void {
+                    const value = coerceDeclared(name, property, raw, this);
+                    if (!hooks) {
+                        set.call(this, value);
+                        return;
+                    }
+                    // The READBACK, before and after, is what stands in for the store this leg
+                    // does not own: node-gi's setter is an identity guard, so "did it move" is
+                    // the only thing it tells us, and it tells it by what the getter says next.
+                    const held = get.call(this);
+                    set.call(this, value);
+                    const moved = get.call(this) !== held;
+                    const changed = property.changed !== undefined ? property.changed(value, held, raw, this) : moved;
+                    // node-gi emitted iff the value moved. A `changed` that says yes where the
+                    // store did not move — `icon-name = ''` on a button already holding `null` —
+                    // owes the emission here, and owes it before `afterNotify` runs.
+                    if (changed && !moved) notifyThrough(this, name);
+                    if (changed) property.afterNotify?.(this);
                 },
             });
         }
@@ -865,29 +975,21 @@ function wrapRouteDAccessors(declaration: Declaration): void {
 function installPureJsProperties(declaration: Declaration): void {
     const { meta, prototype } = declaration;
     for (const [name, property] of Object.entries(meta!.Properties ?? {})) {
-        const fallback = defaultValueOf(property);
+        // The same {@link seamOwnedDescriptor} route D gives a seam-owned property, because on
+        // this leg EVERY declared property is seam-owned: there is no GObject to hold one.
+        // Emission goes straight to the declared channel rather than through `notify`, which
+        // would only re-resolve the instance's chain to arrive here.
+        const descriptor = seamOwnedDescriptor(name, property, emitPureNotify);
         for (const spelling of spellingsOf(name)) {
             if (spelling in prototype) continue;
-            Object.defineProperty(prototype, spelling, {
-                configurable: true,
-                enumerable: false,
-                get(this: object): unknown {
-                    const values = valuesOf(this);
-                    if (!values.has(name)) values.set(name, fallback);
-                    return values.get(name);
-                },
-                set(this: Observable, raw: unknown): void {
-                    const value = coerceDeclared(name, property, raw, this);
-                    const values = valuesOf(this);
-                    if (values.has(name) && !isDeclaredChange(property, value, values.get(name), raw, this)) return;
-                    values.set(name, value);
-                    emitDeclared(this, `notify::${name}`, []);
-                    property.afterNotify?.(this);
-                },
-            });
+            Object.defineProperty(prototype, spelling, descriptor);
         }
     }
     installPureNotify(declaration);
+}
+
+function emitPureNotify(self: Observable, name: string): void {
+    emitDeclared(self, `notify::${name}`, []);
 }
 
 function installPureNotify(declaration: Declaration): void {
@@ -1076,6 +1178,35 @@ export function withProperties<TBase extends ObservableConstructor>(Base: TBase,
 
     declare(WithProperties, meta, undefined);
     return WithProperties;
+}
+
+/**
+ * Write a declared property's held value WITHOUT notifying, and without running `normalize`,
+ * `changed` or `afterNotify` — the PUSH half of a property whose widget owns the emission.
+ *
+ * WHY A WIDGET NEEDS IT. A property whose value also moves from UNDERNEATH — the selection of an
+ * `Adw.ComboRow` when its model is replaced, or when the held model splices — cannot be kept in
+ * sync by writing it, because the write is the thing that emits and the emission order is
+ * measured and is not the order a write would produce. `model = null` is the sharpest case:
+ * `selected` goes to the sentinel and `selected-item` to null with NO notify at all, and `model`
+ * alone notifies. So the widget pushes the new value in here and emits what it owes with
+ * `notify('<name>')`, in the order it measured.
+ *
+ * Only a {@link isSeamOwned} property may be pushed, and a name that is not one THROWS rather
+ * than writing a store route D would never read back: there the value lives in the GObject, and
+ * a silent push would be correct off-device and invisible on the device.
+ */
+export function pushDeclared(self: object, name: string, value: unknown): void {
+    const { canonicalOf, seamOwned } = resolvedFor(self.constructor);
+    const canonical = canonicalOf.get(name);
+    if (canonical === undefined || !seamOwned.has(canonical)) {
+        throw new TypeError(
+            `${self.constructor.name} cannot push '${name}': only a property the seam owns on both ` +
+                'legs can be moved without notifying — declare it as object-kind or with ' +
+                `explicitNotify. The pushable ones are ${[...seamOwned].join(', ') || '(none)'}.`,
+        );
+    }
+    valuesOf(self).set(canonical, value);
 }
 
 function valuesOf(instance: object): Map<string, unknown> {

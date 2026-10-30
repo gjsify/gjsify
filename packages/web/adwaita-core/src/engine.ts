@@ -69,6 +69,20 @@ export interface ForeignScalarProperty {
     readonly default?: string | boolean | number | null;
     readonly nick?: string;
     readonly blurb?: string;
+    /**
+     * The property emits `notify` ITSELF, so neither engine emits one for an ordinary write.
+     *
+     * This is `G_PARAM_EXPLICIT_NOTIFY`, and it is a declaration ABOUT THE REAL WIDGET, not a
+     * convenience: `Adw.ComboRow:selected` carries the flag upstream, and a write that moves the
+     * index there emits `selected` AND `selected-item` — an order no store-level "it changed, so
+     * notify" can produce. The widget that sets this owns both emissions, from `afterNotify` or
+     * from whatever state push stands in for the C setter. Measured, GJS 1.88 / libadwaita 1.9.4:
+     * `selected = 2` → `["selected", "selected-item"]`; out of range → nothing at all.
+     *
+     * Leave it off and the engine emits one `notify` per changed property, which is what every
+     * other declared property wants.
+     */
+    readonly explicitNotify?: boolean;
 }
 
 /**
@@ -91,6 +105,8 @@ export interface ForeignObjectProperty {
     readonly valueType: GType | GInterface;
     readonly nick?: string;
     readonly blurb?: string;
+    /** `G_PARAM_EXPLICIT_NOTIFY` — see {@link ForeignScalarProperty.explicitNotify}. */
+    readonly explicitNotify?: boolean;
 }
 
 /** One property a widget class declares at its `extends`. */

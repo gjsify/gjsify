@@ -277,24 +277,30 @@ export function createRealGioEngine(requireGi: RequireGi): GObjectEngine {
     function foreignParamSpecFor(name: string, property: ForeignProperty): RealParamSpec {
         const nick = property.nick ?? '';
         const blurb = property.blurb ?? '';
+        // `G_PARAM_EXPLICIT_NOTIFY` stops `g_object_set_property` from queueing a notify of its
+        // own, which is the point: the widget that asked for it emits the whole sequence from its
+        // `afterNotify`, and GObject's one-per-write would arrive in the middle of it. The twin
+        // path has no equivalent — `ParamSpec` is the subset's own vocabulary and carries no
+        // flags — so this is spelled here and only for the foreign arm.
+        const flags = property.explicitNotify === true ? READWRITE | GObject.ParamFlags.EXPLICIT_NOTIFY : READWRITE;
         if (property.kind === 'object') {
             const valueType = realValueTypeFor(name, property.valueType);
-            return GObject.ParamSpec.object(name, nick, blurb, READWRITE, valueType);
+            return GObject.ParamSpec.object(name, nick, blurb, flags, valueType);
         }
         const value = property.default;
         switch (property.kind) {
             case 'boolean':
-                return GObject.ParamSpec.boolean(name, nick, blurb, READWRITE, (value ?? false) as boolean);
+                return GObject.ParamSpec.boolean(name, nick, blurb, flags, (value ?? false) as boolean);
             case 'string':
                 // A null default is a NULL default: node-gi takes the absent argument for it.
-                return GObject.ParamSpec.string(name, nick, blurb, READWRITE, (value ?? undefined) as string);
+                return GObject.ParamSpec.string(name, nick, blurb, flags, (value ?? undefined) as string);
             default: {
                 const [minimum, maximum] = RANGES[property.kind];
                 return GObject.ParamSpec[property.kind](
                     name,
                     nick,
                     blurb,
-                    READWRITE,
+                    flags,
                     minimum,
                     maximum,
                     (value ?? 0) as number,

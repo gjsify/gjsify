@@ -72,7 +72,12 @@ export const splitButtonSpec = (engine: 'real-gio' | 'pure-js') => async (): Pro
             button.dropdownTooltip = 'More';
             button.iconName = 'folder-symbolic';
             info(`seen=[${seen.join(',')}]`);
-            expect(seen.join()).toBe('label,use-underline,can-shrink,dropdown-tooltip,label,icon-name');
+            // `icon-name` BEFORE the `label` it clears — the measured order of
+            // `SPLIT_BUTTON_CONTENT_VECTORS`, which the off-device spec drives. The line used to
+            // read the two the other way round and matched NEITHER leg: route D never called
+            // `afterNotify`, so Android emitted no `label` at all here and this expectation could
+            // not have been green on either engine. The seam calls it on both legs now.
+            expect(seen.join()).toBe('label,use-underline,can-shrink,dropdown-tooltip,icon-name,label');
             expect(button.label).toBe(null);
             expect(button.iconName).toBe('folder-symbolic');
         });
