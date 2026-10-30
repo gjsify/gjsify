@@ -124,8 +124,12 @@ function drainSabFds(count) {
 
 // Tagged JSON codec for structured-clone types (mirrors structured-clone-wire.ts).
 const __TYPED_ARRAYS = ['Int8Array','Uint8Array','Uint8ClampedArray','Int16Array','Uint16Array','Int32Array','Uint32Array','Float32Array','Float64Array','BigInt64Array','BigUint64Array'];
-function __toB64(buf){const b=new Uint8Array(buf);let s='';for(let i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s);}
-function __fromB64(s){const bin=atob(s);const out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out;}
+// No btoa/atob here: this code is evaluated by a bare gjs. See the comment on
+// toBase64 in structured-clone-wire.ts for what depending on them cost.
+const __B64C='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const __B64D=new Uint8Array(128);for(let i=0;i<64;i++)__B64D[__B64C.charCodeAt(i)]=i;
+function __toB64(buf){const b=new Uint8Array(buf);let s='';for(let i=0;i<b.length;i+=3){const h1=i+1<b.length,h2=i+2<b.length;const n=(b[i]<<16)|((h1?b[i+1]:0)<<8)|(h2?b[i+2]:0);s+=__B64C[(n>>18)&63]+__B64C[(n>>12)&63]+(h1?__B64C[(n>>6)&63]:'=')+(h2?__B64C[n&63]:'=');}return s;}
+function __fromB64(s){let len=s.length;while(len>0&&s.charCodeAt(len-1)===61)len--;const out=new Uint8Array((len*3)>>2);let acc=0,bits=0,o=0;for(let i=0;i<len;i++){acc=(acc<<6)|__B64D[s.charCodeAt(i)];bits+=6;if(bits>=8){bits-=8;out[o++]=(acc>>bits)&255;}}return out;}
 function encodeWire(value, seen){
   if(value===null||value===undefined) return value;
   if(typeof value==='bigint') return {__gjsify:'BigInt', value:value.toString()};

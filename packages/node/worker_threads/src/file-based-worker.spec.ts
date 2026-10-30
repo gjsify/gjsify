@@ -181,6 +181,71 @@ export default async () => {
         });
     });
 
+    await describe('Worker — file-based (binary payloads)', async () => {
+        // The bootstrap carries its OWN copy of the wire codec (BOOTSTRAP_CODE),
+        // evaluated by a bare `gjs` with no module resolution. While that copy
+        // used `atob`, every typed array sent to a file-based worker died in the
+        // child as `bootstrap message error: atob is not defined` — the child
+        // exited 0 and the parent just never got an answer. These cases are the
+        // only ones that execute the child's half.
+        /** Send one value to the child and return what it echoed back. */
+        const roundTripThroughWorker = async (payload: unknown): Promise<unknown> => {
+            const worker = new Worker(FIXTURE_URL);
+            try {
+                return await new Promise<unknown>((resolve, reject) => {
+                    const timer = setTimeout(
+                        () => reject(new Error('no pong within 8000 ms (child decode failure?)')),
+                        8000,
+                    );
+                    worker.on('message', (msg: Message) => {
+                        if (msg.type === 'ready') {
+                            worker.postMessage({ type: 'ping', payload });
+                            return;
+                        }
+                        clearTimeout(timer);
+                        if (msg.type !== 'pong') {
+                            reject(new Error(`expected pong, got ${JSON.stringify(msg)}`));
+                            return;
+                        }
+                        resolve(msg.payload);
+                    });
+                    worker.on('error', (err: Error) => {
+                        clearTimeout(timer);
+                        reject(err);
+                    });
+                });
+            } finally {
+                await worker.terminate();
+            }
+        };
+
+        await it('round-trips a Uint8Array through the child', async () => {
+            const back = (await roundTripThroughWorker(new Uint8Array([0, 1, 127, 128, 255]))) as Uint8Array;
+            expect(back instanceof Uint8Array).toBe(true);
+            expect([...back]).toStrictEqual([0, 1, 127, 128, 255]);
+        });
+
+        await it('round-trips an ArrayBuffer and a Float64Array through the child', async () => {
+            const buf = (await roundTripThroughWorker(new Uint8Array([9, 8, 7]).buffer)) as ArrayBuffer;
+            expect(buf instanceof ArrayBuffer).toBe(true);
+            expect([...new Uint8Array(buf)]).toStrictEqual([9, 8, 7]);
+
+            const floats = (await roundTripThroughWorker(new Float64Array([0.5, -1.25]))) as Float64Array;
+            expect(floats instanceof Float64Array).toBe(true);
+            expect(floats[1]).toBe(-1.25);
+        });
+
+        await it('round-trips a typed array nested in an object through the child', async () => {
+            const back = (await roundTripThroughWorker({
+                when: new Date(1000),
+                index: new Map([['k', new Uint8Array([1, 2])]]),
+            })) as { when: Date; index: Map<string, Uint8Array> };
+            expect(back.when instanceof Date).toBe(true);
+            expect(back.index instanceof Map).toBe(true);
+            expect([...back.index.get('k')!]).toStrictEqual([1, 2]);
+        });
+    });
+
     // Note: bare `file://` URL strings are intentionally NOT tested as a
     // Node-compat surface — Node rejects them with `ERR_WORKER_PATH` and
     // requires the caller to wrap via `new URL(href)`. `@gjsify/worker_threads`
