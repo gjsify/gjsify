@@ -134,10 +134,12 @@ const ADWAITA_NS_FACTORY: ControlWidgetFactory<View> = {
         // control's option carries a `value` beside its `label`.
         row.model = GjsifyOptionList.new(options.map((o) => ({ label: o.label, value: String(o.value) })));
         let cb: (v: number) => void = () => {};
-        // `notify::selected` carries no payload beyond the sender now that the property sits on
-        // the declared seam — the value is read off the row, the way a GObject `notify::`
-        // handler reads it off the object.
-        row.addEventListener(NOTIFY_SELECTED, () => cb(row.selected));
+        // `connect` and not `addEventListener`: `selected` sits on the declared seam since ADR
+        // 0122 § 4, so on Android the emission belongs to the GObject and no NativeScript
+        // listener is on that path — measured on a Galaxy S9, where this was the one case the
+        // off-device suite could not have caught, because there both doors reach the same bus.
+        // The handler carries no payload beyond the sender and reads the value off the row.
+        row.connect(NOTIFY_SELECTED, () => cb(row.selected));
         return {
             node: row,
             get: () => row.selected,
