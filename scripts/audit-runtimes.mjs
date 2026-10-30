@@ -463,7 +463,14 @@ const NODE_API_BROWSER_NATIVE = new Set(['url', 'perf_hooks']);
  * here signals browser delegation only; the node slot stays `none` because there is no
  * `node:` equivalent to re-export.
  */
-const WEB_API_NODE_NONE = new Set(['webaudio', 'webrtc', 'xmlhttprequest', 'gamepad', 'speech-synthesis']);
+const WEB_API_NODE_NONE = new Set([
+    'webaudio',
+    'webrtc',
+    'xmlhttprequest',
+    'gamepad',
+    'speech-synthesis',
+    'media-capture',
+]);
 
 /**
  * Pure-TS Web-API packages with a `globals.mjs` AND a Node-native pendant stable enough

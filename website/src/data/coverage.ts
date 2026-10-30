@@ -44,8 +44,8 @@ export const pillarCoverage: readonly PillarCoverage[] = [
     },
     {
         category: 'Web APIs',
-        total: 22,
-        full: 20,
+        total: 23,
+        full: 21,
         partial: 2,
         stub: 0,
     },
