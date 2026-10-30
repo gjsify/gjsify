@@ -2,12 +2,11 @@
 //
 // The widget itself cannot be imported here — `GtkDropDown extends StackLayout`
 // evaluates the bare `@nativescript/core` specifier at module-eval, which is
-// unresolvable on GJS/Node. It needs no pure sibling either, because it holds no
-// logic to extract: `ComboState` (`@gjsify/adwaita-core`) IS the selection, and
-// the widget is three lines of wiring on top of it — the label is painted from
-// `change.label` and `notify::selected` is re-emitted when `change.interactive`.
+// unresolvable under THIS entry. `drop-down-properties.spec.ts` drives the widget
+// itself, from the trees entry whose `--alias` resolves that specifier; it is also
+// where the `notify::` order of the three declared properties is pinned.
 //
-// So what is driven here is the state machine, through
+// What is driven here is the state machine underneath both of them, through
 // `COMBO_SELECTION_VECTORS`: the emission stream each vector pins down IS the
 // widget's input feed, and the final `label` IS what the button shows. The
 // alternative — a stand-in class respelling the subscriber — would only ever
