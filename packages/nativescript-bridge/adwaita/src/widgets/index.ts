@@ -50,8 +50,18 @@ export { AdwPasswordEntryRow } from './adw-password-entry-row.js';
 // GtkEntry is the STANDALONE entry (the row's counterpart, not its base): no
 // core state machine — only the character arithmetic (`clampEntryText` /
 // `entryTextLength`) is shared, and it lives in `@gjsify/adwaita-core`.
-export { GtkEntry, ACTIVATE as ENTRY_ACTIVATE, NOTIFY_TEXT as NOTIFY_ENTRY_TEXT } from './gtk-entry.js';
-export type { NotifyEntryTextEventData } from './gtk-entry.js';
+// Its five knobs are DECLARED GObject properties (ADR 0105 § 2, route D), so the names below
+// are `connect`/`emit` event names and nothing else — there is no payload type to export.
+export {
+    GtkEntry,
+    ACTIVATE as ENTRY_ACTIVATE,
+    CHANGED as ENTRY_CHANGED,
+    NOTIFY_TEXT as NOTIFY_ENTRY_TEXT,
+    NOTIFY_TEXT_LENGTH as NOTIFY_ENTRY_TEXT_LENGTH,
+    NOTIFY_MAX_LENGTH as NOTIFY_ENTRY_MAX_LENGTH,
+    NOTIFY_PLACEHOLDER_TEXT,
+    NOTIFY_EDITABLE as NOTIFY_ENTRY_EDITABLE,
+} from './gtk-entry.js';
 // AdwComboRow keeps the NS render (inline value + chevron + native chooser); the
 // selection state machine (ComboState + AdwComboOption) is headless
 // (`@gjsify/adwaita-core`, ADR 0004), re-exported here for consumers.

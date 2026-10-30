@@ -67,6 +67,7 @@ import { AdwButtonContentPropertiesNsTest } from './button-content-properties.sp
 import { AdwSplitButtonPropertiesNsTest } from './split-button-properties.spec.js';
 import { AdwComboRowPropertiesNsTest } from './combo-row-properties.spec.js';
 import { GtkDropDownPropertiesNsTest } from './drop-down-properties.spec.js';
+import { GtkEntryPropertiesNsTest } from './entry-properties.spec.js';
 
 run({
     AdwApplicationNsTest,
@@ -106,6 +107,7 @@ run({
     AdwSplitButtonPropertiesNsTest,
     AdwComboRowPropertiesNsTest,
     GtkDropDownPropertiesNsTest,
+    GtkEntryPropertiesNsTest,
     GtkToggleButtonNsTest,
     GtkWidgetTreeNsTest,
     GtkButtonActionsNsTest,
