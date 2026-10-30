@@ -8,4 +8,5 @@ import testSuite from './index.spec.js';
 import sabSuite from './worker-shared-buffer.gjs.spec.js';
 import fileBasedWorkerSuite from './file-based-worker.spec.js';
 import orphanSuite from './worker-orphan.gjs.spec.js';
-run({ testSuite, sabSuite, fileBasedWorkerSuite, orphanSuite });
+import wireSuite from './structured-clone-wire.spec.js';
+run({ testSuite, sabSuite, fileBasedWorkerSuite, orphanSuite, wireSuite });

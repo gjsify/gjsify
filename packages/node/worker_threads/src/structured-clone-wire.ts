@@ -19,17 +19,50 @@ const TYPED_ARRAYS = [
     'BigUint64Array',
 ];
 
+// Base64 WITHOUT `btoa`/`atob`. The mirror of this codec in BOOTSTRAP_CODE is
+// raw JS evaluated by a BARE `gjs` — which has neither, and no module
+// resolution to reach a polyfill. Measured on gjs 1.88.1: every typed array,
+// ArrayBuffer and typed-array view crossing into a file-based worker died as
+// `bootstrap message error: atob is not defined` while the child exited 0, so
+// the parent saw a silent timeout. The parent half happened to work only
+// because a `--globals auto` build injects `btoa` for it — an asymmetry that
+// makes the same value encodable and undecodable on the one wire.
+const B64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const B64_CODES = new Uint8Array(128);
+for (let i = 0; i < 64; i++) B64_CODES[B64_CHARS.charCodeAt(i)] = i;
+
 function toBase64(buf: ArrayBufferLike): string {
     const bytes = new Uint8Array(buf as ArrayBuffer);
     let s = '';
-    for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
-    return btoa(s);
+    for (let i = 0; i < bytes.length; i += 3) {
+        const b0 = bytes[i];
+        const has1 = i + 1 < bytes.length;
+        const has2 = i + 2 < bytes.length;
+        const n = (b0 << 16) | ((has1 ? bytes[i + 1] : 0) << 8) | (has2 ? bytes[i + 2] : 0);
+        s +=
+            B64_CHARS[(n >> 18) & 63] +
+            B64_CHARS[(n >> 12) & 63] +
+            (has1 ? B64_CHARS[(n >> 6) & 63] : '=') +
+            (has2 ? B64_CHARS[n & 63] : '=');
+    }
+    return s;
 }
 
 function fromBase64(s: string): Uint8Array {
-    const bin = atob(s);
-    const out = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    let len = s.length;
+    while (len > 0 && s.charCodeAt(len - 1) === 61) len--; // trailing '='
+    const out = new Uint8Array((len * 3) >> 2);
+    let acc = 0;
+    let bits = 0;
+    let o = 0;
+    for (let i = 0; i < len; i++) {
+        acc = (acc << 6) | B64_CODES[s.charCodeAt(i)];
+        bits += 6;
+        if (bits >= 8) {
+            bits -= 8;
+            out[o++] = (acc >> bits) & 0xff;
+        }
+    }
     return out;
 }
 
