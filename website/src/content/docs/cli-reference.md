@@ -1538,7 +1538,7 @@ The positional names the operating system whose LAYOUT to assemble: `linux`, `da
 | `--expect-target <os>-<arch>` | none | Used with `--from-stage`. Refuses a stage assembled for a different matrix leg, such as `linux-arm64`. Compares against what the stage recorded, not against this host. |
 | `--skip-build` | `false` | Do not run the project's `build` script first. |
 | `--arch <arch>` | this host | Target architecture, in `process.arch` spelling. Labels the artifact and picks the runtime packages; cross-builds nothing. |
-| `--sign <identity>` | `gjsify.ship.sign.<os>.identity` | Sign the payload with this identity, a NAME `codesign` or `signtool` looks the private key up by, never a certificate. `-` signs ad-hoc. Absent means unsigned, which is a legitimate output, and the skip is printed to stderr. darwin and win32 only. |
+| `--sign <identity>` | `gjsify.ship.sign.<os>.identity` | Sign the payload with this identity, a NAME `codesign` looks the private key up by, or the `azure:<host>#<account>/<profile>` locator `jsign` signs through, never a certificate. `-` signs ad-hoc. Absent means unsigned, which is a legitimate output, and the skip is printed to stderr. darwin and win32 only. |
 | `--notarize <profile>` | none | Submit the signed artifact with `xcrun notarytool submit --keychain-profile <p> --wait`. Needs `--sign`, and runs on darwin only. |
 | `--verbose` | `false` | Print every staged file, the GI namespaces the bundle imports, and every tool invocation. |
 
@@ -1687,13 +1687,13 @@ platform branch to write.
 
 #### Signing
 
-`--sign` takes an **identity**, never a certificate. `codesign` and `signtool` are both handed a string and look the private key up themselves, so `gjsify ship` is never given a secret and there is nothing to redact from a log.
+`--sign` takes an **identity**, never a certificate. `codesign` is handed a name and looks the private key up itself, and `jsign` is handed an `azure:<host>#<account>/<profile>` locator with its token read from `AZURE_ACCESS_TOKEN` or `az`, so `gjsify ship` is never given a secret and there is nothing to redact from a log.
 
 | | darwin | win32 | linux |
 |---|---|---|---|
-| tool | `codesign` | `signtool` | none |
+| tool | `codesign` | `jsign` | none |
 | what it signs | every Mach-O image in the payload | every PE image in the payload | nothing |
-| runs on | macOS | Windows | none |
+| runs on | macOS | Linux, macOS, Windows | none |
 | project default | `gjsify.ship.sign.darwin.identity` | `gjsify.ship.sign.win32.identity` | refused |
 
 With no identity the run skips, prints why on stderr, and exits 0. `--sign` on the `--stage` phase is refused, because that phase produces no artifact. `--sign -` signs ad-hoc and needs no Apple Developer Program membership.
@@ -1709,6 +1709,18 @@ On **macOS and Windows** there is no system interpreter to depend on, so the art
 That is also why the four macOS and Windows formats accept `node` only. There is no relocatable GJS to put inside a downloadable bundle, and there is no GJS host on Windows at all.
 
 Which runtime a target ships is `gjsify.ship.app.<os>`, keyed `linux`, `darwin` and `win32`, falling back to `gjsify.app`. It is per target because the answer changes with the OS: a project can be GJS on Linux, where the distribution provides one, and Node where nothing does. One field for both questions meant that asking for a `.app` moved the Linux package's `Depends:` with it.
+
+### `gjsify credentials`
+
+`gjsify ship credentials <verb> <os>` stores, installs and checks the signing credentials a release workflow needs, for `darwin` or `win32`.
+
+| verb | what it does |
+|---|---|
+| `upload` | Push the credentials to the GitHub repository (`--repo <owner/name>`) with `gh secret set` / `gh variable set`. |
+| `install` | Materialise them on a CI runner. darwin builds a temporary keychain and stores the notary profile; win32 checks `jsign`, `java`, the identity and the token. Refuses outside CI without `--force`. `--remove` undoes it. |
+| `check` | Report which names exist, in the environment or, with `--repo`, in the repository. `--json` for machines. |
+
+Values come from a file (`--<name>-file`), a named environment variable (`--<name>-env`) or a prompt, never from a flag value, so nothing reaches shell history or a process list. `--dry-run` prints every command with its values as `$NAME`. The one place a secret reaches an argument vector is macOS `security import -P`, which has no stdin form, and that is why `install darwin` runs only on CI.
 
 ### `gjsify flatpak`
 

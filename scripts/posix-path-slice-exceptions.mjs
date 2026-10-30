@@ -72,7 +72,7 @@ export const POSIX_PATH_SLICE_EXCEPTIONS = {
     'packages/infra/cli/src/utils/ship/signing.ts':
         'The same prefix-relative PAYLOAD path as `stage-writer.ts` one file over, and the same ' +
         'crossing: the signer materialises `PayloadEntry.path` — POSIX-separated by its own type ' +
-        'contract, built with `posix.join` — into a host path so `codesign`/`signtool` has a file ' +
+        'contract, built with `posix.join` — into a host path so `codesign`/`jsign` has a file ' +
         'to open, then reads the same paths back. A both-separator helper would corrupt a ' +
         'legitimate Linux filename containing a backslash, and the signed payload has to come ' +
         'back keyed on exactly the identifiers it went in under or the packer would not find it.',

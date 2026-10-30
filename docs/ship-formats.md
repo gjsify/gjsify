@@ -857,18 +857,25 @@ teaching `readBinaryArch` the COFF field (`manifest-conformance`'s `binary.mjs` 
 
 `--sign <identity>` is a flag on the FINISH phase, never a verb of its own
 ([ADR 0024 § A2](adr/0024-ship-installable-artifacts.md), § A12). What it takes is an IDENTITY —
-the string `codesign` and `signtool` look a private key up by — and never a certificate: there is no
-`--certificate`, no `--p12` and no `--password`, so nothing on this surface can leak. Getting a key
+the string `codesign` looks a private key up by, or the `azure:<endpoint host>#<account>/<certificate
+profile>` locator `jsign` signs through ([ADR 0126](adr/0126-ship-credentials-and-a-jsign-windows-signer.md)) —
+and never a certificate or a token: there is no `--certificate`, no `--p12` and no `--password`, and the
+Azure access token is read from `AZURE_ACCESS_TOKEN` or minted by `az`, so nothing on this surface can leak. Getting a key
 into a keychain is the signing HOST's job. `-` is the reserved ad-hoc value.
 
 | | darwin | win32 | linux |
 |---|---|---|---|
-| tool | `codesign` | `signtool` | — |
-| invocation | `--force --sign <identity> <file>` | `sign /n <identity> /fd sha256 <file>` | — |
-| runs on | darwin | win32 | — |
+| tool | `codesign` | `jsign` (Azure Artifact Signing) | — |
+| invocation | `--force --sign <identity> <file>` | `--storetype TRUSTEDSIGNING --keystore <host> --storepass $AZURE_ACCESS_TOKEN --alias <account>/<profile> <file…>` | — |
+| runs on | darwin | linux, darwin, win32 (`jsign` is a JVM tool) | — |
 | signs | every Mach-O image in the payload | every PE image in the payload | nothing |
 | project default | `gjsify.ship.sign.darwin.identity` | `gjsify.ship.sign.win32.identity` | refused by name |
-| proven | ad-hoc, end to end, in CI | flag + skip + refusals only — **UNVERIFIED** | n/a |
+| proven | ad-hoc, end to end, in CI | argv + order + token handling unit-tested; no run has held a signing account — **UNVERIFIED** | n/a |
+
+Getting the credentials onto the signing host is `gjsify ship credentials upload|install|check <os>`
+(ADR 0126): values arrive by file, env or prompt, never by flag, and are never logged. The one exception
+is macOS `security import -P` / `create-keychain -p`, which have no stdin form, so `install darwin` runs
+only on CI (or with `--force`) and keeps its keychain in a 0700 directory that `install --remove` deletes.
 
 Linux has no row and `--sign` there is refused with the mechanism rather than a shrug: a `.deb` and
 an `.rpm` ARE signed, by the repository that serves them (`debsigs`, `rpmsign`), with that

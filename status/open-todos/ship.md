@@ -74,7 +74,7 @@ The signing interface landed whole (ADR 0024 § A12-§ A17) and its darwin half 
 proven ad-hoc in CI with no certificate anywhere. Three gaps are left, and each is
 here rather than in a comment because each has a plausible wrong answer:
 
-1. **Windows is UNVERIFIED.** `signtool` has no ad-hoc mode, so the flag, the
+1. **Windows is UNVERIFIED.** `jsign` has no ad-hoc mode, so the flag, the
    config default, the loud skip and every refusal are covered while the
    INVOCATION has never run. `SIGNERS.win32.args` is unit-tested and that is all
    it is: an argv nobody has executed. § A5 already records that Gatekeeper
@@ -182,7 +182,7 @@ where the shipped run gets none) are in
 so ADR 0040's *"the ZIP round trip … is the next measurement"* is spent; **§ A16 is
 open in ONE direction** (the named identity — a certificate, as everything else on this
 list is) and closed in the other. Still UNVERIFIED for the reasons the entries above
-give: a Developer ID, `notarytool`, `xcrun stapler`, `signtool`.
+give: a Developer ID, `notarytool`, `xcrun stapler`, a `jsign` signing account.
 
 
 ### ADR 0024 §8, second half: `gjsify flatpak <sub>` + `generate-installer` move under `ship`

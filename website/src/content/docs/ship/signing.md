@@ -1,6 +1,6 @@
 ---
 title: Sign your artifacts
-description: "--sign takes an identity, never a certificate. What codesign and signtool are handed, what happens with no identity, what --notarize submits, and why an unsigned artifact is a legitimate result."
+description: "--sign takes an identity, never a certificate. What codesign and jsign are handed, what happens with no identity, what --notarize submits, and why an unsigned artifact is a legitimate result."
 ---
 
 macOS and Windows both treat a downloaded application differently once it
@@ -17,17 +17,19 @@ is refused rather than doing nothing.
 
 ## `--sign` takes an identity, not a certificate
 
-The flag takes a NAME. `codesign` and `signtool` are both handed a string and
-look the private key up themselves, so `gjsify ship` is never given a secret and
-there is nothing to redact from a build log. There is no `--certificate`, no
+The flag takes a NAME. `codesign` is handed a string and looks the private key up
+itself. `jsign` is handed an Azure Artifact Signing locator,
+`azure:<endpoint host>#<account>/<certificate profile>`, and the access token
+comes from `AZURE_ACCESS_TOKEN` or `az`. `gjsify ship` is never given a secret
+and there is nothing to redact from a build log. There is no `--certificate`, no
 `--p12` and no `--password`.
 
 | | macOS | Windows |
 |---|---|---|
-| Tool | `codesign` | `signtool` |
-| What `--sign` names | a Developer ID name or a SHA-1 fingerprint | a certificate subject name in a store |
+| Tool | `codesign` | `jsign` |
+| What `--sign` names | a Developer ID name or a SHA-1 fingerprint | an `azure:<host>#<account>/<profile>` locator |
 | What gets signed | every Mach-O image in the payload | every PE image in the payload |
-| Runs on | macOS | Windows |
+| Runs on | macOS | Linux, macOS, Windows |
 | Project default | `gjsify.ship.sign.darwin.identity` | `gjsify.ship.sign.win32.identity` |
 
 Getting a key into a keychain or a certificate store is the signing host's job.
@@ -81,7 +83,7 @@ gjsify ship --from-stage ./stage --sign -
 An ad-hoc signature does not satisfy Gatekeeper on someone else's machine. It
 proves the pipeline, not the provenance.
 
-Windows has no ad-hoc mode. `signtool` needs a real certificate.
+Windows has no ad-hoc mode. `jsign` needs a real signing account.
 
 ## Signing runs on the finish phase
 
@@ -165,7 +167,7 @@ Three things to know before you rely on it.
 ## Where to next
 
 - [macOS app bundles](/gjsify/ship/macos/) for the artifacts `codesign` signs.
-- [Windows artifacts](/gjsify/ship/windows/) for the ones `signtool` signs.
+- [Windows artifacts](/gjsify/ship/windows/) for the ones `jsign` signs.
 - [Ship your app](/gjsify/ship/#assemble-here-pack-there) for the two-phase
   split every signed build uses.
 - [CLI Reference → `gjsify ship`](/gjsify/cli-reference/#gjsify-ship) for the

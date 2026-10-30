@@ -183,9 +183,9 @@ SmartScreen only warns about an unsigned download, until per-file reputation
 accrues. Gatekeeper blocks an unsigned macOS bundle outright. So an unsigned
 Windows program directory is a usable artifact in a way a `.app` is not.
 
-`--sign <identity>` passes a name to `signtool` on a Windows host. See
+`--sign <identity>` passes an Azure Artifact Signing locator to `jsign`. See
 [Sign your artifacts](/gjsify/ship/signing/), which also records that no run in
-the gjsify repository has ever invoked `signtool`.
+the gjsify repository has ever invoked `jsign` against a real account.
 
 ## A worked example
 
