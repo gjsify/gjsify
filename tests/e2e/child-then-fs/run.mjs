@@ -13,6 +13,9 @@
 //
 // The fix counts each pending Gio async call in `@gjsify/fs` as an active
 // request (`trackRequest`, `@gjsify/utils/main-loop`), Node's libuv model.
+// A second hole sat under the same symptom: the `process.nextTick` drainer
+// (a GLib timeout) was not counted either, so execa's continuations after a
+// child's `close` were dropped once the hold ended; it is a counted request now.
 // Each case below exited 0 with no output before it.
 
 import { after, before, describe, it } from 'node:test';
@@ -40,6 +43,23 @@ import { stat } from 'node:fs';
 await new Promise((r) => execFile('true', r));
 const s = await new Promise((r, j) => stat('.', (e, st) => (e ? j(e) : r(st))));
 console.log('stat ok', s.isDirectory());
+`,
+    // Piped children, then only stream and nextTick work — execa's shape. Its
+    // continuations after `close` ride process.nextTick, a GLib timeout drainer
+    // nothing counted, so the loop exited 0 under the queued callbacks.
+    'child-then-tick.mjs': `import { spawn } from 'node:child_process';
+import { finished } from 'node:stream/promises';
+import { once } from 'node:events';
+import { Readable } from 'node:stream';
+for (let round = 0; round < 5; round++) {
+    const child = spawn('sh', ['-c', 'seq 1 20000'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    child.stdout.on('data', () => {});
+    child.stderr.resume();
+    await Promise.all([finished(child.stdout), finished(child.stderr), once(child, 'close')]);
+    await new Promise((r) => Readable.from(['a', 'b', 'c', 'd']).on('data', () => {}).on('end', r));
+    await new Promise((r) => process.nextTick(() => process.nextTick(r)));
+}
+console.log('stat ok true');
 `,
     // No top-level await: the entry has long settled when the stat starts.
     'settled-callback.mjs': `import { execFile } from 'node:child_process';

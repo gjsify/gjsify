@@ -1,5 +1,7 @@
 // `process.nextTick` semantics on GJS, with cross-runtime fallbacks.
 
+import { trackRequest, untrackRequest } from './main-loop.js';
+
 declare const queueMicrotask: ((cb: () => void) => void) | undefined;
 
 // Burst-yield scheduler. GTK input events (move, click, scroll) are dispatched from
@@ -18,6 +20,16 @@ const CHUNK_SIZE = 64;
 const YIELD_DELAY_MS = 1;
 const _queue: Array<() => void> = [];
 let _drainerArmed = false;
+
+// A queued tick is pending work, like a timer: without the count, the main loop's
+// exit check (`drainIfIdle`) saw nothing pending between a child's `close` and the
+// continuations execa queues on nextTick, and exited 0 under them.
+function setDrainerArmed(armed: boolean): void {
+    if (_drainerArmed === armed) return;
+    _drainerArmed = armed;
+    if (armed) trackRequest();
+    else untrackRequest();
+}
 
 function drainOnce(GLib: GLibShape): void {
     // Per-callback catch, because Node's `process.nextTick` guarantees later ticks
@@ -50,7 +62,7 @@ function drainOnce(GLib: GLibShape): void {
             return false;
         });
     } else {
-        _drainerArmed = false;
+        setDrainerArmed(false);
     }
 }
 
@@ -75,7 +87,7 @@ function tryGLibTimeout(cb: () => void): boolean {
     if (!GLib?.timeout_add) return false;
     _queue.push(cb);
     if (!_drainerArmed) {
-        _drainerArmed = true;
+        setDrainerArmed(true);
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, 0, () => {
             drainOnce(GLib);
             return false;
@@ -87,7 +99,7 @@ function tryGLibTimeout(cb: () => void): boolean {
 /** @internal Test helper: reset burst state. */
 export function __resetBurstStateForTests(): void {
     _queue.length = 0;
-    _drainerArmed = false;
+    setDrainerArmed(false);
 }
 
 /**
