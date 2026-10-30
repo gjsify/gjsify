@@ -17,6 +17,8 @@
 // Reference: refs/gtk gtk/gtkstack.h (GtkStackTransitionType)
 // Copyright (c) The GTK Team. LGPLv2.1+.
 
+import { gtkBuilderInteger } from './xml-values.js';
+
 export const GTK_REVEALER_TRANSITIONS = [
     'none',
     'crossfade',
@@ -74,7 +76,8 @@ export const DEFAULT_REVEALER_TRANSITION_DURATION = 250;
  * constant — or throw, naming the members.
  */
 export function transitionNick<Nick extends string>(value: unknown, members: readonly Nick[], property: string): Nick {
-    if (typeof value === 'number' && Number.isInteger(value) && members[value] !== undefined) return members[value]!;
+    const index = gtkBuilderInteger(value);
+    if (index !== undefined && members[index] !== undefined) return members[index]!;
     if (typeof value === 'string') {
         const nick = value.trim().replaceAll('_', '-');
         const found = members.find((member) => member === nick);

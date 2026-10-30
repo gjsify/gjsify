@@ -195,6 +195,8 @@ export const GtkControlsNsTest = async () => {
             expect(view.wrapMode).toBe('none');
             view.wrapMode = 'word';
             expect(view.wrapMode).toBe('word');
+            view.wrapMode = '2' as never;
+            expect(view.wrapMode).toBe('word');
             view.wrapMode = 3 as never;
             expect(view.wrapMode).toBe('word-char');
             view.wrapMode = 'none';

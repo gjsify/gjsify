@@ -16,6 +16,8 @@
 // Reference: refs/gtk gtk/gtkenums.h (GtkPolicyType), gtk/gtkscrolledwindow.c
 // Copyright (c) The GTK Team. LGPLv2.1+.
 
+import { gtkBuilderInteger } from './xml-values.js';
+
 export const GTK_POLICY_TYPES = ['always', 'automatic', 'never', 'external'] as const;
 
 export type GtkPolicyNick = (typeof GTK_POLICY_TYPES)[number];
@@ -25,9 +27,8 @@ export const DEFAULT_SCROLLBAR_POLICY: GtkPolicyNick = 'automatic';
 
 /** The nick a policy write means — a nick or the constant — or throw, naming the members. */
 export function normalizePolicy(value: unknown, property: 'hscrollbar-policy' | 'vscrollbar-policy'): GtkPolicyNick {
-    if (typeof value === 'number' && Number.isInteger(value) && GTK_POLICY_TYPES[value] !== undefined) {
-        return GTK_POLICY_TYPES[value]!;
-    }
+    const index = gtkBuilderInteger(value);
+    if (index !== undefined && GTK_POLICY_TYPES[index] !== undefined) return GTK_POLICY_TYPES[index]!;
     if (typeof value === 'string') {
         const nick = value.trim();
         const found = GTK_POLICY_TYPES.find((member) => member === nick);

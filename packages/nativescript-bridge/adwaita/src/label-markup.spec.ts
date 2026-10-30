@@ -252,6 +252,35 @@ export const GtkLabelMarkupNsTest = async () => {
         });
     });
 
+    await describe('Gtk.Label markup <sub>/<sup> scale by pango\u2019s font_scale fallback', async () => {
+        await it('shrinks by 1 / 1.2 against a written base size, and keeps the baseline shift', () => {
+            const label = new Gtk.Label();
+            label.style.fontSize = 12;
+            label.set_markup('x<sub>2</sub> y<sup>3</sup>');
+            const spans = spansOf(label);
+            expect(spans.map((span) => span.text)).toStrictEqual(['x', '2', ' y', '3']);
+            expect(spans[1]!.fontSize).toBe(12 / 1.2);
+            expect(spans[1]!.style.verticalAlignment).toBe('sub');
+            expect(spans[3]!.fontSize).toBe(12 / 1.2);
+            expect(spans[3]!.style.verticalAlignment).toBe('sup');
+            expect(spans[0]!.fontSize).toBe(undefined);
+        });
+
+        await it('multiplies with <big>/<small>', () => {
+            const label = new Gtk.Label();
+            label.style.fontSize = 12;
+            label.set_markup('<big><sub>n</sub></big>');
+            expect(spansOf(label)[0]!.fontSize).toBe((12 * 1.2) / 1.2);
+        });
+
+        await it('skips the scale, not the shift, when the label has no base size', () => {
+            const label = markupLabel('a<sup>b</sup>');
+            const span = spansOf(label)[1]!;
+            expect(span.fontSize).toBe(undefined);
+            expect(span.style.verticalAlignment).toBe('sup');
+        });
+    });
+
     await describe('Gtk.Label markup <span> attributes NativeScript has a word for', async () => {
         await it('maps pango\u2019s named weights onto the eleven FontWeight values', () => {
             const label = markupLabel('<span weight="ultrabold">a</span><span weight="700">b</span>');

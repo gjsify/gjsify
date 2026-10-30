@@ -32,6 +32,8 @@
 // Reference: refs/gtk gtk/gtkenums.h (GtkIconSize), gtk/theme/Default (`-gtk-icon-size`).
 // Copyright (c) GNOME contributors (GTK). LGPLv2.1+.
 
+import { gtkBuilderInteger } from './xml-values.js';
+
 /**
  * Every `Gtk.IconSize` member, in GIR declaration order.
  *
@@ -132,6 +134,12 @@ export function iconSizeNickOf(value: unknown): unknown {
  */
 export function gtkIconSizeNick(value: unknown, fallback: GtkIconSizeNick): GtkIconSizeNick {
     if (isGtkIconSizeNick(value)) return value;
+    // An XML attribute is always a string, so the constant arrives as `'1'` there.
+    const constant = typeof value === 'string' ? gtkBuilderInteger(value) : undefined;
+    if (constant !== undefined) {
+        const nick = iconSizeNickOf(constant);
+        if (isGtkIconSizeNick(nick)) return nick;
+    }
     throw new TypeError(
         `Gtk.IconSize: ${JSON.stringify(value)} is not a member — it takes one of ` +
             `${GTK_ICON_SIZE_NICKS.join(', ')} (staying at '${fallback}'). For a size in DIPs use ` +

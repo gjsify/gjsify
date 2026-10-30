@@ -64,6 +64,31 @@ export function xmlNumber(value: unknown, fallback: number): number {
 }
 
 /**
+ * The integer GtkBuilder reads out of an enum property's value, or `undefined` when the
+ * value is a nick or name.
+ *
+ * `_gtk_builder_enum_from_string` (gtk/gtkbuilder.c) tries the number FIRST
+ * (`g_ascii_strtoull (string, &endptr, 0)`, so base 0: decimal, `0x` hex, leading-`0` octal)
+ * and only then the nick and the name — which is why `halign="1"` and `halign="start"` are
+ * the same attribute in a `.ui` file. A JS number is the same reading, already parsed.
+ * GTK also accepts a numeric PREFIX (`"2abc"` is 2); the whole string must be a number here,
+ * so a nick that merely starts with a digit stays a nick.
+ */
+export function gtkBuilderInteger(value: unknown): number | undefined {
+    if (typeof value === 'number') return Number.isInteger(value) ? value : undefined;
+    if (typeof value !== 'string') return undefined;
+    const match = /^([+-]?)(?:(0[xX][0-9a-fA-F]+)|(0[0-7]+)|([0-9]+))$/.exec(value.trim());
+    if (match === null) return undefined;
+    const magnitude =
+        match[2] !== undefined
+            ? Number.parseInt(match[2], 16)
+            : match[3] !== undefined
+              ? Number.parseInt(match[3], 8)
+              : Number.parseInt(match[4]!, 10);
+    return match[1] === '-' ? -magnitude : magnitude;
+}
+
+/**
  * An attribute as a boolean.
  *
  * Only the two spellings XML can mean are accepted — anything else takes the

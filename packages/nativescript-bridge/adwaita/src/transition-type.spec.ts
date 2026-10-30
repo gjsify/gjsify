@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
+import { gtkBuilderInteger } from './widgets/xml-values.js';
 import { GTK_REVEALER_TRANSITIONS, GTK_STACK_TRANSITIONS, transitionNick } from './widgets/transition-type.js';
 
 export default async () => {
@@ -26,6 +27,27 @@ export default async () => {
         });
     });
 
+    await describe('gtkBuilderInteger — _gtk_builder_enum_from_string reads a number first', async () => {
+        await it('reads decimal, hex and octal, signed, as strtoull base 0 does', () => {
+            expect(gtkBuilderInteger('12')).toBe(12);
+            expect(gtkBuilderInteger('+3')).toBe(3);
+            expect(gtkBuilderInteger('-1')).toBe(-1);
+            expect(gtkBuilderInteger('0x10')).toBe(16);
+            expect(gtkBuilderInteger('010')).toBe(8);
+            expect(gtkBuilderInteger('0')).toBe(0);
+            expect(gtkBuilderInteger(7)).toBe(7);
+        });
+
+        await it('leaves nicks, names and anything that is not a whole integer to the nick lookup', () => {
+            expect(gtkBuilderInteger('slide-up')).toBe(undefined);
+            expect(gtkBuilderInteger('2x')).toBe(undefined);
+            expect(gtkBuilderInteger('1.5')).toBe(undefined);
+            expect(gtkBuilderInteger(1.5)).toBe(undefined);
+            expect(gtkBuilderInteger('')).toBe(undefined);
+            expect(gtkBuilderInteger(null)).toBe(undefined);
+        });
+    });
+
     await describe('transitionNick', async () => {
         await it('takes a nick as written', () => {
             expect(transitionNick('slide-up', GTK_REVEALER_TRANSITIONS, 'Gtk.RevealerTransitionType')).toBe('slide-up');
@@ -40,6 +62,13 @@ export default async () => {
 
         await it('takes the constant a GJS snippet writes', () => {
             expect(transitionNick(3, GTK_STACK_TRANSITIONS, 'Gtk.StackTransitionType')).toBe('slide-left');
+        });
+
+        await it('takes the constant as an integer STRING, as a GtkBuilder `.ui` file writes it', () => {
+            expect(transitionNick('3', GTK_STACK_TRANSITIONS, 'Gtk.StackTransitionType')).toBe('slide-left');
+            expect(transitionNick(' 4 ', GTK_REVEALER_TRANSITIONS, 'Gtk.RevealerTransitionType')).toBe('slide-up');
+            expect(transitionNick('0x4', GTK_REVEALER_TRANSITIONS, 'Gtk.RevealerTransitionType')).toBe('slide-up');
+            expect(() => transitionNick('99', GTK_REVEALER_TRANSITIONS, 'Gtk.RevealerTransitionType')).toThrow();
         });
 
         await it('refuses a word that is not a member, naming the members', () => {

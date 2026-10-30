@@ -18,7 +18,7 @@ import { GridLayout, ItemSpec, TextView, type EventData } from '@nativescript/co
 import { classNameWith } from './style-classes.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
-import { xmlBoolean, xmlNumber } from './xml-values.js';
+import { gtkBuilderInteger, xmlBoolean, xmlNumber } from './xml-values.js';
 
 /** Event name emitted when {@link GtkTextView.text} changes. Mirrors `notify::text`. */
 export const NOTIFY_TEXT_VIEW_TEXT = 'notify::text';
@@ -105,9 +105,7 @@ export class GtkTextView extends withSignals(GridLayout) {
     set wrapMode(value: GtkWrapModeNick) {
         // GTK's enum parser takes `word_char` and `word-char` alike; Blueprint writes the former.
         const index =
-            typeof value === 'number'
-                ? (value as number)
-                : GTK_WRAP_MODES.indexOf(String(value).replace(/_/g, '-') as GtkWrapModeNick);
+            gtkBuilderInteger(value) ?? GTK_WRAP_MODES.indexOf(String(value).replace(/_/g, '-') as GtkWrapModeNick);
         const next = GTK_WRAP_MODES[index];
         if (next === undefined) {
             throw new TypeError(

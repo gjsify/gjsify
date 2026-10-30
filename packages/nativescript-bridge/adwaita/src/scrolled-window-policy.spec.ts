@@ -45,6 +45,9 @@ export default async () => {
         await it('takes a nick and the constant, and refuses anything else', () => {
             expect(normalizePolicy('never', 'hscrollbar-policy')).toBe('never');
             expect(normalizePolicy(2, 'hscrollbar-policy')).toBe('never');
+            // An XML attribute is a string: `hscrollbar-policy="2"` is the same member.
+            expect(normalizePolicy('2', 'hscrollbar-policy')).toBe('never');
+            expect(() => normalizePolicy('9', 'hscrollbar-policy')).toThrow('Gtk.PolicyType');
             expect(() => normalizePolicy('sometimes', 'vscrollbar-policy')).toThrow('vscrollbar-policy');
             expect(() => normalizePolicy(9, 'vscrollbar-policy')).toThrow('Gtk.PolicyType');
         });
