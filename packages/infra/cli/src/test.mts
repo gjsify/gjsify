@@ -47,6 +47,7 @@ import shipMsiSuite from './utils/ship/msi.spec.js';
 import shipArchivesSuite from './utils/ship/archives.spec.js';
 import shipPackersSuite from './utils/ship/packers.spec.js';
 import shipSigningSuite from './utils/ship/signing.spec.js';
+import shipCredentialsSuite from './utils/ship/credentials.spec.js';
 import installProjectEngineSuite from './commands/install-project-engine.spec.js';
 import installSkewSuite from './commands/install-skew.spec.js';
 import giRuntimePathsBannerSuite from './gi-runtime-paths-banner.spec.js';
@@ -323,6 +324,7 @@ run(
         shipArchivesSuite,
         shipPackersSuite,
         shipSigningSuite,
+        shipCredentialsSuite,
         installProjectEngineSuite,
         installSkewSuite,
         giRuntimePathsBannerSuite,

@@ -29,6 +29,7 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import type { Argv } from 'yargs';
 
 import { Config } from '../config.js';
+import { shipCredentialsCommand } from './ship-credentials.js';
 import type { Command } from '../types/index.js';
 import { ensurePkgDir } from './dlx.js';
 import {
@@ -109,6 +110,7 @@ import {
     stapleArtifact,
     resolveNotaryPlan,
     resolveSignPlan,
+    signArtifactFile,
     signPayload,
     type NotaryPlan,
     type SignPlan,
@@ -246,8 +248,8 @@ export const shipCommand: Command<unknown, ShipOptions> = {
                 // an unset CI variable actually lands.
                 requiresArg: true,
                 // An IDENTITY, never a certificate (ADR 0024 § A12): `codesign`
-                // and `signtool` are both handed a NAME and look the private key
-                // up themselves, so this command is never given a secret and has
+                // is handed a NAME and looks the private key up itself, and
+                // `jsign` a service locator whose token comes from the env, so this command is never given a secret and has
                 // nothing to redact. Deliberately no `default:` — a yargs default
                 // is indistinguishable from a value the user typed and would
                 // clobber `gjsify.ship.sign.<os>.identity`.
@@ -273,7 +275,15 @@ export const shipCommand: Command<unknown, ShipOptions> = {
                 description:
                     'Print each staged file, the GI namespaces the bundle imports, and every tool a ' +
                     'host-bound packer invokes.',
-            }),
+            })
+            // A subcommand beside the `[os]` positional (ADR 0126 open question 6):
+            // yargs tries `credentials` before it falls back to the positional.
+            .command(
+                shipCredentialsCommand.command as string,
+                shipCredentialsCommand.description,
+                shipCredentialsCommand.builder!,
+                shipCredentialsCommand.handler!,
+            ),
 
     handler: async (args) => {
         // The two phases share nothing but `packOne`, and the branch is first
@@ -1548,6 +1558,17 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                 target,
                 verbose: input.verbose,
             });
+            // The container's OWN signature, last: it covers the finished file, and
+            // the images inside were signed before it was built (ADR 0126 § D3).
+            if (input.sign.kind === 'sign') {
+                await signArtifactFile({
+                    identity: input.sign.identity,
+                    signer: input.sign.signer,
+                    file: target,
+                    verbose: input.verbose,
+                    log: (line) => console.log(`${LOG} ${line}`),
+                });
+            }
             break;
         }
         default: {
