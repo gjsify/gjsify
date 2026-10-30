@@ -24,7 +24,7 @@
 // default `GENERIC` and a bin contributes nothing to the accessibility tree of its own.
 //
 // KNOWN_GAPS: none — `AdwBin`'s only property is `child`, a widget, which is a SLOT on
-// every renderer.
+// every renderer, and it is reachable BOTH ways: `child` and `get_child()`/`set_child()`.
 //
 // Reference: refs/libadwaita/src/adw-bin.c (adw_bin_set_child, class_init)
 // Copyright (c) 2021 Purism SPC / GNOME contributors (libadwaita). LGPLv2.1+.
@@ -44,6 +44,25 @@ export class AdwBin extends WidgetElement {
     /** `adw_bin_set_child`: replace the current child, unparenting it. */
     set child(value: Element | null) {
         this.setChild(value);
+    }
+
+    /**
+     * `adw_bin_get_child` / `adw_bin_set_child` — the METHOD spelling of {@link child}.
+     *
+     * The property alone is not the whole door. `Adw.Bin:child` is reached two ways and only
+     * one of them is a property: markup writes `child:`, but code built against GI calls
+     * `bin.get_child()` / `bin.set_child(w)`, which is the spelling a `.blp`-driven widget
+     * shared across renderers uses — GJS and the NativeScript bridge both answer it
+     * (`AdwSingleChildBase`), and here it was missing, so the shared code died with
+     * `get_child is not a function` on the web and nowhere else.
+     */
+    get_child(): Element | null {
+        return this.child;
+    }
+
+    /** `adw_bin_set_child`. Refuses a child that already has a parent, as {@link setChild} does. */
+    set_child(child: Element | null): void {
+        this.setChild(child);
     }
 
     connectedCallback() {
