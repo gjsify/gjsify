@@ -21,7 +21,7 @@
 // test too and the suite would depend on its order.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { PURE_JS_ENGINE, registerGObjectEngine, resetRegisteredEngine } from '@gjsify/adwaita-core';
+import { PURE_JS_ENGINE, registerGObjectEngine, resetRegisteredEngine, TYPE_OBJECT } from '@gjsify/adwaita-core';
 import type { ClassLike, ForeignClassMeta, GObjectEngine } from '@gjsify/adwaita-core';
 import type { Observable } from '@nativescript/core';
 
@@ -234,6 +234,25 @@ function typedClass() {
     };
 }
 
+/**
+ * A SEAM-OWNED property — `kind: 'object'`, so `isSeamOwned` is true and the value lives in the
+ * seam's store on BOTH legs. The only shape whose write rules a spec can hold to the same
+ * assertion on either engine; a plain scalar's rules are node-gi's on route D.
+ */
+const OWNED: DeclaredClassMeta = {
+    GTypeName: 'SpecOwned',
+    Properties: {
+        payload: { kind: 'object', valueType: TYPE_OBJECT },
+    },
+};
+
+function ownedClass() {
+    return class SpecOwned extends withSignals(Base, OWNED) {
+        declare payload: object | null;
+        declare notify: GObjectNotify;
+    };
+}
+
 /** Collect what the body logs to `console.error`, and keep the suite's output clean. */
 async function captureErrors(body: () => void | Promise<void>): Promise<unknown[][]> {
     const original = console.error;
@@ -438,11 +457,35 @@ async function coercionVectors(leg: string, engineSetup: () => void): Promise<vo
             engineSetup();
             const widget = new (typedClass())();
             const seen: boolean[] = [];
-            // A read materialises the default, so the write below is measured against it.
             expect(widget.spinning).toBe(true);
             widget.connect('notify::spinning', (self) => seen.push(self.spinning));
             (widget as unknown as Record<string, unknown>).spinning = 'true';
             expect(seen.length).toBe(0);
+        });
+
+        await it('counts a SEAM-OWNED property\u2019s first write against the default too', () => {
+            // The read in the case above used to be load-bearing: it materialised the default
+            // into the seam's store, and without it an empty store meant "not a change I can
+            // rule out", so a default-equal FIRST write notified. A fresh `Gtk.Entry` written
+            // `text = ''` is where that surfaced — `gtk_editable_set_text` says nothing there
+            // (measured on GTK 4.22.5). The getter always answered with the default; the setter
+            // compares against the same value now.
+            //
+            // Asserted on a seam-owned property because that is the only shape whose write rules
+            // are the SEAM's on both legs. A scalar's are node-gi's on route D, where the value
+            // lives in the GObject and a pspec without `G_PARAM_EXPLICIT_NOTIFY` notifies on
+            // every `g_object_set` — which is why the same assertion on `spinning` holds off
+            // device and not on it.
+            resetRegisteredEngine();
+            engineSetup();
+            const widget = new (ownedClass())();
+            const seen: unknown[] = [];
+            widget.connect('notify::payload', (self) => seen.push(self.payload));
+            widget.payload = null;
+            expect(seen.length).toBe(0);
+            const held = { id: 1 };
+            widget.payload = held;
+            expect(seen).toStrictEqual([held]);
         });
 
         await it('parses a number, and a typed number goes through untouched', () => {
