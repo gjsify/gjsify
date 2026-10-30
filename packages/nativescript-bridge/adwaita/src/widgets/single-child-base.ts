@@ -29,6 +29,7 @@
 import { GridLayout, ItemSpec, type View } from '@nativescript/core';
 
 import { AdwStyledLayoutBase } from './styled-layout-base.js';
+import { singleChildCellIsStar } from './single-child-cell.js';
 
 export abstract class AdwSingleChildBase extends AdwStyledLayoutBase {
     private _child: View | null = null;
@@ -47,13 +48,35 @@ export abstract class AdwSingleChildBase extends AdwStyledLayoutBase {
     // `center`: a `halign: end` Bin the app overlays would span the window and park its child
     // mid-screen. GTK sizes such a widget to its child, so the column follows the alignment as
     // read at load (alignment is set before the widget is attached).
+    //
+    // AND AGAIN WHENEVER THE WIDTH IS WRITTEN, because the other half of the question — a
+    // definite `width` ({@link singleChildCellIsStar}) — lands long after `onLoaded`: an
+    // `Adw.Clamp` allocates its child from its own `layoutChanged`, i.e. once this container
+    // is loaded and laid out. ON THE STYLE AND NOT ON THE VIEW: `width` is a CSS property, so
+    // `widthChange` notifies the `Style` (`ui/core/properties`, and the `style` member of
+    // `src/ns-core.d.ts` says so). The `_columnIsStar` guard below makes a repeat free.
+    //
+    // NOT FROM `layoutChanged`, which is the obvious place and the wrong one: rebuilding the
+    // track list there calls `requestLayout()` from inside the pass that is reading it, which
+    // Android refuses — "improperly called … during layout" — and the container settled at
+    // height 0 with its content invisible. The property notification fires BEFORE the pass.
     onLoaded(): void {
         super.onLoaded();
         this._syncColumnToAlignment();
+        this.style.addEventListener('widthChange', this._onWidthChangeSyncColumn);
     }
 
+    onUnloaded(): void {
+        this.style.removeEventListener('widthChange', this._onWidthChangeSyncColumn);
+        super.onUnloaded();
+    }
+
+    private _onWidthChangeSyncColumn = (): void => {
+        this._syncColumnToAlignment();
+    };
+
     private _syncColumnToAlignment(): void {
-        const star = this.horizontalAlignment === 'stretch';
+        const star = singleChildCellIsStar(this.horizontalAlignment, this.width);
         if (star === this._columnIsStar) return;
         this._columnIsStar = star;
         this.removeColumns();

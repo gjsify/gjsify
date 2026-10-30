@@ -837,6 +837,9 @@ const ON_LOADED =
 const ON_UNLOADED =
     "`onUnloaded` is NativeScript's view lifecycle hook, called when the view leaves the visual tree; GTK has no such method, and the window uses it to stop watching the application's foreground state (`is-active`).";
 
+const ON_UNLOADED_SINGLE_CHILD =
+    "`onUnloaded` is NativeScript's view lifecycle hook, called when the view leaves the visual tree; GTK has no such method, and a single-child container uses it to drop the `widthChange` subscription it took on its own style in `onLoaded` — the one that tells it a clamp has settled a definite width on it.";
+
 const NS_METHOD_ALIGNMENT = {
     // ── A property of a type the port flattens. ───────────────────────────────────────
     'adw-tab-view.setPageTitle': { own: TAB_PAGE_PROPERTY },
@@ -860,12 +863,17 @@ const NS_METHOD_ALIGNMENT = {
 
     // ── A NativeScript lifecycle hook. ────────────────────────────────────────────────
     'adw-bin.onLoaded': { own: ON_LOADED },
+    'adw-bin.onUnloaded': { own: ON_UNLOADED_SINGLE_CHILD },
     'adw-dialog.onLoaded': { own: ON_LOADED },
+    'adw-dialog.onUnloaded': { own: ON_UNLOADED_SINGLE_CHILD },
     'gtk-overlay.onLoaded': { own: ON_LOADED },
+    'gtk-overlay.onUnloaded': { own: ON_UNLOADED_SINGLE_CHILD },
     'gtk-window.onLoaded': { own: ON_LOADED },
     'gtk-window.onUnloaded': { own: ON_UNLOADED },
     'gtk-revealer.onLoaded': { own: ON_LOADED },
+    'gtk-revealer.onUnloaded': { own: ON_UNLOADED_SINGLE_CHILD },
     'gtk-scrolled-window.onLoaded': { own: ON_LOADED },
+    'gtk-scrolled-window.onUnloaded': { own: ON_UNLOADED_SINGLE_CHILD },
 
     // ── A collection where GTK adds per item. ─────────────────────────────────────────
     'adw-tab-view.setViews': { own: LIST_BUILT_PER_ITEM('adw_tab_view_append()') },

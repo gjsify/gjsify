@@ -39,6 +39,7 @@ import systemBarsTestSuite from './system-bars.spec.js';
 import styleClassesTestSuite from './style-classes.spec.js';
 import colorSchemeClassesTestSuite from './color-scheme-classes.spec.js';
 import boxLayoutTestSuite from './box-layout.spec.js';
+import singleChildCellTestSuite from './single-child-cell.spec.js';
 import buttonSlotTestSuite from './button-slot.spec.js';
 import avatarNsTestSuite from './avatar.spec.js';
 import constructPropsTestSuite from './construct-props.spec.js';
@@ -90,6 +91,7 @@ run({
     colorSchemeClassesTestSuite,
     styleClassesTestSuite,
     boxLayoutTestSuite,
+    singleChildCellTestSuite,
     buttonSlotTestSuite,
     adwaitaNativescriptTestSuite,
     svgPathTestSuite,

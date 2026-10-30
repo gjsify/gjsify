@@ -177,6 +177,8 @@ export class Style extends Observable {
     fontSize?: number;
     readonly viewRef: WeakRef<View>;
     #visibility = 'visible';
+    #width: number | string = 'auto';
+    #height: number | string = 'auto';
 
     constructor(view: View) {
         super();
@@ -192,6 +194,33 @@ export class Style extends Observable {
         if (value === oldValue) return;
         this.#visibility = value;
         this.notify({ eventName: 'visibilityChange', object: this, propertyName: 'visibility', value, oldValue });
+    }
+
+    /**
+     * The inline width, in DIPs or as a percentage string, `'auto'` until written — and the
+     * `widthChange` a one-child container listens for. A CSS property notifies on the style
+     * and not on the view, which is the whole reason this pair lives here.
+     */
+    get width(): number | string {
+        return this.#width;
+    }
+
+    set width(value: number | string) {
+        const oldValue = this.#width;
+        if (value === oldValue) return;
+        this.#width = value;
+        this.notify({ eventName: 'widthChange', object: this, propertyName: 'width', value, oldValue });
+    }
+
+    get height(): number | string {
+        return this.#height;
+    }
+
+    set height(value: number | string) {
+        const oldValue = this.#height;
+        if (value === oldValue) return;
+        this.#height = value;
+        this.notify({ eventName: 'heightChange', object: this, propertyName: 'height', value, oldValue });
     }
 }
 
@@ -234,8 +263,32 @@ export class View extends Observable {
      * missing so the first `className` write died inside a constructor.
      */
     readonly cssClasses: Set<string> = new Set();
-    width: number | string = 'auto';
-    height: number | string = 'auto';
+    /**
+     * `'auto'` until written, and HELD ON THE {@link Style} as `widthProperty` /
+     * `heightProperty` are (`ui/styling/style-properties.ts` registers both on `Style`;
+     * `view-common.ts`'s `get width()` is a one-line forward to `this.style.width`).
+     *
+     * This double held them as plain fields on the view, which made it STRUCTURALLY BLIND to
+     * the one thing a reader needs from them: the notification. `AdwSingleChildBase` learns
+     * that a parent settled its width from `widthChange` on the style — on a device the only
+     * place it is emitted — and against a field there is no event at all, so a spec would
+     * have passed while the widget sat waiting for a message that never came.
+     */
+    get width(): number | string {
+        return this._style.width;
+    }
+
+    set width(value: number | string) {
+        this._style.width = value;
+    }
+
+    get height(): number | string {
+        return this._style.height;
+    }
+
+    set height(value: number | string) {
+        this._style.height = value;
+    }
     horizontalAlignment = 'stretch';
     verticalAlignment = 'stretch';
     /**
