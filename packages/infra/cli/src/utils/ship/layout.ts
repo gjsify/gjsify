@@ -208,6 +208,13 @@ export interface Layout {
      */
     shippedRuntime: 'gjs' | 'node';
     /**
+     * Set when the artifact's container stores names in a DECOMPOSED form and a
+     * seal over those names is byte-exact: every path BELOW the layout root is
+     * then staged in that form, so the bytes the seal was made over are the
+     * bytes the container hands back. See {@link nameFormBelowRoot}.
+     */
+    nameForm?: 'NFD';
+    /**
      * Why the staged launcher cannot name {@link shippedRuntime} yet, or absent
      * when it already does.
      *
@@ -579,6 +586,14 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
             'with `PangoCairo.FontMap.get_default().list_families()`, and `PANGOCAIRO_BACKEND=bogus` to ' +
             'print which backends it was built with.',
         launcherExt: '',
+        // `codesign` seals the bytes of every name inside the bundle, and the `.dmg` is an
+        // HFS+ volume (`dmg.ts`), which stores names decomposed. Measured on macOS 27
+        // with an app whose display name holds "ä": the bundle sealed with the precomposed
+        // `Contents/Helpers/<name>` verifies out of the zip and fails inside the mounted
+        // image ("file added / file missing" on that one path), because HFS+ rewrote the
+        // name to a + U+0308. APFS keeps the bytes it is given, so staging NFD makes
+        // zip and image agree.
+        nameForm: 'NFD',
         root: appBundleDir,
         // Apple's, all four. `Contents/MacOS` holds executables, `Contents/Resources`
         // everything that is not, and `Contents/Frameworks` the dylibs — which is
@@ -1011,6 +1026,23 @@ export function place(layout: Layout, identity: LayoutIdentity, rel: string): st
 }
 
 /**
+ * A staged path with every segment BELOW the layout root put in the layout's
+ * {@link Layout.nameForm}; the first segment (`<App>.app`) is left as given.
+ *
+ * The root is exempt for two reasons: no seal covers its own name, and the
+ * packers look the directory up by `${name}.app` on a Linux host whose
+ * filesystem compares bytes. Only ever changes non-ASCII names — an ASCII
+ * path is returned unchanged, so every bundle that already verified keeps
+ * its exact bytes.
+ */
+export function nameFormBelowRoot(layout: Layout, path: string): string {
+    if (layout.nameForm === undefined) return path;
+    const slash = path.indexOf('/');
+    if (slash === -1) return path;
+    return path.slice(0, slash + 1) + path.slice(slash + 1).normalize(layout.nameForm);
+}
+
+/**
  * Apply a layout to a whole planned payload, and add what the layout itself owns.
  *
  * THREE SOURCES, one destination namespace. The mapped files come from
@@ -1047,7 +1079,8 @@ export function placeStage(
 ): StagedFile[] {
     const byPlaced = new Map<string, string>();
     const out: StagedFile[] = [];
-    const claim = (path: string, from: string, file: StagedFile): void => {
+    const claim = (rawPath: string, from: string, file: StagedFile): void => {
+        const path = nameFormBelowRoot(layout, rawPath);
         const previous = byPlaced.get(path);
         if (previous !== undefined) {
             throw new Error(
