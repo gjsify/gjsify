@@ -24,6 +24,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
+    asciiCodesignIdentifier,
     NOTARIES,
     partitionSignedFileSet,
     resolveNotaryPlan,
@@ -40,7 +41,13 @@ export default async () => {
             const darwin = SIGNERS.darwin;
             expect(darwin).toBeDefined();
             expect(
-                darwin?.args({ identity: '-', file: '/tmp/x/libfoo.dylib', adhoc: true, entitlements: '/e.plist' }),
+                darwin?.args({
+                    identity: '-',
+                    file: '/tmp/x/libfoo.dylib',
+                    adhoc: true,
+                    entitlements: '/e.plist',
+                    seal: false,
+                }),
             ).toStrictEqual([
                 '--force',
                 '--sign',
@@ -58,22 +65,86 @@ export default async () => {
             // neither. The pair of assertions is the whole rule: same flag list,
             // one difference, and it moves with `adhoc`.
             expect(
-                darwin?.args({ identity: DEVELOPER_ID, file: '/a/b', adhoc: false, entitlements: '/e.plist' }),
+                darwin?.args({
+                    identity: DEVELOPER_ID,
+                    file: '/a/b',
+                    adhoc: false,
+                    entitlements: '/e.plist',
+                    seal: false,
+                }),
             ).toContain('--timestamp');
-            expect(darwin?.args({ identity: '-', file: '/a/b', adhoc: true, entitlements: '/e.plist' })).not.toContain(
-                '--timestamp',
-            );
+            expect(
+                darwin?.args({ identity: '-', file: '/a/b', adhoc: true, entitlements: '/e.plist', seal: false }),
+            ).not.toContain('--timestamp');
             // No entitlements file, no flag — rather than an `--entitlements`
             // pointing at a path nothing wrote.
-            expect(darwin?.args({ identity: '-', file: '/a/b', adhoc: true })).not.toContain('--entitlements');
+            expect(darwin?.args({ identity: '-', file: '/a/b', adhoc: true, seal: false })).not.toContain(
+                '--entitlements',
+            );
             // `--force` is load-bearing rather than defensive: every image in the
             // shipped darwin closure is ALREADY ad-hoc signed (ADR 0024 § A4
             // measured 106 of 106), because `install_name_tool` invalidates the
             // original during relocation and the relocator re-signs. Without it
             // `codesign` refuses the file it is meant to replace.
-            expect(darwin?.args({ identity: DEVELOPER_ID, file: '/a/b', adhoc: false })[0]).toBe('--force');
+            expect(darwin?.args({ identity: DEVELOPER_ID, file: '/a/b', adhoc: false, seal: false })[0]).toBe(
+                '--force',
+            );
             expect(darwin?.signs).toBe('macho');
             expect(darwin?.signOn).toStrictEqual(['darwin']);
+        });
+
+        await it('derives an ASCII --identifier for a non-ASCII image, and never for the seal', async () => {
+            const darwin = SIGNERS.darwin;
+            // The darwin layout names the interpreter after the DISPLAY NAME
+            // (`Contents/Helpers/<display name>`), so an app called
+            // "Steuererklärung" hands codesign a leaf that is not ASCII. With a
+            // NAMED identity the designated requirement then pins an identifier
+            // derived from those bytes, and `codesign --verify --strict` recomputes
+            // it differently — measured as "the sealed resource directory is
+            // invalid" (CI run 41050980433, macOS, mini bundles).
+            const helper =
+                darwin?.args({ identity: DEVELOPER_ID, file: '/x/Steuererklärung', adhoc: false, seal: false }) ?? [];
+            const flag = helper.indexOf('--identifier');
+            expect(flag).toBeGreaterThan(-1);
+            expect(helper[flag + 1]).toBe('Steuererklarung');
+            // The value sits immediately before the file, so it cannot be read as
+            // another flag's argument.
+            expect(helper[helper.length - 1]).toBe('/x/Steuererklärung');
+            expect(helper[helper.length - 2]).toBe('Steuererklarung');
+
+            // An ASCII leaf keeps codesign's own default: no flag, argv unchanged.
+            expect(
+                darwin?.args({ identity: DEVELOPER_ID, file: '/x/ShipDemo', adhoc: false, seal: false }),
+            ).not.toContain('--identifier');
+
+            // The SEAL is the bundle, whose identifier is `CFBundleIdentifier` in
+            // `Info.plist` — an override there would make the seal disagree with
+            // the bundle the system reads.
+            const sealArgs =
+                darwin?.args({ identity: DEVELOPER_ID, file: '/x/Steuererklärung.app', adhoc: false, seal: true }) ??
+                [];
+            expect(sealArgs).not.toContain('--identifier');
+            expect(sealArgs[sealArgs.length - 1]).toBe('/x/Steuererklärung.app');
+        });
+
+        await it('folds a non-ASCII name to one stable ASCII identifier', async () => {
+            // Precomposed and decomposed are the SAME name to a user and different
+            // bytes to codesign, so both must fold to one identifier.
+            expect(asciiCodesignIdentifier('Steuererklärung')).toBe('Steuererklarung');
+            expect(asciiCodesignIdentifier('Steuererkla\u0308rung')).toBe('Steuererklarung');
+            // ASCII is not this function's business — `undefined` means "send no
+            // flag", which is what keeps every working name byte-identical.
+            expect(asciiCodesignIdentifier('ShipDemo')).toBe(undefined);
+            expect(asciiCodesignIdentifier('node.exe')).toBe(undefined);
+            // The LEAF decides, not the path around it.
+            expect(asciiCodesignIdentifier('/a/b/Ünïcode')).toBe('Unicode');
+            // Runs outside `[A-Za-z0-9.-]` collapse into one dash, and the edges
+            // are trimmed so the identifier never starts or ends on a separator.
+            expect(asciiCodesignIdentifier('Ärger — Start')).toBe('Arger-Start');
+            // Nothing Latin survives: the UTF-8 bytes are spelled out, because a
+            // readable slug would be the empty string and that is no identifier.
+            expect(asciiCodesignIdentifier('日本語')).toBe('x-e697a5e69cace8aa9e');
+            expect(asciiCodesignIdentifier('🎉')).toBe('x-f09f8e89');
         });
 
         await it('grants four entitlements, a fifth for ad-hoc, and refuses the sixth', async () => {
@@ -159,17 +230,12 @@ export default async () => {
 
         await it('hands signtool a SUBJECT NAME and names the digest algorithm', async () => {
             const win32 = SIGNERS.win32;
-            expect(win32?.args({ identity: DEVELOPER_ID, file: 'C:\\x\\app.exe', adhoc: false })).toStrictEqual([
-                'sign',
-                '/n',
-                DEVELOPER_ID,
-                '/fd',
-                'sha256',
-                'C:\\x\\app.exe',
-            ]);
+            expect(
+                win32?.args({ identity: DEVELOPER_ID, file: 'C:\\x\\app.exe', adhoc: false, seal: false }),
+            ).toStrictEqual(['sign', '/n', DEVELOPER_ID, '/fd', 'sha256', 'C:\\x\\app.exe']);
             // Authenticode's default file digest is SHA-1, which no current
             // Windows accepts — so the flag is not decoration.
-            expect(win32?.args({ identity: 'x', file: 'y', adhoc: false })).toContain('sha256');
+            expect(win32?.args({ identity: 'x', file: 'y', adhoc: false, seal: false })).toContain('sha256');
             expect(win32?.signs).toBe('pe');
         });
 
