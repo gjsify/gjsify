@@ -41,7 +41,7 @@ Keep the `@latest` tag. All three runners reuse a cached copy of an unpinned bin
 | Debug a running app | [`storybook`](#gjsify-storybook) · [`debug`](#gjsify-debug) · [`browse`](#gjsify-browse) |
 | Browser extensions | [`webext`](#gjsify-webext) |
 | Ship it | [`ship`](#gjsify-ship) · [`flatpak`](#gjsify-flatpak) · [`site`](#gjsify-site) |
-| Publish to npm | [`pack`](#gjsify-pack) · [`publish`](#gjsify-publish) · [`whoami`](#gjsify-whoami) · [`login`](#gjsify-login) · [`logout`](#gjsify-logout) · [`trust`](#gjsify-trust) · [`onboard`](#gjsify-onboard) |
+| Publish to npm | [`pack`](#gjsify-pack) · [`publish`](#gjsify-publish) · [`whoami`](#gjsify-whoami) · [`release-notes`](#gjsify-release-notes) · [`login`](#gjsify-login) · [`logout`](#gjsify-logout) · [`trust`](#gjsify-trust) · [`onboard`](#gjsify-onboard) |
 
 ## Start a project
 
@@ -2101,6 +2101,23 @@ gjsify whoami --json
 |---|---|---|
 | `--registry <url>` | scope-aware `.npmrc` lookup, else `https://registry.npmjs.org/` | Registry to probe. |
 | `--json` | `false` | Emit `{username, registry}`, or `{error, registry}`, as one line. |
+
+### `gjsify release-notes`
+
+Print the `releases` entry for one version as GitHub Markdown, the same entry that becomes the metainfo `<release>` block. Paragraphs stay paragraphs, lists become `- ` items, translator hints are dropped. Exits 1 when the version has no entry or no description, so a release job fails instead of publishing an empty body.
+
+```bash
+gjsify release-notes                      # version from package.json
+gjsify release-notes v0.1.7 --compare
+gh release create v0.1.7 --notes "$(gjsify release-notes v0.1.7 --compare)"
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `[release]` | `version` in `package.json` | Version or tag; a leading `v` is accepted. |
+| `--compare` | `false` | Append `**Full changelog:** <vcsBrowserUrl>/compare/v<prev>...v<version>` using the next-older `releases` entry. Skipped without a previous entry or `vcsBrowserUrl`. |
+
+The entry is read from `gjsify.ship.releases`, falling back to `gjsify.flatpak.releases`.
 
 ### `gjsify login`
 

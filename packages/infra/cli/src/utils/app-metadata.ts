@@ -377,7 +377,7 @@ function renderDescriptionBlocks(description: string | DescriptionBlock[], inden
 }
 
 /** Auto-convert blank-line-split string into paragraph blocks. */
-function stringToBlocks(s: string): DescriptionBlock[] {
+export function stringToBlocks(s: string): DescriptionBlock[] {
     return s
         .trim()
         .split(/\n\n+/)

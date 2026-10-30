@@ -47,6 +47,7 @@ import {
     packCommand as pack,
     publishCommand as publish,
     whoamiCommand as whoami,
+    releaseNotesCommand as releaseNotes,
     loginCommand as login,
     logoutCommand as logout,
     trustCommand as trust,
@@ -171,6 +172,7 @@ export async function runCli(argv: readonly string[]): Promise<void> {
         .command(pack.command, pack.description, pack.builder, pack.handler)
         .command(publish.command, publish.description, publish.builder, publish.handler)
         .command(whoami.command, whoami.description, whoami.builder, whoami.handler)
+        .command(releaseNotes.command, releaseNotes.description, releaseNotes.builder, releaseNotes.handler)
         .command(login.command, login.description, login.builder, login.handler)
         .command(logout.command, logout.description, logout.builder, logout.handler)
         .command(trust.command, trust.description, trust.builder, trust.handler)
