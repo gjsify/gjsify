@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.64.13](https://github.com/gjsify/gjsify/compare/v0.64.12...v0.64.13) (2026-10-30)
+
+### Features
+
+* **adwaita:** declare AdwComboRow and Gtk.DropDown's model and selection at the seam ([#2469](https://github.com/gjsify/gjsify/issues/2469)) ([b37f699](https://github.com/gjsify/gjsify/commit/b37f699973cca76c97d2b4aa9d6614b3c526cca6))
+* **adwaita:** draw Gtk.Label markup and <a href> on web and NativeScript ([#2461](https://github.com/gjsify/gjsify/issues/2461)) ([a2e1082](https://github.com/gjsify/gjsify/commit/a2e1082dd389251fd1e35a8905a7592e56704699))
+* **dav:** filter calendar-query by UID ([#2456](https://github.com/gjsify/gjsify/issues/2456)) ([64abaac](https://github.com/gjsify/gjsify/commit/64abaacf173bfef6a8cd089eebe0e855d49a4c86))
+* **nativescript:** gate giNamespaces on the Vite path ([#2460](https://github.com/gjsify/gjsify/issues/2460)) ([05fae97](https://github.com/gjsify/gjsify/commit/05fae97125a374e84bf57c2d2d086fb53523f205))
+* **nativescript:** stage .mo, bind gettext ([#2447](https://github.com/gjsify/gjsify/issues/2447)) ([f7c095b](https://github.com/gjsify/gjsify/commit/f7c095b191b9f7582d43384bf27117de50e02039)), closes [#2438](https://github.com/gjsify/gjsify/issues/2438)
+
+### Bug Fixes
+
+* **adwaita:** keep a clamped Bin's cell star-sized ([#2463](https://github.com/gjsify/gjsify/issues/2463)) ([4c2b875](https://github.com/gjsify/gjsify/commit/4c2b875bcda7c2d01723a52793459497d5a96a96))
+* **adwaita:** match GJS notify on Adw.SplitButton ([#2450](https://github.com/gjsify/gjsify/issues/2450)) ([be5c79e](https://github.com/gjsify/gjsify/commit/be5c79e94a76f2347393c0a09923b4222ed2ce27))
+* **adwaita:** match GJS on ExpanderRow gate and subtitle null ([#2453](https://github.com/gjsify/gjsify/issues/2453)) ([ce24e8b](https://github.com/gjsify/gjsify/commit/ce24e8b66c1b52dd9589b7d4f2a752a27e13c37b))
+* **adwaita:** pango sub/sup scale, GtkBuilder enum integers ([#2465](https://github.com/gjsify/gjsify/issues/2465)) ([b44c9f7](https://github.com/gjsify/gjsify/commit/b44c9f70e2619fe37c20cd81041a593d920832b3))
+* **adwaita:** walk the widget tree on the web, and give AdwBin get_child/set_child ([#2462](https://github.com/gjsify/gjsify/issues/2462)) ([614edf5](https://github.com/gjsify/gjsify/commit/614edf501e64e27b902eec0e963fa2d0280fe16a))
+* **cli:** ascii codesign identifier for helpers ([#2466](https://github.com/gjsify/gjsify/issues/2466)) ([5aa3b8e](https://github.com/gjsify/gjsify/commit/5aa3b8eeb633d5bcd0fe8c9842f3e6059859e4fe))
+* **cli:** link transitive workspace packages ([#2452](https://github.com/gjsify/gjsify/issues/2452)) ([724574c](https://github.com/gjsify/gjsify/commit/724574c4c0db28be23bc99f139a3e07a325a651c))
+* **fs:** keep the loop alive for pending Gio calls ([#2457](https://github.com/gjsify/gjsify/issues/2457)) ([95ab33b](https://github.com/gjsify/gjsify/commit/95ab33b439b303ab8be77ded42d16282424764ba)), closes [#2388](https://github.com/gjsify/gjsify/issues/2388)
+* **http:** skip empty body chunks on GJS ([#2455](https://github.com/gjsify/gjsify/issues/2455)) ([06ad5da](https://github.com/gjsify/gjsify/commit/06ad5daa8ae7f8fa47b1bc5e7009b68cf0ca8aec))
+
+### Documentation
+
+* **adr:** gettext is the API on every target ([#2467](https://github.com/gjsify/gjsify/issues/2467)) ([816b5a7](https://github.com/gjsify/gjsify/commit/816b5a77f24c4566d9a42ba4f61865ee598f0d5e))
+* **adr:** ship credentials and jsign windows signer ([#2468](https://github.com/gjsify/gjsify/issues/2468)) ([13d2074](https://github.com/gjsify/gjsify/commit/13d2074a734f7a16867a663622a5734a9ee85518))
+* **adr:** speech recognition on local engines ([#2470](https://github.com/gjsify/gjsify/issues/2470)) ([fb617b1](https://github.com/gjsify/gjsify/commit/fb617b180fb9931098a82435d203a6d9ea96675b))
+
+### Continuous Integration
+
+* repair macOS mozjs-140 lookup, pin the .dmg reader ([#2464](https://github.com/gjsify/gjsify/issues/2464)) ([3c2cc19](https://github.com/gjsify/gjsify/commit/3c2cc19a453a54bb39c21f740881fc4cb51524b5))
+
+### Tests
+
+* **tls:** cover nodemailer's STARTTLS upgrade ([#2451](https://github.com/gjsify/gjsify/issues/2451)) ([c8e9847](https://github.com/gjsify/gjsify/commit/c8e9847d0cce21e8292fb7ee837ed53f35d7227b)), closes [#2448](https://github.com/gjsify/gjsify/issues/2448)
+
 ## [0.64.12](https://github.com/gjsify/gjsify/compare/v0.64.11...v0.64.12) (2026-10-29)
 
 ### Features
