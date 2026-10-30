@@ -258,6 +258,9 @@ declare module '@nativescript/core' {
             direction?: 'ltr' | 'rtl' | null;
             visibility?: string;
             fontSize?: number;
+            /** The inline width `View.width` forwards to, and where `widthChange` is emitted. */
+            width?: number | string;
+            height?: number | string;
         };
         /** Accessibility state — NS's counterpart to `gtk_accessible_update_state`. */
         accessibilityState: string | undefined;
