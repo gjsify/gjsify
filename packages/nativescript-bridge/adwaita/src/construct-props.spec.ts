@@ -203,6 +203,14 @@ export default async () => {
             expect(widget.verticalAlignment).toBe('middle');
         });
 
+        await it('takes the constant as an integer string, as a GtkBuilder `.ui` file writes it', () => {
+            const widget = new WidgetShape();
+            applyConstructProps(widget, { horizontalAlignment: '1', verticalAlignment: '3' });
+            expect(widget.horizontalAlignment).toBe('start');
+            expect(widget.verticalAlignment).toBe('middle');
+            expect(() => applyConstructProps(widget, { horizontalAlignment: '9' })).toThrow('not a Gtk.Align constant');
+        });
+
         await it('does not touch a value NativeScript already owns', () => {
             const widget = new WidgetShape();
             applyConstructProps(widget, { horizontalAlignment: 'right', verticalAlignment: 'top' });

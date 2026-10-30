@@ -72,6 +72,9 @@ export default async (): Promise<void> => {
         await it('takes the three nicks and REFUSES anything else by name', () => {
             expect(gtkIconSizeNick('large', 'normal')).toBe('large');
             expect(gtkIconSizeNick('inherit', 'normal')).toBe('inherit');
+            // The XML door: the constant is a string there.
+            expect(gtkIconSizeNick('2', 'normal')).toBe('large');
+            expect(() => gtkIconSizeNick('24', 'normal')).toThrow('pixelSize');
             // The defect this exists for: `<gtk:Image iconSize="large">` used to reach a
             // `number` setter, fail `xmlNumber`, and silently render at 16. A value that
             // is not a member must now be told apart from a member — a typo, a GTK

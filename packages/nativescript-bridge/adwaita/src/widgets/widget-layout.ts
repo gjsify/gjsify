@@ -83,7 +83,7 @@ import { GTK_ALIGN, NS_HORIZONTAL_ALIGNMENT, NS_VERTICAL_ALIGNMENT } from './gtk
 import { gtypeNameOfInstance } from './gtype-name.js';
 import { nsAlignment } from './construct-props.js';
 import { lengthValue, type NsLength } from './ns-length.js';
-import { xmlBoolean } from './xml-values.js';
+import { gtkBuilderInteger, xmlBoolean } from './xml-values.js';
 import { insertActionGroup } from './actions.js';
 import { focusView, isViewFocused } from '../window-source.js';
 import { applyNativeTooltip } from './native-tooltip.js';
@@ -212,8 +212,9 @@ function siblingOf(widget: object, offset: 1 | -1): TreeNode | null {
 /** A `Gtk.Align` nick from a nick or a constant, or throw — never NativeScript's own words. */
 function alignNick(value: unknown, property: 'halign' | 'valign'): string {
     if (typeof value === 'string' && Object.hasOwn(GTK_ALIGN, value)) return value;
-    if (typeof value === 'number') {
-        const nick = Object.keys(GTK_ALIGN).find((name) => GTK_ALIGN[name] === value);
+    const constant = gtkBuilderInteger(value);
+    if (constant !== undefined) {
+        const nick = Object.keys(GTK_ALIGN).find((name) => GTK_ALIGN[name] === constant);
         if (nick !== undefined) return nick;
     }
     throw new TypeError(

@@ -33,6 +33,7 @@ import type { AdwAdjustmentInput } from '@gjsify/adwaita-core';
 
 import { GTK_ALIGN, gtkAlignRefusal, NS_HORIZONTAL_ALIGNMENT, NS_VERTICAL_ALIGNMENT } from './gtk-align.js';
 import { iconSizeNickOf } from './gtk-icon-size.js';
+import { gtkBuilderInteger } from './xml-values.js';
 import { camelProperty, gtkPropertyDoor, type ShadowedName } from './shadowed-properties.js';
 
 /**
@@ -216,11 +217,13 @@ function settableDoor(target: object, key: string): 'accessor' | 'data' | null {
 export function nsAlignment(value: unknown, axis: 'horizontal' | 'vertical'): unknown {
     const table = axis === 'horizontal' ? NS_HORIZONTAL_ALIGNMENT : NS_VERTICAL_ALIGNMENT;
     let nick: string | null = null;
-    if (typeof value === 'number') {
-        nick = Object.keys(GTK_ALIGN).find((name) => GTK_ALIGN[name] === value) ?? null;
+    const constant =
+        typeof value === 'number' ? value : typeof value === 'string' ? gtkBuilderInteger(value) : undefined;
+    if (constant !== undefined) {
+        nick = Object.keys(GTK_ALIGN).find((name) => GTK_ALIGN[name] === constant) ?? null;
         if (nick === null) {
             throw new TypeError(
-                `${value} is not a Gtk.Align constant. The seven members are ` +
+                `${constant} is not a Gtk.Align constant. The seven members are ` +
                     `${Object.keys(GTK_ALIGN).join(', ')}, holding the values ` +
                     `${[...new Set(Object.values(GTK_ALIGN))].join(', ')}.`,
             );
