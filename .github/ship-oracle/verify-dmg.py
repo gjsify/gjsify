@@ -441,16 +441,24 @@ def extract_hfs_partition(image: str, out: str) -> None:
     one place this file refuses to guess.
 
     WHICH STREAM THE LISTING ARRIVES ON IS NOT A PROPERTY OF THE LISTING, and the
-    first cut read `.stdout` alone. `ubuntu-latest` moved from 24.04 to 26.04 and
-    took dmg2img from v1.6.7 to v1.6.5 with it (an OLDER upstream — the newer
-    distro carries the lower version), and v1.6.5 writes its banner and every
-    `partition <n>: …` line to STDERR. Measured at one SHA on either side of the
-    image rollover: run 40918709231 (ubuntu-24.04, v1.6.7) listed eight partitions
-    on stdout and passed; run 41041672968 (ubuntu-26.04, v1.6.5) printed the same
-    eight lines on stderr, left `.stdout` empty, and this function refused a
-    perfectly good image with "listed no partition this parser recognises". BOTH
-    streams are read now, and the partitions are keyed by INDEX so a dmg2img that
-    one day writes the listing to both does not read as two Apple_HFS volumes.
+    first cut read `.stdout` alone. `ubuntu-latest` moved from 24.04 to 26.04,
+    which swapped dmg2img's 1.6.7 release for the git snapshot
+    `1.6.7+git20201227.a3e4134` — a NEWER build whose banner misreports itself as
+    "v1.6.5" — and that snapshot writes its banner and every `partition <n>: …`
+    line to STDERR. Measured at one SHA on either side of the image rollover: run
+    40918709231 (ubuntu-24.04) listed eight partitions on stdout and passed; run
+    41041672968 (ubuntu-26.04) printed the same eight on stderr, left `.stdout`
+    empty, and this function refused a perfectly good image with "listed no
+    partition this parser recognises".
+
+    BOTH streams are read now, and the partitions are keyed by INDEX so a dmg2img
+    that one day writes the listing to both does not read as two Apple_HFS
+    volumes. The job that runs this is pinned to `ubuntu-24.04` for a SEPARATE
+    pair of regressions in the same rollover (`main.yml`'s `ship-read-dmg`
+    `runs-on` has the measurements), so this particular repair is hardening
+    rather than the thing holding the job up: it costs nothing on the pinned
+    image, where the listing arrives on stdout, and it is what lets the pin be
+    lifted on one axis instead of two.
     """
     proc = run(["dmg2img", "-l", image], what="dmg2img -l")
     seen: dict[int, str] = {}

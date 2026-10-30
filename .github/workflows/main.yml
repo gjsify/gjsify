@@ -3046,7 +3046,36 @@ jobs:
     needs: [ship-stage, ship-pack-dmg]
     if: ${{ !cancelled() && needs.ship-pack-dmg.result == 'success' }}
     name: Ship read .dmg back (bare ubuntu, 7z + dmg2img + fsck.hfsplus)
-    runs-on: ubuntu-latest
+    # PINNED, and `ubuntu-latest` is why: it moved to 26.04 on 2026-10-30 and
+    # broke two of the three readers at an already-green SHA. Measured against
+    # ONE artifact (the arm64 image from run 41047441078) in both containers:
+    #
+    #   dmg2img — 24.04 ships the 1.6.7 release, 26.04 the git snapshot
+    #   1.6.7+git20201227.a3e4134 (whose banner misreports itself as "v1.6.5").
+    #   `-p 4` extracts the Apple_HFS partition correctly in both — 307160
+    #   sectors, 157265920 bytes — but the snapshot then measures its own work
+    #   against the WHOLE DISK (307238 sectors) and appends 39936 zero bytes
+    #   past the end of the volume. fsck then looks for the alternate volume
+    #   header at filesize-1024, lands in that padding and never gets as far as
+    #   reading the volume name.
+    #
+    #   fsck.hfsplus — truncating that padding away is NOT enough, because
+    #   hfsprogs drifted too (540.1.linux3-5build3 → -6build1). On the identical
+    #   157265920 bytes, 24.04 walks the catalog, the extents overflow file and
+    #   the bitmap and says "appears to be OK" (exit 0); 26.04 walks all of the
+    #   same and then says "invalid primary VHB at 2 result 35" → "Volume header
+    #   needs minor repair" → exit 8 on a volume real hdiutil produced.
+    #
+    # The second one is why this is a pin rather than an allowance for the new
+    # message: on 26.04 a CLEAN volume and one with four bytes flipped at the
+    # HFS+ signature produce fsck output identical but for the filename in the
+    # header line, and both exit 8. The link cannot discriminate there at all,
+    # so "accept this particular complaint" would accept real corruption with
+    # it. On 24.04 clean is exit 0 and the mutant is exit 8, which is the whole
+    # reason fsck is in the chain. Revisit when hfsprogs stops rejecting
+    # hdiutil's volume header, not before — a green that cannot go red is worse
+    # than this pin.
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     timeout-minutes: 20
@@ -3067,15 +3096,15 @@ jobs:
           # having read nothing.
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends 7zip dmg2img hfsprogs
-          # The versions, in the log rather than in a comment, and `ubuntu-latest`
-          # is why: it moved 24.04 → 26.04 (observed 2026-10-30) and took 7-Zip from 23.01
-          # to 26.00 and dmg2img from v1.6.7 to v1.6.5 (the newer distro carries
-          # the LOWER dmg2img) with it — a drift that cost this job a red at an
-          # already-green SHA. What each reader is FOR is in
-          # `.github/ship-oracle/verify-dmg.py`'s header; the packing flags stay
-          # pinned to the OLDER reader either way, which is why the image is asked
-          # for as UDZO (zlib) rather than ULFO/ULMO and `-fs HFS+J` rather than
-          # the APFS a modern hdiutil defaults to.
+          # The versions, in the log rather than in a comment, because the job is
+          # pinned to a distro and not to package versions — `runs-on` above
+          # carries what each of these measured on 24.04 vs 26.04 and why that
+          # pin exists. Read them here when this job next goes red: a package
+          # that moved under the pin is the first thing to rule out. What each
+          # reader is FOR is in `.github/ship-oracle/verify-dmg.py`'s header. The
+          # packing flags are chosen for the OLDEST reader in the chain, which is
+          # why the image is asked for as UDZO (zlib) rather than ULFO/ULMO and
+          # `-fs HFS+J` rather than the APFS a modern hdiutil defaults to.
           7z i | sed -n '1,3p'
           7z i | grep -E '  (Dmg|HFS|APFS) ' || {
             echo "::error title=Ship .dmg::this 7-Zip advertises no Dmg/HFS/APFS handler, so it cannot be the reader."
