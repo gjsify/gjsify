@@ -105,6 +105,7 @@ import {
 
 import { classNameWith, normalizeStyleClasses, withCssClass, withoutCssClass } from './style-classes.js';
 import { labelMarkupFormattedString, labelMarkupNeedsSpans } from './label-markup.js';
+import { labelMarkupDrawNative, labelMarkupHoldNative } from './label-markup-native.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { androidApiLevel } from './native-tooltip.js';
@@ -504,6 +505,29 @@ export class GtkLabel extends withSignals(Label) {
             );
 
         if (render !== null && labelMarkupNeedsSpans(render)) {
+            // THE HOST'S OWN STYLED TEXT FIRST, where there is one: the runs become one
+            // platform string with spans and no view tree, which is MEASURED at ~460 ms
+            // cheaper over a 146-label page than the same runs as `Span`s —
+            // `label-markup-native.ts` holds the measurement and the subset. HELD BEFORE
+            // the write, so the first render is a single native `setText`: the platform
+            // calls `_setNativeText` from inside the `text` write, and markup recorded
+            // after it would need a second one.
+            if (
+                labelMarkupHoldNative(this, {
+                    render,
+                    mnemonics: this._useUnderline,
+                    onLinkTap: (index) => this._activateLink(index),
+                })
+            ) {
+                // Spans first on this path too, and for the same reason as below: while
+                // `formattedText` is set the platform's `[textProperty.setNative]` returns
+                // early, so a label coming BACK from the `FormattedString` path would
+                // never write its text.
+                if (this.formattedText !== null && this.formattedText !== undefined) this.formattedText = null;
+                this.text = text;
+                return;
+            }
+
             // TEXT FIRST, THEN THE SPANS. While `formattedText` is set the platform's
             // `[textProperty.setNative]` returns early, so this write is a no-op natively
             // and exists for `get_text()`; the device then re-derives `text` from the
@@ -526,8 +550,20 @@ export class GtkLabel extends withSignals(Label) {
         // THE SPANS GO FIRST on the way back, and that order is not interchangeable:
         // clearing `formattedText` calls `textProperty.nativeValueChange(this, '')`, so a
         // `text` written before it would be wiped to the empty string.
+        labelMarkupHoldNative(this, null);
         if (this.formattedText !== null && this.formattedText !== undefined) this.formattedText = null;
         this.text = text;
+    }
+
+    /**
+     * `TextBase._setNativeText` — the one place every text write ends in, and therefore the
+     * seam the native markup path draws at. Refused by every host but Android, which then
+     * leaves the framework's own `formattedText`/`text` implementation in charge:
+     * `label-markup-native.ts`.
+     */
+    override _setNativeText(reset = false): void {
+        if (labelMarkupDrawNative(this, reset)) return;
+        super._setNativeText(reset);
     }
 
     /**

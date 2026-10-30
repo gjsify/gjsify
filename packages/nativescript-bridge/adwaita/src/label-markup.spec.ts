@@ -28,7 +28,9 @@ import {
     type LabelMarkupRunExpectation,
     type LabelMarkupRunVector,
 } from '@gjsify/adwaita-core/conformance';
+import { labelMarkupRender } from '@gjsify/adwaita-core';
 
+import { labelMarkupFace, type LabelMarkupFace } from './widgets/label-markup.js';
 import * as Gtk from './namespace/gtk.js';
 
 /** The label's private link list — what `has-tooltip` and `visited` would be read off. */
@@ -122,6 +124,32 @@ function expectedDecoration(run: LabelMarkupRunExpectation): string | undefined 
     if (underline) return 'underline';
     if (run.strikethrough === true) return 'line-through';
     return undefined;
+}
+
+/**
+ * `PANGO_SCALE_LARGE`, `PANGO_SCALE_SMALL` and pango's `font_scale` script fallback, written
+ * here as the numbers pango's own header carries (`pango/pango-font.h:263-265`) rather than
+ * imported from `widgets/label-markup.ts`: the mapping and its test must not share a source.
+ */
+const PANGO_LARGE = 1.2;
+const PANGO_SMALL = 0.8333333333333;
+const PANGO_SCRIPT = 1 / 1.2;
+
+/** The native FACE a row expects, derived from the row's OWN columns. */
+function expectedFace(run: LabelMarkupRunExpectation): LabelMarkupFace {
+    const steps = run.sizeSteps ?? 0;
+    return {
+        family: run.monospace === true ? 'monospace' : undefined,
+        bold: run.bold === true,
+        italic: run.italic === true,
+        // A link underlines, as it does on the `Span` path's `textDecoration`.
+        underline: run.underline === true || run.link !== undefined,
+        strikethrough: run.strikethrough === true,
+        script: run.script ?? null,
+        // The steps MULTIPLY — one pango factor per element — and the script scales on top.
+        scale:
+            (steps > 0 ? PANGO_LARGE : PANGO_SMALL) ** Math.abs(steps) * (run.script === undefined ? 1 : PANGO_SCRIPT),
+    };
 }
 
 export const GtkLabelMarkupNsTest = async () => {
@@ -452,6 +480,86 @@ export const GtkLabelMarkupNsTest = async () => {
             expect(label.formattedText).toBe(null);
             expect(label.get_text()).toBe('no links here');
             expect(linksOf(label)).toStrictEqual([]);
+        });
+    });
+
+    await describe('Gtk.Label markup as a native FACE (LABEL_MARKUP_RUN_VECTORS)', async () => {
+        for (const vector of LABEL_MARKUP_RUN_VECTORS) {
+            await it(`${vector.markup} — ${vector.rule}`, () => {
+                const render = labelMarkupRender(vector.markup);
+                if (render === null) {
+                    // A string pango itself rejects: GTK shows it raw, so there are no runs
+                    // and no face to resolve. The row says so in its own columns.
+                    expect(vector.runs.length).toBe(0);
+                    return;
+                }
+                const runs = render.runs;
+                expect(runs.length).toBe(vector.runs.length);
+
+                for (const [index, run] of vector.runs.entries()) {
+                    // A `<span>`'s attribute whitelist is the subject of its own block
+                    // below, as it is for the `Span` path, and for the same reason: a row's
+                    // tag columns say nothing about what `weight="bold"` maps to.
+                    if ((run.spans?.length ?? 0) > 0) continue;
+
+                    const face = labelMarkupFace(runs[index]!.style, runs[index]!.link !== null);
+                    const want = expectedFace(run);
+                    expect(face.family).toBe(want.family);
+                    expect(face.bold).toBe(want.bold);
+                    expect(face.italic).toBe(want.italic);
+                    expect(face.underline).toBe(want.underline);
+                    expect(face.strikethrough).toBe(want.strikethrough);
+                    expect(face.script).toBe(want.script);
+                    // RELATIVE, so unlike the `Span` path's absolute `fontSize` the scale
+                    // needs no base size and is never dropped: `<big>` is a factor here as
+                    // it is in pango. This is the one place the two paths differ, and it
+                    // differs by being MORE faithful.
+                    expect(face.scale).toBeCloseTo(want.scale, 6);
+                }
+            });
+        }
+    });
+
+    await describe('Gtk.Label markup face: the weight ladder Android has two steps for', async () => {
+        const faceOf = (markup: string): LabelMarkupFace => {
+            const runs = labelMarkupRender(markup)!.runs;
+            return labelMarkupFace(runs[0]!.style, runs[0]!.link !== null);
+        };
+
+        await it('reads a named weight from semibold up as bold, and lighter ones as not', () => {
+            expect(faceOf('<span weight="semibold">x</span>').bold).toBe(true);
+            expect(faceOf('<span weight="bold">x</span>').bold).toBe(true);
+            expect(faceOf('<span weight="normal">x</span>').bold).toBe(false);
+            expect(faceOf('<span weight="light">x</span>').bold).toBe(false);
+        });
+
+        await it('reads a numeric weight against the same threshold', () => {
+            expect(faceOf('<span weight="600">x</span>').bold).toBe(true);
+            expect(faceOf('<span weight="900">x</span>').bold).toBe(true);
+            expect(faceOf('<span weight="500">x</span>').bold).toBe(false);
+            expect(faceOf('<span weight="100">x</span>').bold).toBe(false);
+        });
+
+        await it('drops the weights pango names and this port does not answer', () => {
+            expect(faceOf('<span weight="ultraheavy">x</span>').bold).toBe(false);
+            expect(faceOf('<span weight="book">x</span>').bold).toBe(false);
+        });
+
+        await it('lets a pango TAG win over a <span> attribute, as the Span path does', () => {
+            expect(faceOf('<span weight="normal"><b>x</b></span>').bold).toBe(true);
+            expect(faceOf('<span style="normal"><i>x</i></span>').italic).toBe(true);
+        });
+
+        await it('drops oblique rather than italicising it', () => {
+            expect(faceOf('<span style="oblique">x</span>').italic).toBe(false);
+            expect(faceOf('<span style="italic">x</span>').italic).toBe(true);
+        });
+
+        await it('takes any underline value but none, and <tt> as the monospace family', () => {
+            expect(faceOf('<span underline="single">x</span>').underline).toBe(true);
+            expect(faceOf('<span underline="none">x</span>').underline).toBe(false);
+            expect(faceOf('<tt>x</tt>').family).toBe('monospace');
+            expect(faceOf('<span font_family="Cantarell">x</span>').family).toBe('Cantarell');
         });
     });
 };

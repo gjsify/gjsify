@@ -899,6 +899,14 @@ export class Label extends View {
         this._text = value?.toString() ?? '';
     }
 
+    /**
+     * `TextBase._setNativeText` — the framework's sink for every text write, and the seam
+     * the native markup path draws at (`widgets/label-markup-native.ts`). There is no
+     * native text view off a device, so this records nothing: it exists because the port
+     * overrides it and `super._setNativeText()` has to be callable.
+     */
+    _setNativeText(_reset = false): void {}
+
     textWrap = false;
     textAlignment = 'initial';
     textOverflow = 'initial';
