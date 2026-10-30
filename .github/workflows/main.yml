@@ -3067,12 +3067,15 @@ jobs:
           # having read nothing.
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends 7zip dmg2img hfsprogs
-          # The versions, in the log rather than in a comment. What each is FOR is
-          # in `.github/ship-oracle/verify-dmg.py`'s header; what matters here is
-          # that 7-Zip on ubuntu-24.04 is 23.01 and not this project's
-          # workstation's 26.02 — which is why the image is asked for as UDZO
-          # (zlib) rather than ULFO/ULMO, and why `-fs HFS+J` rather than the
-          # APFS a modern hdiutil defaults to.
+          # The versions, in the log rather than in a comment, and `ubuntu-latest`
+          # is why: it moved 24.04 → 26.04 (observed 2026-10-30) and took 7-Zip from 23.01
+          # to 26.00 and dmg2img from v1.6.7 to v1.6.5 (the newer distro carries
+          # the LOWER dmg2img) with it — a drift that cost this job a red at an
+          # already-green SHA. What each reader is FOR is in
+          # `.github/ship-oracle/verify-dmg.py`'s header; the packing flags stay
+          # pinned to the OLDER reader either way, which is why the image is asked
+          # for as UDZO (zlib) rather than ULFO/ULMO and `-fs HFS+J` rather than
+          # the APFS a modern hdiutil defaults to.
           7z i | sed -n '1,3p'
           7z i | grep -E '  (Dmg|HFS|APFS) ' || {
             echo "::error title=Ship .dmg::this 7-Zip advertises no Dmg/HFS/APFS handler, so it cannot be the reader."

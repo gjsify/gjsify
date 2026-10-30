@@ -439,15 +439,29 @@ def extract_hfs_partition(image: str, out: str) -> None:
     EXACTLY ONE match is required. An image with two HFS+ partitions is not
     something `gjsify ship` produces, and picking the first would be a guess in the
     one place this file refuses to guess.
+
+    WHICH STREAM THE LISTING ARRIVES ON IS NOT A PROPERTY OF THE LISTING, and the
+    first cut read `.stdout` alone. `ubuntu-latest` moved from 24.04 to 26.04 and
+    took dmg2img from v1.6.7 to v1.6.5 with it (an OLDER upstream — the newer
+    distro carries the lower version), and v1.6.5 writes its banner and every
+    `partition <n>: …` line to STDERR. Measured at one SHA on either side of the
+    image rollover: run 40918709231 (ubuntu-24.04, v1.6.7) listed eight partitions
+    on stdout and passed; run 41041672968 (ubuntu-26.04, v1.6.5) printed the same
+    eight lines on stderr, left `.stdout` empty, and this function refused a
+    perfectly good image with "listed no partition this parser recognises". BOTH
+    streams are read now, and the partitions are keyed by INDEX so a dmg2img that
+    one day writes the listing to both does not read as two Apple_HFS volumes.
     """
-    listing = run(["dmg2img", "-l", image], what="dmg2img -l").stdout
-    partitions = [
-        (int(m.group(1)), m.group(2).strip()) for m in re.finditer(r"^partition (\d+): (.*)$", listing, re.M)
-    ]
+    proc = run(["dmg2img", "-l", image], what="dmg2img -l")
+    seen: dict[int, str] = {}
+    for stream in (proc.stdout, proc.stderr):
+        for m in re.finditer(r"^partition (\d+): (.*)$", stream, re.M):
+            seen.setdefault(int(m.group(1)), m.group(2).strip())
+    partitions = sorted(seen.items())
     if not partitions:
         fail(
-            "`dmg2img -l` listed no partition this parser recognises, so it read nothing. Its output is "
-            "above; the expected shape is `partition <n>: <name>`."
+            "`dmg2img -l` listed no partition this parser recognises on either stream, so it read "
+            "nothing. Its output is above; the expected shape is `partition <n>: <name>`."
         )
     hfs = [index for index, name in partitions if "Apple_HFS" in name]
     if len(hfs) != 1:
