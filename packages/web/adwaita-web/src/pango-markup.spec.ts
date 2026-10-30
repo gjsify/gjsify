@@ -75,7 +75,13 @@ export const PangoMarkupTest = async () => {
 
         await it("sub and sup carry pango's 1 / 1.2 font_scale fallback", () => {
             const { target } = render('<sub>d</sub><sup>e</sup>');
-            for (const el of target.children) expect((el as HTMLElement).style.fontSize).toBe('calc(1em / 1.2)');
+            // Compared as a computed ratio: browsers serialise the `calc()` differently
+            // (Firefox gives `calc(0.833333em)`).
+            const base = Number.parseFloat(getComputedStyle(target).fontSize);
+            for (const el of target.children) {
+                const ratio = Number.parseFloat(getComputedStyle(el).fontSize) / base;
+                expect(Math.abs(ratio - 1 / 1.2)).toBeLessThan(0.01);
+            }
         });
 
         await it("<markup> draws its children — it is pango's implicit root, not a box", async () => {
