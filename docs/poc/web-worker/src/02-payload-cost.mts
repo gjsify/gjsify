@@ -19,20 +19,15 @@ import {
 
 const WORKER = new URL('../src/fixtures/echo.worker.mjs', import.meta.url);
 
-const makeRows = (n: number) => {
-    const rows = new Array(n);
-    for (let i = 0; i < n; i++) {
-        rows[i] = {
-            id: i,
-            name: `item-${i}`,
-            qty: i % 97,
-            price: (i % 1000) / 100,
-            active: i % 3 === 0,
-            note: 'lorem ipsum dolor sit amet consectetur',
-        };
-    }
-    return rows;
-};
+const makeRows = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+        id: i,
+        name: `item-${i}`,
+        qty: i % 97,
+        price: (i % 1000) / 100,
+        active: i % 3 === 0,
+        note: 'lorem ipsum dolor sit amet consectetur',
+    }));
 
 const worker = new Worker(WORKER);
 

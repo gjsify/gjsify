@@ -55,7 +55,8 @@ let fail = 0;
     const w = new Worker(ECHO);
     for (let i = 0; i < N; i++) w.postMessage({ type: 'echo', value: i });
     const { seqs, ready } = await collect(w, N, 8000);
-    report(`A same-tick post, normal worker (ready seen: ${ready})`, seqs, N) ? pass++ : fail++;
+    if (report(`A same-tick post, normal worker (ready seen: ${ready})`, seqs, N)) pass++;
+    else fail++;
     await w.terminate();
 }
 
@@ -64,7 +65,8 @@ let fail = 0;
     const w = new Worker(SLOW);
     for (let i = 0; i < N; i++) w.postMessage({ seq: i });
     const { seqs, ready } = await collect(w, N, 10000);
-    report(`B same-tick post, 400 ms slow-start worker (ready seen: ${ready})`, seqs, N) ? pass++ : fail++;
+    if (report(`B same-tick post, 400 ms slow-start worker (ready seen: ${ready})`, seqs, N)) pass++;
+    else fail++;
     await w.terminate();
 }
 
@@ -74,7 +76,8 @@ let fail = 0;
     await new Promise((r) => setTimeout(r, 0));
     for (let i = 0; i < N; i++) w.postMessage({ type: 'echo', value: i });
     const { seqs } = await collect(w, N, 8000);
-    report('C post after one macrotask', seqs, N) ? pass++ : fail++;
+    if (report('C post after one macrotask', seqs, N)) pass++;
+    else fail++;
     await w.terminate();
 }
 
@@ -89,10 +92,12 @@ let fail = 0;
     for (let i = N; i < 2 * N; i++) w.postMessage({ seq: i });
     const { seqs } = await collected;
     const ordered = seqs.every((s, i) => s === i);
+    const ok = seqs.length === 2 * N && ordered;
     console.log(
-        `${seqs.length === 2 * N && ordered ? 'PASS' : 'FAIL'}  D interleaved before/after ready: ${seqs.length}/${2 * N} delivered, order ${ordered ? 'preserved' : `broken ${JSON.stringify(seqs)}`}`,
+        `${ok ? 'PASS' : 'FAIL'}  D interleaved before/after ready: ${seqs.length}/${2 * N} delivered, order ${ordered ? 'preserved' : `broken ${JSON.stringify(seqs)}`}`,
     );
-    seqs.length === 2 * N && ordered ? pass++ : fail++;
+    if (ok) pass++;
+    else fail++;
     await w.terminate();
 }
 

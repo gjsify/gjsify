@@ -67,20 +67,15 @@ const api = {
     }),
     // Row shape kept identical to echo.worker.mjs's, so the Comlink number
     // and the raw-postMessage number in 02 are the same measurement.
-    rows: (n) => {
-        const rows = new Array(n);
-        for (let i = 0; i < n; i++) {
-            rows[i] = {
-                id: i,
-                name: `item-${i}`,
-                qty: i % 97,
-                price: (i % 1000) / 100,
-                active: i % 3 === 0,
-                note: 'lorem ipsum dolor sit amet consectetur',
-            };
-        }
-        return rows;
-    },
+    rows: (n) =>
+        Array.from({ length: n }, (_, i) => ({
+            id: i,
+            name: `item-${i}`,
+            qty: i % 97,
+            price: (i % 1000) / 100,
+            active: i % 3 === 0,
+            note: 'lorem ipsum dolor sit amet consectetur',
+        })),
 };
 
 Comlink.expose(api, endpointFor(parentPort));

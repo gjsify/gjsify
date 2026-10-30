@@ -47,7 +47,9 @@ const ready = await new Promise((resolve) => {
 console.log(`\nworker reached Comlink.expose: ${ready}`);
 if (!ready) {
     await worker.terminate();
+    // oxlint-disable-next-line gjsify/deferred-process-exit -- module top level has no `return` to give the exit; the throw is what halts if it is ever deferred.
     process.exit(1);
+    throw new Error('unreachable — process.exit(1) above');
 }
 
 const api = Comlink.wrap(nodeEndpoint(worker));

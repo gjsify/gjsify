@@ -42,9 +42,10 @@ parentPort.postMessage({ type: 'ready', mode });
 const die = () => {
     switch (mode) {
         case 'exit':
-            if (isGjs) System.exit(3);
-            else process.exit(3);
-            break;
+            // `die` returns nothing, so returning the exit is the sanctioned
+            // repair here — a bare one would let the switch fall through.
+            if (isGjs) return System.exit(3);
+            return process.exit(3);
         case 'async-reject':
             // GJS has no host hook for unhandled rejections in a native async
             // function, so nothing should report this — that is the point.
