@@ -810,15 +810,40 @@ jobs:
           # ninja and pkgconf explicitly so the shim's build deps all resolve.
           brew install gjs gobject-introspection vala meson ninja pkgconf
           BREW_PREFIX="$(brew --prefix)"
-          # Neither `gjs` nor `spidermonkey` is keg-only, so brew symlinks their
-          # lib/pkgconfig (gjs-1.0.pc, mozjs-140.pc + the glib/gobject/gio .pc that
-          # gjs-1.0.pc Requires) into $BREW_PREFIX/lib/pkgconfig — one dir resolves
-          # the whole shim closure.
-          echo "PKG_CONFIG_PATH=$BREW_PREFIX/lib/pkgconfig:$BREW_PREFIX/share/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
+          # `gjs` is not keg-only, so brew symlinks ITS lib/pkgconfig (gjs-1.0.pc +
+          # the glib/gobject/gio .pc that gjs-1.0.pc Requires) into
+          # $BREW_PREFIX/lib/pkgconfig.
+          #
+          # SPIDERMONKEY IS NO LONGER IN THAT DIRECTORY. Homebrew moved gjs's
+          # SpiderMonkey dependency to the VERSIONED formula `spidermonkey@140`,
+          # and a versioned formula is keg-only: `mozjs-140.pc` stays in the cellar
+          # and nothing links it into the prefix. Measured 2026-10-30, run
+          # 41021634537: the bottle poured as `spidermonkey@140 140.17.0`, then
+          # `pkg-config --modversion mozjs-140` printed nothing and `meson setup`
+          # died with "Package 'mozjs-140', required by 'gjs-1.0', not found" —
+          # the shim needs the .pc for its Requires closure, not just the dylib.
+          # BOTH SPELLINGS are appended because the unversioned formula may come
+          # back as the resolved dependency; `brew --prefix <formula>` answers for
+          # a formula that is merely known, so the directory itself is the test.
+          SPIDERMONKEY_PC=''
+          for formula in spidermonkey@140 spidermonkey; do
+            prefix="$(brew --prefix "$formula" 2>/dev/null || true)"
+            if [ -n "$prefix" ] && [ -d "$prefix/lib/pkgconfig" ]; then
+              SPIDERMONKEY_PC="$SPIDERMONKEY_PC:$prefix/lib/pkgconfig"
+            fi
+          done
+          echo "PKG_CONFIG_PATH=$BREW_PREFIX/lib/pkgconfig:$BREW_PREFIX/share/pkgconfig$SPIDERMONKEY_PC${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
 
       - name: Verify toolchain (gjs / mozjs-140 / gjs-1.0 / valac)
         run: |
+          set -eu
           gjs --version
+          # `--exists` BEFORE the echoes, because a `$(pkg-config --modversion …)`
+          # that prints nothing is a passing step: that is exactly how the
+          # keg-only `spidermonkey@140` drift reached `meson setup` instead of
+          # being named here, one step after the install that caused it.
+          pkg-config --exists mozjs-140 gjs-1.0
+          echo "PKG_CONFIG_PATH=${PKG_CONFIG_PATH:-}"
           echo "mozjs-140: $(pkg-config --modversion mozjs-140)"
           echo "gjs-1.0:   $(pkg-config --modversion gjs-1.0)"
           echo "valac:     $(valac --version)"
