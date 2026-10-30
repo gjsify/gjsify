@@ -1443,7 +1443,7 @@ export default async () => {
             // captures and moves a live source between pipelines (the
             // tee-creation branch in `RTCRtpSender._wirePipeline`) — the kind
             // of GStreamer state churn that reaches `autoaudiosrc`'s
-            // candidate probing. `_chooseSource()` in `get-user-media.ts`
+            // candidate probing. `chooseSource()` in `@gjsify/media-capture`
             // already carries an earlier, separately-measured incident: on
             // `ghcr.io/gjsify/ci-fedora:44` (no reachable PipeWire/Pulse)
             // `autoaudiosrc` resolves to `openalsrc`, whose device backend
