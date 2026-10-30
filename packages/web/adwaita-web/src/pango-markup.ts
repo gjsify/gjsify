@@ -59,8 +59,11 @@ export const TAG_STYLES: Readonly<Record<string, { element: string; style?: Read
     tt: { element: 'span', style: { 'font-family': 'monospace' } },
     big: { element: 'span', style: { 'font-size': 'larger' } },
     small: { element: 'span', style: { 'font-size': 'smaller' } },
-    sub: { element: 'sub' },
-    sup: { element: 'sup' },
+    // pango's `font_scale` for `<sub>`/`<sup>` falls back to `1 / 1.2` when the font's OpenType
+    // metrics carry no script size (pango/itemize.c, `PANGO_FONT_SCALE_SUBSCRIPT`/`SUPERSCRIPT`);
+    // spelled out so it does not depend on each UA's `font-size: smaller` ratio.
+    sub: { element: 'sub', style: { 'font-size': 'calc(1em / 1.2)' } },
+    sup: { element: 'sup', style: { 'font-size': 'calc(1em / 1.2)' } },
     markup: { element: 'span', style: { display: 'contents' } },
     span: { element: 'span' },
 };

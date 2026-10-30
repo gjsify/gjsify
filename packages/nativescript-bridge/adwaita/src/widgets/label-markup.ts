@@ -18,6 +18,9 @@
 // a `Span` is a `ViewBase`, so it is written through `style` — see `ns-core.d.ts` for the
 // upstream `.d.ts` narrowing that hides those two values from the types.
 //
+// `<sub>`/`<sup>` ALSO SCALE the font, by pango's `1 / 1.2` fallback (`SCALE_SCRIPT`), under
+// the same base-size rule as `<big>`/`<small>`.
+//
 // `<big>`/`<small>` NEED A BASE SIZE, AND SKIP WHEN THERE IS NONE — a DECLARED remainder.
 // Pango's `<big>` is a FACTOR (`PANGO_SCALE_LARGE`, 1.2) applied to whatever size is in
 // force; NativeScript's `fontSize` is an absolute number of DIPs and has no relative form.
@@ -54,6 +57,15 @@ import {
  */
 const SCALE_LARGE = 1.2;
 const SCALE_SMALL = 0.8333333333333;
+
+/**
+ * `<sub>`/`<sup>` scale the font (`font_scale`). Pango reads the size from the font's
+ * OpenType metrics and, when they carry none, falls back to `1 / 1.2`
+ * (`pango/itemize.c`, `PANGO_FONT_SCALE_SUBSCRIPT` / `PANGO_FONT_SCALE_SUPERSCRIPT`). A `Span`
+ * has no font metrics, so the fallback is the factor here; like `<big>`/`<small>` it needs a
+ * base size and is skipped without one.
+ */
+const SCALE_SCRIPT = 1 / 1.2;
 
 /**
  * The `textDecoration` word for each combination `<u>`, `<s>` and a LINK can produce.
@@ -164,8 +176,10 @@ export function labelMarkupSpan(run: LabelMarkupRun, mnemonics: boolean, base?: 
 
     // The steps MULTIPLY, as pango's one factor per element does: `<big><big>` is 1.44.
     const steps = run.style.sizeSteps;
-    if (steps !== 0 && base !== undefined)
-        span.fontSize = base * (steps > 0 ? SCALE_LARGE : SCALE_SMALL) ** Math.abs(steps);
+    if (base !== undefined && (steps !== 0 || run.style.script !== null)) {
+        const script = run.style.script !== null ? SCALE_SCRIPT : 1;
+        span.fontSize = base * (steps > 0 ? SCALE_LARGE : SCALE_SMALL) ** Math.abs(steps) * script;
+    }
 
     return span;
 }

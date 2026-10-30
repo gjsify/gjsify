@@ -73,6 +73,11 @@ export const PangoMarkupTest = async () => {
             expect(target.querySelector('i > u')?.textContent).toBe('b');
         });
 
+        await it("sub and sup carry pango's 1 / 1.2 font_scale fallback", () => {
+            const { target } = render('<sub>d</sub><sup>e</sup>');
+            for (const el of target.children) expect((el as HTMLElement).style.fontSize).toBe('calc(1em / 1.2)');
+        });
+
         await it("<markup> draws its children — it is pango's implicit root, not a box", async () => {
             const { target } = render('<markup><b>x</b></markup>');
             expect(target.querySelector('b')?.textContent).toBe('x');
