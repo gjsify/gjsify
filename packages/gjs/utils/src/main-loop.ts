@@ -251,6 +251,22 @@ export function untrackRequest(): void {
     dropPending();
 }
 
+/**
+ * Count one request now and wrap its Gio completion callback so the count
+ * drops after the callback has run. Pass the wrapped callback straight to the
+ * `*_async` call: every Gio async call completes exactly once.
+ */
+export function trackedCallback<A extends unknown[]>(callback: (...args: A) => void): (...args: A) => void {
+    trackRequest();
+    return (...args: A) => {
+        try {
+            callback(...args);
+        } finally {
+            untrackRequest();
+        }
+    };
+}
+
 function dropPending(): void {
     if (_pending === 0) return;
     _pending -= 1;

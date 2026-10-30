@@ -16,6 +16,7 @@ import {
     ensureMainLoop,
     quitMainLoop,
     releaseMainLoop,
+    trackedCallback,
     trackRequest,
     trackTimer,
     untrackRequest,
@@ -85,6 +86,24 @@ export default async () => {
                 expect(ensureMainLoop()).toBe(ensured);
 
                 untrackRequest(); // past zero — must not throw
+                quitMainLoop();
+            });
+
+            await it('should keep a request counted until the wrapped callback has run, even when it throws', async () => {
+                quitMainLoop();
+
+                const calls: number[] = [];
+                const ok = trackedCallback((n: number) => calls.push(n));
+                const boom = trackedCallback(() => {
+                    throw new Error('boom');
+                });
+                const ensured = ensureMainLoop();
+                ok(7);
+                expect(calls[0]).toBe(7);
+                expect(() => boom()).toThrow('boom');
+                // both counts dropped again: a further untrack is a harmless no-op past zero
+                untrackRequest();
+                expect(ensureMainLoop()).toBe(ensured);
                 quitMainLoop();
             });
         });
