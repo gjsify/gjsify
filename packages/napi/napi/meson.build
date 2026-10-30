@@ -40,8 +40,18 @@ foreach pkg : host_provided
         : dep
 endforeach
 
-# mozjs-140 (JSAPI) pulls no GLib of its own, so it stays an ordinary link dep.
-dependencies += dependency('mozjs-140')
+# mozjs-140 (JSAPI) pulls no GLib of its own, but on darwin it is host-provided
+# too: libgjs already loaded libmozjs-140 into this process, and a second link
+# dep records `<brew>/opt/spidermonkey@140/lib/libmozjs-140.dylib`, which
+# relocation turns into `@rpath/libmozjs-140.dylib`. Homebrew moved gjs to the
+# keg-only versioned formula `spidermonkey@140`, so `<brew>/lib` (the last
+# rpath) no longer holds the dylib and the load died with "Library not loaded:
+# @rpath/libmozjs-140.dylib" (v0.64.13 release). Resolving against the host
+# process needs no path at all and cannot drift with the formula layout.
+mozjs = dependency('mozjs-140')
+dependencies += host_system == 'darwin' \
+    ? mozjs.partial_dependency(compile_args: true, includes: true) \
+    : mozjs
 
 host_provided_link_args = host_system == 'darwin' ? ['-Wl,-undefined,dynamic_lookup'] : []
 
