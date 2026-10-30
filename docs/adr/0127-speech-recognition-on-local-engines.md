@@ -23,24 +23,26 @@ but "which local engine, reached how".
 
 The need is measured. [Lotse](https://github.com/JumpLink/lotse) asks for a spoken conversation
 mode (its ADR 0009 and ADR 0010) with a budget of **500 ms from end of speech to text**, and its
-`docs/voice/spracherkennung.md` records what the candidates actually do on this hardware. The
-table below is from 2026-10-28, and the circumstance matters: it was taken while another process
-held the GPU at 97 % with 7.1 of 8 GB VRAM in use.
+`docs/voice/spracherkennung.md` records what the candidates actually do on this hardware
+(2026-10-28 to 30, i9-10900K, RX 6600). Vulkan times are given for an idle GPU and for a GPU on
+which an image generator was computing.
 
 | Engine / model | WER | end-to-end | footprint |
 |---|---|---|---|
-| whisper.cpp `large-v3-turbo` q5_0, Vulkan | 7.3 % / 10.8 % | 412 / 422 ms | 548 MB model |
+| whisper.cpp `large-v3-turbo` q5_0, Vulkan, GPU idle | 7.3 % / 10.8 % | 428 / 457 ms | 548 MB model |
+| the same, GPU computing | 7.3 % / 10.8 % | 1170 / 1420 ms | 548 MB model |
 | sherpa-onnx `parakeet-tdt-0.6b-v3` int8, CPU | 12.0 % / 13.1 % | 239 / 339 ms | 641 MB, 1.1 GB RSS |
 | sherpa-onnx streaming `zipformer-de-kroko`, CPU | 15.3 % / 16.5 % | 32 / 53 ms | 68 MB |
-| whisper.cpp CPU, `small` and up | — | 2–10 s | misses the budget |
+| whisper.cpp CPU, `small` and up | — | 2–18 s | misses the budget |
 
 Three findings come out of it. **No single engine wins**: the accurate one needs a GPU, the fast
 one is a streaming model that is 8 points worse, and the best CPU compromise costs a gigabyte of
 RSS. **Every engine mishears project vocabulary** — `gjsify` and `Paperless` come back wrong from
 all of them, and only `large-v3-turbo` gets `Flatpak`, `TypeScript` and `Pull-Request 2394`
 right — so a term list is not a nicety. And **a GPU that is present is not a GPU that is
-free**: the Vulkan run above was 2.5–3× slower than the same model on an idle GPU, while every
-static check (device present, driver loaded, VRAM free) said yes.
+free**: while another process computed on the GPU, every Vulkan engine took 2.5–3× as long and
+`large-v3-turbo` missed the budget. A GPU that merely held 7 of 8 GB VRAM but was not computing
+did not slow it down, so VRAM says nothing either way; only time does.
 
 Voxtral was measured too and is not a candidate: asked to transcribe, it answers the audio
 instead of writing it down. It stays a cloud chat model.
@@ -120,8 +122,10 @@ every single reply, and a separate turn detector deciding whether a pause actual
 12. **The probe is the only evidence that counts, and the tables stay with the consumer.**
     `machine-fit` knows how to probe, never what to probe: the candidate list and the budget come
     from the caller, so `@gjsify/speech-recognition` owns the engine candidates and Lotse or
-    Stamped owns its budget. The automatic choice is made once and recorded; an explicit setting
-    or `GJSIFY_SPEECH_BACKEND` always wins over a probe.
+    Stamped owns its budget. Because a GPU free at install time can be computing later, the probe
+    runs when the consumer starts using the engine (recognition: at `start()` of a session, with
+    a cached result reused only while it is fresh), not once at install. An explicit setting or
+    `GJSIFY_SPEECH_BACKEND` always wins over a probe, and the probe never runs on battery.
 13. **Order of work**, cheapest and least speculative first: (1) extract
     `@gjsify/media-capture`, (2) `@gjsify/sherpa-native` and `@gjsify/vad` — the CPU floor, with
     no GPU question in it, (3) `@gjsify/speech-recognition` on the streaming zipformer, which is
