@@ -33,7 +33,6 @@ import {
     NOTIFY_SLIDER_VALUE,
     NOTIFY_TEXT,
     NOTIFY_VALUE,
-    type NotifySelectedEventData,
     type NotifySliderValueEventData,
     type NotifyValueEventData,
 } from '@gjsify/adwaita-nativescript';
@@ -135,7 +134,10 @@ const ADWAITA_NS_FACTORY: ControlWidgetFactory<View> = {
         // control's option carries a `value` beside its `label`.
         row.model = GjsifyOptionList.new(options.map((o) => ({ label: o.label, value: String(o.value) })));
         let cb: (v: number) => void = () => {};
-        row.addEventListener(NOTIFY_SELECTED, (e) => cb((e as NotifySelectedEventData).selected));
+        // `notify::selected` carries no payload beyond the sender now that the property sits on
+        // the declared seam — the value is read off the row, the way a GObject `notify::`
+        // handler reads it off the object.
+        row.addEventListener(NOTIFY_SELECTED, () => cb(row.selected));
         return {
             node: row,
             get: () => row.selected,
