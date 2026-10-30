@@ -167,6 +167,75 @@ export const GtkBoxNsTest = async () => {
         });
     });
 
+    await describe('Gtk.Box: the tracks are applied as a diff', async () => {
+        // Re-adding every `ItemSpec` and re-writing every cell on each child verb made a
+        // 167-child box quadratic — `box-layout.ts`'s `boxTrackDiff` holds the measurement.
+        // What has to stay true is that the box an incremental apply leaves behind is the box
+        // a rebuild would have left, for every verb and in both directions.
+
+        /** A vertical box with `count` plain children, and the children in order. */
+        const grid = (count: number): { box: Gtk.Box; children: View[] } => {
+            const box = new Gtk.Box({ orientation: 'vertical', spacing: 12 });
+            const children = Array.from({ length: count }, () => label());
+            for (const child of children) add(box, child);
+            return { box, children };
+        };
+
+        /** Both track lists and every child's cell — the whole answer the platform was given. */
+        const applied = (box: Gtk.Box, children: readonly View[]): string =>
+            [
+                tracks(box, 'rows').join(' '),
+                tracks(box, 'columns').join(' '),
+                children.map((view) => `${GridLayout.getRow(view)}/${GridLayout.getColumn(view)}`).join(' '),
+            ].join(' | ');
+
+        await it('an append reaches what building that many children at once reaches', () => {
+            const grown = grid(3);
+            const extra = label();
+            add(grown.box, extra);
+            const fresh = grid(4);
+            expect(applied(grown.box, [...grown.children, extra])).toBe(applied(fresh.box, fresh.children));
+        });
+
+        await it('removing the tail from the END backwards leaves the shorter box exactly', () => {
+            const big = grid(6);
+            for (let index = 5; index >= 2; index--) big.box.remove(big.children[index] as unknown as never);
+            const fresh = grid(2);
+            expect(applied(big.box, big.children.slice(0, 2))).toBe(applied(fresh.box, fresh.children));
+        });
+
+        await it('re-appending a detached tail restores the box it was detached from', () => {
+            const { box, children } = grid(6);
+            const before = applied(box, children);
+            for (let index = 5; index >= 2; index--) box.remove(children[index] as unknown as never);
+            for (let index = 2; index < 6; index++) box.append(children[index] as unknown as never);
+            expect(applied(box, children)).toBe(before);
+        });
+
+        await it('a removal from the MIDDLE renumbers every child behind it', () => {
+            const { box, children } = grid(4);
+            box.remove(children[1] as unknown as never);
+            const fresh = grid(3);
+            expect(applied(box, [children[0], children[2], children[3]])).toBe(applied(fresh.box, fresh.children));
+        });
+
+        await it('a spacing change rewrites the gap tracks and leaves the cells where they are', () => {
+            const { box, children } = grid(3);
+            const cells = children.map((view) => GridLayout.getRow(view));
+            box.spacing = 6;
+            expect(tracks(box, 'rows')).toStrictEqual(['auto', 'pixel:6', 'auto', 'pixel:6', 'auto']);
+            expect(children.map((view) => GridLayout.getRow(view))).toStrictEqual(cells);
+        });
+
+        await it('flipping the axis twice leaves the old axis no tracks of its own', () => {
+            const { box, children } = grid(3);
+            const before = applied(box, children);
+            box.orientation = 'horizontal';
+            box.orientation = 'vertical';
+            expect(applied(box, children)).toBe(before);
+        });
+    });
+
     await describe('Gtk.Box: style classes', async () => {
         await it('is transparent until a class is given, and keeps the verbs and the string door', () => {
             const box = new Gtk.Box();

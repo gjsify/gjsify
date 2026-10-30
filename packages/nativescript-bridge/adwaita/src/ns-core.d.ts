@@ -376,6 +376,13 @@ declare module '@nativescript/core' {
          * objected — `AdwExpanderRow` took a `View`, and only a consumer saw it.
          */
         removeRow(itemSpec: ItemSpec): void;
+        /**
+         * `GridLayoutBase.removeColumn(itemSpec: ItemSpec)`
+         * (`ui/layouts/grid-layout/grid-layout-common.d.ts:42`) — BY SPEC like
+         * `removeRow`, which is why a track list is dropped from the END backwards:
+         * removing a leading column renumbers the specs still to remove.
+         */
+        removeColumn(itemSpec: ItemSpec): void;
         /** Remove every column definition (lets a layout re-declare its columns,
          *  e.g. to flip the fixed/expanding column for a trailing sidebar). */
         removeColumns(): void;
@@ -470,6 +477,20 @@ declare module '@nativescript/core' {
          * `status/nativescript-undefined-defaults.json` holds that.
          */
         formattedText: FormattedString | null | undefined;
+        /**
+         * `TextBase._setNativeText(reset)` — the ONE place every write path ends in: it
+         * reads `formattedText` or `text`, and hands the result to the native text view
+         * (`ui/text-base/index.android.js:437`). `[textProperty.setNative]`,
+         * `[formattedTextProperty.setNative]` and the font/stroke properties all call it,
+         * which is what makes it the seam a surface can draw its own styled text at
+         * without a `FormattedString` — `label-markup-native.ts` holds why that is worth
+         * 460 ms on a 146-label page.
+         *
+         * `_`-prefixed and therefore NOT part of the method vocabulary the alignment
+         * check holds (`publicMethodsOf` in `scripts/nativescript-xml-doors.mjs` skips
+         * it): it is NativeScript's own convention for a member the framework calls.
+         */
+        _setNativeText(reset?: boolean): void;
         textWrap: boolean;
         /** Horizontal text alignment (`'left' | 'center' | 'right' | 'justify' | 'initial'`). */
         textAlignment: string;

@@ -111,6 +111,131 @@ const SPAN_WEIGHTS: Readonly<Record<string, string>> = {
 /** The values `FontWeight.isValid` takes, for a `<span weight="700">`. */
 const NUMERIC_WEIGHTS: ReadonlySet<string> = new Set(['100', '200', '300', '400', '500', '600', '700', '800', '900']);
 
+/** `semibold`. Where pango's ladder becomes bold on a platform whose typeface has two steps. */
+const BOLD_FROM = 600;
+
+/**
+ * The native FACE one run asks for: the typeface, the two lines, the baseline and the font
+ * factor, with pango's tags and `<span>` attributes already resolved against each other.
+ *
+ * WHY A SECOND SHAPE BESIDE {@link labelMarkupSpan}. A `Span` IS the shape on the surfaces
+ * that go through a `FormattedString`, so there the resolution and the write are one
+ * function. Android's spans are not a shape at all — `TypefaceSpan`, `StyleSpan`,
+ * `UnderlineSpan`, `RelativeSizeSpan` are independent objects over a RANGE of one
+ * builder — so the decisions have to be readable before anything native exists, which is
+ * also what makes them assertable off a device. `label-markup-native.android.ts` turns one
+ * face into those spans and decides nothing else.
+ *
+ * THE SCALE IS RELATIVE, which is what pango's is. `<big>` is a FACTOR
+ * (`PANGO_SCALE_LARGE`), so a platform with a relative span needs no base size and drops
+ * nothing — where the `Span` path's `fontSize` is an absolute number of DIPs and has to
+ * resolve the factor against a size something has written, which is why it SKIPS the scale
+ * when nothing has (see the header). The same markup is therefore more faithful on the
+ * native path, not differently faithful; the measured corpus has no `<big>`/`<small>` at
+ * all, so no label in it renders differently either way.
+ *
+ * THE WEIGHT LADDER COLLAPSES TO BOLD, declared rather than approximated: Android picks a
+ * weight with `Typeface.create(family, weight, italic)` from API 28 and has nothing but
+ * `Typeface.BOLD` below it, and this port supports API 24. So pango's named and numeric
+ * weights are read and answered as bold from {@link BOLD_FROM} up. `semilight`, `book` and
+ * `ultraheavy` are dropped, which is the same answer {@link SPAN_WEIGHTS} gives them.
+ */
+export interface LabelMarkupFace {
+    /** The typeface family, or `undefined` for the view's own. `<tt>` is `monospace`. */
+    readonly family: string | undefined;
+    readonly bold: boolean;
+    readonly italic: boolean;
+    readonly underline: boolean;
+    readonly strikethrough: boolean;
+    /** `<sub>` / `<sup>` — a baseline shift, not a size. */
+    readonly script: 'sub' | 'sup' | null;
+    /** The font factor `<big>`, `<small>`, `<sub>` and `<sup>` multiply up to. 1 means none. */
+    readonly scale: number;
+}
+
+/**
+ * One run's style as the face a native span-setter writes.
+ *
+ * The `<span>` attributes are read OUTERMOST FIRST and the pango tags after, so a tag wins
+ * a collision — the same declared order {@link labelMarkupSpan} applies, for the same
+ * reason: the runs record the tags as booleans and the `<span>`s as a separate stack, so
+ * neither renderer can know which element was inner.
+ */
+export function labelMarkupFace(style: LabelMarkupStyle, link: boolean): LabelMarkupFace {
+    let family: string | undefined;
+    let bold = false;
+    let italic = false;
+    let underline = false;
+    let strikethrough = false;
+
+    for (const attributes of style.spans) {
+        for (const [attribute, value] of Object.entries(attributes)) {
+            switch (attribute) {
+                case 'font_family':
+                case 'family':
+                    family = value;
+                    break;
+                case 'font_style':
+                case 'style':
+                    // pango's `oblique` is DROPPED rather than italicised, as on the `Span` path.
+                    if (value === 'normal') italic = false;
+                    else if (value === 'italic') italic = true;
+                    break;
+                case 'font_weight':
+                case 'weight': {
+                    const weight = SPAN_WEIGHTS[value] ?? value;
+                    bold = weight === 'bold' || (NUMERIC_WEIGHTS.has(weight) && Number(weight) >= BOLD_FROM);
+                    break;
+                }
+                case 'underline':
+                    // pango: any value but `none` underlines.
+                    underline = value !== 'none';
+                    break;
+                case 'strikethrough':
+                    strikethrough = value !== 'false' && value !== 'none';
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    if (style.monospace) family = 'monospace';
+    if (style.bold) bold = true;
+    if (style.italic) italic = true;
+    if (style.underline) underline = true;
+    if (style.strikethrough) strikethrough = true;
+
+    const steps = Math.abs(style.sizeSteps);
+    return {
+        family,
+        bold,
+        italic,
+        // A link underlines for the reason `decoration` states: it is the link treatment
+        // this theme already gives one, and the two link surfaces must not disagree.
+        underline: underline || link,
+        strikethrough,
+        script: style.script,
+        // The steps MULTIPLY, as pango's one factor per element does: `<big><big>` is 1.44.
+        scale: (style.sizeSteps > 0 ? SCALE_LARGE : SCALE_SMALL) ** steps * (style.script !== null ? SCALE_SCRIPT : 1),
+    };
+}
+
+/**
+ * A label's markup as the platform half of this package has to DRAW it — everything
+ * `label-markup-native.ts` needs and nothing a `FormattedString` would add.
+ *
+ * `onLinkTap` rather than the links themselves: following a link is the widget's decision
+ * (`GtkLabel._activateLink` runs `::activate-link` under GTK's handled accumulator), and a
+ * span-setter that reached for `render.links[i].href` would be making it a second time.
+ */
+export interface LabelMarkupNativeText {
+    readonly render: LabelMarkupRender;
+    /** `use-underline` — whether the mnemonic marker is stripped out of each run's text. */
+    readonly mnemonics: boolean;
+    onLinkTap(index: number): void;
+}
+
 /**
  * One `<span>`'s attributes written onto `span`, for the attributes NativeScript has a word
  * for. Everything else is dropped — `foreground`/`background` would need NS's colour
