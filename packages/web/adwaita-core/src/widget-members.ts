@@ -24,15 +24,58 @@ interface WidgetNode extends PointNode {
     removeAttribute(name: string): void;
     hasAttribute(name: string): boolean;
     toggleAttribute(name: string, force?: boolean): boolean;
-    readonly firstElementChild: unknown;
-    readonly lastElementChild: unknown;
-    readonly nextElementSibling: unknown;
-    readonly previousElementSibling: unknown;
-    readonly parentElement: unknown;
+    readonly localName: string;
+    readonly firstElementChild: LinkedNode | null;
+    readonly lastElementChild: LinkedNode | null;
+    readonly nextElementSibling: LinkedNode | null;
+    readonly previousElementSibling: LinkedNode | null;
+    readonly parentElement: LinkedNode | null;
     readonly classList: { add(name: string): void; remove(name: string): void; contains(name: string): boolean };
 }
 
+/**
+ * What the tree walkers need of a node they STEP OVER: its name, and the link to the next
+ * candidate. A `<span>` a label built answers both and is no `WidgetNode` — the whole point.
+ */
+interface LinkedNode {
+    readonly localName: string;
+    readonly firstElementChild: LinkedNode | null;
+    readonly lastElementChild: LinkedNode | null;
+    readonly nextElementSibling: LinkedNode | null;
+    readonly previousElementSibling: LinkedNode | null;
+    readonly parentElement: LinkedNode | null;
+}
+
 const DIRECTION = new WeakMap<object, number>();
+
+/**
+ * Is this element a WIDGET, or a piece of a widget's own insides?
+ *
+ * `gtk_widget_get_first_child` walks the WIDGET tree — every node it hands back is a
+ * `GtkWidget`, including the template children of a composite one. A DOM port has a second
+ * kind of child in the same `children` list: the `<span>` a label's markup renderer builds,
+ * the `<div>` a row lays its slots out in. Those are not widgets in any renderer, and a
+ * caller that got one back found `instanceof Gtk.Label` false and, one step further, no
+ * `get_first_child` on it at all — a `TypeError` thrown in the consumer's walk, far from
+ * the port that produced the node. (Measured in Learn6502: a depth-first walk over the
+ * rendered tutorial hit the spans inside a label and died.)
+ *
+ * The test is the one the DOM itself guarantees: a custom element name MUST contain a
+ * hyphen and a built-in one may not, so `localName.includes('-')` separates the two kinds
+ * exactly. `compute-expand.ts` reads the same signal for the same reason.
+ *
+ * Reference: GTK gtk/gtkwidget.c (gtk_widget_get_first_child — `priv->first_child`, a
+ * GtkWidget), WHATWG HTML § custom element name (the hyphen requirement).
+ */
+export function isWidgetNode(node: { readonly localName: string } | null | undefined): boolean {
+    return node != null && node.localName.includes('-');
+}
+
+/** The first of `node` and its following siblings that is a widget, skipping a port's own DOM. */
+function widgetSibling(node: LinkedNode | null, next: (from: LinkedNode) => LinkedNode | null): LinkedNode | null {
+    for (let at = node; at !== null; at = next(at)) if (isWidgetNode(at)) return at;
+    return null;
+}
 
 /**
  * Mirrors the held direction onto the `dir` attribute. A custom element may not take an attribute
@@ -69,20 +112,25 @@ export function widgetTreeMembers(): Record<string, (this: WidgetNode, ...args: 
         set_visible(this: WidgetNode, visible: boolean) {
             this.toggleAttribute('hidden', !visible);
         },
+        /** `gtk_widget_get_first_child`: the first child WIDGET — see {@link isWidgetNode}. */
         get_first_child(this: WidgetNode) {
-            return this.firstElementChild;
+            return widgetSibling(this.firstElementChild, (at) => at.nextElementSibling);
         },
+        /** `gtk_widget_get_last_child`. */
         get_last_child(this: WidgetNode) {
-            return this.lastElementChild;
+            return widgetSibling(this.lastElementChild, (at) => at.previousElementSibling);
         },
+        /** `gtk_widget_get_next_sibling`. */
         get_next_sibling(this: WidgetNode) {
-            return this.nextElementSibling;
+            return widgetSibling(this.nextElementSibling, (at) => at.nextElementSibling);
         },
+        /** `gtk_widget_get_prev_sibling`. */
         get_prev_sibling(this: WidgetNode) {
-            return this.previousElementSibling;
+            return widgetSibling(this.previousElementSibling, (at) => at.previousElementSibling);
         },
+        /** `gtk_widget_get_parent`: the nearest ancestor that is a widget, not a port's own wrapper. */
         get_parent(this: WidgetNode) {
-            return this.parentElement;
+            return widgetSibling(this.parentElement, (at) => at.parentElement);
         },
         /** `gtk_widget_get_width`: the layout box in CSS px; 0 until the widget is rendered. */
         get_width(this: WidgetNode) {

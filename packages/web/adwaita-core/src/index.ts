@@ -501,7 +501,7 @@ export {
 export type { GtkPlatform, HostKeyEvent, PlatformHost } from './gtk-platform.js';
 export { iconLookupNames, lookupResourceIcon } from './icon-theme-resources.js';
 export type { IconDirection, ResourceIconMatch, ResourceIconRequest } from './icon-theme-resources.js';
-export { syncDirection, widgetTreeMembers } from './widget-members.js';
+export { isWidgetNode, syncDirection, widgetTreeMembers } from './widget-members.js';
 export type { ClipboardHost, GdkClipboard } from './gdk.js';
 export { Point, computePoint } from './graphene.js';
 export type { PointNode } from './graphene.js';

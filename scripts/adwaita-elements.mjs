@@ -866,10 +866,20 @@ function valueImports(text) {
  * this reader exists to refuse, since `adw-header-bar` was published core-backed off a
  * comment and a universally shared import is a comment with a semicolon.
  *
+ * `adwaita-web/src/widget-element.ts` is the same seam on the web: the base class 113 of the
+ * 137 elements extend, and it imports `isWidgetNode` from `@gjsify/adwaita-core` so the five
+ * `Gtk.Widget` tree walkers it installs step over the nodes a port builds for a widget's own
+ * insides. That edge belongs to the BASE CLASS, and traversing it would hand every element
+ * that extends it a core-backed score off one import none of them wrote — which is how
+ * `adw-header-bar` was published core-backed the first time.
+ *
  * Kept short on purpose. A helper here is one EVERY element imports; anything a few of them
  * import is a delegation and the one hop is what reads it.
  */
-const NOT_A_DELEGATION = new Set(['packages/nativescript-bridge/adwaita/src/widgets/signals.ts']);
+const NOT_A_DELEGATION = new Set([
+    'packages/nativescript-bridge/adwaita/src/widgets/signals.ts',
+    'packages/web/adwaita-web/src/widget-element.ts',
+]);
 
 export function coreReach(rendererFiles, root) {
     for (const path of NOT_A_DELEGATION) {

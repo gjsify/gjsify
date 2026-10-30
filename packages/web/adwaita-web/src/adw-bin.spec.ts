@@ -61,6 +61,26 @@ export const AdwBinTest = async () => {
             other.remove();
         });
 
+        await it('answers `get_child()` / `set_child()` too, the spelling GI-built code uses', () => {
+            // `Adw.Bin:child` has two doors, and markup only takes one of them: code written
+            // against GI calls the methods, which is what a `.blp`-driven widget shared with
+            // GJS and NativeScript does. Both of those renderers answer them; the web did not,
+            // and shared code died here with `get_child is not a function`.
+            const { el, host } = mount();
+            expect(el.get_child()).toBeNull();
+            const child = document.createElement('div');
+            el.set_child(child);
+            expect(el.get_child()).toBe(child);
+            expect(el.child).toBe(child);
+            const next = document.createElement('span');
+            el.set_child(next);
+            expect(el.get_child()).toBe(next);
+            expect(el.childElementCount).toBe(1);
+            el.set_child(null);
+            expect(el.get_child()).toBeNull();
+            host.remove();
+        });
+
         await it('a bin is a column flex box, and its only child fills it', () => {
             const { el, host } = mount([document.createElement('div')]);
             // A bin takes the size it is GIVEN and hands all of it to the child, which

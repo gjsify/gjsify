@@ -60,10 +60,10 @@ export const WidgetMembersTest = async () => {
             expect(() => widget.set_direction(7)).toThrow();
         });
 
-        await it('walks the element tree with the GTK link names', () => {
+        await it('walks the widget tree with the GTK link names', () => {
             const parent = make('WidgetMembersParent');
-            const a = document.createElement('div');
-            const b = document.createElement('div');
+            const a = new Gtk.Label() as unknown as WidgetLike;
+            const b = new Gtk.Label() as unknown as WidgetLike;
             parent.append(a, b);
             expect(parent.get_first_child()).toBe(a);
             expect(parent.get_last_child()).toBe(b);
@@ -71,6 +71,45 @@ export const WidgetMembersTest = async () => {
             expect(parent.get_next_sibling()).toBe(null);
             expect(parent.get_prev_sibling()).toBe(null);
             expect(parent.get_parent()).toBe(null);
+        });
+
+        await it("steps over the plain elements a port builds for a widget's insides", () => {
+            // `gtk_widget_get_first_child` hands back a GtkWidget, always. In a DOM port the
+            // same `children` list also holds what the port made for itself — the `<span>` a
+            // label's markup renderer writes, the `<div>` a row lays its slots out in — and a
+            // caller walking the tree would get one of those and find no `get_first_child` on
+            // it at all. The custom-element hyphen separates the two kinds (`isWidgetNode`).
+            const parent = make('WidgetMembersInsides');
+            const a = new Gtk.Label() as unknown as WidgetLike;
+            const b = new Gtk.Label() as unknown as WidgetLike;
+            parent.append(
+                document.createElement('span'),
+                a,
+                document.createElement('div'),
+                b,
+                document.createElement('span'),
+            );
+            expect(parent.get_first_child()).toBe(a);
+            expect(parent.get_last_child()).toBe(b);
+            expect(a.get_next_sibling()).toBe(b);
+            expect(b.get_prev_sibling()).toBe(a);
+            expect(b.get_next_sibling()).toBe(null);
+        });
+
+        await it('a widget holding only its own markup is a LEAF', () => {
+            const label = make('WidgetMembersLeaf');
+            label.append(document.createElement('span'), document.createElement('span'));
+            expect(label.get_first_child()).toBe(null);
+            expect(label.get_last_child()).toBe(null);
+        });
+
+        await it('get_parent reports the nearest ancestor that is a widget', () => {
+            const box = new Gtk.Box() as unknown as WidgetLike;
+            const wrapper = document.createElement('div');
+            const label = new Gtk.Label() as unknown as WidgetLike;
+            box.append(wrapper);
+            wrapper.append(label);
+            expect(label.get_parent()).toBe(box);
         });
 
         await it('walks the element tree of a built-in widget with the GTK link names', () => {
