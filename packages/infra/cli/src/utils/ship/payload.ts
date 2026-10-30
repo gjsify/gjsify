@@ -900,7 +900,7 @@ export function assertPayloadMatchesArch(
  * Which executable format these bytes are, or `null` for anything else.
  *
  * The FAMILY and not merely "is it native", because the signer needs the
- * distinction: `codesign` signs Mach-O and `signtool` signs PE, and an ELF in a
+ * distinction: `codesign` signs Mach-O and `jsign` signs PE, and an ELF in a
  * darwin payload is neither — it is a file that should not be there. A caller
  * asking only "is this native" would have handed one to `codesign`, whose
  * refusal names a file rather than the mistake.

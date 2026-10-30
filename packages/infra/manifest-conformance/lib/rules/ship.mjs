@@ -332,7 +332,7 @@ export function auditShip(ctx) {
                     if (row === null || typeof row !== 'object' || typeof row.identity !== 'string') {
                         failures.push(
                             `${pkg.rel}/package.json: \`gjsify.ship.sign.${os}\` needs an \`identity\` string — ` +
-                                `the NAME \`codesign\`/\`signtool\` looks the key up by, never a certificate or a ` +
+                                `the NAME \`codesign\` looks the key up by (or the \`azure:\` locator \`jsign\` signs through), never a certificate or a ` +
                                 `path to one (ADR 0024 § A12).`,
                         );
                     }

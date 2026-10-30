@@ -787,9 +787,10 @@ export interface ShipBundledTypelibsOptions {
  * it, with that repository's key. A key here would look like it did something.
  *
  * WHAT IS NOT HERE, and each is a decision rather than an omission:
- *  - a certificate, a `.p12` path or a password. `codesign` and `signtool` are
- *    handed a NAME and resolve the private key themselves, so `gjsify ship`
- *    never sees a secret and nothing on this surface has to be redacted from a
+ *  - a certificate, a `.p12` path or a password. `codesign` is handed a NAME
+ *    and resolves the private key itself, and `jsign` gets a service locator
+ *    plus a token read from the env (ADR 0126), so `gjsify ship` never holds
+ *    a secret in config and nothing on this surface has to be redacted from a
  *    log line (§ A14).
  *  - an `entitlements` key. § A16 leaves library validation vs. hardened runtime
  *    explicitly unmeasured, and a config key for an unmeasured mechanism is a
@@ -801,7 +802,7 @@ export interface ShipBundledTypelibsOptions {
 export interface ShipSignOptions {
     /** `codesign --sign <identity>`. `'-'` is ad-hoc and needs no developer identity. */
     darwin?: { identity?: string };
-    /** `signtool sign /n <identity>` — the certificate's SUBJECT NAME in a Windows store. */
+    /** `azure:<endpoint host>#<account>/<certificate profile>` — Azure Artifact Signing via `jsign` (ADR 0126). */
     win32?: { identity?: string };
 }
 

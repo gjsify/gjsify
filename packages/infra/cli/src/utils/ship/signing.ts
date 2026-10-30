@@ -68,12 +68,14 @@
 //    `canCarryTicket` in `utils/ship/formats.ts` is that fact per format, so the
 //    `.dmg` is stapled and the `.zip` is told what a user has to do instead.
 //
-// WHAT IS STILL NOT DONE, deliberately: `signtool` is never given a timestamp URL
-// (see the win32 row), and the named-identity half of § A16 is untested because it
-// needs a certificate — the GRANT of `disable-library-validation` is the measured
-// ad-hoc answer, and § A4's re-sign of every image stays the design of record for
-// the Developer ID that notarisation will actually require.
+// WHAT IS STILL NOT DONE, deliberately: the named-identity half of § A16 is untested
+// because it needs a certificate — the GRANT of `disable-library-validation` is the
+// measured ad-hoc answer, and § A4's re-sign of every image stays the design of
+// record for the Developer ID that notarisation will actually require. The Windows
+// row (jsign, ADR 0126) has never signed anything here either: it needs an Azure
+// signing account, which no CI leg of this repository holds.
 
+import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, sep } from 'node:path';
 
@@ -112,8 +114,36 @@ export interface SignerDescriptor {
      * would sign three of those four.
      */
     signs: 'macho' | 'pe';
-    /** argv after {@link tool}, for ONE file. */
+    /**
+     * Further commands {@link tool} needs on `PATH` (jsign is a Java program).
+     * `[]` is an answer: `codesign` is one binary.
+     */
+    needs: readonly string[];
+    /**
+     * One invocation for the whole payload (`true`) or one per file (`false`).
+     *
+     * jsign makes an extra signing-API call per invocation to fetch the chain and
+     * its documentation recommends a file list (ADR 0126 § D3); `codesign` takes
+     * one path and every call is independent.
+     */
+    batch: boolean;
+    /** argv after {@link tool}, for ONE file — or for the whole batch when {@link batch}. */
     args: (input: SignArgs) => readonly string[];
+    /**
+     * Refuse an identity this signer cannot use, BEFORE anything is built.
+     * Absent where every non-empty string is a name the tool looks up itself.
+     */
+    checkIdentity?: (identity: string) => void;
+    /**
+     * The environment the signing tool runs in. Where a credential that must not
+     * appear in argv is handed over (a process list is readable; an environment
+     * variable's NAME is all it shows).
+     */
+    childEnv?: (identity: string, parent: NodeJS.ProcessEnv) => Promise<NodeJS.ProcessEnv>;
+    /** Does `--sign -` (ad-hoc) mean anything on this OS? Only macOS has one. */
+    supportsAdhoc: boolean;
+    /** What an identity looks like on this OS, for messages. */
+    identityHint: string;
     /**
      * The entitlements this signer asks for, given the identity in hand.
      *
@@ -152,6 +182,14 @@ export interface SignerDescriptor {
     gap: string;
 }
 
+/** The environment variable jsign reads the access token from (`--storepass env:…`). */
+export const AZURE_TOKEN_ENV = 'AZURE_ACCESS_TOKEN';
+
+/** Azure Artifact Signing's RFC 3161 authority. */
+export const AZURE_TIMESTAMP_URL = 'http://timestamp.acs.microsoft.com';
+
+const AZURE_IDENTITY_HINT = 'azure:<endpoint host>#<account>/<certificate profile>';
+
 /**
  * The signers, keyed by the LAYOUT they sign — never by the host they run on.
  *
@@ -172,6 +210,10 @@ export const SIGNERS: Partial<Record<HostOs, SignerDescriptor>> = {
         signOn: ['darwin'],
         installHint: 'install the Xcode Command Line Tools (`xcode-select --install`) on a macOS host',
         signs: 'macho',
+        needs: [],
+        batch: false,
+        supportsAdhoc: true,
+        identityHint: '<Developer ID common name> or `-`',
         // `--force` because every image in the shipped closure is ALREADY signed
         // ad-hoc (§ A4: 106 of 106) — `install_name_tool` invalidates the original
         // during relocation and the relocator re-signs. Without it `codesign`
@@ -187,7 +229,7 @@ export const SIGNERS: Partial<Record<HostOs, SignerDescriptor>> = {
         // the timestamp authority service cannot be contacted … the signing
         // operation will fail", which is not a failure worth inventing for a
         // signature that cannot carry the result.
-        args: ({ identity, file, entitlements, adhoc }) => [
+        args: ({ identity, files, entitlements, adhoc }) => [
             '--force',
             '--sign',
             identity,
@@ -195,7 +237,7 @@ export const SIGNERS: Partial<Record<HostOs, SignerDescriptor>> = {
             'runtime',
             ...(entitlements === undefined ? [] : ['--entitlements', entitlements]),
             ...(adhoc ? [] : ['--timestamp']),
-            file,
+            ...files,
         ],
         // FIVE OF THE REFERENCE'S SIX for an ad-hoc identity, FOUR for a real one,
         // and the difference is the one § A16 left open — now MEASURED, on
@@ -258,21 +300,58 @@ export const SIGNERS: Partial<Record<HostOs, SignerDescriptor>> = {
     },
     win32: {
         layoutOs: 'win32',
-        tool: 'signtool',
-        signOn: ['win32'],
-        installHint: 'install the Windows SDK (signtool.exe ships in its `bin/<version>/x64` directory)',
+        tool: 'jsign',
+        // jsign is Java and signs through a cloud service, so the Windows leg can
+        // assemble, pack the `.msi` with `wixl` AND sign on one Linux job (ADR 0126
+        // § D3).
+        signOn: ['linux', 'darwin', 'win32'],
+        installHint:
+            'install jsign (https://ebourg.github.io/jsign/) and a Java runtime — packages exist for Debian, ' +
+            'RPM, Homebrew, Chocolatey and Scoop',
         signs: 'pe',
-        // `/n` takes a SUBJECT NAME and looks the certificate up in a store, which
-        // is the same shape as `codesign --sign <identity>` and the reason § A12's
-        // interface is one flag for both OSes. `/fd sha256` names the file digest;
-        // Authenticode's default is SHA-1, which no current Windows accepts.
+        needs: ['java'],
+        batch: true,
+        supportsAdhoc: false,
+        identityHint: AZURE_IDENTITY_HINT,
+        checkIdentity: (identity) => void parseAzureIdentity(identity),
+        childEnv: async (_identity, parent) => ({
+            ...parent,
+            [AZURE_TOKEN_ENV]: await resolveAzureAccessToken(parent),
+        }),
+        // The timestamp is the signature, not an option of it: Azure Artifact Signing
+        // certificates live THREE DAYS, so a signature without a countersignature
+        // stops validating on the fourth. The flags are emitted unconditionally —
+        // there is no setting that omits them — and `--tsmode RFC3161` is part of
+        // it because jsign's default mode is `Authenticode`, which would speak the
+        // wrong protocol to an RFC 3161 service.
         //
-        // ⚠️ UNVERIFIED. Nothing in this repository has ever run `signtool`: it
-        // needs a certificate, there is no ad-hoc mode on Windows, and § A5
-        // records that SmartScreen only WARNS until per-file-hash reputation
-        // accrues — signed or not. The argv is unit-tested, the skip and the
-        // refusals are e2e-tested, and the invocation itself has no proof.
-        args: ({ identity, file }) => ['sign', '/n', identity, '/fd', 'sha256', file],
+        // The token is an `env:` REFERENCE; its value lives in the child's
+        // environment only (see `childEnv`).
+        //
+        // ⚠️ UNVERIFIED. No run in this repository has ever invoked jsign: it needs
+        // an Azure signing account. The argv is unit-tested, the skip and the
+        // refusals are e2e-tested, and the invocation itself has no proof (ADR 0126
+        // § Test plan, acceptance (b)).
+        args: ({ identity, files }) => {
+            const { endpoint, account, profile } = parseAzureIdentity(identity);
+            return [
+                '--storetype',
+                'TRUSTEDSIGNING',
+                '--keystore',
+                endpoint,
+                '--alias',
+                `${account}/${profile}`,
+                '--storepass',
+                `env:${AZURE_TOKEN_ENV}`,
+                '--alg',
+                'SHA-256',
+                '--tsaurl',
+                AZURE_TIMESTAMP_URL,
+                '--tsmode',
+                'RFC3161',
+                ...files,
+            ];
+        },
         // Windows has no equivalent concept. An Authenticode signature carries no
         // capability claims — what a hardened runtime and an entitlement do on
         // macOS is done on Windows by the manifest and by AppContainer, neither of
@@ -281,16 +360,100 @@ export const SIGNERS: Partial<Record<HostOs, SignerDescriptor>> = {
         // argument instead of reading `adhoc` out of it.
         entitlements: () => [],
         // A Windows program directory is a DIRECTORY and nothing more: there is no
-        // manifest to seal and no per-directory signature format. `signtool` signs
-        // images, one at a time, which is what the loop above already does.
+        // manifest to seal and no per-directory signature format.
         sealsBundle: false,
         sealAddPrefix: () => '',
         configKey: 'gjsify.ship.sign.win32.identity',
         gap:
-            'no timestamp countersignature is requested, so the signature expires with the certificate ' +
-            '(UNVERIFIED: no run in this repository has ever invoked signtool)',
+            'every PE image and the `.msi` carry an RFC 3161 timestamp countersignature; SmartScreen reputation ' +
+            'still accrues per file hash (ADR 0024 § A5) (UNVERIFIED: no run in this repository has ever invoked ' +
+            'jsign)',
     },
 };
+
+export interface AzureIdentity {
+    /** Host of the signing endpoint, no scheme. */
+    endpoint: string;
+    account: string;
+    profile: string;
+}
+
+/**
+ * Parse `azure:<endpoint host>#<account>/<certificate profile>`.
+ *
+ * PURE, and the only place the grammar lives (ADR 0126 § D3). A leading
+ * `https://` after the prefix is stripped, because the service's documentation
+ * writes endpoints with it and jsign wants the bare host. A bare subject name —
+ * the old `signtool /n` form — is refused rather than guessed at: there is no
+ * store to look it up in any more.
+ */
+export function parseAzureIdentity(identity: string): AzureIdentity {
+    const grammar = `expected \`${AZURE_IDENTITY_HINT}\``;
+    const prefix = /^([A-Za-z][A-Za-z0-9+.-]*):/.exec(identity);
+    if (prefix === null) {
+        throw new Error(
+            `gjsify ship: the Windows signer takes a cloud signing identity, ${grammar}, and "${identity}" is ` +
+                'a bare subject name — there is no certificate store to look it up in. Known prefixes: azure.',
+        );
+    }
+    if (prefix[1] !== 'azure') {
+        throw new Error(
+            `gjsify ship: unknown signing identity prefix "${prefix[1]}:" — ${grammar}. Known prefixes: azure.`,
+        );
+    }
+    const rest = identity.slice('azure:'.length).replace(/^https:\/\//, '');
+    const hash = rest.indexOf('#');
+    if (hash < 0)
+        throw new Error(`gjsify ship: the signing identity has no \`#\` after the endpoint host — ${grammar}.`);
+    const endpoint = rest.slice(0, hash);
+    const alias = rest.slice(hash + 1);
+    if (endpoint === '' || /[\s/:]/.test(endpoint)) {
+        throw new Error(`gjsify ship: "${endpoint}" is not an endpoint host name — ${grammar}.`);
+    }
+    const slash = alias.indexOf('/');
+    if (slash < 0) {
+        throw new Error(`gjsify ship: the signing identity has no \`/\` between account and profile — ${grammar}.`);
+    }
+    const account = alias.slice(0, slash);
+    const profile = alias.slice(slash + 1);
+    if (account === '' || profile === '' || profile.includes('/')) {
+        throw new Error(`gjsify ship: the account or the certificate profile is empty or malformed — ${grammar}.`);
+    }
+    return { endpoint, account, profile };
+}
+
+/**
+ * The access token for the signing service, from `AZURE_ACCESS_TOKEN` or else
+ * `az account get-access-token`. Never logged, never in an error message: a
+ * failure names the variable and the command, not what either returned.
+ */
+export async function resolveAzureAccessToken(env: NodeJS.ProcessEnv = process.env): Promise<string> {
+    const fromEnv = env[AZURE_TOKEN_ENV];
+    if (fromEnv !== undefined && fromEnv !== '') return fromEnv;
+    const result = spawnSync(
+        'az',
+        [
+            'account',
+            'get-access-token',
+            '--resource',
+            'https://codesigning.azure.net',
+            '--query',
+            'accessToken',
+            '--output',
+            'tsv',
+        ],
+        { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    const token = result.status === 0 && typeof result.stdout === 'string' ? result.stdout.trim() : '';
+    if (token === '') {
+        throw new Error(
+            `gjsify ship: no access token for the signing service — set \`${AZURE_TOKEN_ENV}\`, or log in so ` +
+                '`az account get-access-token --resource https://codesigning.azure.net` succeeds (in CI: ' +
+                '`azure/login` with a federated credential).',
+        );
+    }
+    return token;
+}
 
 /** `gjsify.ship.sign` as declared — one entry per {@link HostOs}. */
 export type SignConfig = Partial<Record<HostOs, { identity?: string }>>;
@@ -352,10 +515,16 @@ export function resolveSignPlan(input: {
             kind: 'skip',
             message:
                 `${said} — skipping ${signer.tool}. An unsigned artifact is the default path and a ` +
-                `legitimate deliverable (ADR 0024 § A13). Pass \`--sign <identity>\` or set ` +
-                `\`${signer.configKey}\` to sign; \`--sign -\` signs ad-hoc and needs no developer identity.`,
+                `legitimate deliverable (ADR 0024 § A13). Pass \`--sign ${signer.identityHint}\` or set ` +
+                `\`${signer.configKey}\` to sign` +
+                (signer.supportsAdhoc ? '; `--sign -` signs ad-hoc and needs no developer identity' : '') +
+                `. \`gjsify ship credentials check ${signer.layoutOs}\` says which credentials this ` +
+                'environment holds.',
         };
     }
+    // Refused HERE, before the build, for the same reason `assertHostCanSign` is:
+    // an identity this signer cannot parse is knowable without running anything.
+    signer.checkIdentity?.(identity);
     return { kind: 'sign', identity, signer, source };
 }
 
@@ -376,12 +545,14 @@ export function assertHostCanSign(signer: SignerDescriptor): void {
                 'on a host that has both the tool and the identity (ADR 0024 § A1, § A14).',
         );
     }
-    if (!isOnPath(signer.tool)) {
-        throw new Error(
-            `gjsify ship: --sign was given and \`${signer.tool}\` is not on PATH, so nothing can make the ` +
-                `signature — ${signer.installHint}. Dropping --sign produces an unsigned artifact, which is ` +
-                'a legitimate output (ADR 0024 § A13); silently producing one while --sign was asked for is not.',
-        );
+    for (const needed of [signer.tool, ...signer.needs]) {
+        if (!isOnPath(needed)) {
+            throw new Error(
+                `gjsify ship: --sign was given and \`${needed}\` is not on PATH, so nothing can make the ` +
+                    `signature — ${signer.installHint}. Dropping --sign produces an unsigned artifact, which is ` +
+                    'a legitimate output (ADR 0024 § A13); silently producing one while --sign was asked for is not.',
+            );
+        }
     }
 }
 
@@ -395,7 +566,7 @@ export function assertHostCanSign(signer: SignerDescriptor): void {
  *
  * `sealPrefix` absent means "this signer seals nothing", and then EVERY addition
  * is unexpected — which is what the file did before ADR 0040 and is still the
- * right answer for `signtool`.
+ * right answer for jsign.
  */
 export function partitionSignedFileSet(input: {
     /** Paths found under the scratch directory after the tool ran. */
@@ -419,8 +590,11 @@ export function partitionSignedFileSet(input: {
 /** What one invocation of a signing tool is given. */
 export interface SignArgs {
     identity: string;
-    /** Absolute path of the file — or, for a bundle seal, of the bundle DIRECTORY. */
-    file: string;
+    /**
+     * Absolute paths to sign — or, for a bundle seal, the bundle DIRECTORY. One
+     * element unless the signer is {@link SignerDescriptor.batch}.
+     */
+    files: readonly string[];
     /** Absolute path of the entitlements plist this run wrote, or absent when the signer grants none. */
     entitlements?: string;
     /** Is {@link identity} the reserved ad-hoc `-`? */
@@ -462,7 +636,7 @@ export interface SignPayloadInput {
  * Re-sign every signable image in the payload, and hand back the new bytes.
  *
  * The signature is made on FILES because that is the only interface `codesign`
- * and `signtool` have, so the payload is materialised into `workDir`, signed
+ * and `jsign` have, so the payload is materialised into `workDir`, signed
  * there, and read back. `workDir` is a scratch directory rather than the stage:
  * writing into an arriving stage would make the next `--from-stage` run of the
  * same tree fail `readStage`'s size comparison (measured — see the header), and
@@ -491,22 +665,10 @@ export async function signPayload(input: SignPayloadInput): Promise<PayloadEntry
         writeFileSync(input.entitlementsPath, renderEntitlements(granted));
         entitlements = input.entitlementsPath;
     }
-    const run = async (file: string, what: string): Promise<void> => {
-        const args = signer.args({ identity: input.identity, file, adhoc, ...(entitlements ? { entitlements } : {}) });
-        if (input.verbose) input.log(`${signer.tool} ${args.join(' ')}`);
-        const result = await spawnToCompletion(signer.tool, args, {
-            completion: 'return',
-            cwd: workDir,
-            stdio: 'inherit',
-            notFound: () => new Error(`gjsify ship: \`${signer.tool}\` is not on PATH — ${signer.installHint}.`),
-        });
-        if (result.code !== 0) {
-            throw new Error(
-                `gjsify ship: ${signer.tool} failed on ${what} with ${describeExit(result)}. ` +
-                    'Nothing is packed from a payload whose signature failed: an artifact that is half ' +
-                    'signed installs and is refused at first launch, which is worse than not shipping.',
-            );
-        }
+    const env = signer.childEnv === undefined ? undefined : await signer.childEnv(input.identity, process.env);
+    const run = async (files: readonly string[], what: string): Promise<void> => {
+        const args = signer.args({ identity: input.identity, files, adhoc, ...(entitlements ? { entitlements } : {}) });
+        await invokeSigner(signer, args, { what, cwd: workDir, env, verbose: input.verbose, log: input.log });
     };
 
     const signable = payload.filter((entry) => classifyBinary(entry.data) === signer.signs);
@@ -527,8 +689,16 @@ export async function signPayload(input: SignPayloadInput): Promise<PayloadEntry
         return [...payload];
     }
 
-    for (const entry of signable) {
-        await run(join(workDir, entry.path.split('/').join(sep)), entry.path);
+    const absolute = (path: string): string => join(workDir, path.split('/').join(sep));
+    if (signer.batch) {
+        // ONE invocation for every image (ADR 0126 § D3): each call costs the signing
+        // service a chain fetch. PEs only — the `.msi` is signed after it is packed.
+        await run(
+            signable.map((entry) => absolute(entry.path)),
+            `${signable.length} payload file(s)`,
+        );
+    } else {
+        for (const entry of signable) await run([absolute(entry.path)], entry.path);
     }
 
     // THE IMAGES FIRST, THE SEAL LAST, and the order is not stylistic: a bundle
@@ -545,7 +715,7 @@ export async function signPayload(input: SignPayloadInput): Promise<PayloadEntry
             );
         }
         sealPrefix = signer.sealAddPrefix(input.bundleRoot);
-        await run(join(workDir, input.bundleRoot.split('/').join(sep)), `${input.bundleRoot} (bundle seal)`);
+        await run([absolute(input.bundleRoot)], `${input.bundleRoot} (bundle seal)`);
     }
 
     // THE FILE SET MAY ONLY GROW WHERE THE SEAL WRITES. Both tools rewrite an
@@ -585,6 +755,59 @@ export async function signPayload(input: SignPayloadInput): Promise<PayloadEntry
         ...payload.map((entry) => ({ path: entry.path, mode: entry.mode, data: read(entry.path) })),
         ...sealed.map((path) => ({ path, mode: 0o644, data: read(path) })),
     ].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+}
+
+async function invokeSigner(
+    signer: SignerDescriptor,
+    args: readonly string[],
+    ctx: {
+        what: string;
+        cwd?: string;
+        env: NodeJS.ProcessEnv | undefined;
+        verbose: boolean;
+        log: (line: string) => void;
+    },
+): Promise<void> {
+    // `args` never carries a credential — see `SignerDescriptor.childEnv` — so
+    // printing it is safe.
+    if (ctx.verbose) ctx.log(`${signer.tool} ${args.join(' ')}`);
+    const result = await spawnToCompletion(signer.tool, args, {
+        completion: 'return',
+        ...(ctx.cwd === undefined ? {} : { cwd: ctx.cwd }),
+        ...(ctx.env === undefined ? {} : { env: ctx.env }),
+        stdio: 'inherit',
+        notFound: () => new Error(`gjsify ship: \`${signer.tool}\` is not on PATH — ${signer.installHint}.`),
+    });
+    if (result.code !== 0) {
+        throw new Error(
+            `gjsify ship: ${signer.tool} failed on ${ctx.what} with ${describeExit(result)}. ` +
+                'Nothing is packed from a payload whose signature failed: an artifact that is half ' +
+                'signed installs and is refused at first launch, which is worse than not shipping.',
+        );
+    }
+}
+
+/**
+ * Sign one finished container FILE — the `.msi`, after `wixl` has packed it.
+ *
+ * The images are signed first by {@link signPayload}, because the container holds
+ * their bytes; the container's own signature covers the finished file, so it is
+ * the LAST thing that touches it (ADR 0126 § D3, the order ADR 0040 gave darwin).
+ * Only a {@link SignerDescriptor.batch} signer has a container to sign this way:
+ * darwin signs its `.dmg` through `signDmgImage`.
+ */
+export async function signArtifactFile(input: {
+    identity: string;
+    signer: SignerDescriptor;
+    file: string;
+    verbose: boolean;
+    log: (line: string) => void;
+}): Promise<void> {
+    const { signer } = input;
+    const env = signer.childEnv === undefined ? undefined : await signer.childEnv(input.identity, process.env);
+    const args = signer.args({ identity: input.identity, files: [input.file], adhoc: false });
+    await invokeSigner(signer, args, { what: input.file, env, verbose: input.verbose, log: input.log });
+    input.log(`${signer.tool} signed ${input.file} as \`${input.identity}\`.`);
 }
 
 /**

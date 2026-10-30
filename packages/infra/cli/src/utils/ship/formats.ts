@@ -778,8 +778,8 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
     // ADR 0024 § A5 records: Gatekeeper BLOCKS an unsigned `.app`, while SmartScreen
     // only WARNS until per-file download reputation accrues. So an unsigned program
     // directory is a usable artifact in a way an unsigned `.app` is not. `--sign`
-    // reaches these rows through `SIGNERS.win32` (signtool — argv unit-tested, the
-    // invocation itself UNVERIFIED, since no run here has ever held a certificate);
+    // reaches these rows through `SIGNERS.win32` (jsign — argv unit-tested, the
+    // invocation itself UNVERIFIED, since no run here has ever held a signing account);
     // the `.msi` around this tree is the third row below.
     'windows-dir': {
         id: 'windows-dir',

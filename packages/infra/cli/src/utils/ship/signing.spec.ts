@@ -7,9 +7,9 @@
 // implementation:
 //
 //   * the ARGV. `codesign --force --sign <identity> <file>` is the invocation
-//     this tree already writes five times over; `signtool sign /n <identity>` is
-//     the Windows shape and has never run anywhere, which is why its only
-//     coverage is here and why the row says UNVERIFIED.
+//     this tree already writes five times over; the jsign invocation (ADR 0126
+//     § D3) is the Windows shape and has never run against the real service,
+//     which is why its only coverage is here and why the row says UNVERIFIED.
 //   * the PRECEDENCE and the empty case. `--sign ''` and
 //     `gjsify.ship.sign.<os>.identity: ""` are the same `[ -z "$SIGN" ]` the
 //     reference guards on (§ A13), reached from two different sides.
@@ -22,17 +22,26 @@
 //     `--keychain-profile`, which is the property that trap violates.
 
 import { describe, expect, it } from '@gjsify/unit';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
+    AZURE_TIMESTAMP_URL,
+    AZURE_TOKEN_ENV,
     NOTARIES,
+    parseAzureIdentity,
     partitionSignedFileSet,
     resolveNotaryPlan,
     resolveSignPlan,
+    signArtifactFile,
+    signPayload,
     SIGNERS,
     type SignPlan,
 } from './signing.js';
 
 const DEVELOPER_ID = 'Developer ID Application: Example GmbH (ABCDE12345)';
+const AZURE = 'azure:https://eus.codesigning.azure.net#example-account/example-profile';
 
 export default async () => {
     await describe('ship signing: the signer table', async () => {
@@ -40,7 +49,7 @@ export default async () => {
             const darwin = SIGNERS.darwin;
             expect(darwin).toBeDefined();
             expect(
-                darwin?.args({ identity: '-', file: '/tmp/x/libfoo.dylib', adhoc: true, entitlements: '/e.plist' }),
+                darwin?.args({ identity: '-', files: ['/tmp/x/libfoo.dylib'], adhoc: true, entitlements: '/e.plist' }),
             ).toStrictEqual([
                 '--force',
                 '--sign',
@@ -58,20 +67,20 @@ export default async () => {
             // neither. The pair of assertions is the whole rule: same flag list,
             // one difference, and it moves with `adhoc`.
             expect(
-                darwin?.args({ identity: DEVELOPER_ID, file: '/a/b', adhoc: false, entitlements: '/e.plist' }),
+                darwin?.args({ identity: DEVELOPER_ID, files: ['/a/b'], adhoc: false, entitlements: '/e.plist' }),
             ).toContain('--timestamp');
-            expect(darwin?.args({ identity: '-', file: '/a/b', adhoc: true, entitlements: '/e.plist' })).not.toContain(
-                '--timestamp',
-            );
+            expect(
+                darwin?.args({ identity: '-', files: ['/a/b'], adhoc: true, entitlements: '/e.plist' }),
+            ).not.toContain('--timestamp');
             // No entitlements file, no flag — rather than an `--entitlements`
             // pointing at a path nothing wrote.
-            expect(darwin?.args({ identity: '-', file: '/a/b', adhoc: true })).not.toContain('--entitlements');
+            expect(darwin?.args({ identity: '-', files: ['/a/b'], adhoc: true })).not.toContain('--entitlements');
             // `--force` is load-bearing rather than defensive: every image in the
             // shipped darwin closure is ALREADY ad-hoc signed (ADR 0024 § A4
             // measured 106 of 106), because `install_name_tool` invalidates the
             // original during relocation and the relocator re-signs. Without it
             // `codesign` refuses the file it is meant to replace.
-            expect(darwin?.args({ identity: DEVELOPER_ID, file: '/a/b', adhoc: false })[0]).toBe('--force');
+            expect(darwin?.args({ identity: DEVELOPER_ID, files: ['/a/b'], adhoc: false })[0]).toBe('--force');
             expect(darwin?.signs).toBe('macho');
             expect(darwin?.signOn).toStrictEqual(['darwin']);
         });
@@ -136,7 +145,7 @@ export default async () => {
             expect(stray.unexpected).toStrictEqual(['Ship Demo.app/Contents/stray']);
 
             // A signer that seals nothing keeps the old rule verbatim: every
-            // addition is unexpected. `signtool` rewrites images in place and
+            // addition is unexpected. `jsign` rewrites images in place and
             // writes no sidecar at all.
             const windows = partitionSignedFileSet({ arrived: [...planned, ...seal], planned });
             expect(windows.sealed).toStrictEqual([]);
@@ -157,20 +166,44 @@ export default async () => {
             expect(SIGNERS.win32?.entitlements(true)).toStrictEqual([]);
         });
 
-        await it('hands signtool a SUBJECT NAME and names the digest algorithm', async () => {
+        await it('hands jsign the endpoint, the account/profile alias and a timestamp', async () => {
             const win32 = SIGNERS.win32;
-            expect(win32?.args({ identity: DEVELOPER_ID, file: 'C:\\x\\app.exe', adhoc: false })).toStrictEqual([
-                'sign',
-                '/n',
-                DEVELOPER_ID,
-                '/fd',
-                'sha256',
-                'C:\\x\\app.exe',
+            const argv = win32?.args({ identity: AZURE, files: ['C:\\x\\a.exe', 'C:\\x\\b.dll'], adhoc: false });
+            expect(argv).toStrictEqual([
+                '--storetype',
+                'TRUSTEDSIGNING',
+                '--keystore',
+                'eus.codesigning.azure.net',
+                '--alias',
+                'example-account/example-profile',
+                '--storepass',
+                `env:${AZURE_TOKEN_ENV}`,
+                '--alg',
+                'SHA-256',
+                '--tsaurl',
+                AZURE_TIMESTAMP_URL,
+                '--tsmode',
+                'RFC3161',
+                'C:\\x\\a.exe',
+                'C:\\x\\b.dll',
             ]);
-            // Authenticode's default file digest is SHA-1, which no current
-            // Windows accepts — so the flag is not decoration.
-            expect(win32?.args({ identity: 'x', file: 'y', adhoc: false })).toContain('sha256');
+            // The timestamp is not optional: a signature without one dies with the
+            // short-lived certificate (ADR 0126 § D3).
+            expect(argv).toContain('--tsaurl');
             expect(win32?.signs).toBe('pe');
+            expect(win32?.batch).toBe(true);
+            expect(win32?.needs).toContain('java');
+            expect(win32?.signOn).toStrictEqual(['linux', 'darwin', 'win32']);
+        });
+
+        await it('never puts the access token in argv, only the name of its variable', async () => {
+            const argv = SIGNERS.win32?.args({ identity: AZURE, files: ['x.exe'], adhoc: false }) ?? [];
+            const env = await SIGNERS.win32?.childEnv?.(AZURE, {
+                [AZURE_TOKEN_ENV]: 'canary-token-value',
+                PATH: '/bin',
+            });
+            expect(env?.[AZURE_TOKEN_ENV]).toBe('canary-token-value');
+            expect(argv.join(' ')).not.toContain('canary-token-value');
         });
 
         await it('has no row for linux, and that is the decision rather than a gap', async () => {
@@ -206,13 +239,13 @@ export default async () => {
 
         await it('reads the key for the LAYOUT being packed, not for the host', async () => {
             // The two namespaces must not meet: a Developer ID string handed to
-            // `signtool /n` names no certificate, and an Authenticode subject
+            // `jsign --alias` names no keychain identity, and an Authenticode subject
             // handed to `codesign` names no keychain identity.
             const plan = resolveSignPlan({
-                config: { darwin: { identity: DEVELOPER_ID }, win32: { identity: 'Example GmbH' } },
+                config: { darwin: { identity: DEVELOPER_ID }, win32: { identity: AZURE } },
                 layoutOs: 'win32',
             });
-            expect((plan as Extract<SignPlan, { kind: 'sign' }>).identity).toBe('Example GmbH');
+            expect((plan as Extract<SignPlan, { kind: 'sign' }>).identity).toBe(AZURE);
         });
 
         await it('skips on an absent identity, and says so', async () => {
@@ -286,6 +319,101 @@ export default async () => {
                 resolveNotaryPlan({ flag: 'MY_PROFILE', layoutOs: 'win32', sign: { kind: 'unsupported' } }),
             ).toThrow();
             expect(resolveNotaryPlan({ layoutOs: 'win32', sign: { kind: 'unsupported' } }).kind).toBe('unsupported');
+        });
+    });
+
+    await describe('ship signing: the Azure identity', async () => {
+        await it('parses azure:<host>#<account>/<profile>, with or without https://', async () => {
+            const want = {
+                endpoint: 'eus.codesigning.azure.net',
+                account: 'example-account',
+                profile: 'example-profile',
+            };
+            expect(parseAzureIdentity(AZURE)).toStrictEqual(want);
+            expect(parseAzureIdentity('azure:eus.codesigning.azure.net#example-account/example-profile')).toStrictEqual(
+                want,
+            );
+        });
+
+        await it('refuses a bare subject, an unknown prefix, and a missing # or /', async () => {
+            for (const bad of [
+                'Example GmbH',
+                DEVELOPER_ID,
+                'pkcs11:host#a/b',
+                'azure:host',
+                'azure:host#account',
+                'azure:#a/b',
+                'azure:host#/profile',
+            ]) {
+                expect(() => parseAzureIdentity(bad)).toThrow();
+            }
+        });
+
+        await it('skips an absent win32 identity and names `ship credentials check`', async () => {
+            const plan = resolveSignPlan({ layoutOs: 'win32' });
+            expect(plan.kind).toBe('skip');
+            const message = (plan as Extract<SignPlan, { kind: 'skip' }>).message;
+            expect(message).toContain('no identity was given');
+            expect(message).toContain('ship credentials check win32');
+            expect(message).not.toContain('ad-hoc');
+        });
+
+        await it('refuses a bare subject name at plan time rather than at signing time', async () => {
+            expect(() => resolveSignPlan({ flag: 'Example GmbH', layoutOs: 'win32' })).toThrow();
+        });
+    });
+
+    await describe('ship signing: jsign order, against a fake jsign', async () => {
+        await it('signs the PE images in ONE batch and the .msi last', async () => {
+            if (process.platform === 'win32') return;
+            const dir = mkdtempSync(join(tmpdir(), 'jsign-order-'));
+            const bin = join(dir, 'bin');
+            mkdirSync(bin);
+            const log = join(dir, 'calls.log');
+            writeFileSync(join(bin, 'jsign'), `#!/bin/sh\nprintf '%s\\n' "$*" >> '${log}'\n`, { mode: 0o755 });
+            const saved = { PATH: process.env.PATH, token: process.env[AZURE_TOKEN_ENV] };
+            process.env.PATH = `${bin}:${process.env.PATH ?? ''}`;
+            process.env[AZURE_TOKEN_ENV] = 'canary-token-value';
+            try {
+                const signer = SIGNERS.win32!;
+                const pe = (n: number): Uint8Array => new Uint8Array([0x4d, 0x5a, n, 0]);
+                const signed = await signPayload({
+                    payload: [
+                        { path: 'app.exe', mode: 0o755, data: pe(1) },
+                        { path: 'lib/x.dll', mode: 0o644, data: pe(2) },
+                        { path: 'readme.txt', mode: 0o644, data: new Uint8Array([1, 2, 3, 4]) },
+                    ],
+                    identity: AZURE,
+                    signer,
+                    workDir: join(dir, 'work'),
+                    bundleRoot: '',
+                    entitlementsPath: join(dir, 'e.plist'),
+                    verbose: false,
+                    log: () => {},
+                });
+                expect(signed.length).toBe(3);
+                await signArtifactFile({
+                    identity: AZURE,
+                    signer,
+                    file: join(dir, 'app.msi'),
+                    verbose: false,
+                    log: () => {},
+                });
+                const calls = readFileSync(log, 'utf8').trim().split('\n');
+                expect(calls.length).toBe(2);
+                expect(calls[0]).toContain('app.exe');
+                expect(calls[0]).toContain('x.dll');
+                expect(calls[0]).not.toContain('readme.txt');
+                expect(calls[0]).not.toContain('.msi');
+                expect(calls[1]).toContain('app.msi');
+                expect(calls[1]).not.toContain('app.exe');
+                for (const call of calls) expect(call).not.toContain('canary-token-value');
+            } finally {
+                if (saved.PATH !== undefined) process.env.PATH = saved.PATH;
+                if (saved.token === undefined) delete process.env[AZURE_TOKEN_ENV];
+                else process.env[AZURE_TOKEN_ENV] = saved.token;
+                rmSync(dir, { recursive: true, force: true });
+            }
         });
     });
 };
