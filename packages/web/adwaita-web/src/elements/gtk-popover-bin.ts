@@ -32,7 +32,8 @@
 //   handle-input  — boolean, default FALSE — GTK's default. When set, a right click and a
 //                   long press open the popover at the pointer.
 // Properties:
-//   menuModel     — the model, normalised (get/set). Setting it REPLACES any popover.
+//   menuModel     — the real `Gio.MenuModel`, or `null` (get/set; ADR 0128). Setting it
+//                   REPLACES any popover.
 //   popoverElement — the `<gtk-popover>` this bin presents (get/set; setting it drops
 //                   the model, as GTK does). `GtkPopoverBin`'s own name for it is `popover`,
 //                   which `HTMLElement` already spells as a string attribute for the DOM
@@ -60,14 +61,9 @@
 // Copyright (c) GNOME contributors (GTK, libadwaita). LGPLv2.1+
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
-import {
-    ADW_MENU_SURFACE_WEB,
-    assertMenuRenderable,
-    menuRefusals,
-    normalizeMenuModel,
-    parseMenuModel,
-} from '@gjsify/adwaita-core';
-import type { AdwMenuActions, AdwMenuInput, AdwMenuModel } from '@gjsify/adwaita-core';
+import type { AdwMenuActions, AdwMenuModel } from '@gjsify/adwaita-core';
+
+import { MenuSlot } from './menu-slot.js';
 
 // Both definitions have to be there before this module's own can build them in
 // `connectedCallback`; a combined `import { GtkPopoverMenu }` would be elided, because the
@@ -82,7 +78,14 @@ import { WidgetElement } from '../widget-element.js';
 const LONG_PRESS_MS = 500;
 
 export class GtkPopoverBin extends WidgetElement {
-    private _model: AdwMenuModel = [];
+    /**
+     * The model's door and `items-changed` subscription (ADR 0128), with NOTHING to do
+     * when the menu it holds mutates: this bin draws no rows. The `<gtk-popover-menu>` it
+     * built holds the SAME model and watches it through a slot of its own, so the rows
+     * follow one level down — and GTK sends no `notify::menu-model` for a mutation either
+     * (measured, `MENU_MODEL_NOTIFY_VECTORS`).
+     */
+    private readonly _slot = new MenuSlot(() => undefined);
     private _popover: GtkPopoverMenu | null = null;
     private _actions: AdwMenuActions | null = null;
     private _initialized = false;
@@ -92,9 +95,9 @@ export class GtkPopoverBin extends WidgetElement {
         return ['menu-model', 'handle-input'];
     }
 
-    /** The menu model, normalised (ADR 0042). */
-    get menuModel(): AdwMenuModel {
-        return this._model;
+    /** The menu this bin pops up, by identity, or `null` (ADR 0128). */
+    get menuModel(): AdwMenuModel | null {
+        return this._slot.model;
     }
 
     /**
@@ -102,9 +105,8 @@ export class GtkPopoverBin extends WidgetElement {
      * setters clear each other (gtkpopoverbin.c:474-500, :543-551). A model REPLACES the
      * popover; a popover DROPS the model, and both notify for both properties.
      */
-    set menuModel(value: AdwMenuInput | AdwMenuModel) {
-        this._model = normalizeMenuModel(value as AdwMenuInput);
-        assertMenuRenderable(this._model, ADW_MENU_SURFACE_WEB);
+    set menuModel(value: AdwMenuModel | string | null) {
+        this._slot.write(value);
         this._adoptPopover(this._buildPopover());
         this._notifyModel();
     }
@@ -123,7 +125,7 @@ export class GtkPopoverBin extends WidgetElement {
     }
 
     set popoverElement(value: GtkPopoverMenu | null) {
-        this._model = [];
+        this._slot.write(null);
         this._adoptPopover(value);
         this._notifyModel();
     }
@@ -157,8 +159,8 @@ export class GtkPopoverBin extends WidgetElement {
         this.addEventListener('contextmenu', (event) => this._onContextMenu(event));
         this.addEventListener('keydown', (event) => this._onKeyDown(event));
         this._wireGestures();
-        if (this._model.length === 0) this._model = this._parseMenuAttr();
-        if (this._model.length > 0) this._adoptPopover(this._buildPopover());
+        if (this._slot.model === null) this._slot.writeMarkup(this.getAttribute('menu-model'));
+        this._adoptPopover(this._buildPopover());
     }
 
     disconnectedCallback() {
@@ -176,8 +178,8 @@ export class GtkPopoverBin extends WidgetElement {
             return;
         }
         if (name === 'menu-model') {
-            this._model = this._parseMenuAttr();
-            this._adoptPopover(this._model.length > 0 ? this._buildPopover() : null);
+            this._slot.writeMarkup(this.getAttribute('menu-model'));
+            this._adoptPopover(this._buildPopover());
             this._notifyModel();
         }
     }
@@ -265,14 +267,20 @@ export class GtkPopoverBin extends WidgetElement {
         this.popup();
     }
 
+    /**
+     * The popover follows the PRESENCE of a model, not its length: an empty non-null
+     * `Gio.Menu` at `menu-model` still builds a `GtkPopoverMenu` in GTK and still
+     * dissociates an application-set popover (measured, `MENU_MODEL_DOOR_VECTORS`), and
+     * `null` is the one spelling of "no menu".
+     */
     private _buildPopover(): GtkPopoverMenu | null {
-        if (this._model.length === 0) return null;
+        if (this._slot.model === null) return null;
         const popover = document.createElement('gtk-popover-menu') as GtkPopoverMenu;
         // `gtk_popover_set_position (popover, GTK_POS_BOTTOM)` in the same function
         // (gtkpopoverbin.c:493), on a popover `gtk_popover_menu_new_from_model` made.
         popover.setAttribute('position', 'bottom');
         popover.setAttribute('align', 'start');
-        popover.menuModel = this._model;
+        popover.menuModel = this._slot.model;
         popover.actions = this._actions;
         popover.anchor = this;
         return popover;
@@ -313,23 +321,9 @@ export class GtkPopoverBin extends WidgetElement {
         this.dispatchEvent(
             new CustomEvent('notify::menu-model', {
                 bubbles: true,
-                detail: { menuModel: this._model, popover: this._popover },
+                detail: { menuModel: this._slot.model, popover: this._popover },
             }),
         );
-    }
-
-    /**
-     * The `menu-model` ATTRIBUTE through the core parser, refusing a `custom` item the way
-     * every menu-bearing surface here does: markup is parsed by the browser, so a throw from
-     * `connectedCallback` would reach nobody and the menu would be silently empty.
-     */
-    private _parseMenuAttr(): AdwMenuModel {
-        const model = normalizeMenuModel(parseMenuModel(this.getAttribute('menu-model')));
-        const refusals = menuRefusals(model, ADW_MENU_SURFACE_WEB);
-        if (refusals.length === 0) return model;
-        console.error(`${ADW_MENU_SURFACE_WEB.name} cannot render this menu, so it has none:`);
-        for (const refusal of refusals) console.error(`  [${refusal.path.join('.')}] ${refusal.message}`);
-        return [];
     }
 }
 

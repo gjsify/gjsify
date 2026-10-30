@@ -508,14 +508,24 @@ The nine, each read from both sides:
 | | GIR | port |
 |---|---|---|
 | `AdwComboRow.model`, `GtkDropDown.model` | `Gio.ListModel \| null` | an array of option specs (ADR 0046) |
-| `AdwSplitButton.menuModel`, `GtkMenuButton.menuModel` | `Gio.MenuModel \| null` | an array of menu entries (ADR 0042) |
+| `AdwSplitButton.menuModel`, `GtkMenuButton.menuModel` | `Gio.MenuModel \| null` | `Gio.MenuModel \| null` — CONVERGED, see below |
 | `AdwTabView.selectedPage` | `Adw.TabPage \| null` | the page id, a string (ADR 0048) |
 | `AdwTabView.defaultIcon` | `Gio.Icon` | a symbolic SVG string |
 | `AdwSidebar.filter` | `Gtk.Filter \| null` | a predicate function |
 | `GtkImage.iconSize`, `AdwImageButton.iconSize` | `GtkIconSizeNick \| Gtk.IconSize` | a size in DIPs — no longer, see below |
 
-Seven of the nine are DECIDED portable forms with an ADR behind them — the port has no list
+Seven of the nine were DECIDED portable forms with an ADR behind them — the port had no list
 model, no menu model and no page type, and giving it one was the point of those changes.
+
+**The menu row CONVERGED, and the reason is the live question this entry's header asks.** That
+header says the thing to ask of a shape difference is not whether it is hard but whether the port
+can be GIVEN the shape. ADR 0128 gave it: `Gio.MenuModel` is an abstract CLASS, so a pure-JS twin
+can be a real one, and `menuModel` now declares `AdwMenuModel | null` where `AdwMenuModel` IS
+`GioMenuModel`. Both sides read the same annotation. The authored array did not disappear — it is
+`AdwMenuTree`, and `buildMenu` turns one into the model — but it is no longer what the PROPERTY
+takes, so there is nothing left for this table to record. Seven became six, and the list-model row
+is the same shape one ADR earlier: ADR 0122 made `Gtk.StringList` a real `Gio.ListModel`, and only
+`AdwComboRow`/`GtkDropDown` not yet being migrated onto it keeps that row here.
 
 The last two were the interesting ones and they were the same defect twice:
 `Gtk.Image:icon-size` is a three-member enum (`inherit`/`normal`/`large`) and the port's

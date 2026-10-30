@@ -9,9 +9,9 @@
 // is on, and no menubar at all when it is off.
 //
 // A BROWSER HAS NO GtkApplication, so the model is handed to the window instead of to
-// an application that does not exist here. `menu-model` is the same portable menu value
-// ADR 0042 gave `<gtk-menu-button>` and `<adw-split-button>` (a JSON array), and it is
-// read through the same core parser, so one menu is written once. A menubar is a row of
+// an application that does not exist here. `menu-model` is the same real `Gio.MenuModel`
+// ADR 0128 gave `<gtk-menu-button>` and `<adw-split-button>`, taken through the same
+// {@link MenuSlot} door, so one menu is written once. A menubar is a row of
 // MENU LINKS, which is what `Adw.Application`'s menubar is documented to be, so a
 // section is inlined and a bare item becomes a plain button — `flattenMenu` is the
 // walk that decides both.
@@ -20,8 +20,9 @@
 //   show-menubar (boolean — Gtk.ApplicationWindow:show-menubar; the bar is drawn only
 //     while this is set AND the model has something in it, exactly as GTK draws no bar
 //     for an application that installed none)
-//   menu-model   (the portable menu model, JSON — the stand-in for the model a
-//     GtkApplication would own; the same value `<gtk-menu-button menu-model>` takes)
+//   menu-model   (the menu's JSON, parsed into the model this window owns — the
+//     stand-in for the model a GtkApplication would own; `<gtk-menu-button menu-model>`'s
+//     own spelling, and a mutation of a held model redraws the bar)
 //
 // Extends <gtk-application-window>, as Adw.ApplicationWindow extends Gtk.ApplicationWindow,
 // so the Gtk.Window state members come with it. The content property, the size request, the
@@ -33,22 +34,17 @@
 // Copyright (c) 2021-2023 Alice Mikhaylenko / Purism SPC (libadwaita). LGPLv2.1+
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
-import {
-    flattenMenu,
-    normalizeMenuModel,
-    parseMenuModel,
-    type AdwMenuInput,
-    type AdwMenuModel,
-} from '@gjsify/adwaita-core';
+import { buildMenu, flattenMenu, type AdwMenuModel } from '@gjsify/adwaita-core';
 
 import type { AdwBreakpoint } from '@gjsify/adwaita-core';
 import type { AdwSlot } from '../slotted-children.js';
 import { AdwWindowFeatures } from './adw-window-features.js';
+import { MenuSlot } from './menu-slot.js';
 import { GtkApplicationWindow } from './gtk-application-window.js';
 
 export class AdwApplicationWindow extends GtkApplicationWindow {
     private readonly _features = new AdwWindowFeatures(this);
-    private _model: AdwMenuModel = [];
+    private readonly _slot = new MenuSlot(() => this._renderMenubar());
     private _menubarEl: HTMLDivElement | null = null;
 
     // The base's list BY NAME, not `super.observedAttributes`: `AdwPasswordEntryRow`
@@ -110,12 +106,12 @@ export class AdwApplicationWindow extends GtkApplicationWindow {
     }
 
     /** The menubar's model — what a GtkApplication would own here. */
-    get menuModel(): AdwMenuModel {
-        return this._model;
+    get menuModel(): AdwMenuModel | null {
+        return this._slot.model;
     }
 
-    set menuModel(value: AdwMenuInput) {
-        this._model = normalizeMenuModel(value);
+    set menuModel(value: AdwMenuModel | string | null) {
+        this._slot.write(value);
         this._renderMenubar();
     }
 
@@ -145,7 +141,7 @@ export class AdwApplicationWindow extends GtkApplicationWindow {
         // The attribute is the declarative form and it wins when it changes — the same
         // precedence `<gtk-menu-button>` gives `menu-model`, through the same parser.
         if (name === 'menu-model') {
-            this._model = parseMenuModel(this.getAttribute('menu-model'));
+            this._slot.writeMarkup(this.getAttribute('menu-model'));
             this._renderMenubar();
         }
     }
@@ -197,16 +193,16 @@ export class AdwApplicationWindow extends GtkApplicationWindow {
         bar.replaceChildren();
         // GTK draws no menubar for an application that installed none, so neither does
         // this: both the flag and a model with rows in it are required.
-        bar.hidden = !this.showMenubar || this._model.length === 0;
+        bar.hidden = !this.showMenubar || this._slot.isEmpty;
 
-        for (const row of flattenMenu(this._model)) {
+        for (const row of flattenMenu(this._slot.tree)) {
             const node = row.node;
             if (node.kind === 'submenu') {
                 // A link is a menu the user OPENS — a button with that menu on it,
                 // which is the whole of what a Gtk.PopoverMenuBar row is.
                 const button = document.createElement('gtk-menu-button');
                 button.setAttribute('menu-title', node.label);
-                (button as unknown as { menuModel: AdwMenuInput }).menuModel = node.items;
+                (button as unknown as { menuModel: AdwMenuModel | null }).menuModel = buildMenu(node.items);
                 bar.appendChild(button);
                 continue;
             }

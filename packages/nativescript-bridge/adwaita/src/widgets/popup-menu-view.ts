@@ -6,14 +6,15 @@
 // `./popup-menu-surface.js`. NS-core-free, so a spec drives it with a recording surface.
 
 import { menuItemAt } from '@gjsify/adwaita-core';
-import type { AdwMenuActions, AdwMenuItem, AdwMenuModel, AdwMenuPath } from '@gjsify/adwaita-core';
+import type { AdwMenuActions, AdwMenuItem, AdwMenuPath, AdwMenuTree } from '@gjsify/adwaita-core';
 
 import { activateViewMenuItem, menuActionsOfView, type ActionHost } from './actions.js';
 import { openPopupMenu, type PopupMenuSurface } from './popup-menu.js';
 import { createPopupMenuSurface } from './popup-menu-surface.js';
 
 export interface MenuPopupOptions {
-    readonly model: AdwMenuModel;
+    /** The SNAPSHOT of the menu model, as `MenuSlot.tree` holds it (ADR 0128 § 3). */
+    readonly tree: AdwMenuTree;
     /** What the application wrote itself; absent, the registry above `anchor` answers. */
     readonly actions?: AdwMenuActions | null;
     /** A leaf item was chosen, after its action fired. */
@@ -38,10 +39,10 @@ export function showMenuPopup(anchor: ActionHost, options: MenuPopupOptions): Me
     const surface = (override ?? createPopupMenuSurface)(anchor);
     openPopupMenu({
         surface,
-        model: options.model,
-        actions: options.actions ?? menuActionsOfView(anchor, options.model),
+        tree: options.tree,
+        actions: options.actions ?? menuActionsOfView(anchor, options.tree),
         activate(path) {
-            const item = menuItemAt(options.model, path);
+            const item = menuItemAt(options.tree, path);
             if (item === null) return;
             activateViewMenuItem(anchor, item);
             options.onActivated?.(item, path);

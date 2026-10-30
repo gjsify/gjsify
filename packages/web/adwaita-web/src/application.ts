@@ -15,7 +15,7 @@ import {
     menuActionsFor,
     type AdwMenuItem,
     type AdwMenuActions,
-    type AdwMenuModel,
+    type AdwMenuTree,
     type ApplicationHost,
 } from '@gjsify/adwaita-core';
 import { IconTheme } from './namespace/gtk-platform.js';
@@ -63,9 +63,9 @@ export function activateWidgetAction(widget: Element, fullName: string, paramete
     return activateIn(widget, fullName, parentOfElement, parameter);
 }
 
-/** What the items of `model` read from the actions registered above `el` (ADR 0097 § 3). */
-export function menuActionsOfElement(el: Element, model: AdwMenuModel): AdwMenuActions {
-    return menuActionsFor(model, el, parentOfElement);
+/** What the items of `tree` read from the actions registered above `el` (ADR 0097 § 3). */
+export function menuActionsOfElement(el: Element, tree: AdwMenuTree): AdwMenuActions {
+    return menuActionsFor(tree, el, parentOfElement);
 }
 
 /** What choosing `item` in a menu owned by `el` does: the action it names fires. */

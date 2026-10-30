@@ -46,8 +46,9 @@
 //
 // `view` is a widget REFERENCE (`Adw.TabView`), so the attribute is the element id
 // `<adw-tab-button view>` also takes, while `view`/`setView` take the element.
-// `secondary-menu` is a `GMenuModel`: the property takes the portable model and the
-// attribute takes its JSON, which is `<gtk-menu-button menu-model>`'s own spelling.
+// `secondary-menu` is a `GMenuModel` and takes a real one (ADR 0128): the property takes
+// the model, the attribute takes its JSON, which is `<gtk-menu-button menu-model>`'s own
+// spelling, and {@link MenuSlot} is the door both go through.
 //
 // A11Y: the overview is a `role="grid"` of `role="gridcell"` thumbnails under a
 // header bar, and the pinned grid is a second grid — C's `AdwTabGrid` is a
@@ -68,16 +69,9 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the icon,
 // indicator and portrait nodes are <gtk-image> and the grids are <div role="grid">.
 
-import {
-    gridColumns,
-    gridNavigate,
-    tabSearchMatches,
-    tabTooltip,
-    type AdwMenuInput,
-    type AdwMenuModel,
-} from '@gjsify/adwaita-core';
-import { normalizeMenuModel } from '@gjsify/adwaita-core';
-import { assertMenuRenderable, ADW_MENU_SURFACE_WEB } from '@gjsify/adwaita-core';
+import { gridColumns, gridNavigate, tabSearchMatches, tabTooltip, type AdwMenuModel } from '@gjsify/adwaita-core';
+
+import { MenuSlot } from './menu-slot.js';
 
 import type { AdwTabView, AdwTabViewPage } from './adw-tab-view.js';
 import { createGtkImage, type GtkImage } from './gtk-image.js';
@@ -119,7 +113,7 @@ export class AdwTabOverview extends WidgetElement {
     private readonly _thumbs = new Map<string, Thumbnail>();
 
     private _view: AdwTabView | null = null;
-    private _model: AdwMenuModel = [];
+    private readonly _slot = new MenuSlot(() => this._applyMenu());
     private _searchActive = false;
     private _initialized = false;
     /** The last visibility actually painted, so `notify::open` fires on a real change. */
@@ -225,16 +219,14 @@ export class AdwTabOverview extends WidgetElement {
     }
 
     /** `Adw.TabOverview:secondary-menu` — the portal menu of extra actions. */
-    get secondaryMenu(): AdwMenuModel {
-        return this._model;
+    get secondaryMenu(): AdwMenuModel | null {
+        return this._slot.model;
     }
 
-    set secondaryMenu(value: AdwMenuInput) {
-        const model = normalizeMenuModel(value);
+    set secondaryMenu(value: AdwMenuModel | string | null) {
         // The property setter is a CALL, so a `custom` item throws here where the caller
         // can catch it — `<gtk-menu-button>`'s own rule, which keeps the two doors honest.
-        assertMenuRenderable(model, ADW_MENU_SURFACE_WEB);
-        this._model = model;
+        this._slot.write(value);
         this._applyMenu();
     }
 
@@ -398,7 +390,8 @@ export class AdwTabOverview extends WidgetElement {
 
         const declaredMenu = this.getAttribute('secondary-menu');
         if (declaredMenu !== null) {
-            this.secondaryMenu = JSON.parse(declaredMenu) as AdwMenuInput;
+            this._slot.writeMarkup(declaredMenu);
+            this._applyMenu();
             this.removeAttribute('secondary-menu');
         }
 
@@ -423,11 +416,8 @@ export class AdwTabOverview extends WidgetElement {
                 if (value === null) return;
                 // An attribute is MARKUP: a `custom` item here is reported, not thrown
                 // (adw-sidebar/`gtk-menu-button`'s rule for the same two doors).
-                try {
-                    this.secondaryMenu = JSON.parse(value) as AdwMenuInput;
-                } catch (error) {
-                    console.error(`<adw-tab-overview secondary-menu> is not valid JSON: ${String(error)}`);
-                }
+                this._slot.writeMarkup(value);
+                this._applyMenu();
                 return;
             }
             case 'enable-new-tab':
@@ -557,7 +547,7 @@ export class AdwTabOverview extends WidgetElement {
      * slot is where an application puts its own controls.
      */
     private _applyHeaderBar(): void {
-        const hasMenu = this._model.length > 0;
+        const hasMenu = !this._slot.isEmpty;
         this._headerEl.hidden = !(
             this.enableSearch ||
             hasMenu ||
@@ -572,8 +562,8 @@ export class AdwTabOverview extends WidgetElement {
     }
 
     private _applyMenu(): void {
-        const view = this._menuBtn as HTMLElement & { menuModel?: AdwMenuModel };
-        if (this._model.length > 0) view.menuModel = this._model;
+        const view = this._menuBtn as HTMLElement & { menuModel?: AdwMenuModel | null };
+        if (this._slot.model !== null) view.menuModel = this._slot.model;
         this._applyHeaderBar();
     }
 

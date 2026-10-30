@@ -35,6 +35,7 @@
 // this small, most of which (the `SharedTreeNode` type) is erased at build anyway.
 
 import {
+    buildMenu,
     createBreakpointDriver,
     menuAssignments,
     parseBreakpointCondition,
@@ -512,8 +513,12 @@ function writeLook(el: HTMLElement, node: SharedTreeNode, menus?: SharedTreeNode
     for (const [prop, value] of Object.entries(node.props ?? {})) {
         if (prop !== 'menu-model') writeProp(el, prop, value);
     }
+    // `buildMenu`, because since ADR 0128 `menuModel` is a real `Gio.MenuModel` and a tree
+    // written at it is refused the way GJS refuses one. `menuAssignments` stays a tree walker
+    // — it resolves a `menu-model: id` against the file's `menus` — so the model is built
+    // here, at the one place the resolved tree becomes a widget's property.
     for (const [prop, model] of menuAssignments(node, menus)) {
-        (el as unknown as Record<string, unknown>)[propertyOf(prop)] = model;
+        (el as unknown as Record<string, unknown>)[propertyOf(prop)] = buildMenu(model);
     }
     // `styleClasses` is `GtkWidget:css-classes`, and this renderer's door for it is the
     // `class` attribute — what `.title-1`, `.dimmed` and `.card` select on. Unread, a

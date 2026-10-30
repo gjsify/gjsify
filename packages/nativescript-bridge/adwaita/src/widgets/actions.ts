@@ -35,7 +35,7 @@ import {
     type ActionGroupLike,
     type AdwMenuActions,
     type AdwMenuItem,
-    type AdwMenuModel,
+    type AdwMenuTree,
 } from '@gjsify/adwaita-core';
 
 export { SimpleAction, SimpleActionGroup } from '@gjsify/adwaita-core';
@@ -70,9 +70,9 @@ export function activateWidgetAction(widget: ActionHost, fullName: string, param
     return activateIn(widget, fullName, parentOf, parameter);
 }
 
-/** What the items of `model` read from the actions registered at or above `widget` (ADR 0097 § 3). */
-export function menuActionsOfView(widget: ActionHost, model: AdwMenuModel): AdwMenuActions {
-    return menuActionsFor(model, widget, parentOf);
+/** What the items of `tree` read from the actions registered at or above `widget` (ADR 0097 § 3). */
+export function menuActionsOfView(widget: ActionHost, tree: AdwMenuTree): AdwMenuActions {
+    return menuActionsFor(tree, widget, parentOf);
 }
 
 /** What choosing `item` in a menu owned by `widget` does: the action it names fires, as GTK's tracker does. */

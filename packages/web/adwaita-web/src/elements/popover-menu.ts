@@ -47,7 +47,7 @@
 // Copyright (c) GNOME contributors (GTK, libadwaita). LGPLv2.1+.
 
 import { flattenMenu, menuLabelText, menuNodeAt, resolveMenuItemState } from '@gjsify/adwaita-core';
-import type { AdwMenuActions, AdwMenuItem, AdwMenuModel, AdwMenuPath } from '@gjsify/adwaita-core';
+import type { AdwMenuActions, AdwMenuItem, AdwMenuPath, AdwMenuTree } from '@gjsify/adwaita-core';
 
 import { createGtkImage } from './gtk-image.js';
 import type { GtkPopover } from './gtk-popover.js';
@@ -71,7 +71,7 @@ const BACK_LABEL = 'Back';
  * reopens three levels deep is a menu the reader cannot get out of.
  */
 export class PopoverMenuView {
-    private _model: AdwMenuModel = [];
+    private _tree: AdwMenuTree = [];
     private _actions: AdwMenuActions | null = null;
     private _title = '';
     /** The submenu whose items are showing; `[]` is the root page. */
@@ -80,7 +80,7 @@ export class PopoverMenuView {
     private _openers = new Set<HTMLElement>();
     /** The row that LEAVES a page — what ArrowLeft acts on. */
     private _backRow: HTMLElement | null = null;
-    /** The canonical text of the model showing, so an unchanged re-render keeps the page. */
+    /** The canonical text of the tree showing, so an unchanged re-render keeps the page. */
     private _key = '[]';
     private _rows: HTMLButtonElement[] = [];
 
@@ -181,24 +181,34 @@ export class PopoverMenuView {
     }
 
     /**
-     * Named for the value it takes, and NOT `setModel` — the portable LIST model gave
+     * Named for the value it takes, which since ADR 0128 is a TREE and not a model: this
+     * view never holds a `Gio.MenuModel`, it walks the snapshot its element took, and a
+     * `setMenuModel` here would name a type it has no way to read. The element is the one
+     * place that owns the model.
+     *
+     * It was `setMenuModel` for the reason the rename keeps: the portable LIST model gave
      * `ComboState` a `setModel` (ADR 0046), and two methods called `setModel` over two
      * unrelated values on one surface is the collision the vocabulary work exists to
-     * remove. It also un-blinds `check-adwaita-collection-reactivity`, which resolves a
-     * collection call by the setter's name.
+     * remove.
      */
-    setMenuModel(model: AdwMenuModel): void {
-        // A CHANGED model invalidates the open page: the submenu it named may not exist
+    setMenuTree(tree: AdwMenuTree): void {
+        // A CHANGED tree invalidates the open page: the submenu it named may not exist
         // any more, and rendering a page that is gone leaves an empty popover with a
         // back row and no way to see what happened. An UNCHANGED one must not — every
         // element re-render calls this, and resetting unconditionally shut the submenu
         // the reader had just opened.
-        const key = JSON.stringify(model);
+        //
+        // COMPARED BY VALUE, not by identity, which is the opposite of the guard
+        // `SplitButtonState.setMenuModel` has: the element's AUTHORED menu keeps its
+        // identity while its content is replaced (ADR 0128 § 5), so an identity guard
+        // here would never see an edit to a `menu-model="[…]"` attribute and would keep
+        // showing a page that is gone.
+        const key = JSON.stringify(tree);
         if (key !== this._key) {
             this._key = key;
             this._page = [];
         }
-        this._model = model;
+        this._tree = tree;
     }
 
     setActions(actions: AdwMenuActions | null): void {
@@ -215,10 +225,10 @@ export class PopoverMenuView {
     }
 
     /** The items of the page currently showing. */
-    private currentItems(): AdwMenuModel {
-        if (this._page.length === 0) return this._model;
-        const node = menuNodeAt(this._model, this._page);
-        return node !== null && node.kind !== 'item' ? node.items : this._model;
+    private currentItems(): AdwMenuTree {
+        if (this._page.length === 0) return this._tree;
+        const node = menuNodeAt(this._tree, this._page);
+        return node !== null && node.kind !== 'item' ? node.items : this._tree;
     }
 
     /** Rebuild the surface's children from the model. */
@@ -228,7 +238,7 @@ export class PopoverMenuView {
         this._openers = new Set();
         this._backRow = null;
 
-        const open = menuNodeAt(this._model, this._page);
+        const open = menuNodeAt(this._tree, this._page);
         if (this._page.length > 0 && open !== null && open.kind === 'submenu') {
             this.surface.appendChild(this.backRow(open.label));
         } else if (this._title.length > 0) {
@@ -263,7 +273,7 @@ export class PopoverMenuView {
     /** The label of the section at `path`, or `null` when it is not a labelled section. */
     private sectionHeading(path: AdwMenuPath): string | null {
         if (path.length <= this._page.length) return null;
-        const parent = menuNodeAt(this._model, path);
+        const parent = menuNodeAt(this._tree, path);
         return parent !== null && parent.kind === 'section' && parent.label !== undefined ? parent.label : null;
     }
 

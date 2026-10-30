@@ -231,7 +231,8 @@ guard is `g_strcmp0 (value, get_icon_name ())` against a readback `GtkImage` kee
 `null` when unset (was `''`); `setActionIcon` and the `CLICKED` export are gone;
 `on`/`addEventListener`/`notify({ eventName })` refuse `clicked` and `activate`. REMAINDERS:
 `direction` stays hand-written (a shadowed name, no enum kind); `menu-model`, `popover`, `child`
-are object-typed, so they wait for the object-kind decision — and with no `child` property there
+are object-typed, so they wait for the object-kind decision (`menu-model`'s wall MOVED — see the
+remainders below) — and with no `child` property there
 is no `notify::child` in the sequence, which is the one part of the measured order this surface
 cannot reach. Specs: `split-button-properties.spec.ts` (pure-JS),
 `signals-gobject.spec.ts` (the two hooks), `specs/split-button.ts` (device).
@@ -284,12 +285,22 @@ builder `bind`. Specs: `drop-down-properties.spec.ts` (pure-JS, the twin of the 
 1768 tests / 4701 assertions and 1092 / 3368 trees, node and gjs alike.
 
 SPLIT-BUTTON REMAINDERS, re-examined with the object-kind decision in hand and still NOT taken:
-`menuModel` holds a plain `AdwMenuModel` array, not a GObject, so there is no `valueType` to
+`popover` and `child` are not properties of this class at all. Leaving them hand-written is the
+decision, not the backlog.
+
+`menuModel`'s WALL MOVED, and it is now a backlog item rather than a refusal. The old reasoning
+here was that it holds a plain `AdwMenuModel` ARRAY, not a GObject, so there is no `valueType` to
 declare and route D's `g_value_copy` refuses the value — the same wall `AdwButtonContent.hostButton`
-documents. It also reads back a different shape than it takes (`AdwMenuInput` in, `AdwMenuModel`
-out), which one declared store cannot express without changing the public contract. `popover` and
-`child` are not properties of this class at all. Leaving them hand-written is the decision, not the
-backlog.
+documents — and that it reads back a different shape than it takes (`AdwMenuInput` in,
+`AdwMenuModel` out), which one declared store cannot express. ADR 0128 removed BOTH halves:
+`AdwMenuModel` IS `GioMenuModel`, a registered GObject class with a `$gtype`, so there is a
+`valueType` to declare; and the property now reads back exactly what it takes, because the
+authored array is a separate type (`AdwMenuTree`, built with `buildMenu`) and is no longer
+something the property accepts. What is left is the ParamSpec gap ADR 0128 § 7 names: the door
+checks the class ABOVE the pspec, because `ParamSpec.object` takes `TYPE_OBJECT` or a subset
+INTERFACE and `GMenuModel` is a CLASS. Declaring `menu-model` on route D therefore waits on
+widening `ParamSpec.object` to registered classes, which is its own ADR with its own vectors —
+not on anything about menus.
 
 MIGRATE NEXT: `widgets/gtk-entry.ts`. Its twin `AdwEntryRow` is already declared with the same
 `text` plus `changed` and `activate`, so the declarations lift across the way the drop-down's

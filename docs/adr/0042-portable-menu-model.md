@@ -4,6 +4,12 @@
 - Date: 2026-09-04
 - Deciders: Pascal Garber
 - Related: [ADR 0004 (headless Adwaita core)](0004-headless-adwaita-core.md), [ADR 0027 (GTK host layer)](0027-gtk-host-layer.md), [ADR 0033 (declarative templates preferred)](0033-declarative-templates-preferred.md), [ADR 0034 (widget vocabulary convergence)](0034-widget-vocabulary-convergence.md)
+- **Amended by [ADR 0128](0128-a-menu-model-is-a-real-menu-model.md) (2026-10-30)**: `AdwMenuModel` is
+  no longer the ARRAY this ADR names — it is a real `Gio.MenuModel`, and the array shape keeps
+  working under the new name `AdwMenuTree`. A `menu-model` property takes the object, never a
+  list; the authored forms of § 8 reach it through `buildMenu`, and the GTK-side `coerce` seam is
+  unchanged. Everything else here — the node vocabulary, the refusals, the action-state fold —
+  stands as written.
 
 ## Context
 

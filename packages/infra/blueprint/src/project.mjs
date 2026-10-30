@@ -577,7 +577,7 @@ const menuNodeOf = (member) => {
  * The menus a file names by id (ADR 0097 § 1): each root `menu id { }`, and every named `section`
  * or `submenu` inside one, because GtkBuilder makes each of those an object `menu-model: id` can
  * point at (measured with `Gtk.Builder.get_object` on corpus file 56). An inline menu is not here:
- * it is the model at its property (`menuModels`).
+ * it is the tree at its property (`menuModels`).
  *
  * @param {BlueprintFile} file @returns {Record<string, unknown[]> | undefined}
  */

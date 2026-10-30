@@ -1,4 +1,11 @@
-// The portable menu model — `GMenuModel`'s own shape, in plain data (ADR 0042).
+// The portable menu TREE — `GMenuModel`'s own shape, in plain data (ADR 0042, 0128).
+//
+// IT IS HALF OF A PAIR NOW (ADR 0128). The MODEL — a real `Gio.MenuModel`, with
+// `items-changed` and the GType a `menu-model` property declares — is `gio-menu.ts`. This
+// file is the TREE: the plain data an author writes, the data `buildMenu` turns into a
+// model, and the data `menuTree` snapshots back out of one. Every walker below takes a
+// TREE, so a path lookup is an array index rather than a chain of `get_item_link` calls,
+// and a renderer crosses the bridge ONCE per render instead of per node.
 //
 // A menu is the one piece of Adwaita a declarative dialect could not express: on GJS it
 // is a `Gio.Menu` built imperatively, on NativeScript it was a bare `string[]`, and in
@@ -50,12 +57,17 @@
 // `gtk_popover_menu_add_child` would otherwise render a blank row where a control
 // belongs. {@link assertMenuRenderable} is that refusal.
 //
-// PLATFORM-NEUTRAL: pure data and pure functions. `Gio.Menu` construction is the GTK
-// renderer's half and lives in `@gjsify/gtk-host`, which cannot be imported here.
+// PLATFORM-NEUTRAL: pure data and pure functions. The MODEL is `gio-menu.ts`, which
+// imports this file for `normalizeMenuModel` and `parseMenuModel`; the one reference back
+// is a TYPE-ONLY import of `GioMenuModel`, erased at compile time, so there is no runtime
+// cycle between the two halves. Keeping `parseMenuModel` here rather than beside the
+// builder is what makes that true — a tree parser needs no menu.
 //
 // Reference: refs/gtk/gtk/gtkpopovermenu.c (the attribute list, `## Menu models`)
 // Reference: refs/gtk/gtk/gtkmenutrackeritem.c (role/sensitive/visible derivation)
 // Copyright (c) GNOME contributors (GTK). LGPLv2.1+.
+
+import type { GioMenuModel } from './gio-menu.js';
 
 /**
  * The values `hidden-when` is documented to take.
@@ -157,12 +169,29 @@ export interface AdwMenuSubmenu {
 export type AdwMenuNode = AdwMenuItem | AdwMenuSection | AdwMenuSubmenu;
 
 /**
- * A normalised menu: the value a renderer walks and the GTK host converts.
+ * A normalised menu TREE: the value a renderer walks and the GTK host converts.
  *
  * `readonly` throughout, because every renderer holds one across a render and a shared
  * mutable tree is how two widgets showing the same menu would diverge.
+ *
+ * IT IS NOT {@link AdwMenuModel} ANY MORE, and that split is ADR 0128. A menu MODEL is a
+ * `Gio.MenuModel` — the object a `menu-model` property takes, which emits `items-changed`
+ * and which the two widgets declare `value_type=GMenuModel` for. A menu TREE is the plain
+ * data the model is built from and snapshotted back into: `normalizeMenuModel` produces
+ * one, `buildMenu` turns one into a model, `menuTree` takes one out of a model, and every
+ * walker below takes one. The old name meant both, which is exactly what made
+ * `menuModel: [...]` and `menuModel: menu` look like the same write.
  */
-export type AdwMenuModel = readonly AdwMenuNode[];
+export type AdwMenuTree = readonly AdwMenuNode[];
+
+/**
+ * A menu model — `Gio.MenuModel`, re-exported under the name the port's surfaces use.
+ *
+ * The alias and not a direct import, because `menuModel` is the PROPERTY on fifteen
+ * widgets and `AdwMenuModel` is the name their signatures have always read; what changed
+ * is what the name means. See {@link AdwMenuTree} for the half that is still plain data.
+ */
+export type AdwMenuModel = GioMenuModel;
 
 // --- The input form: what an author may write ------------------------------------
 
@@ -242,7 +271,7 @@ function put<T extends object, K extends keyof T>(target: T, key: K, value: T[K]
  * submenu with a label, never an item that happens to carry a list, because that is how
  * `g_menu_item_get_link` reads the same object.
  */
-export function normalizeMenuModel(input: AdwMenuInput | null | undefined): AdwMenuModel {
+export function normalizeMenuModel(input: AdwMenuInput | null | undefined): AdwMenuTree {
     if (!Array.isArray(input)) return [];
     const nodes: AdwMenuNode[] = [];
     for (const raw of input) {
@@ -322,7 +351,7 @@ function normalizeEntry(raw: AdwMenuEntryInput): AdwMenuNode | null {
  * markup can produce that a JS value cannot: `JSON.parse` genuinely throws on a typo,
  * and the widget must degrade to "no menu" rather than fail to upgrade.
  */
-export function parseMenuModel(json: string | null | undefined): AdwMenuModel {
+export function parseMenuModel(json: string | null | undefined): AdwMenuTree {
     if (!json) return [];
     let parsed: unknown;
     try {
@@ -347,9 +376,9 @@ export function parseMenuModel(json: string | null | undefined): AdwMenuModel {
 export type AdwMenuPath = readonly number[];
 
 /** The node at a path, or `null` when the path names none. */
-export function menuNodeAt(model: AdwMenuModel, path: AdwMenuPath): AdwMenuNode | null {
+export function menuNodeAt(tree: AdwMenuTree, path: AdwMenuPath): AdwMenuNode | null {
     if (!Array.isArray(path) || path.length === 0) return null;
-    let nodes: readonly AdwMenuNode[] = model;
+    let nodes: readonly AdwMenuNode[] = tree;
     let found: AdwMenuNode | null = null;
     for (const index of path) {
         if (!Number.isInteger(index) || index < 0 || index >= nodes.length) return null;
@@ -360,8 +389,8 @@ export function menuNodeAt(model: AdwMenuModel, path: AdwMenuPath): AdwMenuNode 
 }
 
 /** The item at a path — `null` for a path that names a section, a submenu or nothing. */
-export function menuItemAt(model: AdwMenuModel, path: AdwMenuPath): AdwMenuItem | null {
-    const node = menuNodeAt(model, path);
+export function menuItemAt(tree: AdwMenuTree, path: AdwMenuPath): AdwMenuItem | null {
+    const node = menuNodeAt(tree, path);
     return node !== null && node.kind === 'item' ? node : null;
 }
 
@@ -398,10 +427,10 @@ export interface AdwMenuFlatRow {
  * `separated` marks the FIRST row after a boundary and is never set on the first row of
  * all, because a separator above nothing is a line at the top of the menu.
  */
-export function flattenMenu(model: AdwMenuModel, path: AdwMenuPath = []): readonly AdwMenuFlatRow[] {
+export function flattenMenu(tree: AdwMenuTree, path: AdwMenuPath = []): readonly AdwMenuFlatRow[] {
     const rows: AdwMenuFlatRow[] = [];
     let boundary = false;
-    model.forEach((node, index) => {
+    tree.forEach((node, index) => {
         const here = [...path, index];
         if (node.kind === 'section') {
             const inner = flattenMenu(node.items, here);
@@ -719,9 +748,9 @@ export interface AdwMenuRefusal {
  * would be useless: NativeScript renders no icon and no accelerator on any menu, so a
  * refusal per decoration would fire on every well-formed menu and be switched off.
  */
-export function menuRefusals(model: AdwMenuModel, surface: AdwMenuSurface, path: AdwMenuPath = []): AdwMenuRefusal[] {
+export function menuRefusals(tree: AdwMenuTree, surface: AdwMenuSurface, path: AdwMenuPath = []): AdwMenuRefusal[] {
     const refusals: AdwMenuRefusal[] = [];
-    model.forEach((node, index) => {
+    tree.forEach((node, index) => {
         const here = [...path, index];
         if (node.kind === 'item') {
             if (node.custom !== undefined && !surface.custom) {
@@ -742,7 +771,7 @@ export function menuRefusals(model: AdwMenuModel, surface: AdwMenuSurface, path:
 }
 
 /**
- * Throw if the surface cannot render the model.
+ * Throw if the surface cannot render the menu TREE.
  *
  * Called by a renderer when a menu is SET, so the throw names the assignment rather than
  * arriving as a missing row three interactions later. The message carries every refusal,
@@ -750,8 +779,8 @@ export function menuRefusals(model: AdwMenuModel, surface: AdwMenuSurface, path:
  * and reporting them one run at a time is how a port becomes a series of identical bug
  * reports.
  */
-export function assertMenuRenderable(model: AdwMenuModel, surface: AdwMenuSurface): void {
-    const refusals = menuRefusals(model, surface);
+export function assertMenuRenderable(tree: AdwMenuTree, surface: AdwMenuSurface): void {
+    const refusals = menuRefusals(tree, surface);
     if (refusals.length === 0) return;
     const lines = refusals.map((r) => `  [${r.path.join('.')}] ${r.message}`);
     throw new Error(`${surface.name} cannot render this menu:\n${lines.join('\n')}`);

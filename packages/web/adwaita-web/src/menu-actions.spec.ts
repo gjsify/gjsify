@@ -7,6 +7,7 @@ import {
     registryMenuActionScene,
     type SharedTreeNode,
 } from '@gjsify/adwaita-core/conformance';
+import { menuTree } from '@gjsify/adwaita-core';
 import { describe, expect, it } from '@gjsify/unit';
 
 import { parentOfElement } from './application.js';
@@ -39,7 +40,11 @@ export const MenuActionsTest = async () => {
                     return;
                 }
                 const button = buildSharedTree(node) as unknown as GtkMenuButton;
-                expect(button.menuModel.map((entry) => entry.kind).join(',')).toBe(result.kinds.join(','));
+                expect(
+                    menuTree(button.menuModel!)
+                        .map((entry) => entry.kind)
+                        .join(','),
+                ).toBe(result.kinds.join(','));
             });
         }
     });

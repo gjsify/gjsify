@@ -114,8 +114,9 @@ export * as Adw from './namespace/adw.js';
 export * as Gtk from './namespace/gtk.js';
 
 // The THIRD namespace, and the one that defines no element: the GObject types an author
-// CONSTRUCTS while building a tree. `Gio.Menu` is what makes `menuModel: menu` the same
-// program here as on GJS — `./namespace/gio.ts` says what does not go in it.
+// CONSTRUCTS while building a tree. `Gio.Menu` is a real `Gio.MenuModel` (ADR 0128), which
+// is what makes `menuModel: menu` the same program here as on GJS — `./namespace/gio.ts`
+// says what does not go in it.
 export * as Gio from './namespace/gio.js';
 
 // Gdk's clipboard (`Display`, `Clipboard`, `ContentProvider`): `./namespace/gdk.ts` says what is absent.
@@ -189,6 +190,12 @@ export type { AdwViewStackPageInfo } from './elements/adw-view-stack.js';
 // The portable menu model (ADR 0042) is `@gjsify/adwaita-core`'s, re-exported so a
 // consumer of THIS package reaches the menu types without a second dependency — one
 // definition, two doors, never two declarations.
+//
+// `buildMenu` is a VALUE and not only a type, because since ADR 0128 a `menuModel`
+// property takes a real `Gio.MenuModel` and an authored array is refused: without the
+// builder an app depending on this package alone could not write a menu in code at all.
+// The `menu-model` ATTRIBUTE still takes the JSON string, so markup needs none of this.
+export { buildMenu, menuTree, watchMenuModel } from '@gjsify/adwaita-core';
 export type {
     AdwMenuActions,
     AdwMenuEntryInput,
@@ -199,6 +206,7 @@ export type {
     AdwMenuPath,
     AdwMenuSection,
     AdwMenuSubmenu,
+    AdwMenuTree,
 } from '@gjsify/adwaita-core';
 export type { GtkDropDownOption } from './elements/gtk-drop-down.js';
 export type { AdwDialogPresentationMode } from './elements/adw-dialog.js';

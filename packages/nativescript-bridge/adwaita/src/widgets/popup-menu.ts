@@ -14,13 +14,7 @@
 // setGroupDividerEnabled — API 28)
 
 import { assertPopupMenuPlan, planPopupMenu } from '@gjsify/adwaita-core';
-import type {
-    AdwMenuActions,
-    AdwMenuModel,
-    AdwMenuPath,
-    PopupMenuLevelPlan,
-    PopupMenuPlan,
-} from '@gjsify/adwaita-core';
+import type { AdwMenuActions, AdwMenuPath, AdwMenuTree, PopupMenuLevelPlan, PopupMenuPlan } from '@gjsify/adwaita-core';
 
 /** The `MenuItem` calls the driver makes. */
 export interface PopupMenuItemLike {
@@ -104,7 +98,8 @@ function fillLevel(menu: PopupMenuLike, level: PopupMenuLevelPlan, apiLevel: num
 
 export interface OpenPopupMenuOptions {
     readonly surface: PopupMenuSurface;
-    readonly model: AdwMenuModel;
+    /** The SNAPSHOT of the menu model, as `MenuSlot.tree` holds it (ADR 0128 § 3). */
+    readonly tree: AdwMenuTree;
     /** What {@link resolveMenuItemState} reads; from `menuActionsFor` it is the registry's. */
     readonly actions?: AdwMenuActions;
     /** A tap on a leaf item, with its model path. Fire the action here (`activateMenuItem`). */
@@ -118,7 +113,7 @@ export interface OpenPopupMenuOptions {
  */
 export function openPopupMenu(options: OpenPopupMenuOptions): PopupMenuPlan {
     const { surface } = options;
-    const plan = planPopupMenu(options.model, options.actions);
+    const plan = planPopupMenu(options.tree, options.actions);
     assertPopupMenuPlan(plan);
     const paths = fillPopupMenu(surface.menu, plan.level, surface.apiLevel);
     surface.onItemClick((itemId) => {
@@ -133,18 +128,19 @@ export function openPopupMenu(options: OpenPopupMenuOptions): PopupMenuPlan {
 }
 
 /**
- * Throw if `model` holds what `PopupMenu` can never draw, at the ASSIGNMENT: a `custom` item or a
+ * Throw if `tree` holds what `PopupMenu` can never draw, at the ASSIGNMENT: a `custom` item or a
  * section label. A radio run that shares a group needs the actions to be known, so it throws when
  * the menu is opened.
  */
-export function assertPopupMenuAssignable(model: AdwMenuModel): void {
-    assertPopupMenuPlan(planPopupMenu(model));
+export function assertPopupMenuAssignable(tree: AdwMenuTree): void {
+    assertPopupMenuPlan(planPopupMenu(tree));
 }
 
 /**
  * A JSON string is not a menu model here: NativeScript's XML Builder writes an attribute straight
- * onto the property, so accepting one would open an XML door nothing can prove, and
- * `normalizeMenuModel` would turn it into an EMPTY menu with nothing saying why.
+ * onto the property, so accepting one would open an XML door nothing can prove. Since ADR 0128
+ * the core's door DOES parse one — that is how the browser's `menu-model` attribute works — so
+ * this stays in front of it rather than relying on a refusal the shared door no longer makes.
  */
 export function refuseMenuString(value: unknown, widget: string): void {
     if (typeof value !== 'string') return;

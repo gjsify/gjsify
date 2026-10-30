@@ -25,7 +25,7 @@
 import Gio from 'gi://Gio?version=2.0';
 import GLib from 'gi://GLib?version=2.0';
 
-import type { AdwMenuInput, AdwMenuModel, AdwMenuNode } from '@gjsify/adwaita-core';
+import type { AdwMenuInput, AdwMenuNode, AdwMenuTree } from '@gjsify/adwaita-core';
 import { normalizeMenuModel } from '@gjsify/adwaita-core';
 
 import { err } from './errors.js';
@@ -146,7 +146,7 @@ function itemOf(node: AdwMenuNode): Gio.MenuItem {
  * conversion step of its own: `normalizeMenuModel` is idempotent, which is what makes
  * the two safe to take through one door.
  */
-export function buildGioMenu(input: AdwMenuInput | AdwMenuModel): Gio.Menu {
+export function buildGioMenu(input: AdwMenuInput | AdwMenuTree): Gio.Menu {
     const menu = new Gio.Menu();
     for (const node of normalizeMenuModel(input as AdwMenuInput)) menu.append_item(itemOf(node));
     return menu;
@@ -208,8 +208,17 @@ function detailedAction(model: Gio.MenuModel, index: number): string | undefined
  *   · a non-string `label` reads as `''`. `attr()` asks for type `s`; so does
  *     `g_menu_item_get_attribute (item, "label", "&s", …)`, which fails the same way and
  *     leaves GTK drawing an unlabelled row.
+ *
+ * WHY THIS IS NOT `menuTree` FROM `@gjsify/adwaita-core`, which reads the same tree out of
+ * the pure-JS twin (ADR 0128). The two readers differ in one argument neither can give up:
+ * `expected_type` is a `GLib.VariantType` here and a type STRING there, because ADR 0118 § 2's
+ * `GLib.Variant` subset has no `VariantType` to build one with — the divergence
+ * `MENU_MODEL_DIVERGENCE_VECTORS` records as `variant-type-is-a-string`. A shared reader would
+ * have to stop filtering by type to bridge that, and the filter is what makes a non-string
+ * `label` read as GTK reads it. So the DOOR is shared (`AdwMenuTree`, and the vectors both
+ * readers answer) and the two calls are not.
  */
-export function fromGioMenu(model: Gio.MenuModel): AdwMenuModel {
+export function fromGioMenu(model: Gio.MenuModel): AdwMenuTree {
     const nodes: AdwMenuNode[] = [];
     for (let index = 0; index < model.get_n_items(); index += 1) {
         const section = model.get_item_link(index, Gio.MENU_LINK_SECTION);

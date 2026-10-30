@@ -8,7 +8,7 @@
 // switch over three or four names, each with its own fallback.
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { Gtk } from '@gjsify/adwaita-nativescript';
+import { buildMenu, Gtk } from '@gjsify/adwaita-nativescript';
 import { MENU_BUTTON_ITEMS, menuButtonMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
 export class MenuButtonNsStory extends StoryView {
@@ -24,7 +24,7 @@ export class MenuButtonNsStory extends StoryView {
 
     initialize(): void {
         this._widget = new Gtk.MenuButton();
-        this._widget.menuModel = MENU_BUTTON_ITEMS.map((label) => ({ label }));
+        this._widget.menuModel = buildMenu(MENU_BUTTON_ITEMS.map((label) => ({ label })));
         this._apply();
         this.addContent(this._widget);
     }

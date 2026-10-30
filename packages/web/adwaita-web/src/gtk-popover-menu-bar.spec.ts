@@ -5,22 +5,27 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import { MENU_LABEL_TEXT_VECTORS } from '@gjsify/adwaita-core/conformance';
-import type { AdwMenuInput } from '@gjsify/adwaita-core';
+import { buildMenu } from '@gjsify/adwaita-core';
+import type { AdwMenuModel } from '@gjsify/adwaita-core';
 
 interface MenuBarElement extends HTMLElement {
-    menuModel: AdwMenuInput;
+    menuModel: AdwMenuModel | null;
     actions: Record<string, { enabled?: boolean; state?: string }> | null;
     activeItem: HTMLElement | null;
     selectFirst(): void;
     popup(): void;
 }
 
-/** Three submenus, the shape GTK builds one item for (`tracker_insert`, :422-468). */
-const MENU = [
+/**
+ * Three submenus, the shape GTK builds one item for (`tracker_insert`, :422-468). ONE model
+ * for the whole file, as GTK has it: a menu is a `GMenuModel` and several widgets may hold
+ * the same one.
+ */
+const MENU = buildMenu([
     { label: 'File', submenu: [{ label: 'New' }, { label: 'Open' }] },
     { label: 'Edit', submenu: [{ label: 'Cut' }] },
     { label: 'View', submenu: [{ label: 'Zoom In' }] },
-];
+]);
 
 function mount(json?: string): MenuBarElement {
     const el = document.createElement('gtk-popover-menu-bar') as MenuBarElement;
@@ -299,7 +304,7 @@ export const GtkPopoverMenuBarTest = async () => {
         for (const { label, text, rule } of MENU_LABEL_TEXT_VECTORS) {
             await it(rule, () => {
                 const el = mount();
-                el.menuModel = [{ label, submenu: [{ label: 'Inner' }] }];
+                el.menuModel = buildMenu([{ label, submenu: [{ label: 'Inner' }] }]);
                 expect(buttons(el).map((b) => b.textContent)).toStrictEqual([text]);
                 unmountAll();
             });

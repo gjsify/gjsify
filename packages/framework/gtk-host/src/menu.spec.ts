@@ -28,9 +28,9 @@ import { registerBuiltinWidgets } from './descriptors/index.js';
 
 registerBuiltinWidgets();
 
-/** Every vector's model, deduplicated by content — the corpus this suite round-trips. */
-const MODELS = [...MENU_NORMALIZE_VECTORS.map((v) => v.model), ...MENU_PARSE_VECTORS.map((v) => v.model)].filter(
-    (model) => model.length > 0,
+/** Every vector's tree, deduplicated by content — the corpus this suite round-trips. */
+const TREES = [...MENU_NORMALIZE_VECTORS.map((v) => v.tree), ...MENU_PARSE_VECTORS.map((v) => v.tree)].filter(
+    (tree) => tree.length > 0,
 );
 
 export default async () => {
@@ -74,9 +74,9 @@ export default async () => {
     });
 
     await describe('the round trip is lossless (shared conformance vectors)', async () => {
-        for (const model of MODELS) {
-            await it(`survives Gio.Menu: ${JSON.stringify(model).slice(0, 90)}`, () => {
-                expect(fromGioMenu(buildGioMenu(model))).toStrictEqual([...model]);
+        for (const tree of TREES) {
+            await it(`survives Gio.Menu: ${JSON.stringify(tree).slice(0, 90)}`, () => {
+                expect(fromGioMenu(buildGioMenu(tree))).toStrictEqual([...tree]);
             });
         }
 

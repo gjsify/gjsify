@@ -492,31 +492,33 @@ each tab sets the menu from code.
   </Fragment>
   <Fragment slot="webloader">
     ```js
-    import '@gjsify/adwaita-web';
+    import { buildMenu } from '@gjsify/adwaita-web';
 
     const menuButton = document.querySelector('#menu_button');
     menuButton.menuTitle = 'Document';
 
-    menuButton.menuModel = [
+    // `menuModel` takes a real Gio.MenuModel, the same as on GJS above; `buildMenu`
+    // turns the portable node array into one.
+    menuButton.menuModel = buildMenu([
         { label: 'Save as…', action: 'app.save-as' },
         { label: 'Export', action: 'app.export' },
         { label: 'Print', action: 'app.print' },
-    ];
+    ]);
     ```
   </Fragment>
   <Fragment slot="nativescriptloader">
     ```ts
-    import { type Gtk } from '@gjsify/adwaita-nativescript';
+    import { buildMenu, type Gtk } from '@gjsify/adwaita-nativescript';
     import { Builder } from '@nativescript/core';
 
     const menuButton = Builder.load({ path: '~/views', name: 'menu-button' }) as Gtk.MenuButton;
     menuButton.menuTitle = 'Document'; // the action sheet's heading: there is no popover to open
 
-    menuButton.menuModel = [
+    menuButton.menuModel = buildMenu([
         { label: 'Save as…', action: 'app.save-as' },
         { label: 'Export', action: 'app.export' },
         { label: 'Print', action: 'app.print' },
-    ];
+    ]);
     ```
   </Fragment>
 </AdwWidget>

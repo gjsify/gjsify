@@ -744,10 +744,31 @@ export type {
     SplitButtonStyleClass,
 } from './split-button.js';
 
-// --- The GIR authoring door onto that model (Gio.Menu — ADR 0034 § Amendment 19) ---
+// --- The real `Gio.MenuModel` (ADR 0128) ---
 // Prefixed here, as clause 1 prefixes every class: the ports re-export them as
-// `Gio.Menu` / `Gio.MenuItem`, which is the name an author writes.
-export { GioMenu, GioMenuItem } from './gio-menu.js';
+// `Gio.MenuModel` / `Gio.Menu` / `Gio.MenuItem`, which is the name an author writes.
+// `GjsifyMenu` is NOT re-exported by the ports: it is the menu an element owns behind its
+// authored `menuModel` attribute, not a type an author names (ADR 0128 § 5).
+export {
+    GioMenu,
+    GioMenuAttributeIter,
+    GioMenuItem,
+    GioMenuLinkIter,
+    GioMenuModel,
+    GjsifyMenu,
+    MENU_ATTRIBUTE_ACTION,
+    MENU_ATTRIBUTE_ACTION_NAMESPACE,
+    MENU_ATTRIBUTE_ICON,
+    MENU_ATTRIBUTE_LABEL,
+    MENU_ATTRIBUTE_TARGET,
+    MENU_EXPORTER_MAX_SECTION_SIZE,
+    MENU_LINK_SECTION,
+    MENU_LINK_SUBMENU,
+    buildMenu,
+    menuTree,
+    readMenuModelWrite,
+    watchMenuModel,
+} from './gio-menu.js';
 export { activateMenuItem, menuActionsFor } from './menu-actions.js';
 export { assertPopupMenuPlan, planPopupMenu } from './popup-menu-plan.js';
 export type {
@@ -800,6 +821,7 @@ export type {
     AdwMenuSubmenuInput,
     AdwMenuSurface,
     AdwMenuTextDirection,
+    AdwMenuTree,
 } from './menu.js';
 
 // --- View switcher + bar (Adw.ViewSwitcher / Adw.InlineViewSwitcher) ---

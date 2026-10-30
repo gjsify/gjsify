@@ -9,6 +9,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import { VIEW_STACK_ICON_NAME_VECTORS } from '@gjsify/adwaita-core/conformance';
+import { buildMenu } from '@gjsify/adwaita-core';
 
 import type { GtkImage } from './elements/gtk-image.js';
 import type { GtkMenuButton } from './elements/gtk-menu-button.js';
@@ -124,11 +125,11 @@ export const GtkImageTest = async () => {
 
         await it('<gtk-menu-button> menu entries guard their icons too', () => {
             const { el, host } = mount<GtkMenuButton>('gtk-menu-button');
-            el.menuModel = [
+            el.menuModel = buildMenu([
                 { label: 'Bad', icon: 'a b' },
                 { label: 'Good', icon: 'view-refresh-symbolic' },
                 { label: 'None' },
-            ];
+            ]);
             const items = [...el.querySelectorAll('.adw-menu-button-item')];
             expect(items.length).toBe(3);
             // An entry that ASKED for an icon keeps its slot even when the name is

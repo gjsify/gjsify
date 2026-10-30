@@ -212,6 +212,15 @@ refused by name, and the refusals are GJS's own words, measured:
 | `{}` | `… it's a Object` |
 | a `Gtk.Label` | `Object is of type GtkLabel - cannot convert to GMenuModel` |
 
+**`null` is the ONLY spelling of "no menu", and that is a measurement, not a simplification.** An
+EMPTY non-NULL `Gio.Menu` at `menu-model` builds a `GtkPopoverMenu` on both `Adw.SplitButton` and
+`Gtk.MenuButton`, and so does a model whose only child is an empty section; `set_menu_model(null)`
+is what returns the popover to `null`, and an empty model still DISSOCIATES a popover the
+application set by hand. So the old "an empty list collapses to no menu" rule of the array era is
+removed rather than carried: it was the one place the port disagreed with GTK about whether a
+dropdown exists, and it only existed because an array had no way to say `null` separately from
+`[]`. A model does.
+
 **The ParamSpec is `TYPE_OBJECT` plus an explicit class check, and that is a gap this ADR names
 rather than closes.** `ParamSpec.object` accepts `TYPE_OBJECT` or a subset INTERFACE, and
 `GMenuModel` is a registered CLASS, so the pspec is
@@ -234,11 +243,17 @@ widgets, two behaviours, both measured, neither guessed.
 
 ## Consequences
 
-**Desktop stays GJS-identical and the host loses a copy.** `gtk-host/src/menu.ts` keeps
-`buildGioMenu` — it builds a real GI `Gio.Menu` and always did — and `fromGioMenu` becomes a
-delegation to the core's `menuTree`, which reads the same way over either implementation.
-`props.ts`'s `coerce` keeps converting a portable array at the `GMenuModel` ParamSpec seam, which
-is ADR 0122 § 5's precedent and the reason the GTK seam needs no new door.
+**Desktop stays GJS-identical, and the host keeps its own reader — measured, not preferred.**
+`gtk-host/src/menu.ts` keeps `buildGioMenu`, which builds a real GI `Gio.Menu` and always did, and
+it keeps `fromGioMenu` rather than delegating to the core's `menuTree`. The two differ in ONE
+argument neither can give up: `get_item_attribute_value(position, name, expected_type)` takes a
+`GLib.VariantType` in real GIO and a type STRING in the portable `GLib.Variant` subset of ADR 0118
+— the recorded `variant-type-is-a-string` divergence. `menuTree` passes `'s'`; real GIO needs
+`new GLib.VariantType('s')`. A reader that satisfied both would carry a branch on which runtime it
+is in, inside the one function whose whole job is to be implementation-blind, so the duplication is
+kept and both headers say why. `props.ts`'s `coerce` keeps converting a portable array at the
+`GMenuModel` ParamSpec seam, which is ADR 0122 § 5's precedent and the reason the GTK seam needs no
+new door.
 
 **iOS stays green for free.** The twin IS the iOS leg, so everything in § 1–§ 7 lands there first
 and is held by pure-JS unit specs. Nothing here is host-specific and nothing needs node-gi.
@@ -279,14 +294,25 @@ working letter for letter. There is no deprecation window and no array-accepting
 2. This ADR.
 3. `packages/web/adwaita-core/src/gio-menu.ts` — `GioMenuModel`, `GioMenu`, `GioMenuItem`, the two
    iterators, the `Gio.MENU_*` constants, `GjsifyMenu.reconcile`, `readMenuModelWrite`.
-4. `packages/web/adwaita-core/src/menu.ts` — `AdwMenuModel` / `AdwMenuTree` (§ 2), the helpers
-   reading the real model, `menuTree` and `watchMenuModel` (§ 4), the detailed-action refusal
-   (§ 6); `menu-actions.ts`, `popup-menu-plan.ts`, `split-button.ts`, `menu-tree.ts`, `index.ts`.
-5. `packages/web/adwaita-web/src` — the nine elements holding a `menu-model`, `application.ts`,
-   and their specs; the identity guard on `adw-split-button` and its absence on `gtk-menu-button`.
-6. `packages/nativescript-bridge/adwaita/src/widgets` — the six widgets and their specs.
-7. `packages/framework/gtk-host/src` — `menu.ts` delegates `fromGioMenu` to `menuTree`; `props.ts`
-   unchanged in behaviour; `menu.spec.ts` drives the refusal rows against real GIO.
-8. `packages/infra/blueprint/src/{project.mjs,shared-node.d.mts}` — the tree type's new name.
+4. `packages/web/adwaita-core/src/menu.ts` — `AdwMenuModel` / `AdwMenuTree` (§ 2), the tree
+   walkers retyped onto `AdwMenuTree`, the detailed-action refusal (§ 6); `menu-actions.ts`,
+   `popup-menu-plan.ts`, `split-button.ts`, `menu-tree.ts`, `index.ts`. `menuTree` and
+   `watchMenuModel` (§ 4) live in `gio-menu.ts`, so `menu.ts` needs only a type-only import of
+   `GioMenuModel` and the cycle is erased at compile time.
+5. `packages/web/adwaita-web/src` — `elements/menu-slot.ts`, then the elements holding a
+   `menu-model`, `application.ts`, and their specs; the identity guard on `adw-split-button` and
+   its absence on `gtk-menu-button`. The four door steps (read the write, refuse, snapshot, watch)
+   are a RENDERER-LOCAL class, not a new core API: the two renderers' doors differ — the web takes
+   a JSON string, NativeScript refuses one by name — so the two slots are deliberate copies rather
+   than a shared abstraction over a difference.
+6. `packages/nativescript-bridge/adwaita/src` — `widgets/menu-slot.ts`, the six widgets, and their
+   specs. The widget-level door and notify tables run from a NEW `menu-model-door.spec.ts` under
+   `test.trees.mts`, because the pure `test.mts` entry may not import a widget module.
+7. `packages/framework/gtk-host/src` — `menu.ts` keeps its own `fromGioMenu`, retyped to
+   `AdwMenuTree`, for the `variant-type-is-a-string` reason above; `props.ts` unchanged in
+   behaviour; `menu.spec.ts` drives the refusal rows against real GIO.
+8. `packages/infra/blueprint/src/{project.mjs,shared-node.d.mts}` — wording only. The
+   `menuModels` field KEEPS its name: it is keyed by the GTK property name `menu-model`, not by
+   the type of its value, and its value was always a tree.
 9. Docs, storybook, examples, and `status/open-todos/nativescript.md`; ADR 0042 and ADR 0097
    amended with a pointer here.

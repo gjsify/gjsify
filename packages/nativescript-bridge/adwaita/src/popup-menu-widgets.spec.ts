@@ -2,6 +2,7 @@
 // `PopupMenu` through the surface seam, fire the chosen item's action through the registry of
 // ADR 0098, and refuse by name what the surface cannot draw. Against a recording surface and the
 // platform double: it shows what the widgets ask of the platform, never what Android draws.
+import { buildMenu } from '@gjsify/adwaita-core';
 import type { SharedTreeNode } from '@gjsify/adwaita-core/conformance';
 import { describe, expect, it } from '@gjsify/unit';
 
@@ -86,7 +87,7 @@ export const PopupMenuWidgetsNsTest = async () => {
                     'win',
                     groupWith('save', () => ran++),
                 );
-                button.menuModel = [{ label: 'Save', action: 'win.save', id: 'save' }, 'Quit'];
+                button.menuModel = buildMenu([{ label: 'Save', action: 'win.save', id: 'save' }, 'Quit']);
                 const activated: string[] = [];
                 button.connect('menuItemActivated', (_self, data) =>
                     activated.push(String((data as unknown as { id: string }).id)),
@@ -105,12 +106,12 @@ export const PopupMenuWidgetsNsTest = async () => {
 
         await it('menu_model is the GIR spelling of menuModel, getter, setter and accessors', () => {
             const button = new Gtk.MenuButton();
-            button.menu_model = ['Save'];
+            button.menu_model = buildMenu(['Save']);
             expect(button.menuModel).toBe(button.menu_model);
-            button.set_menu_model(['Save', 'Quit']);
-            expect(button.get_menu_model().length).toBe(2);
+            button.set_menu_model(buildMenu(['Save', 'Quit']));
+            expect(button.get_menu_model()?.get_n_items()).toBe(2);
             expect(button.get_menu_model()).toBe(button.menuModel);
-            expect(() => button.set_menu_model([{ label: 'Zoom', custom: 'zoom' }])).toThrow('custom');
+            expect(() => button.set_menu_model(buildMenu([{ label: 'Zoom', custom: 'zoom' }]))).toThrow('custom');
         });
 
         await it('show_sidebar is the GIR spelling of showSidebar on Adw.OverlaySplitView', () => {
@@ -125,22 +126,24 @@ export const PopupMenuWidgetsNsTest = async () => {
 
         await it('a custom item or a section label is refused at the assignment, naming it', () => {
             const button = new Gtk.MenuButton();
-            expect(() => (button.menuModel = [{ label: 'Zoom', custom: 'zoom' }])).toThrow('custom');
-            expect(() => (button.menuModel = [{ label: 'Edit', section: ['Cut'] }])).toThrow('section-label');
+            expect(() => (button.menuModel = buildMenu([{ label: 'Zoom', custom: 'zoom' }]))).toThrow('custom');
+            expect(() => (button.menuModel = buildMenu([{ label: 'Edit', section: ['Cut'] }]))).toThrow(
+                'section-label',
+            );
         });
 
         await it('a radio run that shares a group with another row is refused when the menu opens', () => {
             const { shown, restore } = recordSurfaces();
             try {
                 const button = new Gtk.MenuButton();
-                button.menuModel = [
+                button.menuModel = buildMenu([
                     {
                         section: [
                             { label: 'A', action: 'win.v::a' },
                             { label: 'W', action: 'win.w' },
                         ],
                     },
-                ];
+                ]);
                 button.actions = { 'win.v': { state: 'a' }, 'win.w': { state: 'false' } };
                 expect(() => tap(button)).toThrow('mixed-radio-section');
                 expect(shown[0]?.menu.rows.length).toBe(0);
@@ -153,7 +156,7 @@ export const PopupMenuWidgetsNsTest = async () => {
             const { shown, restore } = recordSurfaces();
             try {
                 const split = new Adw.SplitButton({ label: 'Save' });
-                split.menuModel = ['Save as…'];
+                split.menuModel = buildMenu(['Save as…']);
                 const dropdown = (split as unknown as { _dropdownPart: object })._dropdownPart;
                 tap(dropdown);
                 expect(shown.length).toBe(1);
@@ -171,7 +174,7 @@ export const PopupMenuWidgetsNsTest = async () => {
             try {
                 const parent = new Gtk.Box();
                 const popover = new Gtk.PopoverMenu();
-                popover.menuModel = ['Copy'];
+                popover.menuModel = buildMenu(['Copy']);
                 expect(() => popover.popup()).toThrow('set_parent');
                 popover.set_parent(parent as never);
                 let closed = 0;

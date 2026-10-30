@@ -23,10 +23,10 @@
 
 import { GridLayout, ItemSpec, Label, StackLayout, type EventData } from '@nativescript/core';
 import { SPLIT_BUTTON_DISABLED_OPACITY, SplitButtonState } from '@gjsify/adwaita-core';
-import type { AdwMenuActions, AdwMenuInput, AdwMenuModel, SplitButtonDirection } from '@gjsify/adwaita-core';
+import type { AdwMenuActions, AdwMenuModel, SplitButtonDirection } from '@gjsify/adwaita-core';
 import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
-import { assertPopupMenuAssignable, refuseMenuString } from './popup-menu.js';
+import { MenuSlot } from './menu-slot.js';
 import { showMenuPopup } from './popup-menu-view.js';
 import { splitButtonArrowSvg } from './split-button.js';
 import { buttonContentClassName, buttonContentLabelText } from './button-content.js';
@@ -177,6 +177,12 @@ export class AdwSplitButton extends withSignals(GridLayout, {
     /** The direction arrow. */
     protected readonly _chevron: GtkImage;
     private readonly _state = new SplitButtonState();
+    /**
+     * The menu this button holds, with its `items-changed` watcher. The STATE holds it too
+     * — `setMenuModel` is what drives `dropdownEnabled` and the notify order — and this
+     * holds the snapshot the popup is built from, which the state has no business knowing.
+     */
+    private readonly _slot = new MenuSlot('AdwSplitButton', () => undefined);
     private _actions: AdwMenuActions | null = null;
     /** Which of the two action views is currently parented. */
     private _showingIcon = false;
@@ -279,7 +285,7 @@ export class AdwSplitButton extends withSignals(GridLayout, {
         this._state.toggleMenu();
         try {
             showMenuPopup(this._dropdownPart, {
-                model: this._state.menuModel ?? [],
+                tree: this._slot.tree,
                 actions: this._actions,
                 onActivated: (_item, path) => {
                     const item = this._state.activateMenuItem(path);
@@ -354,21 +360,28 @@ export class AdwSplitButton extends withSignals(GridLayout, {
      * (`gallery-page.ts`), which no structured value can satisfy. An input form nothing
      * can run is a claim, not a feature.
      *
-     * AND IT SAYS SO. Left to `normalizeMenuModel`, a string is "not an array" and
-     * becomes an EMPTY menu — so an XML author writing `menuModel="[…]"` would get a
-     * button whose dropdown is dead, with nothing anywhere saying why. A shut door that
-     * is silent is worse than one that is open.
+     * AND IT SAYS SO. Left to the core's door a string would be PARSED, because that door
+     * is also the browser's `menu-model` attribute (ADR 0128 § 4) — so an XML author writing
+     * `menuModel="[…]"` would get a menu this port never promised to build from markup. A
+     * shut door that is silent is worse than one that is open, so the refusal names itself.
+     *
+     * `null` IS THE ONE SPELLING OF "NO MENU" since ADR 0128: an empty `Gio.Menu` is a menu
+     * that happens to have no rows, and it keeps the dropdown live exactly as it does on
+     * GTK (measured, `MENU_MODEL_DOOR_VECTORS`).
      */
-    get menuModel(): AdwMenuModel {
-        return this._state.menuModel ?? [];
+    get menuModel(): AdwMenuModel | null {
+        return this._slot.model;
     }
 
-    set menuModel(value: AdwMenuInput) {
-        refuseMenuString(value, 'AdwSplitButton');
-        this._state.setMenuModel(value);
-        // LOUD, at the assignment: a `custom` item names an application widget, which a
-        // PopupMenu row cannot host — a surface that ignored it would offer a blank row.
-        assertPopupMenuAssignable(this._state.menuModel ?? []);
+    set menuModel(value: AdwMenuModel | null) {
+        const before = this._slot.model;
+        this._slot.write(value);
+        // The IDENTITY guard is the state's, and it is the one `Adw.SplitButton` has:
+        // writing the same model twice notifies once (`MENU_MODEL_NOTIFY_VECTORS`), which
+        // is why the notify below hangs off the return value rather than off the write.
+        if (this._state.setMenuModel(this._slot.model)) {
+            this.notifyPropertyChange('menuModel', this._slot.model, before);
+        }
     }
 
     /**
