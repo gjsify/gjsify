@@ -1,6 +1,6 @@
 # 126. `gjsify ship credentials`, and a Windows signer that is not bound to a Windows host
 
-- Status: **Proposed** (2026-10-30)
+- Status: **Accepted** (2026-10-30)
 - Date: 2026-10-30
 - Deciders: Pascal Garber
 - Related: [ADR 0024](0024-ship-installable-artifacts.md) (§ A1 the host owns the format, § A5
@@ -165,9 +165,9 @@ jsign --storetype TRUSTEDSIGNING
 
 - **`--tsmode RFC3161` is part of the decision.** jsign's documented default mode is
   `Authenticode`, so a bare `--tsaurl` pointing at an RFC 3161 service would talk the wrong
-  protocol. Which protocol `timestamp.acs.microsoft.com` speaks is Microsoft's published
-  guidance and is taken from the task brief, not re-read from learn.microsoft.com here
-  (UNVERIFIED in this repository).
+  protocol. Microsoft's own signing-integration guide passes `http://timestamp.acs.microsoft.com`
+  to `signtool` as `/tr`, which is signtool's RFC 3161 flag (learn.microsoft.com,
+  `azure/artifact-signing/how-to-signing-integrations`, read 2026-10-30).
 - **The timestamp is mandatory, not a field.** The descriptor emits it unconditionally; there is
   no flag, config key or environment variable that omits it. jsign enables timestamping itself
   for this store type (its documentation says so), and the explicit flags pin the authority and
@@ -205,10 +205,9 @@ surface, which § A12 refuses, and Azure Artifact Signing is what the target aud
 **The token** comes from, in order: the environment variable `AZURE_ACCESS_TOKEN`; else
 `az account get-access-token --resource https://codesigning.azure.net`, the command jsign's
 documentation names. In CI it is obtained by `azure/login` with a **federated credential**
-(GitHub OIDC); no client secret exists. The identity needs the role jsign's documentation calls
-*Code Signing Certificate Profile Signer*; Microsoft renamed the service from Trusted Signing to
-Artifact Signing, and the task brief names the role "Artifact Signing Certificate Profile
-Signer". The current name was not verified (see open question 1).
+(GitHub OIDC); no client secret exists. The identity needs the role *Artifact Signing
+Certificate Profile Signer* (Microsoft's current name, same guide as above; jsign's documentation
+still uses an older one), and no other role.
 
 **What is signed, and in which order.** Every PE image in the payload (`signs: 'pe'`, the
 existing magic-number predicate), then, after `wixl` has packed it, the `.msi` itself. This is
@@ -267,7 +266,7 @@ that says so. The row exists so a caller writes the same two lines for both OSes
   existing tests.
 - **Signing hundreds of DLLs costs signing-API calls.** A GTK runtime bundle for Windows is many
   PE files. Whether Azure Artifact Signing meters or rate-limits per file is UNVERIFIED (open
-  question 2); signing "every PE" is the decision of the brief and is the expensive end.
+  question 2); signing every PE is the decision here, and it is the expensive end.
 - **The release record's `identity`** (ADR 0124) is the certificate subject for darwin. For win32
   the `--sign` value is an Azure account and profile, not a subject, so the record needs the
   subject read back from the signed file (open question 3). Until then it must not claim a
@@ -304,9 +303,11 @@ that says so. The row exists so a caller writes the same two lines for both OSes
 
 ## Open questions
 
-1. **Eligibility and the role name.** Whether an individual developer or a small organisation can
-   get an Artifact Signing account and a public-trust certificate profile, which validation it
-   needs, and the current exact role name. Not verified against learn.microsoft.com for this ADR.
+1. **Who can use this signer at all.** Microsoft's quickstart (read 2026-10-30) offers Public
+   Trust certificates to organisations in the US, Canada, the EU, the UK and a handful of other
+   countries, and to individual developers only in the US and Canada. An individual elsewhere has
+   no Azure route; whether gjsify documents an alternative (for open-source projects, a
+   foundation-run signing service) is open.
 2. **Cost of signing every PE.** Quota, rate limit and wall time for a payload with hundreds of
    DLLs. If it bites, the alternative is a scope option (sign the launcher and the application's
    own binaries, leave third-party runtime DLLs as they ship), a decision with a SmartScreen
