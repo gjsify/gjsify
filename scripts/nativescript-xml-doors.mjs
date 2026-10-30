@@ -878,10 +878,20 @@ export function settersOf(text) {
  * An UNTYPED setter answers `null` here, exactly as a missing one does, because a
  * caller asking "what may this attribute carry" has no answer either way. The gate that
  * holds the whole package uses {@link settersOf} instead and reports the difference.
+ *
+ * A DECLARED property matches under either spelling, for the reason {@link membersOf} and
+ * `settableProperties` already read both: the seam installs `placeholder-text` and
+ * `placeholderText` alike ({@link camelOf}), and a template writes the camel one. The
+ * declaration carries the canonical DASHED name, so this reader looked up
+ * `placeholderText`, found nothing, and reported a widget that sets the attribute as
+ * having no setter for it — the one reader of the three that still knew a single spelling.
  */
 export function setterOf(sources, tag, name) {
     for (const text of chainOf(sources, tag)) {
-        const found = settersOf(text).find((setter) => setter.name === name);
+        const setters = settersOf(text);
+        const found =
+            setters.find((setter) => setter.name === name) ??
+            setters.find((setter) => setter.declared && camelOf(setter.name) === name);
         if (found === undefined) continue;
         return found.annotation === null ? null : found;
     }
