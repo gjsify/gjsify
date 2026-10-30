@@ -64,6 +64,7 @@
         "@gjsify/buffer": "workspace:^",
         "@gjsify/dom-events": "workspace:^",
         "@gjsify/dom-exception": "workspace:^",
+        "@gjsify/media-capture": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/webcrypto": "workspace:^",
         "@gjsify/webrtc-native": "workspace:^"
