@@ -722,10 +722,12 @@ describe('CLI ship signing E2E', { timeout: 20 * 60 * 1000 }, () => {
          * `codesign` on Linux. `cc` comes with the Command Line Tools that ship
          * `codesign`, and `--arch` names the HOST because the image was built for it.
          */
-        async function stageSigned(format) {
+        async function stageSigned(format, { displayName, extraFiles = {}, plant = () => {} } = {}) {
             const app = scaffoldNodeApp(mkdtempSync(join(tmpDir, `${format}-`)), {
-                extraFiles: SIGNED_FIXTURE_FILES,
+                extraFiles: { ...SIGNED_FIXTURE_FILES, ...extraFiles },
+                ...(displayName === undefined ? {} : { name: displayName }),
             });
+            plant(app);
             mkdirSync(join(app, 'native'), { recursive: true });
             writeFileSync(join(app, 'native', 'demo.c'), 'int gjsify_ship_demo(void) { return 42; }\n');
             execFileSync(
@@ -781,6 +783,71 @@ describe('CLI ship signing E2E', { timeout: 20 * 60 * 1000 }, () => {
             assert.equal(found.length, 1, `expected exactly one .${suffix} in ${out}, got ${found.join(', ')}`);
             return join(out, found[0]);
         }
+
+        // A NON-ASCII NAME INSIDE THE BUNDLE, the case the ASCII fixture above cannot see.
+        // `codesign` seals the BYTES of every name, and the `.dmg` is an HFS+ volume that
+        // stores names decomposed (NFD): a bundle sealed with a precomposed name verified
+        // out of the zip and failed inside the mounted image ("a sealed resource is
+        // missing or invalid / file added / file missing"), which neither `stapler` nor
+        // `spctl --context context:primary-signature` on the image can notice. Written
+        // with escapes so an editor that normalises on save cannot turn it into ASCII-in-
+        // disguise. The display name is non-ASCII too: it names the `.app`, the volume and
+        // `CFBundleName`, and the carried interpreter's `Contents/Helpers/<name>`.
+        const UMLAUT_NAME = 'Gr\u00f6\u00dfe \u00dcbersicht';
+        const UMLAUT_DOC = 'Erkl\u00e4rung.txt';
+        const umlaut = {
+            displayName: UMLAUT_NAME,
+            extraFiles: { [`share/doc/ship-demo/${UMLAUT_DOC}`]: `docs/${UMLAUT_DOC}` },
+            plant: (app) => {
+                mkdirSync(join(app, 'docs'), { recursive: true });
+                writeFileSync(join(app, 'docs', UMLAUT_DOC), 'a name that is not ASCII\n');
+            },
+        };
+        const docDir = (bundle) => join(bundle, 'Contents', 'Resources', 'share', 'doc', 'ship-demo');
+
+        it('a non-ASCII name seals, and the ZIP extraction verifies', async () => {
+            if (!HAS_CODESIGN || !HAS_DITTO) return;
+            const { out } = await stageSigned('macos-app-zip-nfd', umlaut);
+            const extracted = mkdtempSync(join(tmpDir, 'zip-nfd-'));
+            execFileSync('ditto', ['-x', '-k', onlyArtifact(out, '.zip'), extracted], { stdio: 'pipe' });
+            const bundle = readdirSync(extracted).find((name) => name.normalize('NFC') === `${UMLAUT_NAME}.app`);
+            assert.ok(bundle, `the archive expanded to no "${UMLAUT_NAME}.app": ${readdirSync(extracted)}`);
+            assert.ok(
+                readdirSync(docDir(join(extracted, bundle))).includes(UMLAUT_DOC.normalize('NFD')),
+                'the extracted name is not the NFD form the seal was made over',
+            );
+            execFileSync('codesign', ['--verify', '--deep', '--strict', join(extracted, bundle)], { stdio: 'pipe' });
+        });
+
+        it('a non-ASCII name seals, and the bundle INSIDE the mounted DMG verifies', async () => {
+            // The check is on the bundle in the MOUNTED volume, not on a copy unpacked from
+            // the image: the copy lands on APFS, which keeps whatever bytes it is handed,
+            // and the defect lives in the HFS+ volume's own rewrite.
+            if (!HAS_CODESIGN || !HAS_HDIUTIL) return;
+            const { out } = await stageSigned('macos-app-dmg-nfd', umlaut);
+            const dmg = onlyArtifact(out, '.dmg');
+            const mount = mkdtempSync(join(tmpDir, 'dmg-nfd-mounted-'));
+            try {
+                execFileSync('hdiutil', ['attach', dmg, '-nobrowse', '-readonly', '-mountpoint', mount], {
+                    stdio: 'pipe',
+                });
+                const bundle = readdirSync(mount).find((name) => name.normalize('NFC') === `${UMLAUT_NAME}.app`);
+                assert.ok(bundle, `the mounted volume holds no "${UMLAUT_NAME}.app": ${readdirSync(mount)}`);
+                assert.ok(
+                    readdirSync(docDir(join(mount, bundle))).includes(UMLAUT_DOC.normalize('NFD')),
+                    'the name inside the mounted volume is not NFD',
+                );
+                execFileSync('codesign', ['--verify', '--deep', '--strict', '-vvvv', join(mount, bundle)], {
+                    stdio: 'pipe',
+                });
+            } finally {
+                try {
+                    execFileSync('hdiutil', ['detach', mount], { stdio: 'pipe' });
+                } catch {
+                    execFileSync('hdiutil', ['detach', '-force', mount], { stdio: 'pipe' });
+                }
+            }
+        });
 
         it('has every tool the container half needs, or says the leg proved nothing', () => {
             if (!REQUIRE_DARWIN) return;

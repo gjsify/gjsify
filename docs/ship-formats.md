@@ -888,6 +888,18 @@ the system reads. An ASCII leaf sends no flag, so codesign's default stays byte-
 was. Measured on macOS 2026-10-30 — mini bundles, plus a named Developer ID run that signed and
 notarised an ASCII app; reproduced in steuererklaerung CI 41050980433.
 
+**Names inside a `.app` are staged NFD (`Layout.nameForm`).** The seal hashes BYTES of every name,
+and the `.dmg` is an HFS+ volume (`dmg.ts`, kept for the Linux reader chain) that rewrites names
+to NFD on the way in. A bundle sealed with a precomposed name (`Contents/Helpers/Steuererklärung`)
+verified out of the zip and failed INSIDE the mounted image with *"a sealed resource is missing or
+invalid / file added / file missing"* on that one path — while `spctl --context
+context:primary-signature` and `stapler validate` on the image passed, so notarisation never saw
+it. APFS keeps the bytes it is given, so `placeStage` puts every segment below `<App>.app` in NFD
+(`nameFormBelowRoot`) and zip and image agree. The `.app` directory and the volume name keep the
+display name's own spelling: no seal covers them, and the packers find the root by that string.
+ASCII paths are unchanged byte for byte. Guard: `tests/e2e/ship-signing` mounts a non-ASCII
+bundle's `.dmg` and runs `codesign --verify --deep --strict` on the app INSIDE the mounted volume.
+
 **Absent identity ⇒ skip, loudly, exit 0.** Unsigned is the default path and a legitimate
 deliverable; what ADR 0024 § 5 refuses is the other direction, claiming a signature that was not
 made. The skip goes to stderr and names the step it skipped — the reference's own two scripts both

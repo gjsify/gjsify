@@ -19,6 +19,7 @@ import {
     hostLayout,
     launcherPath,
     layoutForOs,
+    nameFormBelowRoot,
     place,
     placeStage,
     resolveLayout,
@@ -46,6 +47,14 @@ export default async () => {
             ]) {
                 expect(place(LAYOUTS.linux, IDENTITY, rel)).toBe(rel);
             }
+        });
+
+        await it('does not touch an ASCII path or a layout without a name form', () => {
+            expect(nameFormBelowRoot(LAYOUTS.darwin, 'Hello World.app/Contents/MacOS/hello')).toBe(
+                'Hello World.app/Contents/MacOS/hello',
+            );
+            expect(nameFormBelowRoot(LAYOUTS.linux, 'share/\u00e4.txt')).toBe('share/\u00e4.txt');
+            expect(nameFormBelowRoot(LAYOUTS.windows, 'Prog/\u00e4.txt')).toBe('Prog/\u00e4.txt');
         });
 
         await it('moves the macOS native files OUT of the bundle directory', () => {
@@ -177,6 +186,40 @@ export default async () => {
             expect(Buffer.from(bytes(icns).subarray(0, 4)).toString('latin1')).toBe('icns');
             const plist = text(staged.find((file) => file.path.endsWith('Info.plist')));
             expect(plist).toContain('<key>CFBundleIconFile</key>\n\t<string>hello.icns</string>');
+        });
+
+        await it('stages every macOS name below the .app in NFD, and leaves the .app itself alone', () => {
+            // The HFS+ `.dmg` stores names decomposed and `codesign` seals bytes, so a
+            // precomposed name inside the bundle verifies from the zip and fails from
+            // the image. Written with escapes: an editor that normalises on save would
+            // turn this test into a no-op without anyone noticing.
+            const nfc = 'Steuererkl\u00e4rung';
+            const nfd = 'Steuererkla\u0308rung';
+            expect(nfc === nfd).toBe(false);
+            const identity = { ...app, binaryName: 'steuer', name: nfc, icon: rasters(ICNS_SIZES) };
+            const staged = placeStage(
+                LAYOUTS.darwin,
+                identity,
+                [file('share/doc/\u00dcbersicht.txt')],
+                [file(`${nfc}.app/Contents/Helpers/${nfc}`)],
+            ).map((f) => f.path);
+            expect(staged).toContain(`${nfc}.app/Contents/Helpers/${nfd}`);
+            expect(staged).toContain(`${nfc}.app/Contents/Resources/share/doc/U\u0308bersicht.txt`);
+            // the root keeps the bytes the packers look it up by
+            for (const path of staged) expect(path.startsWith(`${nfc}.app/`)).toBe(true);
+        });
+
+        await it('collides names that differ only in normalisation, as HFS+ would', () => {
+            let message = '';
+            try {
+                placeStage(LAYOUTS.darwin, { ...app, icon: rasters(ICNS_SIZES) }, [
+                    file('share/\u00e4.txt'),
+                    file('share/a\u0308.txt'),
+                ]);
+            } catch (error) {
+                message = String(error);
+            }
+            expect(message).toContain('cannot share one destination');
         });
 
         await it('windows embeds the icon in the launcher, and the launcher grows a third section', () => {
