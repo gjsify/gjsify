@@ -34,6 +34,7 @@ import { stripComments } from '../packages/infra/manifest-conformance/lib/strip-
 import {
     camelOf,
     declaredGObjectProperties,
+    JSON_DOORS,
     matchingBrace,
     matchingParen,
     namespaceExport,
@@ -44,7 +45,7 @@ import {
 // Re-exported where this file's own consumers have always found them. The definitions moved
 // down to `adwaita-elements.mjs` so `declaredGObjectProperties` could sit beside them without
 // an import cycle — this file already reads from there, and the edge may not go both ways.
-export { declaredGObjectProperties, matchingBrace, matchingParen, PROPERTIES_MIXIN, SIGNALS_MIXIN };
+export { declaredGObjectProperties, JSON_DOORS, matchingBrace, matchingParen, PROPERTIES_MIXIN, SIGNALS_MIXIN };
 
 /** Where the widget classes live, relative to the repo root. */
 export const NS_WIDGETS_DIR = 'packages/nativescript-bridge/adwaita/src/widgets';
@@ -94,33 +95,6 @@ export const STRING_TOLERANT = {
     resolveSpinnerSize: 'packages/web/adwaita-core/src/chrome.ts',
     normalizeClampSize: 'packages/web/adwaita-core/src/chrome.ts',
     normalizeClampProp: `${NS_WIDGETS_DIR}/chrome.ts`,
-};
-
-/**
- * The JSON doors: a setter whose value is an OBJECT reaches XML as one of these.
- *
- * A THIRD kind beside `number` and `boolean`, and it exists because a portable VALUE is
- * not a primitive. `AdwSpinRow.adjustment` takes `Gtk.Adjustment`'s six numbers as one
- * object (ADR 0047) — an attribute can carry that, as the JSON text the setter parses,
- * which is a different thing from "an attribute cannot carry this" and was indistinguishable
- * from it before: `attributeKind` answered `null` for `AdwAdjustmentInput | string`, so the
- * setter landed in the UNCARRYABLE bucket and no rule looked at it again.
- *
- * The declared shape is what opts in: a setter annotated `<Something> | string` says the
- * attribute spelling exists. `AdwComboRow.model` is annotated `ComboWatchableModel | string
- * | null` — the object half is a `Gio.ListModel`, which has no attribute spelling at all, so
- * the `| string` beside it is the whole of what XML can write. The test reads the setter's own
- * annotation and not a resolved alias, because an alias can hide a `string` that means
- * something else: `AdwListModelInput` resolves to a union containing one, and a bare string
- * THERE is one ITEM rather than JSON.
- *
- * Each entry is VERIFIED against its own declaration by `jsonDoors()`, like
- * `STRING_TOLERANT` is: a door that stops taking a string stops being one.
- */
-export const JSON_DOORS = {
-    parseAdjustment: 'packages/web/adwaita-core/src/adjustment.ts',
-    parseListModel: 'packages/web/adwaita-core/src/list.ts',
-    readModelWrite: 'packages/web/adwaita-core/src/option-list.ts',
 };
 
 /**
@@ -1247,8 +1221,9 @@ export function coerces(setter, kind) {
     if (kind === 'string') return true;
     // A property DECLARED at the `extends` has no setter body to read: the signals seam coerces a
     // string to the declared boolean or number on BOTH legs (`coerceDeclared`), and arm 6 holds
-    // that the seam still does. Only the two primitive kinds — a declared property has no JSON or
-    // id kind, so those fall through and keep failing.
+    // that the seam still does. Only the two primitive kinds here — a declared property's JSON
+    // door is its descriptor's `normalize`, which {@link declaredGObjectProperties} hands over as
+    // the `executable`, so the `json` arm below reads it the same way it reads a setter's body.
     if (setter.declared === true && (kind === 'number' || kind === 'boolean')) return true;
     // A JSON door is not interchangeable with a primitive coercer: `xmlNumber` on an
     // object gives the fallback, and `parseAdjustment` on a number gives nothing

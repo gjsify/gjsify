@@ -595,6 +595,33 @@ export function matchingParen(text, open) {
 }
 
 /**
+ * The JSON doors: a setter whose value is an OBJECT reaches XML as one of these.
+ *
+ * A THIRD kind beside `number` and `boolean`, and it exists because a portable VALUE is
+ * not a primitive. `AdwSpinRow.adjustment` takes `Gtk.Adjustment`'s six numbers as one
+ * object (ADR 0047) — an attribute can carry that, as the JSON text the setter parses,
+ * which is a different thing from "an attribute cannot carry this" and was indistinguishable
+ * from it before: `attributeKind` answered `null` for `AdwAdjustmentInput | string`, so the
+ * setter landed in the UNCARRYABLE bucket and no rule looked at it again.
+ *
+ * The declared shape is what opts in: a setter annotated `<Something> | string` says the
+ * attribute spelling exists. `AdwComboRow.model` is annotated `ComboWatchableModel | string
+ * | null` — the object half is a `Gio.ListModel`, which has no attribute spelling at all, so
+ * the `| string` beside it is the whole of what XML can write. The test reads the setter's own
+ * annotation and not a resolved alias, because an alias can hide a `string` that means
+ * something else: `AdwListModelInput` resolves to a union containing one, and a bare string
+ * THERE is one ITEM rather than JSON.
+ *
+ * Each entry is VERIFIED against its own declaration by `jsonDoors()`, like
+ * `STRING_TOLERANT` is: a door that stops taking a string stops being one.
+ */
+export const JSON_DOORS = {
+    parseAdjustment: 'packages/web/adwaita-core/src/adjustment.ts',
+    parseListModel: 'packages/web/adwaita-core/src/list.ts',
+    readModelWrite: 'packages/web/adwaita-core/src/option-list.ts',
+};
+
+/**
  * The properties a class DECLARES at its `extends` instead of writing accessors for —
  * `withSignals(StackLayout, { Properties: { title: … } })` with `declare title: string;`
  * in the body (ADR 0105 § 2, route D).
@@ -641,7 +668,8 @@ export function declaredGObjectProperties(text) {
         const start = head.index + head[0].length - 1;
         const end = matchingBrace(meta, start);
         if (end === -1) continue;
-        for (const name of topLevelKeys(meta.slice(start + 1, end))) {
+        const block = meta.slice(start + 1, end);
+        for (const { name, at } of topLevelKeys(block)) {
             // The declaration carries the CANONICAL name and the `declare` line the JS one, and
             // for a dashed property those differ: `'icon-name'` is declared as `declare iconName`.
             // Looked up under the dashed spelling the half is simply never found, and the property
@@ -649,13 +677,27 @@ export function declaredGObjectProperties(text) {
             // rather than as a reader that looked in the wrong place.
             const js = camelOf(name);
             const typed = new RegExp(String.raw`^ {4}declare ${js}\s*:\s*([^;]+);`, 'm').exec(code);
+            const descriptor = descriptorAt(block, at);
+            // The `declare` line types what a CONSUMER assigns, and for a declared property that
+            // is the normalized type alone: `declare model: ComboWatchableModel | null`. The
+            // hand-written setter it replaced was annotated `… | string` because the one function
+            // did both jobs. Dropping the `| string` is right for the consumer and wrong for every
+            // XML door, which read that union as "an attribute carries this as text" — and the
+            // text half did not go anywhere, it moved into the descriptor's `normalize`. So where
+            // the descriptor calls a JSON door, the annotation says so again.
+            const annotation = typed === null ? null : typed[1].trim();
+            const json =
+                annotation !== null &&
+                !annotation.split('|').some((p) => p.trim() === 'string') &&
+                Object.keys(JSON_DOORS).some((fn) => descriptor.includes(`${fn}(`));
+            const widened = json ? `${annotation} | string` : annotation;
             declared.push({
                 name,
                 declared: true,
-                params: typed === null ? null : `value: ${typed[1].trim()}`,
-                annotation: typed === null ? null : typed[1].trim(),
-                body: '',
-                executable: '',
+                params: widened === null ? null : `value: ${widened}`,
+                annotation: widened,
+                body: descriptor,
+                executable: descriptor,
             });
         }
     }
@@ -695,12 +737,28 @@ function topLevelKeys(block) {
     for (const match of block.matchAll(key)) {
         const name = match[1] ?? match[2] ?? match[3];
         if (name !== undefined) {
-            if (depth === 0) keys.push(name);
+            if (depth === 0) keys.push({ name, at: match.index + match[0].length });
             continue;
         }
         depth += '{[('.includes(match[0]) ? 1 : -1;
     }
     return keys;
+}
+
+/**
+ * The source of ONE property's descriptor — `{ kind: …, normalize: …, afterNotify: … }` — or `''`
+ * where the value is not an object literal.
+ *
+ * Read because a declared property's DOOR lives in there. A hand-written setter carries its
+ * coercion in a body every gate can read; a declared one has no body at all, and the string
+ * `<adw:ComboRow model='[…]'>` hands it is parsed by the `normalize` in this descriptor. Without
+ * this slice `coerces()` sees an empty string and answers "no door" for a property that has one.
+ */
+function descriptorAt(block, at) {
+    const brace = block.indexOf('{', at);
+    if (brace === -1 || block.slice(at, brace).trim() !== '') return '';
+    const close = matchingBrace(block, brace);
+    return close === -1 ? '' : block.slice(brace, close + 1);
 }
 
 /**
