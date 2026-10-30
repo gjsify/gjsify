@@ -24,6 +24,7 @@ import { buttonSpec } from './specs/button.js';
 import { buttonContentSpec } from './specs/button-content.js';
 import { splitButtonSpec } from './specs/split-button.js';
 import { comboRowSpec } from './specs/combo-row.js';
+import { entrySpec } from './specs/entry.js';
 import { spinnerSpec } from './specs/spinner.js';
 import { windowTitleSpec } from './specs/window-title.js';
 import { rowsSpec } from './specs/rows.js';
@@ -105,6 +106,10 @@ async function runSuite(): Promise<void> {
                 // derives — held by the seam rather than by the GObject, and the notify orders
                 // ADR 0122 § 5 measured.
                 await comboRowSpec(engine)();
+                // A `GtkEditable` property declared on a class that implements no interface —
+                // the question route D had to answer for `text` — plus the two emission orders
+                // `changed` keeps depending on where the write came from.
+                await entrySpec(engine)();
             }
             if (optedIn) await inversionSpec();
             if (optedIn) await foreignParentSpec();
