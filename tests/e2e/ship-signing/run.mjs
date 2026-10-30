@@ -32,7 +32,7 @@
 // hold the implementation to.
 //
 // WHAT IS NOT PROVEN HERE, stated rather than implied:
-//   * Windows. `signtool` has no ad-hoc mode and needs a certificate, so the
+//   * Windows. `jsign` has no ad-hoc mode and needs a signing account, so the
 //     flag, the config default, the skip and the refusals are covered and the
 //     INVOCATION is not. Marked UNVERIFIED on `SIGNERS.win32` too.
 //   * Notarisation. It needs an Apple account, which is the credential § A17
@@ -109,6 +109,15 @@ const HAS_HDIUTIL = hasCommand('hdiutil');
  * subject (the darwin half), not the tool.
  */
 const REQUIRE_DARWIN = process.env.GJSIFY_SHIP_SIGNING_REQUIRE_DARWIN_TOOLS === '1';
+
+/**
+ * The win32 half's own guard. `jsign` signs through a signing ACCOUNT this repo has
+ * never held, so the leg that sets this is one that was handed `jsign`, a JRE and the
+ * account's variables, and a missing tool is then a failure instead of a skip.
+ */
+const REQUIRE_WIN32 = process.env.GJSIFY_SHIP_SIGNING_REQUIRE_WIN32_TOOLS === '1';
+const HAS_JSIGN = hasCommand('jsign');
+const HAS_JAVA = hasCommand('java');
 
 /** The env var the CI leg sets, kept working with a message that says what it now covers. */
 const LEGACY_REQUIRE = process.env.GJSIFY_SHIP_SIGNING_REQUIRE_CODESIGN === '1';
@@ -908,6 +917,34 @@ describe('CLI ship signing E2E', { timeout: 20 * 60 * 1000 }, () => {
                     execFileSync('hdiutil', ['detach', '-force', mount], { stdio: 'pipe' });
                 }
             }
+        });
+    });
+
+    describe('win32 (jsign)', () => {
+        it('has jsign and java, or says the leg proved nothing', (t) => {
+            const missing = [
+                ['jsign', HAS_JSIGN],
+                ['java', HAS_JAVA],
+            ]
+                .filter(([, present]) => !present)
+                .map(([name]) => name);
+            if (!REQUIRE_WIN32) {
+                if (missing.length > 0) t.skip(`${missing.join(', ')} not on PATH — the jsign invocation is not exercised here`);
+                return;
+            }
+            assert.deepEqual(
+                missing,
+                [],
+                `GJSIFY_SHIP_SIGNING_REQUIRE_WIN32_TOOLS=1 was set and ${missing.join(', ')} not on PATH — this leg was asked to prove the win32 half and could not run a single assertion of it.`,
+            );
+        });
+
+        it('plans the credential upload without a signing account and without printing a value', async () => {
+            // The account itself is out of reach, but the plan is not: it must name the
+            // variables and reference them by `$NAME`, never expand them.
+            const { stdout } = await shipOk(['ship', 'credentials', 'upload', 'win32', '--dry-run', '--repo', 'owner/name'], tmpDir);
+            assert.match(stdout, /gh variable set AZURE_CLIENT_ID --repo owner\/name/);
+            assert.match(stdout, /gh variable set AZURE_TENANT_ID --repo owner\/name/);
         });
     });
 });
