@@ -868,8 +868,15 @@ function isSeamOwned(property: DeclaredProperty): boolean {
  * The accessor a SEAM-OWNED property gets, identical on both legs but for how it emits.
  *
  * Deliberately the same rules node-gi's own accessors follow, so a widget behaves alike
- * wherever it runs — an equal write is not a change, and a read MATERIALISES the default so
- * that a later default-equal write is not one either.
+ * wherever it runs — an equal write is not a change, INCLUDING the first one, which compares
+ * against the declared default exactly as a read answers with it.
+ *
+ * That last clause used to read "a read materialises the default, so that a LATER default-equal
+ * write is not one either" — and it was true only of a property somebody had read first. A
+ * fresh `Gtk.Entry` written `text = ''` notified here where `gtk_editable_set_text` says nothing
+ * (measured, GTK 4.22.5), because the store was still empty and an empty store meant "not a
+ * change I can rule out". It was never a second store: the getter already answers with the
+ * default, so the write now compares against the same value a read would have returned.
  */
 function seamOwnedDescriptor(
     name: string,
@@ -888,7 +895,8 @@ function seamOwnedDescriptor(
         set(this: Observable, raw: unknown): void {
             const value = coerceDeclared(name, property, raw, this);
             const values = valuesOf(this);
-            if (values.has(name) && !isDeclaredChange(property, value, values.get(name), raw, this)) return;
+            const held = values.has(name) ? values.get(name) : fallback;
+            if (!isDeclaredChange(property, value, held, raw, this)) return;
             values.set(name, value);
             // `explicitNotify` hands the whole emission to `afterNotify`, this property's own
             // included — see {@link Declared.afterNotify}.
@@ -965,8 +973,8 @@ function wrapRouteDAccessors(declaration: Declaration): void {
  * The other leg: the declared properties as ordinary accessors over a JS store, and GJS's
  * `notify('<prop>')` beside NativeScript's `notify({ eventName })`. Deliberately the same
  * rules node-gi's own accessors follow, so a widget behaves alike on both — an equal write
- * is not a change, a read MATERIALISES the default so that a later default-equal write is
- * not one either, and a spelling the host chain already owns is left to it.
+ * is not a change, the FIRST write included (see {@link seamOwnedDescriptor}), and a spelling
+ * the host chain already owns is left to it.
  *
  * Where the C setter is more than a store, the two hooks this leg has to itself stand in for the
  * rest of it: {@link DeclaredProperty.changed} for a guard that cannot be identity, and

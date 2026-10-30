@@ -6,14 +6,16 @@
 // delegates: everything gettable-wrong about a text entry's length and truncation is
 // `clampEntryText` / `entryTextLength` in `@gjsify/adwaita-core`.
 //
-// The COMPOSITION is what is under test. `_applyText` truncates with `clampEntryText`
-// then reports `entryTextLength` of the RESULT, so a port reaching for
+// The COMPOSITION is what is under test. `text`'s normalizer truncates with `clampEntryText`
+// and the widget then reports `entryTextLength` of the RESULT, so a port reaching for
 // `String.prototype.slice` or `.length` anywhere on that path reports 3 characters for
 // `'🔒é'` and cuts a surrogate pair in half; every row below carries both halves.
 //
-// NOT covered: the re-entrancy guard in `_applyText` (writing the field re-enters
-// through `textChange` and the notify must still fire exactly once) needs a real
-// `TextField`.
+// The declared properties' own behaviour — emission order, equal-write silence, the
+// read-only `text-length` — is `entry-properties.spec.ts` on the trees entry, which can
+// stand the widget up. What still needs a real `TextField`, and so lives on the device
+// (`specs/entry.ts`), is the field round-trip: writing it re-enters through `textChange`
+// and the notify must still fire exactly once.
 
 import { describe, expect, it } from '@gjsify/unit';
 

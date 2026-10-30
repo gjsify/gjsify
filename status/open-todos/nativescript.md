@@ -291,13 +291,66 @@ out), which one declared store cannot express without changing the public contra
 `child` are not properties of this class at all. Leaving them hand-written is the decision, not the
 backlog.
 
-MIGRATE NEXT: `widgets/gtk-entry.ts`. Its twin `AdwEntryRow` is already declared with the same
-`text` plus `changed` and `activate`, so the declarations lift across the way the drop-down's
-lifted from the combo row — the cheapest remaining migration with a measured precedent. It also
-removes the second hand-rolled `static emittedSignals` (`CHANGED, NOTIFY_TEXT, ACTIVATE`), which
-`construct-vectors.spec.ts` still pins by hand. The scalars beside `text` (`maxLength`,
-`placeholderText`, `editable`) coerce their own strings today and would go through the seam's,
-which is the consumer-visible part to measure first.
+DONE (`widgets/gtk-entry.ts`): `text`, `text-length`, `max-length`, `placeholder-text` and
+`editable` are declared, plus the signals `changed` and `activate`. The question this one had to
+answer first: `text` and `editable` are `GtkEditable` properties UPSTREAM, not `GtkEntry` ones
+(`Gtk.Entry.find_property('text').owner_type` is `GtkEditable`, measured), and declaring an
+interface property on a class that implements no interface could have blocked route D. It does
+not — the port registers its own GType and implements nothing, so there is no interface slot to
+collide with, and `AdwEntryRow` has carried both since route D. `text` and `max-length` are
+`explicitNotify` and therefore SEAM-OWNED, each because it owes an ORDER a change-based store
+cannot produce: `changed` lands BEFORE `notify::text` on a programmatic write and AFTER it on a
+typed one (`gtk_editable_set_text` emits then notifies; `insert_text`/`delete_text` notify then
+emit), and a SHRINKING `max-length` truncates the held text first — `changed`, `notify::text`,
+`notify::max-length`. `text-length` is declared `uint` and read-only BY DERIVATION (the
+normalizer answers with the count of the entry's own text), so it stays in the GObject and the
+seam emits its notify, as `AdwEntryRow:text-length` already does. `placeholder-text` carries
+`changed: () => true`: `gtk_entry_set_placeholder_text` guards on nothing, so an EQUAL write
+notifies every time (measured; `AdwSplitButton` and `AdwActionRow:subtitle` are the precedents).
+
+THREE DELIBERATE DIVERGENCES, each measured and each recorded in the module header: GTK emits
+`changed` TWICE for a write to a non-empty entry and emits it even for an EQUAL one, because
+`gtk_editable_set_text` is `delete_text (0, -1)` then `insert_text` and a handler between the two
+reads `''` — this port has no `GtkEntryBuffer`, so it emits once per real change and nothing for
+an equal write rather than announcing a value the text never held; `Gtk.Entry` NEVER notifies
+`text-length` (the length lives on `GtkEntryBuffer:length`, which this port does not have, so a
+consumer would have nowhere to listen); and `text = null` leaves the value standing upstream (a
+`text != NULL` assertion, no change, no emission), which this class follows rather than
+`AdwEntryRow`'s coercion to `''`.
+
+`visibility` stays absent for the reason `shadowed-properties.ts` already records
+(`refused: ['GtkEntry']` — NativeScript's `View.visibility` owns the name and means something
+else), and `activates-default` stays absent because libadwaita vendors no `adw-entry.c`, so it
+would be a guess. The `max-length` ceiling comes from the vendored `Adw.EntryRow`
+(`ENTRY_ROW_MAX_LENGTH_LIMIT`) and the measurement agrees: `-1` reads back `0`, `1000000` reads
+back `65535`, and the truncation counts CODE POINTS.
+
+CONSUMER-VISIBLE: the hand-rolled `static emittedSignals` is gone, so the list is the seam's —
+`map, unmap, changed, activate, notify::text, notify::text-length, notify::max-length,
+notify::placeholder-text, notify::editable`, which `construct-vectors.spec.ts` no longer pins by
+hand; `NotifyEntryTextEventData` is DELETED, so `notify({ eventName: 'notify::text' })` throws and
+a handler reads the value off the emitter; the four scalars beside `text` go through the seam's
+coercion, so `editable="maybe"` throws where it used to keep the held value silently; the three
+new notifies fire; `text-length`, `max-length`, `placeholder-text` and `editable` each gained a
+`notify::` export (`NOTIFY_TEXT_LENGTH`, `NOTIFY_MAX_LENGTH`, `NOTIFY_PLACEHOLDER_TEXT`,
+`NOTIFY_EDITABLE`, re-exported from the barrel under `ENTRY_`-prefixed aliases so they do not
+collide with the row's); and `clampEntryMaxLength` from the core replaces the ceiling this class
+used to arrive at by hand. Specs: `entry-properties.spec.ts` (pure-JS), `specs/entry.ts` (device).
+
+FOLLOW-UP, not taken here: `AdwEntryRow:text` coerces a written `null` to `''` where
+`gtk_editable_set_text` refuses it and leaves the value standing. The bare entry follows the
+measurement; the row's spelling predates it and changing it is a consumer-visible break of its
+own, so it wants its own commit and its own line in the conformance table.
+
+MIGRATE NEXT: `widgets/gtk-check-button.ts`. It is the next cheapest: three hand-rolled members
+(`toggled`, `activate`, `notify::active`) in a `static emittedSignals` the seam would own, and
+`active` plus `inconsistent` are plain booleans whose coercion (`xmlBoolean`) the seam already
+does. The measurement to take first is the ORDER a tap produces — `gtk_check_button_real_clicked`
+clears `inconsistent` before it toggles, so there are two notifies and two signals in one gesture
+and the entry's `explicitNotify` lesson decides whether `active` can stay change-based. `group`
+is write-only in GTK and object-shaped here (`setCheckGroup` over the core), so it stays
+hand-written for the reason `AdwSplitButton.menuModel` records: a plain-JS value `g_value_copy`
+refuses, read back as a different shape than it takes.
 
 RESOLVED (owner, 2026-10-27): `emit('<undeclared>')` throws `No signal '<name>' on object '<class>'`,
 as in GJS, on both legs. `emit` is GObject's only; a NativeScript event goes through

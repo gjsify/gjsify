@@ -698,6 +698,12 @@ const NS_PROPERTY_ALIGNMENT = {
     'adw-entry-row.textLength': {
         own: 'The camel spelling of the derived property above, installed by the same seam for the same declaration: `Adw.EntryRow:text-length` is read-only upstream, AdwEntryRowProps therefore has no key under either name, and the value here is recomputed from the sibling `text` on every write instead of stored.',
     },
+    'gtk-entry.text-length': {
+        own: "The bare entry's half of `adw-entry-row.text-length` above, and for the same reason: `Gtk.Entry:text-length` carries `G_PARAM_READABLE` alone (measured — flags `225` against `1073742051` on its writable siblings), so generated/props.ts emits no key for it under any spelling. Route D's seam has no read-only flag either, so this port spells it BY DERIVATION too — `normalize` ignores the written value and recomputes `entryTextLength(self.text)`, which settles a write to the value already held and lets the equal-write rule drop it (gtk-entry.ts, the `text-length` block). Declared and left, with the asymmetry stated rather than hidden: GTK refuses the write, this port absorbs it.",
+    },
+    'gtk-entry.textLength': {
+        own: 'The camel spelling of the derived property above, installed by the same seam for the same declaration: `Gtk.Entry:text-length` is read-only upstream, GtkEntryProps therefore has no key under either name, and the value here is recomputed from the sibling `text` on every write instead of stored.',
+    },
     'gtk-drop-down.chooserTitle': {
         own: 'A declared SUBSTITUTION rather than a port: the file says so itself — "GTK\'s popover has no title, but a bare native sheet gives no clue what is being chosen" (gtk-drop-down.ts:163). There is no popover-title property anywhere in GtkDropDownProps to converge towards.',
     },
