@@ -29,7 +29,7 @@ const isGjs = !!ctx;
 // Resolved up front: a failed dynamic import inside the death path would
 // itself be an unhandled rejection, and then every mode would measure that.
 const System = isGjs ? (await import('system')).default : null;
-const GLib = isGjs ? (await import('gi://GLib')).default : null;
+const GLib = isGjs ? (await import('gi://GLib?version=2.0')).default : null;
 
 let hung = false;
 parentPort.on('message', (msg) => {
