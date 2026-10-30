@@ -1037,9 +1037,11 @@ export function place(layout: Layout, identity: LayoutIdentity, rel: string): st
  */
 export function nameFormBelowRoot(layout: Layout, path: string): string {
     if (layout.nameForm === undefined) return path;
-    const slash = path.indexOf('/');
-    if (slash === -1) return path;
-    return path.slice(0, slash + 1) + path.slice(slash + 1).normalize(layout.nameForm);
+    const form = layout.nameForm;
+    // Staged paths are stage-relative and built with `posix.join` on every host.
+    const [root, ...below] = path.split(posix.sep);
+    if (below.length === 0) return path;
+    return [root, ...below.map((segment) => segment.normalize(form))].join(posix.sep);
 }
 
 /**
