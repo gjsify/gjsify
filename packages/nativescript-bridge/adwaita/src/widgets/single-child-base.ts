@@ -43,6 +43,7 @@ export abstract class AdwSingleChildBase extends AdwStyledLayoutBase {
     }
 
     private _columnIsStar = true;
+    private _rowIsStar = true;
 
     // A star column takes the whole offered width even when this container is aligned `end` /
     // `center`: a `halign: end` Bin the app overlays would span the window and park its child
@@ -60,19 +61,35 @@ export abstract class AdwSingleChildBase extends AdwStyledLayoutBase {
     // track list there calls `requestLayout()` from inside the pass that is reading it, which
     // Android refuses — "improperly called … during layout" — and the container settled at
     // height 0 with its content invisible. The property notification fires BEFORE the pass.
+    //
+    // THE ROW IS THE SAME QUESTION ON THE OTHER AXIS, and leaving it out was a real bug.
+    // Learn6502's gamepad is `template $Gamepad : Adw.Bin { valign: start; … }` — GTK measures
+    // such a Bin to its child and puts it at the top — and the port kept the row `star`, so the
+    // one cell took the whole 1060px the page offered and the d-pad's three rows drifted apart
+    // into a column of separated buttons instead of a cross. `verticalAlignment` and `height`
+    // answer it exactly as `horizontalAlignment` and `width` do, which is why
+    // {@link singleChildCellIsStar} takes no axis: `stretch` and a positive definite length
+    // mean the same thing whichever way they are read.
     onLoaded(): void {
         super.onLoaded();
         this._syncColumnToAlignment();
+        this._syncRowToAlignment();
         this.style.addEventListener('widthChange', this._onWidthChangeSyncColumn);
+        this.style.addEventListener('heightChange', this._onHeightChangeSyncRow);
     }
 
     onUnloaded(): void {
         this.style.removeEventListener('widthChange', this._onWidthChangeSyncColumn);
+        this.style.removeEventListener('heightChange', this._onHeightChangeSyncRow);
         super.onUnloaded();
     }
 
     private _onWidthChangeSyncColumn = (): void => {
         this._syncColumnToAlignment();
+    };
+
+    private _onHeightChangeSyncRow = (): void => {
+        this._syncRowToAlignment();
     };
 
     private _syncColumnToAlignment(): void {
@@ -81,6 +98,14 @@ export abstract class AdwSingleChildBase extends AdwStyledLayoutBase {
         this._columnIsStar = star;
         this.removeColumns();
         this.addColumn(new ItemSpec(1, star ? 'star' : 'auto'));
+    }
+
+    private _syncRowToAlignment(): void {
+        const star = singleChildCellIsStar(this.verticalAlignment, this.height);
+        if (star === this._rowIsStar) return;
+        this._rowIsStar = star;
+        this.removeRows();
+        this.addRow(new ItemSpec(1, star ? 'star' : 'auto'));
     }
 
     // --- child ---

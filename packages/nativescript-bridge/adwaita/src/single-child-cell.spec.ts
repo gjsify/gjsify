@@ -51,4 +51,31 @@ export default async () => {
             expect(singleChildCellIsStar('stretch', undefined)).toBe(true);
         });
     });
+
+    // The ROW asks the same question of `verticalAlignment` + `height`, and for a long while
+    // nothing asked it: `single-child-base.ts` synced only the column, so a `valign: start`
+    // Bin kept a star row and took the whole height it was offered. Learn6502's gamepad is
+    // exactly that Bin, and its d-pad drew as a column of separated buttons spread down
+    // 1060px instead of a cross.
+    await describe('the same cell read down the other axis', async () => {
+        await it('is star when the container stretches vertically', () => {
+            expect(singleChildCellIsStar('stretch', 'auto')).toBe(true);
+        });
+
+        await it('is auto for the vertical alignments, which GTK sizes to the child', () => {
+            expect(singleChildCellIsStar('top', 'auto')).toBe(false);
+            expect(singleChildCellIsStar('middle', 'auto')).toBe(false);
+            expect(singleChildCellIsStar('bottom', 'auto')).toBe(false);
+        });
+
+        await it('is star when a definite height was written, aligned though the container is', () => {
+            expect(singleChildCellIsStar('top', 300)).toBe(true);
+            expect(singleChildCellIsStar('bottom', { value: 300, unit: 'dip' })).toBe(true);
+        });
+
+        await it('leaves a height of nothing to give as auto', () => {
+            expect(singleChildCellIsStar('top', 0)).toBe(false);
+            expect(singleChildCellIsStar('top', undefined)).toBe(false);
+        });
+    });
 };

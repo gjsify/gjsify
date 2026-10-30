@@ -27,26 +27,31 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 /**
- * Whether a definite width has been written — NativeScript's `Length`, which is `'auto'`
+ * Whether a definite length has been written — NativeScript's `Length`, which is `'auto'`
  * when nothing has.
  *
  * A number is DIPs and an object is `{ value, unit }`; both count only when positive, because
- * a zero width is a container with nothing to give and `auto` is the honest answer for it.
+ * a zero length is a container with nothing to give and `auto` is the honest answer for it.
  */
-function widthIsSettled(width: unknown): boolean {
-    if (typeof width === 'number') return Number.isFinite(width) && width > 0;
-    if (typeof width !== 'object' || width === null) return false;
-    const value = (width as { value?: unknown }).value;
+function lengthIsSettled(length: unknown): boolean {
+    if (typeof length === 'number') return Number.isFinite(length) && length > 0;
+    if (typeof length !== 'object' || length === null) return false;
+    const value = (length as { value?: unknown }).value;
     return typeof value === 'number' && Number.isFinite(value) && value > 0;
 }
 
 /**
- * Whether the single cell of a one-child container is `star` rather than `auto`.
+ * Whether the single cell of a one-child container is `star` rather than `auto`, on ONE axis.
  *
- * `star` when the container's width is settled — either because it stretches to its parent,
- * or because a definite `width` was written on it. `auto` otherwise, so the container can
- * still report its child's natural width and be placed by its alignment.
+ * `star` when the container's extent along that axis is settled — either because it stretches
+ * to its parent, or because a definite `width` / `height` was written on it. `auto` otherwise,
+ * so the container can still report its child's natural size and be placed by its alignment.
+ *
+ * TAKES NO AXIS, because there is nothing axis-specific left once the question is phrased that
+ * way: `'stretch'` is the stretching value of BOTH `horizontalAlignment` and
+ * `verticalAlignment`, and a settled `width` reads exactly like a settled `height`. The column
+ * passes `horizontalAlignment` + `width`, the row `verticalAlignment` + `height`.
  */
-export function singleChildCellIsStar(horizontalAlignment: unknown, width: unknown): boolean {
-    return horizontalAlignment === 'stretch' || widthIsSettled(width);
+export function singleChildCellIsStar(alignment: unknown, length: unknown): boolean {
+    return alignment === 'stretch' || lengthIsSettled(length);
 }

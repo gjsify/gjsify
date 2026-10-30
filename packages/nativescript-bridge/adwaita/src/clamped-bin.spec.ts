@@ -36,6 +36,12 @@ function cellUnit(bin: Adw.Bin): string {
     return columns.length === 1 ? columns[0]!.gridUnitType : `${columns.length} columns`;
 }
 
+/** The unit of the Bin's single row — the same read as {@link cellUnit}, one axis over. */
+function rowUnit(bin: Adw.Bin): string {
+    const rows = (bin as unknown as { getRows(): { gridUnitType: string }[] }).getRows();
+    return rows.length === 1 ? rows[0]!.gridUnitType : `${rows.length} rows`;
+}
+
 /** Put the widget through the load the framework performs when it enters a page. */
 function load(view: object): void {
     (view as { callLoaded(): void }).callLoaded();
@@ -114,6 +120,69 @@ export const AdwClampedBinNsTest = async () => {
             (bin as unknown as { callUnloaded(): void }).callUnloaded();
             clampAllocates(bin, 600);
             expect(cellUnit(bin)).toBe('auto');
+        });
+    });
+
+    // THE SECOND INCIDENT, on the axis the first fix left out. Learn6502's gamepad is
+    // `template $Gamepad : Adw.Bin { valign: start; vexpand: true; … }`, and GTK measures such
+    // a Bin to its child and parks it at the top. The port synced only the column, so the row
+    // stayed `star`, the one cell took the whole 1060px the page offered, and the d-pad's three
+    // rows drifted apart — five separated buttons down the screen where a cross belongs.
+    await describe('a vertically aligned Adw.Bin', async () => {
+        await it('starts as a star row, the untouched stretching default', () => {
+            const bin = new Adw.Bin();
+            load(bin);
+            expect(rowUnit(bin)).toBe('star');
+        });
+
+        await it('falls back to an auto row when it is aligned and nothing settled its height', () => {
+            const bin = new Adw.Bin();
+            bin.verticalAlignment = 'top';
+            load(bin);
+            expect(rowUnit(bin)).toBe('auto');
+        });
+
+        await it('picks a definite height up after onLoaded, as the column does its width', () => {
+            const bin = new Adw.Bin();
+            bin.verticalAlignment = 'top';
+            load(bin);
+            expect(rowUnit(bin)).toBe('auto');
+
+            bin.height = 400;
+            expect(rowUnit(bin)).toBe('star');
+        });
+
+        await it('goes back to auto when the height is handed back', () => {
+            const bin = new Adw.Bin();
+            bin.verticalAlignment = 'bottom';
+            load(bin);
+            bin.height = 400;
+            expect(rowUnit(bin)).toBe('star');
+
+            bin.height = 'auto';
+            expect(rowUnit(bin)).toBe('auto');
+        });
+
+        await it('stops listening once it leaves the page', () => {
+            const bin = new Adw.Bin();
+            bin.verticalAlignment = 'top';
+            load(bin);
+            (bin as unknown as { callUnloaded(): void }).callUnloaded();
+            bin.height = 400;
+            expect(rowUnit(bin)).toBe('auto');
+        });
+
+        await it('reads the two axes independently', () => {
+            const bin = new Adw.Bin();
+            bin.horizontalAlignment = 'center';
+            bin.verticalAlignment = 'top';
+            load(bin);
+            expect(cellUnit(bin)).toBe('auto');
+            expect(rowUnit(bin)).toBe('auto');
+
+            clampAllocates(bin, 600);
+            expect(cellUnit(bin)).toBe('star');
+            expect(rowUnit(bin)).toBe('auto');
         });
     });
 };

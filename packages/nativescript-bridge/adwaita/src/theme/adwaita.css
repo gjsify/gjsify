@@ -506,13 +506,22 @@ Page.adw-window {
 
 /* ===== Button (variants) ===== */
 
+/* A FLOOR AND NOT A BOX. 38 is libadwaita's `min-height: 24px` plus its 5px of vertical
+ * padding twice (_buttons.scss, pin 42f647ff) — a MINIMUM there, and GTK has no CSS
+ * `height` at all. Writing it as NativeScript's `height`, which is exact, made every
+ * button in the port exactly 38 tall and silently swallowed `height-request`, which the
+ * bridge maps to `minHeight` and which GTK treats as a second floor: Learn6502's d-pad
+ * asks each of its five cells for 50×50 and got 50×38, so the cross came out as a row of
+ * flattened buttons. `min-height` is the property that means what the SCSS means, it
+ * composes with `height-request` the way GTK composes its two floors — the larger wins —
+ * and a caller that really wants an exact box can still write `height` itself. */
 .adw-button {
     background-color: rgba(0, 0, 0, 0.08);
     color: rgba(0, 0, 0, 0.8);
     border-radius: 9;
     font-weight: 700;
     padding: 5 16 5 16;
-    height: 38;
+    min-height: 38;
 }
 
 .adw-button.suggested-action {
@@ -534,10 +543,10 @@ Page.adw-window {
  * pin 42f647ff). The padding is the whole variant, and it is why this rule HAS to
  * restate the height.
  *
- * `.adw-button` above pins `height: 38`, and a NativeScript `height` is an EXACT box
- * where GTK's `min-height` is a floor — the same non-equivalence ADR 0034 measured for
- * `adw-spinner.size`. So a variant that doubles the vertical padding cannot grow the
- * box it sits in: the base budgets 38 − (5 + 5) = 28 for the label, and this one left
+ * `.adw-button` above pins a 38 floor, and this variant doubles the vertical padding
+ * inside it. While that floor was written as an EXACT NativeScript `height` — the
+ * non-equivalence ADR 0034 measured for `adw-spinner.size` — the variant could not grow
+ * the box it sat in: the base budgets 38 − (5 + 5) = 28 for the label, and this one left
  * 38 − (10 + 10) = 18 for a `.adw-button-label` at `font-size: 15`, whose line box does
  * not fit in 18. The pill was clipped, and every consumer that wanted one had to
  * override the height itself — which is how the defect surfaced, in Learn6502.
@@ -547,13 +556,17 @@ Page.adw-window {
  * 34, + 10px twice is 44 — so the pill is taller than the plain button there too.
  *
  * THE RULE THIS VARIANT BROKE, stated because the next variant will meet it: in this
- * stylesheet a class that changes vertical padding on a widget whose base pins an exact
- * `height` must restate that height. `.adw-button.circular` does (34), and both split
- * button halves do (38) beside their own padding. This one did not, and nothing said so. */
+ * stylesheet a class that changes vertical padding on a widget whose base states a
+ * `min-height` must restate that floor at its own padding. `.adw-button.circular` does
+ * (34), and both split button halves do (38) beside their own padding. This one did not,
+ * and nothing said so. The floors are `min-*` rather than `height` / `width` since the
+ * d-pad incident above, so a `height-request` larger than the floor now wins as it does
+ * in GTK — but a floor that is too SMALL for its own padding still clips, which is the
+ * half this comment is about and the reason the number is restated here. */
 .adw-button.pill {
     border-radius: 9999;
     padding: 10 32 10 32;
-    height: 48;
+    min-height: 48;
 }
 
 /* `%circular_button` — the explicit exception to the 9px rounded square: a full
@@ -563,8 +576,8 @@ Page.adw-window {
  * at all", and a class with no rule would have drawn a rounded rectangle instead. The
  * 34 is the same number `.adw-image-button` above carries, from the same line. */
 .adw-button.circular {
-    width: 34;
-    height: 34;
+    min-width: 34;
+    min-height: 34;
     border-radius: 9999;
     padding: 0;
 }

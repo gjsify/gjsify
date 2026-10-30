@@ -678,6 +678,11 @@ export class GridLayout extends LayoutBase {
         return [...this._cols];
     }
 
+    /** `GridLayoutBase.getRows` — the same read on the other axis. */
+    getRows(): ItemSpec[] {
+        return [...this._rows];
+    }
+
     removeColumns(): void {
         this._cols.length = 0;
     }
