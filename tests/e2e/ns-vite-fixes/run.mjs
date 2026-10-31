@@ -370,6 +370,11 @@ function makeIsolatedFixture(nsVite, { linkLib = false } = {}) {
             symlinkSync(join(WORKSPACE_NODE_MODULES, dep), join(parentNm, dep), 'dir');
         }
         symlinkSync(
+            join(WORKSPACE_NODE_MODULES, '@gjsify', 'adwaita-core'),
+            join(parentNm, '@gjsify', 'adwaita-core'),
+            'dir',
+        );
+        symlinkSync(
             join(WORKSPACE_NODE_MODULES, '@gjsify', 'vite-plugin-gjsify'),
             join(parentNm, '@gjsify', 'vite-plugin-gjsify'),
             'dir',

@@ -74,9 +74,9 @@ describe('@gjsify/nativescript-vite nativescriptCssNesting', () => {
             const { rules, nested } = describeCss(await flattened({}, dir));
             assert.equal(nested, false);
             assert.deepEqual(rules, [
-                ['#main-button revealer', 'padding-bottom:16px'],
-                ['#main-button revealer button', 'padding:12px'],
-                ['#gamepad #buttonCenter', 'padding-left:5px'],
+                ['#main-button revealer', 'padding-bottom:16'],
+                ['#main-button revealer button', 'padding:12'],
+                ['#gamepad #buttonCenter', 'padding-left:5'],
                 ['.a.b', 'color:red'],
             ]);
         }));
@@ -98,7 +98,12 @@ describe('@gjsify/nativescript-vite nativescriptCssNesting', () => {
             async (dir) => {
                 const config = await nativescriptCssNesting({ root: dir }, dir);
                 const names = config.css.postcss.plugins.map((p) => p.postcssPlugin);
-                assert.deepEqual(names, ['app-marker', 'postcss-nesting', 'gjsify-ns-unwrap-is']);
+                assert.deepEqual(names, [
+                    'app-marker',
+                    'postcss-nesting',
+                    'gjsify-ns-unwrap-is',
+                    'gjsify-ns-px-to-dip',
+                ]);
                 const { rules, nested } = describeCss(await flattened({}, dir));
                 assert.equal(nested, false);
                 assert.ok(
@@ -113,7 +118,7 @@ describe('@gjsify/nativescript-vite nativescriptCssNesting', () => {
         const once = await nativescriptCssNesting({ css: { postcss: { plugins: [marker] } } }, tmpdir());
         assert.deepEqual(
             once.css.postcss.plugins.map((p) => p.postcssPlugin),
-            ['inline-marker', 'postcss-nesting', 'gjsify-ns-unwrap-is'],
+            ['inline-marker', 'postcss-nesting', 'gjsify-ns-unwrap-is', 'gjsify-ns-px-to-dip'],
         );
         const twice = await nativescriptCssNesting(once, tmpdir());
         assert.equal(twice, once);
@@ -122,7 +127,27 @@ describe('@gjsify/nativescript-vite nativescriptCssNesting', () => {
     it('reads the object form of plugins from a config file', () =>
         withApp({ 'postcss.config.cjs': `module.exports = { plugins: { 'postcss-nesting': {} } };` }, async (dir) => {
             // The object form is resolved by name; finding `postcss-nesting` there means no second pass.
-            const input = { root: dir };
-            assert.equal(await nativescriptCssNesting(input, dir), input);
+            const config = await nativescriptCssNesting({ root: dir }, dir);
+            assert.deepEqual(
+                config.css.postcss.plugins.map((p) => p.postcssPlugin),
+                ['postcss-nesting', 'gjsify-ns-px-to-dip'],
+            );
+        }));
+
+    it('rewrites px to the unitless device-independent length in declarations only', () =>
+        withApp({}, async (dir) => {
+            const css = `@media (min-width: 600px) { .a { margin: 0 -4px; content: "3px"; background: url(a-2px.png); } }
+.b { --size: 44px; padding: 1.5px 0 8PX; width: 50%; font-size: 1.2em; }`;
+            const withNesting = await nativescriptCssNesting({ configFile: false, logLevel: 'silent', root: dir }, dir);
+            const resolved = await resolveConfig(withNesting, 'build');
+            const out = (await preprocessCSS(css, join(dir, 'a.css'), resolved)).code;
+            assert.match(out, /min-width: 600px/);
+            assert.match(out, /margin: 0 -4;/);
+            assert.match(out, /content: "3px"/);
+            assert.match(out, /url\(a-2px\.png\)/);
+            assert.match(out, /--size: 44;/);
+            assert.match(out, /padding: 1\.5 0 8;/);
+            assert.match(out, /width: 50%/);
+            assert.match(out, /font-size: 1\.2em/);
         }));
 });

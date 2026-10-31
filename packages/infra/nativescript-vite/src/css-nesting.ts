@@ -17,6 +17,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { cssPxToDip } from '@gjsify/adwaita-core/css-length';
 import postcssNesting from 'postcss-nesting';
 import selectorParser from 'postcss-selector-parser';
 import type { UserConfig } from 'vite';
@@ -37,6 +38,7 @@ const CONFIG_FILES = [
 
 /** The name `postcss-nesting` registers; an app that already runs it is not given a second pass. */
 const NESTING_PLUGIN_NAME = 'postcss-nesting';
+const PX_PLUGIN_NAME = 'gjsify-ns-px-to-dip';
 
 /**
  * `postcss-nesting` writes a nested rule under a complex parent as `:is(#main-button revealer)
@@ -74,6 +76,20 @@ const unwrapLeadingIs = {
     OnceExit(root: { walkRules(callback: (rule: { selector: string }) => void): void }) {
         root.walkRules((rule) => {
             if (rule.selector.includes(':is(')) rule.selector = unwrapIs(rule.selector);
+        });
+    },
+} as PostcssPlugin;
+
+/**
+ * GTK's `px` is a logical pixel, NativeScript's a physical one (see `cssPxToDip`): a declaration
+ * value is rewritten to the unitless device-independent length. Declarations only, so a media
+ * query's `px` and a selector are left as authored.
+ */
+const pxToDip = {
+    postcssPlugin: PX_PLUGIN_NAME,
+    OnceExit(root: { walkDecls(callback: (decl: { value: string }) => void): void }) {
+        root.walkDecls((decl) => {
+            decl.value = cssPxToDip(decl.value);
         });
     },
 } as PostcssPlugin;
@@ -130,21 +146,20 @@ function normalise(config: Record<string, unknown>, file: string): InlinePostcss
     return { ...options, plugins: list };
 }
 
-function hasNesting(plugins: readonly PostcssPlugin[]): boolean {
-    return plugins.some(
-        (plugin) => (plugin as { postcssPlugin?: string } | undefined)?.postcssPlugin === NESTING_PLUGIN_NAME,
-    );
+function hasPlugin(plugins: readonly PostcssPlugin[], name: string): boolean {
+    return plugins.some((plugin) => (plugin as { postcssPlugin?: string } | undefined)?.postcssPlugin === name);
 }
 
 /**
- * Add `postcss-nesting` after the app's own PostCSS plugins.
+ * Add `postcss-nesting` and the `px` rewrite after the app's own PostCSS plugins.
  *
  * - `css.postcss` unset: the app's `postcss.config.*` (searched upward from `root`, like Vite)
- *   is loaded and kept, nesting follows it.
+ *   is loaded and kept, ours follow it.
  * - `css.postcss` a path: that directory is searched the same way.
- * - `css.postcss` inline: its plugins stay, nesting is appended.
+ * - `css.postcss` inline: its plugins stay, ours are appended.
  *
- * Idempotent: an app that already runs `postcss-nesting` is returned as it came.
+ * Idempotent: a plugin that is already there (an app that runs `postcss-nesting` itself) is not
+ * added a second time, and the config is returned as it came when nothing is missing.
  *
  * @param config  the composed config, user layer included.
  * @param root    the app root; `config.root` wins, then this, then the working directory.
@@ -166,9 +181,9 @@ export async function nativescriptCssNesting(
         base = file === undefined ? { plugins: [] } : await loadConfigFile(file, mode);
     }
     const plugins = base.plugins ?? [];
-    if (hasNesting(plugins)) return config;
-    return {
-        ...config,
-        css: { ...config.css, postcss: { ...base, plugins: [...plugins, postcssNesting(), unwrapLeadingIs] } },
-    };
+    const added: PostcssPlugin[] = [];
+    if (!hasPlugin(plugins, NESTING_PLUGIN_NAME)) added.push(postcssNesting(), unwrapLeadingIs);
+    if (!hasPlugin(plugins, PX_PLUGIN_NAME)) added.push(pxToDip);
+    if (added.length === 0) return config;
+    return { ...config, css: { ...config.css, postcss: { ...base, plugins: [...plugins, ...added] } } };
 }
