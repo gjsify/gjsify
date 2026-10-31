@@ -1,0 +1,94 @@
+{
+    "name": "@gjsify/sherpa-native",
+    "version": "0.64.13",
+    "description": "Optional Vala/GObject bridge over sherpa-onnx's C API, exposing the parts that cannot be expressed in JavaScript: a Silero voice activity detector and streaming/whole-utterance transducer recognizers, each an opaque handle configured through nested C structs. sherpa-onnx and onnxruntime are linked in statically, so the prebuild needs only the host GLib. Models are never bundled. Used by @gjsify/vad.",
+    "type": "module",
+    "main": "lib/esm/index.js",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        }
+    },
+    "files": [
+        "lib",
+        "meson.build",
+        "src",
+        "subprojects",
+        "test"
+    ],
+    "gjsify": {
+        "platforms": [
+            "linux-x64"
+        ],
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "none"
+        },
+        "os": {
+            "linux": "partial",
+            "darwin": "none",
+            "win32": "none"
+        },
+        "osNotes": {
+            "linux": "Builds for linux-x64 against the host GLib and GObject only. sherpa-onnx 2.0.1 is linked in as a static archive behind a version script, but onnxruntime 1.28.2 is NOT: the prebuilt static archive and a current GCC define the same vague-linkage `std::__detail::_Scanner<char>` symbols under identical mangled names with incompatible layouts, and the deduped result corrupts the heap on the first inference session, so a wrap overlay switches it to the shared release and `libonnxruntime.so` ships beside the bridge, resolved through RUNPATH $ORIGIN and bound by version node VERS_1.28.2 — measured, and test/check-elf-deps.py reads both files back on every run. Measured on Fedora 44 / x86_64 / GCC 16: the engines report their versions, a missing model is refused by path, `gi://GjsifySherpa` drives the detector and both recognizers under gjs, and the detector finds the expected single segment in each of two real 16 kHz recordings. The RECOGNIZERS have not been run against real weights at all. No model may be committed or downloaded in the suite (ADR 0127 decision 14), so CI covers the model-less paths and the real-model VAD leg exits 77 (skip). linux-arm64 is not declared yet because nothing has built it, and the onnxruntime overlay is per architecture, so adding it means adding an aarch64 overlay file rather than only a matrix entry.",
+            "darwin": "Not built yet. sherpa-onnx builds on macOS and the C API is identical, so this is undone work rather than a limitation: it needs the CoreML provider decision, an `-exported_symbol` check to replace test/check-elf-deps.py (Mach-O, not ELF), and a runner. meson.build already carries the darwin branches.",
+            "win32": "Not built. sherpa-onnx supports MSVC, but neither the version-script equivalent nor a GIR/typelib path for this bridge has been done on win32."
+        },
+        "prebuildLicense": "MIT AND Apache-2.0",
+        "tier": 3
+    },
+    "scripts": {
+        "clear": "gjsify clear lib build tsconfig.tsbuildinfo",
+        "check": "gjsify tsc --noEmit",
+        "init:meson": "meson setup build .",
+        "init:meson:wipe": "gjsify run init:meson --wipe",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/ts/**/*.{ts,js}'",
+        "build:types": "gjsify tsc -b --force",
+        "build:meson": "gjsify run init:meson && meson compile -C build",
+        "build:prebuilds": "gjsify run build:meson && node ../../../scripts/stage-prebuild.mjs .",
+        "build:gir-types": "ts-for-gir generate --externalDeps --allowMissingDeps --girDirectories=build --girDirectories=/usr/share/gir-1.0 --modules=GjsifySherpa-1.0 --outdir=src/ts --npmScope=@girs --package=false --ignoreVersionConflicts=true",
+        "test": "echo 'native only — see test:meson (runs on every prebuild leg)'",
+        "test:meson": "meson test -C build --print-errorlogs"
+    },
+    "keywords": [
+        "gjs",
+        "sherpa-onnx",
+        "vad",
+        "silero",
+        "speech-recognition",
+        "asr",
+        "vala",
+        "native"
+    ],
+    "dependencies": {
+        "@girs/gjs": "5.4.0",
+        "@girs/glib-2.0": "5.4.0",
+        "@girs/gobject-2.0": "5.4.0",
+        "@gjsify/utils": "workspace:^"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@ts-for-gir/cli": "^4.1.0",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/web/sherpa-native"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/web/sherpa-native#readme",
+    "optionalDependencies": {
+        "@gjsify/sherpa-native-linux-x64": "workspace:*"
+    }
+}

@@ -68,7 +68,17 @@ const BAKED_IMAGE = 'ghcr.io/gjsify/ci-fedora';
 // Empty today, and two failure modes keep it honest: an entry for a job that is no
 // longer bare fails, and so does one the arch derivation already excuses — a
 // derivable reason written down twice is the copy that drifts.
-const BARE_IMAGE_LEDGER = {};
+const BARE_IMAGE_LEDGER = {
+    'prebuilds.yml/sherpa-native-prebuild':
+        'Waiting for a PUSHED image, not for a decision. `cmake` and `libstdc++-static` are in ' +
+        '`.docker/ci-fedora.Dockerfile` as of the change that added this job, but ' +
+        "`build-ci-image.yml`'s pull-request leg builds the image and never pushes it, so the " +
+        '`ghcr.io/gjsify/ci-fedora:43` tag this job would pull is still the previous one and ' +
+        '`meson setup` would die on cmake. RETIREMENT: once the push leg has published the tag ' +
+        'carrying both packages, switch `container.image` to `ghcr.io/gjsify/ci-fedora:43`, drop ' +
+        "cmake/libstdc++-static/nodejs from the job's `dnf install` (an actions/setup-node step " +
+        'replaces the last one — this image bakes no node, on purpose) and delete this entry.',
+};
 
 /** Packages a `dnf install` line asks for, with line continuations joined. */
 function packagesIn(run) {

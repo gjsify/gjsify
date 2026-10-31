@@ -122,6 +122,16 @@ on:
       - 'packages/web/spiel-native/subprojects/libspiel.wrap'
       - 'packages/web/spiel-native/subprojects/libspeechprovider.wrap'
       - 'packages/web/spiel-native/meson.build'
+      # `src/ts/**` is left out for the same reason as spiel-native's. The wrap
+      # IS listed: it pins the sherpa-onnx revision, so bumping it changes every
+      # byte of a 26.5 MiB artifact without touching another file here, and this
+      # is the only leg that builds it — nothing is committed for a later run to
+      # catch the drift.
+      - 'packages/web/sherpa-native/src/c/**'
+      - 'packages/web/sherpa-native/src/vala/**'
+      - 'packages/web/sherpa-native/test/**'
+      - 'packages/web/sherpa-native/subprojects/sherpa-onnx.wrap'
+      - 'packages/web/sherpa-native/meson.build'
       - 'packages/infra/lightningcss-native/src/**'
       - 'packages/infra/lightningcss-native/meson.build'
       - 'packages/infra/oxfmt-native/src/**'
@@ -235,6 +245,16 @@ on:
       - 'packages/web/spiel-native/subprojects/libspiel.wrap'
       - 'packages/web/spiel-native/subprojects/libspeechprovider.wrap'
       - 'packages/web/spiel-native/meson.build'
+      # `src/ts/**` is left out for the same reason as spiel-native's. The wrap
+      # IS listed: it pins the sherpa-onnx revision, so bumping it changes every
+      # byte of a 26.5 MiB artifact without touching another file here, and this
+      # is the only leg that builds it — nothing is committed for a later run to
+      # catch the drift.
+      - 'packages/web/sherpa-native/src/c/**'
+      - 'packages/web/sherpa-native/src/vala/**'
+      - 'packages/web/sherpa-native/test/**'
+      - 'packages/web/sherpa-native/subprojects/sherpa-onnx.wrap'
+      - 'packages/web/sherpa-native/meson.build'
       - 'packages/infra/lightningcss-native/src/**'
       - 'packages/infra/lightningcss-native/meson.build'
       - 'packages/infra/oxfmt-native/src/**'
@@ -3881,6 +3901,136 @@ jobs:
           if ($pad.ExitCode -ne 0) { throw "vigem-pad.py failed after the measurement ($($pad.ExitCode))" }
           exit $rc
 
+  # ----------------------------------------------------------------
+  # @gjsify/sherpa-native (GjsifySherpa) — ADR 0127 step 2
+  #
+  # ITS OWN JOB RATHER THAN TWO MORE STEPS IN `build-prebuilds`, and the reason
+  # is the platform audit, not taste. `parseCiPlatforms()` credits a package with
+  # EVERY target of the job it is built in — it reads step text and the job's
+  # matrix, and cannot see a per-step `if: matrix.arch == 'x64'`. This bridge
+  # declares `linux-x64` alone (one target, one verified build; arm64 needs its
+  # own measurement, and an unverified leg inside the shared matrix would take
+  # every other package's arm64 artifact down with it when it failed). Put in
+  # that matrix it would be credited with `linux-arm64` too, and
+  # `auditPlatforms` compares declared-vs-built in BOTH directions, so the
+  # declaration would read as "CI builds a target the package does not promise"
+  # — green only by also declaring a platform nothing had built.
+  #
+  # The one-entry `include:` is therefore load-bearing in the same way
+  # `build-prebuilds-musl`'s `libc:` key is: it is what tells that parser which
+  # target this leg produces. Adding `arch: arm64` here is how this bridge gains
+  # arm64 — together with the entry in `gjsify.platforms` and the generated
+  # per-target package, in the same change.
+  #
+  # The artifact is NOT committed (`gjsify.platformsUncommitted` on
+  # `@gjsify/sherpa-native-linux-x64`), so `commit-prebuilds` does not gate on
+  # this job and nothing published today comes off this leg. That is also what
+  # makes the `fedora:43` literal below safe to carry a second time: the number
+  # is a glibc-floor PROMISE where `build-prebuilds` states it, and here it is
+  # only the image this evidence was produced on. When the artifact starts
+  # shipping, it moves into that matrix — with arm64 measured — and this job
+  # goes away rather than inheriting the promise.
+  #
+  # This leg is x64-only, so `check-ci-image-packages.mjs` does NOT excuse the
+  # bare image the way it excuses `build-prebuilds` (arm64, no such image): it
+  # holds this job to `ghcr.io/gjsify/ci-fedora` and the exemption is spelled
+  # out in that script's `BARE_IMAGE_LEDGER`, with the retirement condition.
+  # The short version: the baked image gained `cmake` and `libstdc++-static` in
+  # this same change, but a pull request cannot PUSH the image, so switching
+  # here before the tag is republished would configure against a cmake-less
+  # container.
+  # ----------------------------------------------------------------
+  sherpa-native-prebuild:
+    name: Build prebuilds (linux-${{ matrix.arch }}) [sherpa-native]
+    needs: [changes]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    container:
+      # Tracks `build-prebuilds`' image; see the banner above for why a copy is
+      # acceptable here and what has to happen before it stops being.
+      image: fedora:43
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-latest
+
+    steps:
+      # gcc-c++ and libstdc++-static are what this bridge adds to the toolchain
+      # the other Vala legs install: sherpa-onnx and onnxruntime are C++, and the
+      # library links `-static-libstdc++` so it carries no libstdc++.so.6 and
+      # therefore no GLIBCXX_ floor of its own. `libstdc++.a` is a SEPARATE
+      # Fedora package that `gcc-c++` does not pull, and without it meson's probe
+      # silently falls back to the shared libstdc++ — hence
+      # `-Drequire_static_libstdcxx=true` on the build step, which turns that
+      # probe's warning into a configuration error on this leg alone.
+      #
+      # python3 runs `test/check-elf-deps.py`; `cmake` configures the pinned
+      # sherpa-onnx subproject, which FetchContents its own dependencies and so
+      # needs network access and `tar`/`xz`/`curl` — nothing here is a wrap
+      # archive with a sha256 in-tree except sherpa-onnx itself.
+      - name: Install the meson/cmake toolchain and a static libstdc++
+        if: ${{ !contains(needs.changes.outputs.skip, '"sherpa-native"') }}
+        run: >
+          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264
+          git tar xz findutils curl
+          nodejs
+          meson vala gcc gcc-c++ libstdc++-static pkgconf cmake
+          glib2-devel gobject-introspection-devel
+          gjs python3
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # `meson setup` CLONES the pinned sherpa-onnx revision, applies the wrap's
+      # `patch_directory` overlay to it, and its CMake subproject then downloads
+      # the onnxruntime SHARED release archive, so this step needs the network —
+      # the same shape as spiel-native's.
+      - name: Build @gjsify/sherpa-native (C shim + static sherpa-onnx)
+        if: ${{ !contains(needs.changes.outputs.skip, '"sherpa-native"') }}
+        working-directory: packages/web/sherpa-native
+        run: |
+          meson setup build . -Drequire_static_libstdcxx=true
+          meson compile -C build
+
+      # The four legs: `shim-smoke` exercises the C shim's lifecycle directly,
+      # `api-gjs` the same surface through the typelib under gjs, and `elf-deps`
+      # reads DT_NEEDED and the dynamic symbol table back off BOTH built files —
+      # GLib/libc and the sibling `libonnxruntime.so` only, only
+      # `gjsify_sherpa_*` exported from the bridge, and only the two Ort entry
+      # points from the engine. On this leg `elf-deps` additionally gets
+      # `--require-static-libstdcxx`, so a libstdc++.so.6 that slipped past the
+      # configure gate still fails here. `vad-model-gjs` is the only leg that
+      # opens an inference session, and it exits 77 (SKIP) here, because no
+      # model may be committed or downloaded (ADR 0127 decision 14) — it is a
+      # local regression guard, not a CI one.
+      #
+      # None of them touches a model or a microphone: the recognizers are
+      # constructed without model paths and asserted to refuse to open.
+      - name: Test @gjsify/sherpa-native (shim, gjs, elf-deps)
+        if: ${{ !contains(needs.changes.outputs.skip, '"sherpa-native"') }}
+        working-directory: packages/web/sherpa-native
+        run: meson test -C build --print-errorlogs
+
+      - name: Collect @gjsify/sherpa-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sherpa-native"') }}
+        working-directory: packages/web/sherpa-native
+        run: |
+          node ../../../scripts/stage-prebuild.mjs . --scratch
+          ls -l prebuilds/linux-*/
+
+      # `if-no-files-found: error`: this upload is the only evidence the leg
+      # produced anything, since nothing is committed for a later run to check.
+      - name: Upload @gjsify/sherpa-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"sherpa-native"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: sherpa-native-prebuilds-linux-${{ matrix.arch }}
+          path: packages/web/sherpa-native/prebuilds/linux-${{ matrix.arch }}/
+          if-no-files-found: error
+          retention-days: 30
 
   build-prebuilds-musl:
     name: Build prebuilds (linux-${{ matrix.arch }}-musl) [Alpine/musl]
@@ -5265,6 +5415,7 @@ jobs:
       - gamepad-native-uinput
       - gamepad-native-gir-linux
       - build-prebuilds-win32-gamepad
+      - sherpa-native-prebuild
       - build-prebuilds-musl
       - check-committed-musl
       - commit-prebuilds
