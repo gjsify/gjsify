@@ -86,30 +86,33 @@ opens a menu with the alternatives.
   <Fragment slot="webloader">
     ```js
     import '@gjsify/adwaita-web';
+    import { buildMenu } from '@gjsify/adwaita-web';
 
     const button = document.querySelector('#split_button');
     // button.classList.add('flat'); // the header-bar / toolbar variant
 
-    button.menuModel = [
+    // `menuModel` takes a real Gio.MenuModel, the same as on GJS above; `buildMenu`
+    // turns the portable node array into one.
+    button.menuModel = buildMenu([
         { label: 'Save as…', action: 'app.save-as' },
         { label: 'Export', action: 'app.export' },
         { label: 'Print', action: 'app.print' },
-    ];
+    ]);
     ```
   </Fragment>
   <Fragment slot="nativescriptloader">
     ```ts
-    import { type Adw } from '@gjsify/adwaita-nativescript';
+    import { buildMenu, type Adw } from '@gjsify/adwaita-nativescript';
     import { Builder } from '@nativescript/core';
 
     const button = Builder.load({ path: '~/views', name: 'split-button' }) as Adw.SplitButton;
     // button.className = 'adw-split-button flat'; // the header-bar / toolbar variant
 
-    button.menuModel = [
+    button.menuModel = buildMenu([
         { label: 'Save as…', action: 'app.save-as' },
         { label: 'Export', action: 'app.export' },
         { label: 'Print', action: 'app.print' },
-    ];
+    ]);
     ```
   </Fragment>
 </AdwWidget>

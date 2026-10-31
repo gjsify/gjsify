@@ -152,8 +152,9 @@ export interface SharedNode {
      */
     menus?: Record<string, MenuNodeShape[]>;
     /**
-     * The menu written AT a property (`menu-model: menu { }`), by property name: the model itself,
-     * not an id into `menus` (ADR 0097 § 1).
+     * The menu written AT a property (`menu-model: menu { }`), by property name: the tree itself,
+     * not an id into `menus` (ADR 0097 § 1). Keyed by the GTK property name, so the field keeps
+     * the `menuModels` spelling even though its value is a tree, not a `Gio.MenuModel` (ADR 0128).
      */
     menuModels?: Record<string, MenuNodeShape[]>;
     children?: SharedNode[];

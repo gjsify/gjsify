@@ -378,25 +378,49 @@ export type {
     CalendarWeekVector,
 } from './calendar.js';
 
-// --- The portable menu model (ADR 0042) vectors ---
+// --- The portable menu model (ADR 0042) + the real `Gio.MenuModel` (ADR 0128) vectors ---
 export {
+    MENU_ATTRIBUTE_VARIANT_VECTORS,
+    MENU_CONSTANT_VECTORS,
     MENU_DETAILED_ACTION_VECTORS,
     MENU_FLATTEN_VECTORS,
     MENU_ITEM_STATE_VECTORS,
     MENU_LABEL_TEXT_VECTORS,
+    MENU_LINK_VECTORS,
+    MENU_MODEL_DIVERGENCE_VECTORS,
+    MENU_MODEL_DOOR_VECTORS,
+    MENU_MODEL_NOTIFY_VECTORS,
+    MENU_MODEL_TYPE_VECTORS,
+    MENU_MUTATOR_EMISSION_VECTORS,
     MENU_NORMALIZE_VECTORS,
     MENU_PARSE_VECTORS,
     MENU_REFUSAL_VECTORS,
 } from './menu.js';
 export type {
+    MenuAttributeSet,
+    MenuAttributeVariant,
+    MenuAttributeVariantVector,
+    MenuConstantVector,
     MenuDetailedActionVector,
+    MenuDivergenceProbe,
     MenuFlatRowVector,
     MenuFlattenVector,
     MenuItemStateVector,
     MenuLabelTextVector,
+    MenuLinkQuery,
+    MenuLinkVector,
+    MenuModelDivergenceVector,
+    MenuModelDoorVector,
+    MenuModelHolder,
+    MenuModelNotifyVector,
+    MenuModelTypeVector,
+    MenuModelWrite,
+    MenuMutatorCall,
+    MenuMutatorEmissionVector,
     MenuNormalizeVector,
     MenuParseVector,
     MenuRefusalVector,
+    MenuTypeQuery,
 } from './menu.js';
 
 // --- View switcher + bar (Adw.ViewSwitcher / Adw.InlineViewSwitcher) vectors ---

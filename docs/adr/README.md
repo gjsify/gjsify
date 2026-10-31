@@ -147,6 +147,7 @@ the TODO records the *what's left*.
 | [0125](0125-glib-gettext-is-the-translation-api-on-every-target.md) | GLib gettext is the translation API on every target | Accepted |
 | [0126](0126-ship-credentials-and-a-jsign-windows-signer.md) | `gjsify ship credentials` owns the signing-credential procedure, and the Windows signer is jsign with a mandatory timestamp | Accepted |
 | [0127](0127-speech-recognition-on-local-engines.md) | `SpeechRecognition` on GJS runs on local engines behind Vala bridges, with capture, VAD and machine fit as their own packages | Proposed |
+| [0128](0128-a-menu-model-is-a-real-menu-model.md) | A menu model is a real `Gio.MenuModel`, and the abstract base is a class | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

@@ -15,12 +15,11 @@
 // Reference: refs/gtk/gtk/gtkpopovermenu.c, gtk/gtkpopover.c (gtk_popover_popup, gtk_popover_popdown)
 
 import { Observable, type EventData } from '@nativescript/core';
-import { normalizeMenuModel } from '@gjsify/adwaita-core';
-import type { AdwMenuActions, AdwMenuInput, AdwMenuModel } from '@gjsify/adwaita-core';
+import type { AdwMenuActions, AdwMenuModel } from '@gjsify/adwaita-core';
 
 import type { ActionHost } from './actions.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
-import { assertPopupMenuAssignable, refuseMenuString } from './popup-menu.js';
+import { MenuSlot } from './menu-slot.js';
 import { showMenuPopup, type MenuPopupHandle } from './popup-menu-view.js';
 import { withSignals } from './signals.js';
 
@@ -33,7 +32,7 @@ const unsupported = (member: string, why: string): Error =>
 export class GtkPopoverMenu extends withSignals(Observable) {
     static readonly GTypeName: string = 'GtkPopoverMenu';
 
-    private _model: AdwMenuModel = [];
+    private readonly _slot = new MenuSlot('GtkPopoverMenu', () => undefined);
     private _actions: AdwMenuActions | null = null;
     private _parent: ActionHost | null = null;
     private _open: MenuPopupHandle | null = null;
@@ -43,24 +42,23 @@ export class GtkPopoverMenu extends withSignals(Observable) {
         applyConstructProps(this, props);
     }
 
-    /** `Gtk.PopoverMenu:menu-model`. */
-    get menuModel(): AdwMenuModel {
-        return this._model;
+    /** `Gtk.PopoverMenu:menu-model` — a real `Gio.MenuModel`, or `null` (ADR 0128). */
+    get menuModel(): AdwMenuModel | null {
+        return this._slot.model;
     }
 
-    set menuModel(value: AdwMenuInput) {
-        refuseMenuString(value, 'GtkPopoverMenu');
-        const model = normalizeMenuModel(value);
-        assertPopupMenuAssignable(model);
-        this._model = model;
+    set menuModel(value: AdwMenuModel | null) {
+        const before = this._slot.model;
+        this._slot.write(value);
+        this.notifyPropertyChange('menuModel', this._slot.model, before);
     }
 
-    set_menu_model(model: AdwMenuInput | null): void {
-        this.menuModel = model ?? [];
+    set_menu_model(model: AdwMenuModel | null): void {
+        this.menuModel = model;
     }
 
-    get_menu_model(): AdwMenuModel {
-        return this._model;
+    get_menu_model(): AdwMenuModel | null {
+        return this._slot.model;
     }
 
     /** What the action group publishes about the actions this menu names; see `GtkMenuButton.actions`. */
@@ -96,9 +94,9 @@ export class GtkPopoverMenu extends withSignals(Observable) {
         if (this._parent === null) {
             throw unsupported('popup()', 'a PopupMenu is anchored at a view, so call set_parent(widget) first');
         }
-        if (this._open !== null || this._model.length === 0) return;
+        if (this._open !== null || this._slot.isEmpty) return;
         const handle = showMenuPopup(this._parent, {
-            model: this._model,
+            tree: this._slot.tree,
             actions: this._actions,
             onDismiss: () => {
                 if (this._open === null) return;

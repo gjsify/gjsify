@@ -26,7 +26,7 @@
 //            (`menubutton arrow`, overridden by `splitbutton > menubutton > button > arrow`)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import type { AdwMenuItem, AdwMenuModel, AdwMenuPath } from '../menu.js';
+import type { AdwMenuItem, AdwMenuPath, AdwMenuTree } from '../menu.js';
 import type {
     AdwArrowIcon,
     SplitButtonContentMode,
@@ -597,14 +597,14 @@ export const SPLIT_BUTTON_ROOT_STATE_VECTORS: ReadonlyArray<SplitButtonRootState
 
 /** One activate-by-position expectation. */
 export interface SplitButtonMenuActivationVector {
-    model: AdwMenuModel;
+    tree: AdwMenuTree;
     path: AdwMenuPath;
     /** The item that must be dispatched, or `null`. */
     activated: AdwMenuItem | null;
     rule: string;
 }
 
-const DUPLICATE_MENU: AdwMenuModel = [
+const DUPLICATE_MENU: AdwMenuTree = [
     { kind: 'item', label: 'Copy', action: 'app.copy' },
     { kind: 'item', label: 'Copy', action: 'app.copy-special' },
     { kind: 'submenu', label: 'More', items: [{ kind: 'item', label: 'Copy', action: 'app.copy-as' }] },
@@ -617,35 +617,35 @@ const DUPLICATE_MENU: AdwMenuModel = [
  */
 export const SPLIT_BUTTON_MENU_ACTIVATION_VECTORS: ReadonlyArray<SplitButtonMenuActivationVector> = [
     {
-        model: DUPLICATE_MENU,
+        tree: DUPLICATE_MENU,
         path: [1],
         activated: { kind: 'item', label: 'Copy', action: 'app.copy-special' },
         rule: 'the SECOND of two identically labelled entries — the indexOf bug',
     },
     {
-        model: DUPLICATE_MENU,
+        tree: DUPLICATE_MENU,
         path: [0],
         activated: { kind: 'item', label: 'Copy', action: 'app.copy' },
         rule: 'position 0',
     },
     {
-        model: DUPLICATE_MENU,
+        tree: DUPLICATE_MENU,
         path: [2, 0],
         activated: { kind: 'item', label: 'Copy', action: 'app.copy-as' },
         rule: 'a THIRD entry with the same label, inside a submenu: only a path tells it from the other two',
     },
     {
-        model: DUPLICATE_MENU,
+        tree: DUPLICATE_MENU,
         path: [2],
         activated: null,
         rule: 'a submenu is not an item — opening it activates nothing',
     },
-    { model: DUPLICATE_MENU, path: [3], activated: null, rule: 'a position past n_items has no item' },
-    { model: DUPLICATE_MENU, path: [-1], activated: null, rule: 'a negative position has no item' },
-    { model: DUPLICATE_MENU, path: [0.5], activated: null, rule: 'a fractional position is not a position' },
-    { model: DUPLICATE_MENU, path: [], activated: null, rule: 'the empty path names the model, not an item' },
-    { model: DUPLICATE_MENU, path: [0, 0], activated: null, rule: 'an item has no children to descend into' },
-    { model: [], path: [0], activated: null, rule: 'no menu model → nothing to activate' },
+    { tree: DUPLICATE_MENU, path: [3], activated: null, rule: 'a position past n_items has no item' },
+    { tree: DUPLICATE_MENU, path: [-1], activated: null, rule: 'a negative position has no item' },
+    { tree: DUPLICATE_MENU, path: [0.5], activated: null, rule: 'a fractional position is not a position' },
+    { tree: DUPLICATE_MENU, path: [], activated: null, rule: 'the empty path names the model, not an item' },
+    { tree: DUPLICATE_MENU, path: [0, 0], activated: null, rule: 'an item has no children to descend into' },
+    { tree: [], path: [0], activated: null, rule: 'no menu model → nothing to activate' },
 ];
 
 /**
@@ -654,8 +654,11 @@ export const SPLIT_BUTTON_MENU_ACTIVATION_VECTORS: ReadonlyArray<SplitButtonMenu
  * a row with both also exercises the dissociation.
  */
 export interface SplitButtonDropdownVector {
-    /** The menu model to install (empty = none). */
-    model: AdwMenuModel;
+    /**
+     * The tree to BUILD a menu model from and install, or `null` to install no model at
+     * all. `[]` is a real but EMPTY menu, which is not the same row as `null` (ADR 0128).
+     */
+    tree: AdwMenuTree | null;
     /** Whether a popover is installed before it. */
     popover: boolean;
     /** Whether the dropdown half is live. */
@@ -667,37 +670,45 @@ export interface SplitButtonDropdownVector {
 
 /**
  * "If the menu model is `NULL`, the dropdown is disabled",
- * and the same for the popover. An empty entry list is the renderers'
- * only spelling of "no menu", so it collapses onto the `NULL` case.
+ * and the same for the popover. `NULL` is the ONLY spelling of "no menu": a present but
+ * empty model leaves the dropdown live, which is why the port needed a real model to say
+ * it at all (ADR 0128).
  */
 export const SPLIT_BUTTON_DROPDOWN_VECTORS: ReadonlyArray<SplitButtonDropdownVector> = [
     {
-        model: [],
+        tree: null,
         popover: false,
         enabled: false,
         canOpen: false,
-        rule: 'neither → insensitive dropdown; an empty entry list is the renderers’ spelling of "no menu", so a menu-less button must not open an empty popover',
+        rule: 'neither → insensitive dropdown, and a menu-less button must not open an empty popover',
     },
     {
-        model: [{ kind: 'item', label: 'Save as…', action: 'app.save-as' }],
+        tree: [],
+        popover: false,
+        enabled: true,
+        canOpen: true,
+        rule: 'MEASURED on GJS: an EMPTY but non-NULL Gio.Menu still builds a GtkPopoverMenu, so the dropdown is live — while the port’s menu was an array this row was indistinguishable from the NULL one and the port collapsed the two',
+    },
+    {
+        tree: [{ kind: 'item', label: 'Save as…', action: 'app.save-as' }],
         popover: false,
         enabled: true,
         canOpen: true,
         rule: 'a menu model makes the dropdown live',
     },
-    { model: [], popover: true, enabled: true, canOpen: true, rule: 'so does a popover on its own' },
+    { tree: null, popover: true, enabled: true, canOpen: true, rule: 'so does a popover on its own' },
     {
-        model: [{ kind: 'item', label: 'Save as…' }],
+        tree: [{ kind: 'item', label: 'Save as…' }],
         popover: true,
         enabled: true,
         canOpen: true,
         rule: 'setting one dissociates the other, but the dropdown stays live (c:390-403)',
     },
     {
-        model: [{ kind: 'section', items: [] }],
+        tree: [{ kind: 'section', items: [] }],
         popover: false,
         enabled: true,
         canOpen: true,
-        rule: 'a model with a node but nothing to DRAW is still a menu — the answer GTK gives for the same empty GMenu section',
+        rule: 'MEASURED: a model with a node but nothing to DRAW is still a menu — a Gio.Menu holding one empty section builds a GtkPopoverMenu too',
     },
 ];

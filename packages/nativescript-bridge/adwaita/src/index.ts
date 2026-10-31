@@ -248,6 +248,29 @@ export type {
 } from './widgets/index.js';
 export type { GtkWidgetLayout, GtkWidgetLayoutMembers } from './widgets/widget-layout.js';
 
+// The portable menu model (ADR 0042) is `@gjsify/adwaita-core`'s, re-exported so a consumer of
+// THIS package reaches the menu vocabulary without a second dependency — one definition, two
+// doors, never two declarations. The same arrangement `@gjsify/adwaita-web` has.
+//
+// `buildMenu` is here and not only in the types, because since ADR 0128 a `menuModel` property
+// takes a real `Gio.MenuModel` and an authored array is refused: without the builder an app
+// depending on this package alone could not write a menu at all. `menuTree` and
+// `watchMenuModel` are its two readers, which an app needs for the same reason — a snapshot to
+// draw from, and the signal that invalidates it.
+export { buildMenu, menuTree, watchMenuModel } from '@gjsify/adwaita-core';
+export type {
+    AdwMenuActions,
+    AdwMenuEntryInput,
+    AdwMenuInput,
+    AdwMenuItem,
+    AdwMenuModel,
+    AdwMenuNode,
+    AdwMenuPath,
+    AdwMenuSection,
+    AdwMenuSubmenu,
+    AdwMenuTree,
+} from '@gjsify/adwaita-core';
+
 // ADR 0034 clause 2 — the widgets under their GIR names (`Adw.SwitchRow`, `Gtk.Entry`),
 // and since § Amendment 9 that is their ONLY name here: the prefixed `AdwSwitchRow` /
 // `GtkEntry` exports above are gone. `export * as`, not an object literal, so a member

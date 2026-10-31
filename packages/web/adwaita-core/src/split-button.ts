@@ -37,9 +37,10 @@
 // Reference: refs/libadwaita/tests/test-split-button.c (the upstream suite)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
+import { menuTree } from './gio-menu.js';
 import { gtkButtonIconNameReadback } from './glib.js';
-import { menuItemAt, normalizeMenuModel } from './menu.js';
-import type { AdwMenuInput, AdwMenuItem, AdwMenuModel, AdwMenuPath } from './menu.js';
+import { menuItemAt } from './menu.js';
+import type { AdwMenuItem, AdwMenuModel, AdwMenuPath } from './menu.js';
 
 /**
  * The four mutually exclusive content slots of the action half. `'empty'` is the
@@ -279,17 +280,6 @@ export function splitButtonRootState(
 }
 
 /**
- * A normalised model's canonical text, for the value-equality guard in
- * {@link SplitButtonState.setMenuModel}.
- *
- * `JSON.stringify` is canonical HERE and would not be on arbitrary input:
- * `normalizeMenuModel` writes every node's keys in one fixed order, so two models that
- * are equal produce the same bytes. That is a property of the normaliser, which is why
- * this function takes a normalised model and nothing else.
- */
-const menuKey = (model: AdwMenuModel | null): string => (model === null ? '' : JSON.stringify(model));
-
-/**
  * Stand-in for the content widget `GtkButton` builds for a label or an icon.
  * `adw_split_button_get_child()` is `gtk_button_get_child()`, which returns that INTERNAL
  * widget in label/icon mode, and the upstream suite relies on it: `set_label()` after
@@ -490,7 +480,7 @@ export class SplitButtonState {
 
     // --- Menu model ⟷ popover (each clears the other) ---
 
-    /** The menu model, or `null` when none is set. Always normalised (ADR 0042). */
+    /** The menu model, or `null` when none is set. */
     get menuModel(): AdwMenuModel | null {
         return this._menuModel;
     }
@@ -499,31 +489,23 @@ export class SplitButtonState {
      * Set the menu model, dissociating any popover and replacing it with the model-derived
      * one.
      *
-     * NORMALISES AT THE DOOR, so every surface stores the same shape whatever it was
-     * handed — a JSON attribute, a bare `string[]`, a JSX array of descriptors. It is
-     * {@link normalizeMenuModel}'s idempotence that makes `setMenuModel(state.menuModel)`
-     * a no-op rather than a quiet flattening.
-     *
-     * DELIBERATE NORMALISATION: an EMPTY list is stored as "no menu model". C can hold a
-     * non-`NULL` but empty `GMenu`, which leaves the dropdown live and pops up an empty
-     * popover; collapsing the two is what makes "no menu ⇒ insensitive dropdown" hold
-     * from a renderer's point of view. A model that is non-empty but draws nothing — one
-     * empty section — is NOT collapsed: it has a node, so it is a menu, which is the
-     * answer GTK gives for the same `GMenu`.
+     * `null` is the ONLY spelling of "no menu" (ADR 0128). MEASURED: an empty but
+     * non-`NULL` `Gio.Menu` written at `Adw.SplitButton.menu-model` still builds a
+     * `GtkPopoverMenu`, so the dropdown is live and pops up an empty popover. While the
+     * port's menu was an array this class had to collapse `[]` onto "no menu" — an array
+     * cannot be both empty and present — and that collapse was a divergence. A real model
+     * can be empty, so the collapse is gone.
      *
      * Notifies both properties per {@link DROPDOWN_NOTIFY_ORDER}; the guard is on the
      * menu model ALONE, so clearing it on a popover-only button emits nothing.
      */
-    setMenuModel(input: AdwMenuInput | null | undefined): boolean {
-        const normalized = normalizeMenuModel(input);
-        const next = normalized.length > 0 ? normalized : null;
-        // C's guard is `menu_model == get_menu_model` — POINTER equality, which a value
-        // has no analogue for: every call here arrives with a fresh array (a JSON parse,
-        // an array literal in a template, a `.map()`), so a reference guard would never
-        // fire and the widget would notify `menu-model` on every render pass. VALUE
-        // equality is the analogue, and it keeps this class's own invariant that a
-        // mutator notifies only on a real change.
-        if (menuKey(next) === menuKey(this._menuModel)) return false;
+    setMenuModel(next: AdwMenuModel | null): boolean {
+        // C's guard is `menu_model == get_menu_model` — POINTER equality, and now that the
+        // port holds a real model that is the guard this can keep. MEASURED on
+        // `Adw.SplitButton`: the same model written twice notifies once, a DISTINCT model
+        // with equal content notifies again, and mutating a held model notifies nothing
+        // (`MENU_MODEL_NOTIFY_VECTORS`) — all three follow from identity.
+        if (next === this._menuModel) return false;
 
         const popover = next === null ? null : derivedPopover();
 
@@ -651,7 +633,7 @@ export class SplitButtonState {
      */
     activateMenuItem(path: AdwMenuPath): AdwMenuItem | null {
         if (this._menuModel === null) return null;
-        const item = menuItemAt(this._menuModel, path);
+        const item = menuItemAt(menuTree(this._menuModel), path);
         if (item === null) return null;
         this._setOpen(false, true);
         return item;

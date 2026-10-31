@@ -9,10 +9,11 @@
 //   · `menu.popup` is an ACTION, so the element exposes it as an event too.
 
 import { describe, expect, it } from '@gjsify/unit';
-import type { AdwMenuInput } from '@gjsify/adwaita-core';
+import { buildMenu } from '@gjsify/adwaita-core';
+import type { AdwMenuModel } from '@gjsify/adwaita-core';
 
 interface PopoverBinElement extends HTMLElement {
-    menuModel: AdwMenuInput;
+    menuModel: AdwMenuModel | string | null;
     // `popoverElement`, not `popover`: `HTMLElement` already declares a `popover` STRING
     // attribute for the DOM Popover API, and an interface cannot narrow that to a widget.
     popoverElement: HTMLElement | null;
@@ -67,7 +68,7 @@ export const GtkPopoverBinTest = async () => {
         await it('setting the model REPLACES the popover', () => {
             const { el } = mount(JSON.stringify(MENU));
             const before = popoverOf(el);
-            el.menuModel = [{ label: 'Only' }];
+            el.menuModel = buildMenu([{ label: 'Only' }]);
             expect(popoverOf(el)).not.toBe(before);
             expect(before?.isConnected).toBe(false);
             unmountAll();
@@ -80,7 +81,7 @@ export const GtkPopoverBinTest = async () => {
             // that is easy to get wrong by keeping them apart.
             const replacement = document.createElement('gtk-popover') as unknown as HTMLElement;
             el.popoverElement = replacement;
-            expect(el.menuModel).toStrictEqual([]);
+            expect(el.menuModel).toBeNull();
             expect(el.popoverElement).toBe(replacement);
             // The old popover is unparented rather than left behind as a second surface:
             // `gtk_popover_bin_set_popover` unparents the one it displaces.
@@ -92,7 +93,7 @@ export const GtkPopoverBinTest = async () => {
             const { el } = mount();
             const seen: unknown[] = [];
             el.addEventListener('notify::menu-model', (event) => seen.push((event as CustomEvent).detail));
-            el.menuModel = MENU;
+            el.menuModel = buildMenu(MENU);
             // GTK notifies `:popover` AND `:menu-model` from BOTH setters
             // (gtkpopoverbin.c:502, :586-587), so one event carrying both is the faithful
             // reading rather than two that can disagree.

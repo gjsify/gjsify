@@ -10,6 +10,11 @@
   [ADR 0096 (a GObject subset)](0096-a-gobject-subset-runs-on-the-browser-and-nativescript.md)
 - Completes: the `menu` row of ADR 0093 § Construct table, which names "its own ADR" for the item shape.
 - Supersedes: the `Dialogs.action()` sheet as the NativeScript menu surface (ADR 0042 § 6, `menu-sheet.ts`).
+- **Amended by [ADR 0128](0128-a-menu-model-is-a-real-menu-model.md) (2026-10-30)**: the value the
+  `menuModel` doors of § 2 carry is a real `Gio.MenuModel`, so a renderer re-reads it on
+  `items-changed` instead of holding a snapshot. The blueprint projection is untouched: a
+  `menu id { }` and an inline `menu-model: menu { }` still project to the node arrays of § 1,
+  which the renderer turns into a model at the door.
 
 ## Rule for every stage
 

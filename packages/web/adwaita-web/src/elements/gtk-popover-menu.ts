@@ -40,9 +40,9 @@
 //                      is its name. `gtk_popover_menu_open_submenu(popover, "main")` is
 //                      the way back, so this is writeable and readable.
 // Properties:
-//   menuModel        — the model, normalised (get/set; a `custom` item throws here). Takes
-//                      an already-normalised `AdwMenuModel` too, which is what a menu bar
-//                      hands over for one of its submenus.
+//   menuModel        — the real `Gio.MenuModel` (ADR 0128), or `null` (get/set; a `custom`
+//                      item throws here). A menu bar hands one of these over for a submenu
+//                      of its own; a JSON string is the authored spelling.
 //   actions          — what the action group publishes about the actions the model names
 //                      (ADR 0042), the source of every row's enabled/checked state.
 //   visibleSubmenu   — the open page's name (get/set).
@@ -72,26 +72,22 @@
 // Copyright (c) GNOME contributors (GTK, libadwaita). LGPLv2.1+
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
-import {
-    ADW_MENU_SURFACE_WEB,
-    assertMenuRenderable,
-    menuItemAt,
-    menuNodeAt,
-    menuRefusals,
-    normalizeMenuModel,
-    parseMenuModel,
-} from '@gjsify/adwaita-core';
+import { menuItemAt, menuNodeAt } from '@gjsify/adwaita-core';
 import { activateElementMenuItem, menuActionsOfElement } from '../application.js';
-import type { AdwMenuActions, AdwMenuInput, AdwMenuModel, AdwMenuPath } from '@gjsify/adwaita-core';
+import type { AdwMenuActions, AdwMenuModel, AdwMenuPath, AdwMenuTree } from '@gjsify/adwaita-core';
 
 import { GtkPopover } from './gtk-popover.js';
+import { MenuSlot } from './menu-slot.js';
 import { PopoverMenuView } from './popover-menu.js';
 
 /** The name the ROOT page carries — `gtk_popover_menu_open_submenu`'s own "main". */
 const MAIN_PAGE = 'main';
 
 export class GtkPopoverMenu extends GtkPopover {
-    private _model: AdwMenuModel = [];
+    /** The model, its tree snapshot and its `items-changed` subscription (ADR 0128). */
+    private readonly _slot = new MenuSlot(() => {
+        if (this._menuInitialized) this._renderMenu();
+    });
     private _actions: AdwMenuActions | null = null;
     private _menuView!: PopoverMenuView;
     /** Named apart from `GtkPopover`'s own: two `private` fields of one name are two fields. */
@@ -101,26 +97,23 @@ export class GtkPopoverMenu extends GtkPopover {
         return [...GtkPopover.observedAttributes, 'menu-model', 'menu-title', 'visible-submenu'];
     }
 
-    /** The menu, normalised (ADR 0042). */
-    get menuModel(): AdwMenuModel {
-        return this._model;
+    /** The menu this popover draws, by identity, or `null` (ADR 0128). */
+    get menuModel(): AdwMenuModel | null {
+        return this._slot.model;
     }
 
     /**
-     * Set the menu from anything the portable model accepts, refusing a `custom` item
-     * HERE — at the assignment, where it is a call the caller can catch. An ATTRIBUTE is
-     * markup the browser parses, so the attribute path refuses the whole menu instead and
-     * says why on `console.error`, exactly as `<gtk-menu-button>` does.
+     * Take a real model, a JSON string in the portable spelling, or `null`, refusing a
+     * `custom` item HERE — at the assignment, where it is a call the caller can catch.
+     * An ATTRIBUTE is markup the browser parses, so that path refuses the whole menu and
+     * says why on `console.error`; {@link MenuSlot} owns both doors.
      *
-     * `AdwMenuModel` is in the union because a menu bar hands over a submenu's own `items`
-     * untouched, and `normalizeMenuModel` is documented to be IDEMPOTENT over an
-     * already-normalised node — that is what lets a renderer hand a model it is holding
-     * straight back. The one cast is where the core's parameter type (`AdwMenuInput`, whose
-     * entries are the AUTHORED shapes) is narrower than the behaviour it documents.
+     * A REAL MODEL IS WHAT A MENU BAR HANDS OVER for one of its submenus, and the model
+     * it hands over is `buildMenu(node.items)` — a menu of its own rather than this
+     * element's authored one, so the two cannot overwrite each other.
      */
-    set menuModel(value: AdwMenuInput | AdwMenuModel) {
-        this._model = normalizeMenuModel(value as AdwMenuInput);
-        assertMenuRenderable(this._model, ADW_MENU_SURFACE_WEB);
+    set menuModel(value: AdwMenuModel | string | null) {
+        this._slot.write(value);
         if (this._menuInitialized) this._renderMenu();
     }
 
@@ -183,10 +176,10 @@ export class GtkPopoverMenu extends GtkPopover {
         this._menuView = new PopoverMenuView(this, 'adw-popover-menu', (path) => this._activate(path));
         this._menuView.setActions(this._actions);
 
-        if (this._model.length === 0) this._model = this._parseMenuAttr();
-        // The VIEW is what draws, and it holds the model it walks — seeding `_model`
-        // directly and rendering without handing the view the same value would leave it
-        // drawing an EMPTY page over a model the element believes it has.
+        if (this._slot.model === null) this._slot.writeMarkup(this.getAttribute('menu-model'));
+        // The VIEW is what draws, and it holds the TREE it walks — seeding the slot
+        // without handing the view the same snapshot would leave it drawing an EMPTY
+        // page over a model the element believes it has.
         this._renderMenu();
 
         // The visible page RESETS when the popover closes, as `gtk_popover_menu_show` does
@@ -194,7 +187,7 @@ export class GtkPopoverMenu extends GtkPopover {
         // a menu that reopens three levels deep is one the reader cannot get out of.
         this.subscribe((open) => {
             if (open) {
-                this._menuView.setActions(this._actions ?? menuActionsOfElement(this, this._model));
+                this._menuView.setActions(this._actions ?? menuActionsOfElement(this, this._slot.tree));
                 this._menuView.render();
                 this._menuView.focusableRows[0]?.focus();
             } else this._menuView.reset();
@@ -205,7 +198,7 @@ export class GtkPopoverMenu extends GtkPopover {
         super.attributeChangedCallback(name, previous, value);
         if (!this._menuInitialized) return;
         if (name === 'menu-model') {
-            this._model = this._parseMenuAttr();
+            this._slot.writeMarkup(this.getAttribute('menu-model'));
             this._renderMenu();
             return;
         }
@@ -258,7 +251,7 @@ export class GtkPopoverMenu extends GtkPopover {
         } else {
             const path = this._findSubmenu(name);
             if (path === null) return false;
-            this._menuView.setMenuModel(this._model);
+            this._menuView.setMenuTree(this._slot.tree);
             this._menuView.showPage(path);
         }
         this._menuView.render();
@@ -276,12 +269,12 @@ export class GtkPopoverMenu extends GtkPopover {
     private _openPageLabel(): string | null {
         const path = this._menuView.page;
         if (path.length === 0) return null;
-        const node = menuNodeAt(this._model, path);
+        const node = menuNodeAt(this._slot.tree, path);
         return node !== null && node.kind !== 'item' ? node.label : null;
     }
 
     private _findSubmenu(label: string): AdwMenuPath | null {
-        const walk = (nodes: AdwMenuModel, path: AdwMenuPath): AdwMenuPath | null => {
+        const walk = (nodes: AdwMenuTree, path: AdwMenuPath): AdwMenuPath | null => {
             for (const [index, node] of nodes.entries()) {
                 if (node.kind === 'item') continue;
                 const here = [...path, index];
@@ -291,7 +284,7 @@ export class GtkPopoverMenu extends GtkPopover {
             }
             return null;
         };
-        return walk(this._model, []);
+        return walk(this._slot.tree, []);
     }
 
     /**
@@ -313,7 +306,7 @@ export class GtkPopoverMenu extends GtkPopover {
      * open by choosing from it.
      */
     private _activate(path: AdwMenuPath): void {
-        const target = menuItemAt(this._model, path);
+        const target = menuItemAt(this._slot.tree, path);
         this.popdown();
         this.anchor?.focus();
         if (target === null) return;
@@ -327,22 +320,10 @@ export class GtkPopoverMenu extends GtkPopover {
     }
 
     private _renderMenu(): void {
-        this._menuView.setMenuModel(this._model);
+        this._menuView.setMenuTree(this._slot.tree);
         this._menuView.setTitle(this.menuTitle);
         this._menuView.render();
-        if (this._model.length === 0) this.popdown();
-    }
-
-    private _parseMenuAttr(): AdwMenuModel {
-        const model = normalizeMenuModel(parseMenuModel(this.getAttribute('menu-model')));
-        const refusals = menuRefusals(model, ADW_MENU_SURFACE_WEB);
-        if (refusals.length === 0) return model;
-        // A throw from `connectedCallback` is reported as an uncaught PAGE error and
-        // reaches nobody, so markup refuses the menu and says why. See
-        // `<gtk-menu-button>`'s `_acceptMenu` for the same two doors.
-        console.error(`${ADW_MENU_SURFACE_WEB.name} cannot render this menu, so it has none:`);
-        for (const refusal of refusals) console.error(`  [${refusal.path.join('.')}] ${refusal.message}`);
-        return [];
+        if (this._slot.isEmpty) this.popdown();
     }
 }
 

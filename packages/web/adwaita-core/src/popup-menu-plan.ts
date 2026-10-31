@@ -9,7 +9,7 @@
 // refs/gtk/gtk/gtkmenutrackeritem.c for the role of an item.
 
 import { menuLabelText, parseDetailedAction, resolveMenuItemState } from './menu.js';
-import type { AdwMenuActions, AdwMenuModel, AdwMenuNode, AdwMenuPath } from './menu.js';
+import type { AdwMenuActions, AdwMenuNode, AdwMenuPath, AdwMenuTree } from './menu.js';
 
 /** An item of the plan; `path` maps a tap back to the model. */
 export interface PopupMenuItemPlan {
@@ -65,10 +65,10 @@ interface MutableGroup {
     path: AdwMenuPath;
 }
 
-/** Lower `model` for `PopupMenu`. `actions` is what {@link resolveMenuItemState} reads. */
-export function planPopupMenu(model: AdwMenuModel, actions?: AdwMenuActions): PopupMenuPlan {
+/** Lower `tree` for `PopupMenu`. `actions` is what {@link resolveMenuItemState} reads. */
+export function planPopupMenu(tree: AdwMenuTree, actions?: AdwMenuActions): PopupMenuPlan {
     const refusals: PopupMenuRefusal[] = [];
-    return { level: levelOf(model, [], actions, refusals), refusals };
+    return { level: levelOf(tree, [], actions, refusals), refusals };
 }
 
 function levelOf(

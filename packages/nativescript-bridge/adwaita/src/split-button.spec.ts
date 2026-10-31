@@ -20,11 +20,11 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import {
     SplitButtonState,
-    normalizeMenuModel,
+    buildMenu,
+    menuTree,
     resolveDropdownTooltip,
     splitButtonStyleClasses,
 } from '@gjsify/adwaita-core';
-import type { AdwMenuModel, AdwMenuPath } from '@gjsify/adwaita-core';
 import {
     MENU_FLATTEN_VECTORS,
     MENU_ITEM_STATE_VECTORS,
@@ -50,11 +50,14 @@ export const AdwSplitButtonNsTest = async () => {
     });
 
     await describe('AdwSplitButton.menuModel normalisation (shared conformance vectors)', async () => {
-        for (const { input, model, rule } of MENU_NORMALIZE_VECTORS) {
+        for (const { input, tree, rule } of MENU_NORMALIZE_VECTORS) {
             await it(rule, () => {
                 const state = new SplitButtonState();
-                state.setMenuModel(input);
-                expect(state.menuModel ?? []).toStrictEqual(model.length === 0 ? [] : [...model]);
+                // ADR 0128: `buildMenu` is how an authored menu becomes a model, and the
+                // state holds the MODEL. What it has to agree with is still the tree the
+                // table names — `menuTree` is the one bridge back.
+                state.setMenuModel(buildMenu(input));
+                expect(menuTree(state.menuModel!)).toStrictEqual([...tree]);
             });
         }
 
@@ -70,10 +73,10 @@ export const AdwSplitButtonNsTest = async () => {
             expect(refuseMenuString([{ label: 'Save' }], 'AdwSplitButton')).toBe(undefined);
         });
 
-        await it('still accepts the bare string[] this port used to be alone in taking', () => {
+        await it('buildMenu still takes the bare string[] this port was alone in taking', () => {
             const state = new SplitButtonState();
-            state.setMenuModel(['Save as…', 'Export']);
-            expect(state.menuModel).toStrictEqual([
+            state.setMenuModel(buildMenu(['Save as…', 'Export']));
+            expect(menuTree(state.menuModel!)).toStrictEqual([
                 { kind: 'item', label: 'Save as…' },
                 { kind: 'item', label: 'Export' },
             ]);
@@ -81,27 +84,30 @@ export const AdwSplitButtonNsTest = async () => {
     });
 
     await describe('choosing a menu item (shared conformance vectors)', async () => {
-        for (const { model, path, activated, rule } of SPLIT_BUTTON_MENU_ACTIVATION_VECTORS) {
+        for (const { tree, path, activated, rule } of SPLIT_BUTTON_MENU_ACTIVATION_VECTORS) {
             await it(`activating ${JSON.stringify(path)} dispatches ${JSON.stringify(activated)} — ${rule}`, () => {
                 const state = new SplitButtonState();
-                state.setMenuModel(model);
+                state.setMenuModel(buildMenu(tree));
                 expect(state.activateMenuItem(path)).toStrictEqual(activated);
             });
         }
 
         await it('a dismissal activates nothing', () => {
             const state = new SplitButtonState();
-            state.setMenuModel([{ label: 'Print', action: 'app.print' }]);
+            state.setMenuModel(buildMenu([{ label: 'Print', action: 'app.print' }]));
             expect(state.activateMenuItem([])).toBe(null);
         });
     });
 
     await describe('dropdown sensitivity (shared conformance vectors)', async () => {
-        for (const { model, popover, enabled, canOpen, rule } of SPLIT_BUTTON_DROPDOWN_VECTORS) {
-            await it(`${model.length} entries, popover=${popover} → enabled=${enabled} — ${rule}`, () => {
+        for (const { tree, popover, enabled, canOpen, rule } of SPLIT_BUTTON_DROPDOWN_VECTORS) {
+            const what = tree === null ? 'no model' : `${tree.length} entries`;
+            await it(`${what}, popover=${popover} → enabled=${enabled} — ${rule}`, () => {
                 const state = new SplitButtonState();
                 if (popover) state.setPopover({ popover: true });
-                if (model.length > 0) state.setMenuModel(model);
+                // `null` is the only spelling of "no menu" since ADR 0128, so an EMPTY
+                // tree is still installed — and leaves the dropdown live.
+                if (tree !== null) state.setMenuModel(buildMenu(tree));
                 // The `_openMenu()` guard: no menu ⇒ the popup is never shown,
                 // and the arrow half is dimmed instead of looking live.
                 expect(state.dropdownEnabled).toBe(enabled);

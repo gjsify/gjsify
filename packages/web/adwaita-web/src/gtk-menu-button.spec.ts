@@ -8,11 +8,11 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import { MENU_ITEM_STATE_VECTORS, MENU_PARSE_VECTORS, MENU_REFUSAL_VECTORS } from '@gjsify/adwaita-core/conformance';
-import { flattenMenu } from '@gjsify/adwaita-core';
-import type { AdwMenuInput } from '@gjsify/adwaita-core';
+import { buildMenu, flattenMenu } from '@gjsify/adwaita-core';
+import type { AdwMenuModel } from '@gjsify/adwaita-core';
 
 interface MenuButtonElement extends HTMLElement {
-    menuModel: AdwMenuInput;
+    menuModel: AdwMenuModel | string | null;
     actions: Record<string, { enabled?: boolean; state?: string }> | null;
 }
 
@@ -33,12 +33,12 @@ function unmountAll(): void {
 
 export const GtkMenuButtonTest = async () => {
     await describe('<gtk-menu-button> menu attribute', async () => {
-        for (const { json, model, rule } of MENU_PARSE_VECTORS) {
+        for (const { json, tree, rule } of MENU_PARSE_VECTORS) {
             await it(`${rule}`, () => {
                 const { labels } = mountWithMenu(json ?? '');
                 // The rendered rows are what `flattenMenu` says: a section is inlined,
                 // a submenu is ONE row, and both keep their own label.
-                expect(labels).toStrictEqual(flattenMenu(model).map((row) => row.node.label));
+                expect(labels).toStrictEqual(flattenMenu(tree).map((row) => row.node.label));
                 unmountAll();
             });
         }
@@ -71,14 +71,14 @@ export const GtkMenuButtonTest = async () => {
             const el = document.createElement('gtk-menu-button') as MenuButtonElement;
             document.body.appendChild(el);
             expect(el.querySelectorAll('.adw-popover-item').length).toBe(0);
-            el.menuModel = ['New', 'Open'];
+            el.menuModel = buildMenu(['New', 'Open']);
             expect([...el.querySelectorAll('.adw-menu-button-item-label')].map((n) => n.textContent)).toStrictEqual([
                 'New',
                 'Open',
             ]);
             // REPLACED, not merely seeded — the failure mode is a second assignment
             // writing an expando while the first happened to work at connect.
-            el.menuModel = [{ label: 'Only', action: 'app.only' }];
+            el.menuModel = buildMenu([{ label: 'Only', action: 'app.only' }]);
             expect([...el.querySelectorAll('.adw-menu-button-item-label')].map((n) => n.textContent)).toStrictEqual([
                 'Only',
             ]);
@@ -100,11 +100,11 @@ export const GtkMenuButtonTest = async () => {
         await it('draws a section heading, a separator and a submenu page', () => {
             const el = document.createElement('gtk-menu-button') as MenuButtonElement;
             document.body.appendChild(el);
-            el.menuModel = [
+            el.menuModel = buildMenu([
                 { label: 'New' },
                 { section: [{ label: 'Cut' }, { label: 'Copy' }], label: 'Edit' },
                 { label: 'More', submenu: [{ label: 'Rename' }, { label: 'Duplicate' }] },
-            ];
+            ]);
 
             // TWO: a section is separated from what comes before it AND from what comes
             // after, which is what `GtkPopoverMenu` draws for the same model.
@@ -137,7 +137,7 @@ export const GtkMenuButtonTest = async () => {
                 const el = document.createElement('gtk-menu-button') as MenuButtonElement;
                 document.body.appendChild(el);
                 el.actions = { ...actions };
-                el.menuModel = [item];
+                el.menuModel = buildMenu([item]);
                 const row = el.querySelector('.adw-popover-item') as HTMLButtonElement;
                 expect(row.hidden).toBe(!state.visible);
                 expect(row.disabled).toBe(!state.sensitive);
@@ -179,15 +179,15 @@ export const GtkMenuButtonTest = async () => {
 
         await it('menu_model / get_menu_model / set_menu_model mirror menuModel', () => {
             const el = document.createElement('gtk-menu-button') as MenuButtonElement & {
-                menu_model: AdwMenuInput;
+                menu_model: AdwMenuModel | null;
                 get_menu_model(): unknown;
-                set_menu_model(v: AdwMenuInput): void;
+                set_menu_model(v: AdwMenuModel | null): void;
             };
             document.body.appendChild(el);
-            el.set_menu_model(['Save', 'Quit']);
+            el.set_menu_model(buildMenu(['Save', 'Quit']));
             expect(el.get_menu_model()).toBe(el.menuModel);
             expect(el.querySelectorAll('.adw-popover-item').length).toBe(2);
-            el.menu_model = ['Save'];
+            el.menu_model = buildMenu(['Save']);
             expect(el.querySelectorAll('.adw-popover-item').length).toBe(1);
             unmountAll();
         });
@@ -200,13 +200,16 @@ export const GtkMenuButtonTest = async () => {
             unmountAll();
         });
 
-        for (const { model, paths, rule } of MENU_REFUSAL_VECTORS) {
+        for (const { tree, paths, rule } of MENU_REFUSAL_VECTORS) {
             await it(`refusal — ${rule}`, () => {
                 const el = document.createElement('gtk-menu-button') as MenuButtonElement;
                 document.body.appendChild(el);
+                // `buildMenu` is how a tree becomes a model now: the property takes the
+                // real thing (ADR 0128), so the refusal happens on the model's snapshot.
+                const model = buildMenu(tree);
                 if (paths.length === 0) {
                     el.menuModel = model;
-                    expect(el.querySelectorAll('.adw-popover-item').length).toBe(flattenMenu(model).length);
+                    expect(el.querySelectorAll('.adw-popover-item').length).toBe(flattenMenu(tree).length);
                 } else {
                     // LOUD, at the assignment: a `custom` item names an application
                     // widget, and a surface that ignored it would draw a blank row.

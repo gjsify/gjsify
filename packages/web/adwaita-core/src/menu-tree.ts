@@ -5,7 +5,7 @@
 // the id as text, which the widget reads as an empty menu — so both builders ask here.
 
 import { normalizeMenuModel } from './menu.js';
-import type { AdwMenuInput, AdwMenuModel } from './menu.js';
+import type { AdwMenuInput, AdwMenuTree } from './menu.js';
 
 /** The slice of a tree node this reads. */
 export interface MenuTreeNode {
@@ -15,14 +15,14 @@ export interface MenuTreeNode {
 }
 
 /**
- * The menus a node assigns, as `[property, model]`: the root menu `menu-model: id` names, and each
- * model written at a property. An id with no root menu is refused by name.
+ * The menus a node assigns, as `[property, tree]`: the root menu `menu-model: id` names, and each
+ * tree written at a property. An id with no root menu is refused by name.
  */
 export function menuAssignments(
     node: MenuTreeNode,
     menus: Readonly<Record<string, readonly unknown[]>> | undefined,
-): Array<[string, AdwMenuModel]> {
-    const out: Array<[string, AdwMenuModel]> = [];
+): Array<[string, AdwMenuTree]> {
+    const out: Array<[string, AdwMenuTree]> = [];
     const reference = node.props?.['menu-model'];
     if (reference !== undefined) {
         const items = typeof reference === 'string' ? menus?.[reference] : undefined;

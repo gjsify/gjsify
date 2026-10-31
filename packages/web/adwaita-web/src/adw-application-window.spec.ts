@@ -8,6 +8,7 @@
 // <adw-window>'s spec and only the delta is asserted here.
 import { describe, it, expect } from '@gjsify/unit';
 import { driveWindowVectors, WINDOW_VECTORS } from '@gjsify/adwaita-core/conformance';
+import { menuTree } from '@gjsify/adwaita-core';
 
 import { webWindowSubject } from './gtk-window.spec.js';
 
@@ -114,12 +115,14 @@ export const AdwApplicationWindowTest = async () => {
 
         await it('a broken model is dropped rather than thrown', async () => {
             // `parseMenuModel` is total by construction: a typo in markup must not take
-            // the window down with it.
+            // the window down with it. Since ADR 0128 the window still HOLDS its authored
+            // menu — the typo empties it rather than removing it, and `null` is the only
+            // spelling of "no menu".
             const win = document.createElement('adw-application-window') as AdwApplicationWindow;
             win.setAttribute('menu-model', '{not json');
             win.setAttribute('show-menubar', '');
             document.body.appendChild(win);
-            expect(win.menuModel).toStrictEqual([]);
+            expect(menuTree(win.menuModel!)).toStrictEqual([]);
             expect(win.menubar?.hidden).toBe(true);
             win.remove();
         });

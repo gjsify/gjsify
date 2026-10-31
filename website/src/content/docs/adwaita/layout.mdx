@@ -455,21 +455,24 @@ the trailing one.
   <Fragment slot="webloader">
     ```js
     import '@gjsify/adwaita-web';
+    import { buildMenu } from '@gjsify/adwaita-web';
 
     const title = document.querySelector('#window_title');
     const menuButton = document.querySelector('#menu_button');
     title.setAttribute('subtitle', 'draft.md');
 
-    menuButton.menuModel = [
+    // `menuModel` takes a real Gio.MenuModel, the same as on GJS above; `buildMenu`
+    // turns the portable node array into one.
+    menuButton.menuModel = buildMenu([
         { label: 'New Window', action: 'app.new-window' },
         { label: 'Preferences', action: 'app.preferences' },
         { label: 'About', action: 'app.about' },
-    ];
+    ]);
     ```
   </Fragment>
   <Fragment slot="nativescriptloader">
     ```ts
-    import { type Adw, type Gtk } from '@gjsify/adwaita-nativescript';
+    import { buildMenu, type Adw, type Gtk } from '@gjsify/adwaita-nativescript';
     import { Builder } from '@nativescript/core';
 
     const headerBar = Builder.load({ path: '~/views', name: 'header-bar' }) as Adw.HeaderBar;
@@ -477,11 +480,11 @@ the trailing one.
     const menuButton = headerBar.getViewById<Gtk.MenuButton>('menu_button')!;
     title.subtitle = 'draft.md';
 
-    menuButton.menuModel = [
+    menuButton.menuModel = buildMenu([
         { label: 'New Window', action: 'app.new-window' },
         { label: 'Preferences', action: 'app.preferences' },
         { label: 'About', action: 'app.about' },
-    ];
+    ]);
     ```
   </Fragment>
 </AdwWidget>

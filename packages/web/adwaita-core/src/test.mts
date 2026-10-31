@@ -10,6 +10,7 @@ import entryRowTestSuite from './entry-row.spec.js';
 import splitViewTestSuite from './split-view.spec.js';
 import splitButtonTestSuite from './split-button.spec.js';
 import menuTestSuite from './menu.spec.js';
+import gioMenuTestSuite from './gio-menu.spec.js';
 import popupMenuPlanTestSuite from './popup-menu-plan.spec.js';
 import menuActionsTestSuite from './menu-actions.spec.js';
 import menuActionsOracleTestSuite from './menu-actions.gjs.spec.js';
@@ -153,6 +154,7 @@ run({
     splitViewTestSuite,
     splitButtonTestSuite,
     menuTestSuite,
+    gioMenuTestSuite,
     popupMenuPlanTestSuite,
     menuActionsTestSuite,
     menuActionsOracleTestSuite,

@@ -37,13 +37,8 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
 import {
-    ADW_MENU_SURFACE_WEB,
     SplitButtonState,
-    assertMenuRenderable,
     isSplitButtonDirection,
-    menuRefusals,
-    normalizeMenuModel,
-    parseMenuModel,
     resolveDropdownTooltip,
     splitButtonArrowIcon,
     splitButtonPopupDirection,
@@ -52,13 +47,13 @@ import {
 import type {
     AdwArrowIcon,
     AdwMenuActions,
-    AdwMenuInput,
     AdwMenuModel,
     SplitButtonChange,
     SplitButtonDirection,
 } from '@gjsify/adwaita-core';
 import { activateElementMenuItem, menuActionsOfElement } from '../application.js';
 
+import { MenuSlot } from './menu-slot.js';
 import { PopoverMenuView } from './popover-menu.js';
 
 // SIDE-EFFECT import, deliberately separate from the type import below: it is
@@ -121,6 +116,15 @@ const POPOVER_POSITIONS = {
 
 export class AdwSplitButton extends WidgetElement {
     private readonly _state = new SplitButtonState();
+    /**
+     * The model's door, tree snapshot and `items-changed` subscription (ADR 0128). The
+     * STATE still owns the menu as a property — `dropdownEnabled` is derived from it and
+     * the notify order is libadwaita's — so every write here goes through the slot FIRST
+     * (which is what refuses it and snapshots it) and is then handed to the state.
+     */
+    private readonly _slot = new MenuSlot(() => {
+        if (this._initialized) this._render();
+    });
     private _actionEl!: HTMLButtonElement;
     private _dropdownEl!: HTMLButtonElement;
     private _arrowEl!: GtkImage;
@@ -180,60 +184,29 @@ export class AdwSplitButton extends WidgetElement {
         this.removeAttribute('label');
     }
 
-    /** The menu, normalised (ADR 0042). Empty when the dropdown has none. */
-    get menuModel(): AdwMenuModel {
-        return this._state.menuModel ?? [];
+    /**
+     * The menu the dropdown pops up, by identity, or `null` when it has none (ADR 0128).
+     *
+     * `null` is the ONLY spelling of "no menu" now: an empty model is a menu, so an empty
+     * one leaves the dropdown enabled exactly as it does in GTK, where a non-null model
+     * still builds a popover (measured, `MENU_MODEL_DOOR_VECTORS`).
+     */
+    get menuModel(): AdwMenuModel | null {
+        return this._state.menuModel;
     }
 
     /**
-     * Set the menu from anything the portable model accepts — a bare `string[]`, item
-     * descriptors, sections, submenus.
+     * Take a real model, a JSON string in the portable spelling, or `null`.
      *
-     * The REFUSAL is here rather than at render time: a `custom` item names an
-     * application widget this surface cannot host, and discovering that as a blank row
-     * three interactions later is what {@link assertMenuRenderable} exists to prevent.
+     * The REFUSAL is at the assignment rather than at render time: a `custom` item names
+     * an application widget this surface cannot host, and discovering that as a blank row
+     * three interactions later is what the refusal exists to prevent. {@link MenuSlot}
+     * owns the door; the state is handed only a menu this surface agreed to draw.
      */
-    set menuModel(value: AdwMenuInput) {
-        // Refused BEFORE it is stored, so a throw leaves the widget showing the menu it
-        // had rather than one it cannot draw.
-        this._state.setMenuModel(this._acceptMenu(value));
+    set menuModel(value: AdwMenuModel | string | null) {
+        this._slot.write(value);
+        this._state.setMenuModel(this._slot.model);
         if (this._initialized) this._render();
-    }
-
-    /**
-     * Normalise, REFUSE, store — the one door every menu comes through.
-     *
-     * The property setter is not the only way a menu arrives: an attribute is, and the
-     * first cut refused only the setter, so a `custom` item written in markup drew
-     * exactly the row `assertMenuRenderable` exists to prevent — one that reads like a
-     * command and does nothing.
-     *
-     * THE TWO DOORS REFUSE DIFFERENTLY, and the difference is which side can hear it.
-     * A property assignment is a CALL, so it throws and the caller can catch. An
-     * attribute is MARKUP, parsed by the browser: a throw from `connectedCallback` is
-     * not delivered to whoever appended the element, it is reported as an uncaught
-     * page error — measured, it broke `adwaita-upgrade-order.spec.ts`, which counts
-     * exactly those. Nobody can handle it and everybody else pays for it. So the
-     * attribute path REFUSES THE MENU (no menu, and a menu-less dropdown is
-     * insensitive, which is visible) and says why on `console.error`.
-     *
-     * A REFUSAL AND A TYPO ARE STILL DIFFERENT THINGS. `parseMenuModel` is total
-     * because malformed JSON is an author slip and must not stop the element
-     * upgrading; `custom` is well-formed, deliberate, and unhonourable here.
-     */
-    private _acceptMenu(input: AdwMenuInput, strict = true): AdwMenuModel {
-        const model = normalizeMenuModel(input);
-        if (strict) {
-            assertMenuRenderable(model, ADW_MENU_SURFACE_WEB);
-            return model;
-        }
-        const refusals = menuRefusals(model, ADW_MENU_SURFACE_WEB);
-        if (refusals.length === 0) return model;
-        // `console.error` is the browser's own channel for "this is wrong, the page
-        // continues" — and the alternative here is a row that lies.
-        console.error(`${ADW_MENU_SURFACE_WEB.name} cannot render this menu, so it has none:`);
-        for (const refusal of refusals) console.error(`  [${refusal.path.join('.')}] ${refusal.message}`);
-        return [];
     }
 
     /**
@@ -387,7 +360,8 @@ export class AdwSplitButton extends WidgetElement {
                 this._state.setDropdownTooltip(value ?? '');
                 break;
             case 'menu-model':
-                this._state.setMenuModel(this._acceptMenu(parseMenuModel(value), false));
+                this._slot.writeMarkup(value);
+                this._state.setMenuModel(this._slot.model);
                 break;
             default:
                 break;
@@ -409,10 +383,12 @@ export class AdwSplitButton extends WidgetElement {
         const direction = this.getAttribute('direction');
         if (isSplitButtonDirection(direction)) this._state.setDirection(direction);
         this._state.setDropdownTooltip(this.getAttribute('dropdown-tooltip') ?? '');
-        // The `menuModel` property may have been set before the element upgraded;
-        // the attribute only seeds an otherwise empty menu.
+        // The `menuModel` property may have been set before the element upgraded; the
+        // attribute only seeds a widget that has NO menu — which since ADR 0128 means a
+        // null one, an empty model being a menu an author may have meant.
         if (this._state.menuModel === null) {
-            this._state.setMenuModel(this._acceptMenu(parseMenuModel(this.getAttribute('menu-model')), false));
+            this._slot.writeMarkup(this.getAttribute('menu-model'));
+            this._state.setMenuModel(this._slot.model);
         }
     }
 
@@ -528,9 +504,9 @@ export class AdwSplitButton extends WidgetElement {
 
     private _renderMenu(): void {
         this._menuEl.open = this._state.open;
-        const model = this._state.menuModel ?? [];
-        this._menuView.setMenuModel(model);
-        this._menuView.setActions(this._actions ?? menuActionsOfElement(this, model));
+        const tree = this._slot.tree;
+        this._menuView.setMenuTree(tree);
+        this._menuView.setActions(this._actions ?? menuActionsOfElement(this, tree));
         this._menuView.render();
     }
 }

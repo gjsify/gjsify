@@ -4,7 +4,7 @@
 // flat), mirroring both twins.
 //
 // NS Adw.SplitButton has an action part (a symbolic icon OR a text label) + a
-// `menu` (string[]) opened as a native action() sheet on the arrow tap. The
+// `menuModel` opened as a native PopupMenu on the arrow tap (ADR 0097). The
 // native/browser twins show only the icon when one is set, so here the symbolic
 // name maps to a REAL Adwaita symbolic SVG set as the action icon.
 
@@ -14,12 +14,12 @@
 // switch over three or four names, each with its own fallback.
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
-import { Adw } from '@gjsify/adwaita-nativescript';
+import { Adw, buildMenu } from '@gjsify/adwaita-nativescript';
 import { splitButtonFlatMeta, splitButtonMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
-// The shared dropdown menu — the NS twin of buildMenu() in the GTK story / the
-// MENU model in the browser story. NS Adw.SplitButton.menu is a plain label list.
-const MENU = ['Save as…', 'Export', 'Print'];
+// The shared dropdown menu. `menuModel` takes a real `Gio.MenuModel` on every
+// renderer (ADR 0128), so the label list is built once here rather than assigned.
+const MENU = buildMenu(['Save as…', 'Export', 'Print']);
 
 abstract class SplitButtonNsStoryBase extends StoryView {
     protected _widget: Adw.SplitButton | null = null;

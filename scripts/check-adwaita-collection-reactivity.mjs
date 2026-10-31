@@ -267,8 +267,28 @@ const TOP_LEVEL_DECLARATION =
 const LIST_MODEL_PAIR = [/(?<![.\w])get_n_items\s*[(:]/, /(?<![.\w])get_item\s*[(:]/];
 
 /**
- * Core's exported types that ARE a `Gio.ListModel` — they declare the reading pair, or
- * (ONE hop) extend something that does.
+ * The `Gio.MenuModel` reading pair — `g_menu_model_get_n_items` and
+ * `g_menu_model_get_item_link`, the second half spelled differently because a menu model
+ * hands back a LINK and an attribute rather than an item object.
+ *
+ * MEASURED, and it is why a second pair exists at all: ADR 0128 made `menuModel` a real
+ * `Gio.MenuModel`, and a menu model answers `get_item_attribute_value` / `get_item_link`
+ * where a list model answers `get_item`. {@link LIST_MODEL_PAIR} therefore saw no model
+ * in any of them, with two consequences in one commit — `SplitButtonState.setMenuModel`
+ * stopped naming a collection, so the census lost the split button on BOTH renderers,
+ * and `GjsifyMenu` was read as a HOLDER rather than as the collection, so its `reconcile`
+ * became a collection setter and the unresolved `this._authored.reconcile(options)` of
+ * `<adw-combo-row>` and `<gtk-drop-down>` — a `GjsifyOptionList` call — was credited to
+ * it, complete with a fix instructing two selectors to publish a setter for a menu.
+ */
+const MENU_MODEL_PAIR = [/(?<![.\w])get_n_items\s*[(:]/, /(?<![.\w])get_item_link\s*[(:]/];
+
+/** Every shape that IS a collection rather than a holder of one. */
+const MODEL_PAIRS = [LIST_MODEL_PAIR, MENU_MODEL_PAIR];
+
+/**
+ * Core's exported types that ARE a model — they declare one of the reading pairs
+ * ({@link MODEL_PAIRS}), or extend something that does.
  *
  * MEASURED, and it is why this exists: ADR 0122 turned `Adw.ComboRow:model` and
  * `Gtk.DropDown:model` from an array into a real list model, so `ComboState.setModel`
@@ -282,15 +302,22 @@ const LIST_MODEL_PAIR = [/(?<![.\w])get_n_items\s*[(:]/, /(?<![.\w])get_item\s*[
  * being handed over as an object instead of an array — and handing a model over by
  * IDENTITY is the opposite of the JSON round-trip rule 3 exists to stop.
  *
- * DERIVED from the reading pair rather than listed, for {@link coreListParsers}' reason:
- * a hand-kept list of model type names has the same failure one rename later. The pair is
- * what `list.ts` itself duck-tests for ("anything with `get_n_items` and `get_item`"), so
- * this reader and the code it reads agree on what a model is.
+ * DERIVED from the reading pairs rather than listed, for {@link coreListParsers}' reason:
+ * a hand-kept list of model type names has the same failure one rename later. A pair is
+ * what the code itself duck-tests for — `list.ts` for "anything with `get_n_items` and
+ * `get_item`", `gio-menu.ts` for the menu reads — so this reader and the code it reads
+ * agree on what a model is.
  *
- * ONE HOP, the same bound as the aliases above: `ComboWatchableModel extends
- * AdwListModelSource` adds only the optional signal pair and declares neither getter, so
- * without the hop the published property type of both selectors is invisible. An heir of
- * an heir is not followed.
+ * THE HEIR PASS RUNS TO A FIXED POINT, which is one hop more than the aliases above get,
+ * and the asymmetry is deliberate: an alias chain is where TEXTUAL resolution stops being
+ * honest, while `extends` is one relation applied twice and names a real hierarchy.
+ * `ComboWatchableModel extends AdwListModelSource` needs the first hop — it adds only the
+ * optional signal pair and declares neither getter, so without it the published property
+ * type of both selectors is invisible. ADR 0128 needs the second: the menu hierarchy is
+ * `GjsifyMenu extends GioMenu extends GioMenuModel`, and only the base declares the
+ * reads. At one hop `GjsifyMenu` fell outside the set, which is the holder-as-collection
+ * confusion {@link MENU_MODEL_PAIR} records — reachable there only through the ORDER the
+ * heirs happened to be read in, which is no answer at all.
  */
 function coreListModelTypes() {
     const models = new Set();
@@ -306,12 +333,18 @@ function coreListModelTypes() {
             if (!/\bexport\s/.test(top[0]) || !/\b(?:interface|class|type)\s/.test(top[0])) continue;
             const next = tops[index + 1];
             const text = code.slice(top.index, next === undefined ? code.length : next.index);
-            if (LIST_MODEL_PAIR.every((member) => member.test(text))) models.add(top[1]);
+            if (MODEL_PAIRS.some((pair) => pair.every((member) => member.test(text)))) models.add(top[1]);
             else heirs.set(top[1], headerOf(text));
         }
     }
-    for (const [name, header] of heirs) {
-        if ([...models].some((model) => new RegExp(`\\b${model}\\b`).test(header))) models.add(name);
+    for (let grew = true; grew;) {
+        grew = false;
+        for (const [name, header] of heirs) {
+            if (models.has(name)) continue;
+            if (![...models].some((model) => new RegExp(`\\b${model}\\b`).test(header))) continue;
+            models.add(name);
+            grew = true;
+        }
     }
     return models;
 }
@@ -358,20 +391,47 @@ const namesAList = (signature, types) => {
  * to hold it. A hand-kept list of parser names would have had the same failure mode one
  * rename later.
  *
- * The shape is deliberately narrow — a `string` somewhere in the parameters and a list
- * (through {@link coreListAliases}' one hop) coming back — so a core helper that merely
- * TAKES a string is not mistaken for an attribute door.
+ * The first shape is deliberately narrow — a `string` somewhere in the parameters and a
+ * list (through {@link coreListAliases}' one hop) coming back — so a core helper that
+ * merely TAKES a string is not mistaken for an attribute door.
+ *
+ * THE SECOND SHAPE is a function that does not take a `string` at all and CALLS one of
+ * the first — `readMenuModelWrite(value: unknown, authored: GjsifyMenu)`, which answers a
+ * `string` write by handing it to `parseMenuModel`. It too was measured, by the same
+ * mechanism one ADR later: ADR 0128 put the four steps of a menu-model write behind that
+ * one door, and because its parameter is `unknown` rather than `string`, the first shape
+ * saw no parser and `attr:menu-model` went invisible on SIX elements plus
+ * `attr:secondary-menu` on a seventh — the ADR-0046 failure again, with `unknown` in
+ * place of a rename. ADR 0122's `readModelWrite` has the same shape and had the same hole.
+ *
+ * ONE HOP, like {@link localParseHops} and unlike {@link coreListModelTypes}' heir pass:
+ * `extends` is a hierarchy and worth following to a fixed point, while "calls" is any
+ * edge in the call graph, and chasing it would eventually make every function that
+ * touches a parser an attribute door. A door built on a door would have to be declared
+ * here, which is the honest place to notice it.
  */
 function coreListParsers(aliases) {
     const parsers = new Set();
+    /** Candidates for the second shape: no `string` in, a list out, body kept to read. */
+    const indirect = [];
     for (const file of sourcesUnder(CORE_SRC)) {
         const code = stripComments(readFileSync(join(ROOT, file), 'utf8'));
-        for (const [, name, params, ret] of code.matchAll(
-            /\bexport\s+function\s+([A-Za-z0-9_$]+)\s*\(([^)]*)\)\s*:\s*([^{]+)\{/g,
-        )) {
-            if (/\bstring\b/.test(params) && namesAList(ret, aliases)) parsers.add(name);
+        // Partitioned on every top-level declaration for {@link coreListModelTypes}' reason:
+        // a function's body has to stop where the next declaration starts, or the second
+        // shape reads the file's remainder as its body.
+        const tops = [...code.matchAll(TOP_LEVEL_DECLARATION)];
+        for (const [index, top] of tops.entries()) {
+            if (!/\bexport\s/.test(top[0]) || !/\bfunction\s/.test(top[0])) continue;
+            const next = tops[index + 1];
+            const text = code.slice(top.index, next === undefined ? code.length : next.index);
+            const head = /\bexport\s+function\s+([A-Za-z0-9_$]+)\s*\(([^)]*)\)\s*:\s*([^{]+)\{/.exec(text);
+            if (head === null || head[1] !== top[1] || !namesAList(head[3], aliases)) continue;
+            if (/\bstring\b/.test(head[2])) parsers.add(top[1]);
+            else indirect.push({ name: top[1], body: text.slice(head.index + head[0].length) });
         }
     }
+    const callsAParser = new RegExp(`(?:${['JSON\\.parse', ...parsers].join('|')})\\s*\\(`);
+    for (const { name, body } of indirect) if (callsAParser.test(body)) parsers.add(name);
     return parsers;
 }
 
@@ -631,16 +691,54 @@ function coreCollectionSetters(types, listModels) {
 // 2. What one widget class does with collections.
 
 /**
+ * `this.<field>.<method>` for every RENDERER-LOCAL helper method that parses a collection
+ * on the widget's behalf — the parse side of {@link forwardsToCore}'s one hop.
+ *
+ * MEASURED, and it is the third time the same failure has arrived by a different road
+ * ({@link coreListParsers} records the first two): ADR 0128 moved the four steps of the
+ * `menu-model` door — read the write, refuse, snapshot, watch — into a renderer-local
+ * `MenuSlot`, so every menu-carrying element reads `this._slot.writeMarkup(this.getAttribute('menu-model'))`
+ * and no `parseMenuModel(` is left in the widget. Six elements lost `attr:menu-model` at
+ * once, and the census failed in the direction that says they were removed. A parser one
+ * hop away is still this widget's attribute door; what matters to the rule is that the
+ * attribute's text becomes a collection, not which file spells the call.
+ *
+ * ONE HOP and renderer-local only, the same bound and for the same reason as the state
+ * side: the helper is in the package being read, so "does it parse" is answered from the
+ * tree rather than assumed.
+ */
+function localParseHops(widgetBody, fields, parseCalls, localClasses) {
+    if (localClasses === undefined) return [];
+    const anyParseCall = new RegExp(`(?:${parseCalls})\\s*\\(`);
+    const hops = [];
+    for (const [field, className] of fields) {
+        if (!new RegExp(`\\bthis\\.${field}\\s*\\.`).test(widgetBody)) continue;
+        const local = localClasses.get(className);
+        if (local === undefined) continue;
+        const localBody = classBody(local.text, className);
+        if (localBody === null) continue;
+        const localMembers = membersOfClass(localBody.text);
+        for (const member of localMembers) {
+            if (member.kind !== 'method' || !isPublicMember(member)) continue;
+            if (!anyParseCall.test(memberText(localBody.text, localMembers, member))) continue;
+            hops.push(`this\\.${field}\\.${member.name}`);
+        }
+    }
+    return hops;
+}
+
+/**
  * Read one widget class: its settable collection properties, and the attributes it parses
  * as lists.
  */
-function readWidget(text, className, coreClasses, parseCalls, types) {
+function readWidget(text, className, coreClasses, parseCalls, types, localClasses) {
     const code = stripComments(text);
     const body = classBody(code, className);
     if (body === null) return null;
     const members = membersOfClass(body.text);
     const lineIn = (index) => lineOf(code, body.offset + index);
     const fields = stateFields(body.text, coreClasses);
+    parseCalls = [parseCalls, ...localParseHops(body.text, fields, parseCalls, localClasses)].join('|');
 
     // `namesAList`, not a bare bracket test: rule 3 asks whether the widget publishes a
     // setter for the collection its attribute carries, and the collections whose handed-over
@@ -709,7 +807,8 @@ function readWidget(text, className, coreClasses, parseCalls, types) {
  * class it was never made on. It used to drop them, so an unresolved receiver and a
  * receiver resolving to something else were the same answer, and
  * {@link coreCallSites} fell back to the setter's single owner for both. MEASURED:
- * `this._menuView.setMenuModel(…)` in `<gtk-menu-button>` — a renderer-local view class,
+ * `this._menuView.setMenuTree(…)` in `<gtk-menu-button>` (then spelled `setMenuModel`,
+ * before ADR 0128 made the model a real `Gio.MenuModel`) — a renderer-local view class,
  * not a state — was reported as the widget carrying `SplitButtonState.setMenuModel`,
  * complete with a fix instructing it to publish a setter for a collection it does not own.
  */
@@ -770,7 +869,7 @@ function attributeBranches(widget) {
  * The hop exists because both answers are in the tree and they are opposites.
  * `NsNavigationStack.replaceWithTags` is `this._state.replaceWithTags(tags)`, so a widget
  * calling it through that helper really does carry `NavigationViewState.replaceWithTags`.
- * `PopoverMenuView.setMenuModel` renders DOM and reaches no state at all, so a widget
+ * `PopoverMenuView.setMenuTree` renders DOM and reaches no state at all, so a widget
  * calling THAT carries nothing of `SplitButtonState`'s. Without the hop the two are one
  * case, and whichever way it is resolved is wrong for the other.
  */
@@ -896,7 +995,14 @@ for (const renderer of RENDERERS) {
     for (const [tag, file] of [...renderer.tags].sort()) {
         const className = tagClass(tag);
         const text = readFileSync(join(ROOT, file), 'utf8');
-        const widget = readWidget(text, className, coreClasses, PARSE_CALLS, CORE_COLLECTION_TYPES);
+        const widget = readWidget(
+            text,
+            className,
+            coreClasses,
+            PARSE_CALLS,
+            CORE_COLLECTION_TYPES,
+            renderer.localClasses,
+        );
         if (widget === null) continue;
         // A class with code in it but no readable member is the vacuous pass this whole
         // file exists to refuse — its call sites would read as none. A marker class

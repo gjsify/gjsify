@@ -19,6 +19,7 @@
 // A real Tab press escaping an untrapped dialog is measured one layer up, by
 // `tests/browser/specs/adwaita-keyboard.spec.ts`.
 import { describe, expect, it } from '@gjsify/unit';
+import { buildMenu } from '@gjsify/adwaita-core';
 
 import type { AdwAlertDialog } from './elements/adw-alert-dialog.js';
 import { AdwToggle, AdwToggleGroup } from './elements/adw-toggle-group.js';
@@ -737,11 +738,11 @@ export const AdwKeyboardOperableTest = async () => {
             };
             document.body.appendChild(el);
             el.actions = { 'app.export': { enabled: false }, 'app.new': {} };
-            el.menuModel = [
+            el.menuModel = buildMenu([
                 { label: 'New', action: 'app.new' },
                 { section: [{ label: 'Export', action: 'app.export' }, { label: 'Print' }] },
                 { label: 'More', submenu: [{ label: 'Rename' }, { label: 'Duplicate' }] },
-            ];
+            ]);
             (el.querySelector('.adw-menu-button-button') as HTMLElement).click();
             return {
                 el,
@@ -828,14 +829,14 @@ export const AdwKeyboardOperableTest = async () => {
             };
             document.body.appendChild(el);
             el.actions = { 'app.off': { enabled: false } };
-            el.menuModel = [
+            el.menuModel = buildMenu([
                 { label: 'Dim', action: 'app.off' },
                 { label: 'Live' },
                 {
                     label: 'More',
                     submenu: [{ label: 'SubDim', action: 'app.off' }, { label: 'SubLive' }],
                 },
-            ];
+            ]);
             (el.querySelector('.adw-menu-button-button') as HTMLElement).click();
             const rows = () => [...el.querySelectorAll<HTMLButtonElement>('.adw-popover-item')];
             const label = () =>
@@ -867,7 +868,7 @@ export const AdwKeyboardOperableTest = async () => {
             };
             document.body.appendChild(el);
             el.actions = { 'app.off': { enabled: false } };
-            el.menuModel = [{ label: 'More', submenu: [{ label: 'Only', action: 'app.off' }] }];
+            el.menuModel = buildMenu([{ label: 'More', submenu: [{ label: 'Only', action: 'app.off' }] }]);
             (el.querySelector('.adw-menu-button-button') as HTMLElement).click();
             const opener = el.querySelector('.adw-popover-item') as HTMLButtonElement;
             opener.focus();

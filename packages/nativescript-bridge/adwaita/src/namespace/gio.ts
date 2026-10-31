@@ -11,7 +11,9 @@
 // WHY THIS BARREL IS SHORT, AND WILL STAY SHORT. The other two hold WIDGETS, and
 // `check-vocabulary-alignment.mjs` derives their members from the widget files on disk.
 // GIO has no widgets: what lands here is the handful of GObject types an Adwaita author
-// CONSTRUCTS while building a widget tree — today the menu a `menuModel` property takes.
+// CONSTRUCTS while building a widget tree — today the menu a `menuModel` property takes,
+// which since ADR 0128 is a REAL `Gio.MenuModel` and therefore a hierarchy rather than one
+// class.
 // `SimpleAction`/`SimpleActionGroup` ARE here — the `GAction` registry a Button's
 // `action-name` resolves through (`../widgets/actions.ts`). `Gio.Settings` is here (ADR 0099,
 // the `ApplicationSettings` door); the rest of the library is NOT this package's business; a
@@ -32,7 +34,24 @@ import { createAppInfo } from '@gjsify/adwaita-core';
 
 import { nativePlatformHost } from '../platform-host.js';
 
-export { GioMenu as Menu, GioMenuItem as MenuItem } from '@gjsify/adwaita-core';
+// ADR 0128: `Gio.MenuModel` is an abstract CLASS, so the whole menu hierarchy is here and
+// `menu instanceof Gio.MenuModel` answers the same on both runtimes. The two iterators come
+// with it because `iterate_item_attributes` / `iterate_item_links` return them by name.
+export {
+    GioMenu as Menu,
+    GioMenuItem as MenuItem,
+    GioMenuModel as MenuModel,
+    GioMenuAttributeIter as MenuAttributeIter,
+    GioMenuLinkIter as MenuLinkIter,
+    MENU_ATTRIBUTE_ACTION,
+    MENU_ATTRIBUTE_ACTION_NAMESPACE,
+    MENU_ATTRIBUTE_ICON,
+    MENU_ATTRIBUTE_LABEL,
+    MENU_ATTRIBUTE_TARGET,
+    MENU_EXPORTER_MAX_SECTION_SIZE,
+    MENU_LINK_SECTION,
+    MENU_LINK_SUBMENU,
+} from '@gjsify/adwaita-core';
 // ADR 0122 § 2: the interface a `Gtk.StringList` implements and an `Implements: [Gio.ListModel]`
 // names. It is a token, not a class — the whole of the subset's interface support.
 export { ListModel } from '@gjsify/adwaita-core';

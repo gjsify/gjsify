@@ -7,6 +7,7 @@ import {
     registryMenuActionScene,
     type SharedTreeNode,
 } from '@gjsify/adwaita-core/conformance';
+import { menuTree, type AdwMenuModel } from '@gjsify/adwaita-core';
 import { describe, expect, it } from '@gjsify/unit';
 
 import { build } from './builder/index.js';
@@ -36,8 +37,12 @@ export const GtkMenuTreeNsTest = async () => {
                     expect(() => build(node)).toThrow(result.refused);
                     return;
                 }
-                const button = build(node) as unknown as { menuModel: ReadonlyArray<{ kind: string }> };
-                expect(button.menuModel.map((entry) => entry.kind).join(',')).toBe(result.kinds.join(','));
+                const button = build(node) as unknown as { menuModel: AdwMenuModel };
+                expect(
+                    menuTree(button.menuModel)
+                        .map((entry) => entry.kind)
+                        .join(','),
+                ).toBe(result.kinds.join(','));
             });
         }
     });

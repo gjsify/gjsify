@@ -30,6 +30,7 @@
 // GtkBuilder's own refusals, restated where the ids are resolved.
 
 import {
+    buildMenu,
     createBreakpointDriver,
     menuAssignments,
     parseBreakpointCondition,
@@ -830,7 +831,9 @@ function buildView(node: SharedTreeNode, element: Element, view: View, context: 
     for (const [authored, model] of menuAssignments(node, context.menus)) {
         const prop = propertyOf(authored);
         if (!hasGtkProperty(view, prop)) throw unknownProperty(element, node.tag, authored, prop, authored, view);
-        writeGtkProperty(view, prop, model);
+        // `buildMenu`, because since ADR 0128 `menuModel` takes a real `Gio.MenuModel` and
+        // refuses the resolved tree `menuAssignments` hands back — the walker stays a walker.
+        writeGtkProperty(view, prop, buildMenu(model));
     }
     for (const [authored, value] of Object.entries(node.props ?? {})) {
         if (authored === 'menu-model') continue;
@@ -917,7 +920,7 @@ function buildValue(node: SharedTreeNode, element: Element, probe: object, conte
     for (const [authored, model] of menuAssignments(node, context.menus)) {
         const prop = propertyOf(authored);
         if (!hasGtkProperty(probe, prop)) throw unknownProperty(element, node.tag, authored, prop, authored, probe);
-        bag[prop] = model;
+        bag[prop] = buildMenu(model);
     }
     for (const [authored, value] of Object.entries(node.props ?? {})) {
         if (authored === 'menu-model') continue;

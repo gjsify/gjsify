@@ -84,7 +84,7 @@ export default async () => {
         await it('maps sections to groups with a divider, and a radio run to an exclusive checkable group', () => {
             const log: string[] = [];
             const { surface } = surfaceOf(log);
-            const model = normalizeMenuModel([
+            const tree = normalizeMenuModel([
                 'Open',
                 {
                     section: [
@@ -93,7 +93,7 @@ export default async () => {
                     ],
                 },
             ]);
-            openPopupMenu({ surface, model, actions: { 'win.view': { state: 'grid' } }, activate: () => {} });
+            openPopupMenu({ surface, tree, actions: { 'win.view': { state: 'grid' } }, activate: () => {} });
             expect(log).toStrictEqual([
                 'root.add(1,1,0,Open)',
                 'root.add(2,2,1,List)',
@@ -108,7 +108,7 @@ export default async () => {
         await it('checks the radio the state names even when it is not the last one', () => {
             const log: string[] = [];
             const { surface } = surfaceOf(log);
-            const model = normalizeMenuModel([
+            const tree = normalizeMenuModel([
                 {
                     section: [
                         { label: 'List', action: 'win.view::list' },
@@ -116,25 +116,25 @@ export default async () => {
                     ],
                 },
             ]);
-            openPopupMenu({ surface, model, actions: { 'win.view': { state: 'list' } }, activate: () => {} });
+            openPopupMenu({ surface, tree, actions: { 'win.view': { state: 'list' } }, activate: () => {} });
             expect((surface.menu as RecordingMenu).checked()).toStrictEqual(['List']);
         });
 
         await it('inlines sections without a rule below API 28', () => {
             const log: string[] = [];
             const { surface } = surfaceOf(log, 26);
-            openPopupMenu({ surface, model: normalizeMenuModel(['A', { section: ['B'] }]), activate: () => {} });
+            openPopupMenu({ surface, tree: normalizeMenuModel(['A', { section: ['B'] }]), activate: () => {} });
             expect(log.some((line) => line.includes('Divider'))).toBe(false);
         });
 
         await it('shows an insensitive item disabled and writes a submenu as addSubMenu', () => {
             const log: string[] = [];
             const { surface } = surfaceOf(log);
-            const model = normalizeMenuModel([
+            const tree = normalizeMenuModel([
                 { label: 'Paste', action: 'win.paste' },
                 { label: 'More', submenu: ['Deep'] },
             ]);
-            openPopupMenu({ surface, model, actions: { 'win.paste': { enabled: false } }, activate: () => {} });
+            openPopupMenu({ surface, tree, actions: { 'win.paste': { enabled: false } }, activate: () => {} });
             expect(log.slice(0, 4)).toStrictEqual([
                 'root.add(1,1,0,Paste)',
                 'Paste.enabled=false',
@@ -147,8 +147,8 @@ export default async () => {
             for (const vector of POPUP_MENU_PLAN_VECTORS.filter((row) => row.refused.length > 0)) {
                 const log: string[] = [];
                 const { surface } = surfaceOf(log);
-                const model = normalizeMenuModel(vector.input);
-                expect(() => openPopupMenu({ surface, model, actions: vector.actions, activate: () => {} })).toThrow(
+                const tree = normalizeMenuModel(vector.input);
+                expect(() => openPopupMenu({ surface, tree, actions: vector.actions, activate: () => {} })).toThrow(
                     vector.refused[0] as string,
                 );
                 expect(log.includes('show')).toBe(false);
@@ -169,16 +169,16 @@ export default async () => {
 
             const log: string[] = [];
             const { surface, tap } = surfaceOf(log);
-            const model = normalizeMenuModel([
+            const tree = normalizeMenuModel([
                 { label: 'Save', action: 'win.save' },
                 { label: 'More', submenu: ['Deep'] },
             ]);
             openPopupMenu({
                 surface,
-                model,
-                actions: menuActionsFor(model, button, parent),
+                tree,
+                actions: menuActionsFor(tree, button, parent),
                 activate: (path) => {
-                    const item = menuItemAt(model, path);
+                    const item = menuItemAt(tree, path);
                     if (item !== null) activateMenuItem(item, button, parent);
                 },
             });
@@ -193,8 +193,8 @@ export default async () => {
             await it(rule, () => {
                 const log: string[] = [];
                 const { surface } = surfaceOf(log);
-                const model = normalizeMenuModel([{ label }, { label, submenu: [{ label }] }]);
-                openPopupMenu({ surface, model, activate: () => {} });
+                const tree = normalizeMenuModel([{ label }, { label, submenu: [{ label }] }]);
+                openPopupMenu({ surface, tree, activate: () => {} });
                 expect(log.slice(0, 3)).toStrictEqual([
                     `root.add(1,1,0,${text})`,
                     `root.addSubMenu(1,2,1,${text})`,

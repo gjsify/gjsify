@@ -6,20 +6,20 @@
 
 import { activateWidgetAction, findActionGroup } from './gio-actions.js';
 import { parseDetailedAction } from './menu.js';
-import type { AdwMenuAction, AdwMenuActions, AdwMenuModel, AdwMenuItem } from './menu.js';
+import type { AdwMenuAction, AdwMenuActions, AdwMenuItem, AdwMenuTree } from './menu.js';
 
 type Parent = (node: object) => object | null | undefined;
 
 /**
- * The actions the model's items name, as `widget` resolves them. An action the walk does not find,
+ * The actions the tree's items name, as `widget` resolves them. An action the walk does not find,
  * because no group has its prefix or the group lacks it, is left out, which is "missing" and makes
  * the item insensitive. That is GTK's answer, measured on GJS (`menu-actions.gjs.spec.ts`), and it
  * overrules ADR 0097 § 3's "no group dims nothing": an application that dispatches an action
  * itself declares it, or passes `actions` to say what it knows.
  */
-export function menuActionsFor(model: AdwMenuModel, widget: object, parent: Parent): AdwMenuActions {
+export function menuActionsFor(tree: AdwMenuTree, widget: object, parent: Parent): AdwMenuActions {
     const actions: Record<string, AdwMenuAction> = {};
-    const visit = (nodes: AdwMenuModel): void => {
+    const visit = (nodes: AdwMenuTree): void => {
         for (const node of nodes) {
             if (node.kind !== 'item') {
                 visit(node.items);
@@ -34,7 +34,7 @@ export function menuActionsFor(model: AdwMenuModel, widget: object, parent: Pare
             if (action !== null) actions[name] = { enabled: action.enabled };
         }
     };
-    visit(model);
+    visit(tree);
     return actions;
 }
 

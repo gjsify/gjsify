@@ -89,7 +89,14 @@ const ATTR = new RegExp(`(?:^|[^A-Za-z0-9_$-])(?:${KEY_ALT})=(['"])([^'"]*)\\1`,
  * point of use — `AVATAR_DEFAULT_ICON = 'avatar-default-symbolic'`. The declaration is
  * where it reads, the same key shape the web gate had to grow for `view-reveal`.
  */
-const ICON_CONST = /(?:^|[^A-Za-z0-9_$])[A-Z][A-Z0-9_]*ICON(?:_NAME)?\s*=\s*(['"`])([^'"`]*)\1/g;
+const ICON_CONST = /(?:^|[^A-Za-z0-9_$])([A-Z][A-Z0-9_]*ICON(?:_NAME)?)\s*=\s*(['"`])([^'"`]*)\2/g;
+/**
+ * A constant whose name says it holds an ATTRIBUTE name, not an icon name — the same
+ * narrowing `check-adwaita-icon-masks.mjs` carries, for the same corpus. ADR 0128's
+ * `MENU_ATTRIBUTE_ICON = 'icon'` is the GIO menu attribute an icon name is stored UNDER,
+ * and {@link ICON_CONST} read it as the name itself.
+ */
+const ATTRIBUTE_CONST = /(?:^|_)ATTRIBUTE(?:_|$)/;
 /** `setPageIcon('overview', 'view-paged-symbolic')` — the id-then-icon method shape. */
 const SET_PAGE_ICON = /set(?:Page|Indicator)Icon\(\s*[^,)]*,\s*(['"`])([^'"`]*)\1/g;
 /**
@@ -132,7 +139,10 @@ function metaControlNames(code) {
 const SHAPES = {
     js: (code, add) => {
         for (const m of code.matchAll(JS_ASSIGN)) add(m[2]);
-        for (const m of code.matchAll(ICON_CONST)) add(m[2]);
+        for (const m of code.matchAll(ICON_CONST)) {
+            if (ATTRIBUTE_CONST.test(m[1])) continue;
+            add(m[3]);
+        }
         for (const m of code.matchAll(SET_PAGE_ICON)) add(m[2]);
     },
     attr: (code, add) => {

@@ -17,7 +17,7 @@ import {
     SPLIT_BUTTON_STYLE_CLASS_VECTORS,
     SPLIT_BUTTON_TOOLTIP_VECTORS,
 } from '@gjsify/adwaita-core/conformance';
-import { ADW_MENU_SURFACE_WEB, flattenMenu, menuRefusals } from '@gjsify/adwaita-core';
+import { ADW_MENU_SURFACE_WEB, buildMenu, flattenMenu, menuRefusals, menuTree } from '@gjsify/adwaita-core';
 import type { SplitButtonProperty } from '@gjsify/adwaita-core';
 import type { AdwSplitButton } from './elements/adw-split-button.js';
 import { fallbackMask, maskOf } from './icon-masks.spec.js';
@@ -238,24 +238,24 @@ export const AdwSplitButtonTest = async () => {
     });
 
     await describe('adw-split-button menu', async () => {
-        for (const { input, model, rule } of MENU_NORMALIZE_VECTORS) {
+        for (const { input, tree, rule } of MENU_NORMALIZE_VECTORS) {
             await it(`normalises an authored menu — ${rule}`, () => {
                 const { el, host } = mount({ label: 'Save' });
                 // What THIS surface refuses is core's answer, not a list restated here:
                 // a `custom` item names an application widget the browser cannot host,
                 // and the setter is where that is said out loud.
-                if (menuRefusals(model, ADW_MENU_SURFACE_WEB).length > 0) {
+                if (menuRefusals(tree, ADW_MENU_SURFACE_WEB).length > 0) {
                     expect(() => {
-                        el.menuModel = input;
+                        el.menuModel = buildMenu(input);
                     }).toThrow('adwaita-web');
                     host.remove();
                     return;
                 }
-                el.menuModel = input;
-                expect([...el.menuModel]).toStrictEqual([...model]);
+                el.menuModel = buildMenu(input);
+                expect(menuTree(el.menuModel!)).toStrictEqual([...tree]);
                 // Every node the model draws is a row: a section is inlined, a submenu
                 // is one row of its own.
-                expect(el.querySelectorAll('.adw-split-button-menu-item').length).toBe(flattenMenu(model).length);
+                expect(el.querySelectorAll('.adw-split-button-menu-item').length).toBe(flattenMenu(tree).length);
                 host.remove();
             });
         }
@@ -312,9 +312,26 @@ export const AdwSplitButtonTest = async () => {
             const { el, host } = mount({ 'menu-model': '[{"label":"Print"}]' });
             dropdownHalf(el).click();
             expect(el.active).toBe(true);
-            el.setAttribute('menu-model', '[]');
+            // REMOVING the attribute is how a menu is lost since ADR 0128 — `null` is the
+            // only spelling of "no menu", and the row below is the other half of that.
+            el.removeAttribute('menu-model');
             expect(el.active).toBe(false);
             expect(el.dropdownEnabled).toBe(false);
+            host.remove();
+        });
+
+        await it('an EMPTY menu is still a menu, so the dropdown stays live', () => {
+            // Measured on `Adw.SplitButton`: an empty non-null `Gio.Menu` at `menu-model`
+            // still builds a `GtkPopoverMenu` and `set_menu_model(null)` is what returns
+            // the popover to null (`MENU_MODEL_DOOR_VECTORS`). `[]` therefore edits the
+            // menu this element OWNS rather than taking it away, so the open popup follows
+            // the edit instead of being closed by it.
+            const { el, host } = mount({ 'menu-model': '[{"label":"Print"}]' });
+            dropdownHalf(el).click();
+            el.setAttribute('menu-model', '[]');
+            expect(el.dropdownEnabled).toBe(true);
+            expect(el.active).toBe(true);
+            expect(el.querySelectorAll('.adw-split-button-menu-item').length).toBe(0);
             host.remove();
         });
     });

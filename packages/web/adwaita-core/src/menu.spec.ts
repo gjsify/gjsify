@@ -29,13 +29,13 @@ import {
 
 export default async () => {
     await describe('normalizeMenuModel (ADR 0042 conformance vectors)', async () => {
-        for (const { input, model, rule } of MENU_NORMALIZE_VECTORS) {
+        for (const { input, tree, rule } of MENU_NORMALIZE_VECTORS) {
             await it(rule, () => {
-                expect(normalizeMenuModel(input)).toStrictEqual([...model]);
+                expect(normalizeMenuModel(input)).toStrictEqual([...tree]);
             });
         }
 
-        await it('is idempotent over every vector, which is what lets a widget be handed its own model', () => {
+        await it('is idempotent over every vector, which is what lets a tree be normalised twice', () => {
             for (const { input } of MENU_NORMALIZE_VECTORS) {
                 const once = normalizeMenuModel(input);
                 expect(normalizeMenuModel(once)).toStrictEqual([...once]);
@@ -50,17 +50,17 @@ export default async () => {
     });
 
     await describe('parseMenuModel (ADR 0042 conformance vectors)', async () => {
-        for (const { json, model, rule } of MENU_PARSE_VECTORS) {
+        for (const { json, tree, rule } of MENU_PARSE_VECTORS) {
             await it(`${JSON.stringify(json)} — ${rule}`, () => {
-                expect(parseMenuModel(json)).toStrictEqual([...model]);
+                expect(parseMenuModel(json)).toStrictEqual([...tree]);
             });
         }
     });
 
     await describe('flattenMenu (ADR 0042 conformance vectors)', async () => {
-        for (const { model, rows, rule } of MENU_FLATTEN_VECTORS) {
+        for (const { tree, rows, rule } of MENU_FLATTEN_VECTORS) {
             await it(rule, () => {
-                const flat = flattenMenu(model).map((row) => ({
+                const flat = flattenMenu(tree).map((row) => ({
                     label: row.node.label,
                     path: [...row.path],
                     separated: row.separated,
@@ -70,38 +70,38 @@ export default async () => {
         }
 
         await it('every flattened row addresses the node it came from', () => {
-            for (const { model } of MENU_FLATTEN_VECTORS) {
-                for (const row of flattenMenu(model)) {
-                    expect(menuNodeAt(model, row.path)).toBe(row.node);
+            for (const { tree } of MENU_FLATTEN_VECTORS) {
+                for (const row of flattenMenu(tree)) {
+                    expect(menuNodeAt(tree, row.path)).toBe(row.node);
                 }
             }
         });
     });
 
     await describe('menuNodeAt / menuItemAt', async () => {
-        const model = normalizeMenuModel([
+        const tree = normalizeMenuModel([
             { label: 'New' },
             { section: [{ label: 'Cut' }] },
             { label: 'More', submenu: [{ label: 'Rename' }] },
         ]);
 
-        await it('the empty path names the model, not a node', () => {
-            expect(menuNodeAt(model, [])).toBe(null);
+        await it('the empty path names the tree, not a node', () => {
+            expect(menuNodeAt(tree, [])).toBe(null);
         });
 
         await it('descends links, so a nested item has a name', () => {
-            expect(menuItemAt(model, [2, 0])).toStrictEqual({ kind: 'item', label: 'Rename' });
-            expect(menuItemAt(model, [1, 0])).toStrictEqual({ kind: 'item', label: 'Cut' });
+            expect(menuItemAt(tree, [2, 0])).toStrictEqual({ kind: 'item', label: 'Rename' });
+            expect(menuItemAt(tree, [1, 0])).toStrictEqual({ kind: 'item', label: 'Cut' });
         });
 
         await it('a section or a submenu is a node but not an item', () => {
-            expect(menuNodeAt(model, [1])?.kind).toBe('section');
-            expect(menuItemAt(model, [1])).toBe(null);
-            expect(menuItemAt(model, [2])).toBe(null);
+            expect(menuNodeAt(tree, [1])?.kind).toBe('section');
+            expect(menuItemAt(tree, [1])).toBe(null);
+            expect(menuItemAt(tree, [2])).toBe(null);
         });
 
         await it('an item has nothing to descend into', () => {
-            expect(menuNodeAt(model, [0, 0])).toBe(null);
+            expect(menuNodeAt(tree, [0, 0])).toBe(null);
         });
     });
 
@@ -178,13 +178,13 @@ export default async () => {
     });
 
     await describe('menuRefusals / assertMenuRenderable (ADR 0042 conformance vectors)', async () => {
-        for (const { model, paths, rule } of MENU_REFUSAL_VECTORS) {
+        for (const { tree, paths, rule } of MENU_REFUSAL_VECTORS) {
             await it(`web + nativescript: ${rule}`, () => {
                 for (const surface of [ADW_MENU_SURFACE_WEB, ADW_MENU_SURFACE_NATIVESCRIPT]) {
-                    const refused = menuRefusals(model, surface).map((r) => [...r.path]);
+                    const refused = menuRefusals(tree, surface).map((r) => [...r.path]);
                     expect(refused).toStrictEqual(paths.map((p) => [...p]));
-                    if (paths.length === 0) assertMenuRenderable(model, surface);
-                    else expect(() => assertMenuRenderable(model, surface)).toThrow(surface.name);
+                    if (paths.length === 0) assertMenuRenderable(tree, surface);
+                    else expect(() => assertMenuRenderable(tree, surface)).toThrow(surface.name);
                 }
             });
 
@@ -194,18 +194,18 @@ export default async () => {
                 // literal is the assertion's own input, which is what a surface record
                 // with `custom: true` is for.
                 const gtk = { name: 'gtk', custom: true } as const;
-                expect(menuRefusals(model, gtk)).toStrictEqual([]);
-                assertMenuRenderable(model, gtk);
+                expect(menuRefusals(tree, gtk)).toStrictEqual([]);
+                assertMenuRenderable(tree, gtk);
             });
         }
 
         await it('the throw names EVERY refusal, not the first', () => {
-            const model = normalizeMenuModel([
+            const tree = normalizeMenuModel([
                 { label: 'A', custom: 'one' },
                 { label: 'B', custom: 'two' },
             ]);
-            expect(() => assertMenuRenderable(model, ADW_MENU_SURFACE_WEB)).toThrow('one');
-            expect(() => assertMenuRenderable(model, ADW_MENU_SURFACE_WEB)).toThrow('two');
+            expect(() => assertMenuRenderable(tree, ADW_MENU_SURFACE_WEB)).toThrow('one');
+            expect(() => assertMenuRenderable(tree, ADW_MENU_SURFACE_WEB)).toThrow('two');
         });
     });
 };

@@ -34,6 +34,7 @@ import gtkPlatformNsTest from './gtk-platform.spec.js';
 import gioNsTest from './gio.spec.js';
 import { GtkMenuTreeNsTest } from './gtk-menu-tree.spec.js';
 import { PopupMenuWidgetsNsTest } from './popup-menu-widgets.spec.js';
+import { MenuModelDoorNsTest } from './menu-model-door.spec.js';
 import { GtkBoxNsTest } from './gtk-box.spec.js';
 import { AdwGObjectDoorNsTest } from './gobject-door.spec.js';
 import { AdwGTypeNameNsTest } from './gtype-name.spec.js';
@@ -116,6 +117,7 @@ run({
     gtkPlatformNsTest,
     gioNsTest,
     PopupMenuWidgetsNsTest,
+    MenuModelDoorNsTest,
     AdwGtkValueDoorsNsTest,
     AdwViewSwitcherStackNsTest,
     AdwValueListsNsTest,

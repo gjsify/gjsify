@@ -9,11 +9,11 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import { MENU_LABEL_TEXT_VECTORS, MENU_REFUSAL_VECTORS } from '@gjsify/adwaita-core/conformance';
-import { flattenMenu } from '@gjsify/adwaita-core';
-import type { AdwMenuInput, AdwMenuModel } from '@gjsify/adwaita-core';
+import { buildMenu, flattenMenu } from '@gjsify/adwaita-core';
+import type { AdwMenuModel, AdwMenuTree } from '@gjsify/adwaita-core';
 
 interface PopoverMenuElement extends HTMLElement {
-    menuModel: AdwMenuInput | AdwMenuModel;
+    menuModel: AdwMenuModel | string | null;
     actions: Record<string, { enabled?: boolean; state?: string }> | null;
     visibleSubmenu: string;
     // The three below are `GtkPopover`'s own — the reason this spec can say "inherits the
@@ -76,7 +76,7 @@ export const GtkPopoverMenuTest = async () => {
     await describe('<gtk-popover-menu> the page stack', async () => {
         await it('renders the model and reports the root page as `main`', () => {
             const el = mount();
-            el.menuModel = NESTED;
+            el.menuModel = buildMenu(NESTED);
             expect(labels(el)).toStrictEqual(['New', 'More']);
             expect(el.visibleSubmenu).toBe('main');
             unmountAll();
@@ -84,7 +84,7 @@ export const GtkPopoverMenuTest = async () => {
 
         await it('opens a submenu by name and swaps the page', () => {
             const el = mount();
-            el.menuModel = NESTED;
+            el.menuModel = buildMenu(NESTED);
             el.openSubmenu('More');
             // A submenu's page is the back row plus its own items — the submenu's contents
             // are never inlined into the parent.
@@ -95,7 +95,7 @@ export const GtkPopoverMenuTest = async () => {
 
         await it('`main` goes back, and so does closeSubmenus', () => {
             const el = mount();
-            el.menuModel = NESTED;
+            el.menuModel = buildMenu(NESTED);
             el.openSubmenu('More');
             el.openSubmenu('main');
             expect(labels(el)).toStrictEqual(['New', 'More']);
@@ -109,7 +109,7 @@ export const GtkPopoverMenuTest = async () => {
 
         await it('a name no submenu carries leaves the open page alone', () => {
             const el = mount();
-            el.menuModel = NESTED;
+            el.menuModel = buildMenu(NESTED);
             el.openSubmenu('More');
             // `gtk_stack_set_visible_child_name` on a child that is not there is a no-op in
             // GTK, so the current page must survive rather than blank the surface.
@@ -121,7 +121,7 @@ export const GtkPopoverMenuTest = async () => {
 
         await it('`visible-submenu` as an ATTRIBUTE navigates, and notifies once per page', () => {
             const el = mount();
-            el.menuModel = NESTED;
+            el.menuModel = buildMenu(NESTED);
             const seen: string[] = [];
             el.addEventListener('notify::visible-submenu', (event) => {
                 seen.push((event as CustomEvent<{ visibleSubmenu: string }>).detail.visibleSubmenu);
@@ -137,9 +137,9 @@ export const GtkPopoverMenuTest = async () => {
 
         await it('a CHANGED model drops the open page', () => {
             const el = mount();
-            el.menuModel = NESTED;
+            el.menuModel = buildMenu(NESTED);
             el.openSubmenu('More');
-            el.menuModel = [{ label: 'Only' }];
+            el.menuModel = buildMenu([{ label: 'Only' }]);
             // The submenu the page named is gone; staying on it would leave a back row and
             // no items behind it.
             expect(el.visibleSubmenu).toBe('main');
@@ -149,16 +149,16 @@ export const GtkPopoverMenuTest = async () => {
 
         await it('an UNCHANGED model keeps the open page', () => {
             const el = mount();
-            el.menuModel = NESTED;
+            el.menuModel = buildMenu(NESTED);
             el.openSubmenu('More');
-            el.menuModel = JSON.parse(JSON.stringify(NESTED)) as AdwMenuInput;
+            el.menuModel = buildMenu(JSON.parse(JSON.stringify(NESTED)));
             expect(el.visibleSubmenu).toBe('More');
             unmountAll();
         });
 
         await it('closing the popover returns to the root page', async () => {
             const el = mount();
-            el.menuModel = NESTED;
+            el.menuModel = buildMenu(NESTED);
             el.openSubmenu('More');
             el.open = true;
             el.open = false;
@@ -175,7 +175,7 @@ export const GtkPopoverMenuTest = async () => {
             const el = document.createElement('gtk-popover-menu') as PopoverMenuElement;
             anchor.appendChild(el);
             document.body.appendChild(anchor);
-            el.menuModel = NESTED;
+            el.menuModel = buildMenu(NESTED);
             el.openSubmenu('More');
             el.anchor = anchor;
             el.open = true;
@@ -197,7 +197,7 @@ export const GtkPopoverMenuTest = async () => {
 
         await it('a disabled row activates nothing', () => {
             const el = mount();
-            el.menuModel = [{ label: 'Quit', action: 'app.quit' }];
+            el.menuModel = buildMenu([{ label: 'Quit', action: 'app.quit' }]);
             el.actions = { 'app.quit': { enabled: false } };
             let fired = false;
             el.addEventListener('menu-item-activated', () => {
@@ -212,11 +212,11 @@ export const GtkPopoverMenuTest = async () => {
     await describe('<gtk-popover-menu> the menu attribute', async () => {
         await it('reads the JSON and draws the same rows `flattenMenu` names', () => {
             const el = mount('[{"label":"New"},{"section":[{"label":"Cut"}],"label":"Edit"}]');
-            const model: AdwMenuModel = [
+            const tree: AdwMenuTree = [
                 { kind: 'item', label: 'New' },
                 { kind: 'section', label: 'Edit', items: [{ kind: 'item', label: 'Cut' }] },
             ];
-            expect(labels(el)).toStrictEqual(flattenMenu(model).map((row) => row.node.label));
+            expect(labels(el)).toStrictEqual(flattenMenu(tree).map((row) => row.node.label));
             unmountAll();
         });
 
@@ -243,15 +243,15 @@ export const GtkPopoverMenuTest = async () => {
         });
 
         await it('the PROPERTY path refuses a `custom` item loudly', () => {
-            for (const { model, paths, rule } of MENU_REFUSAL_VECTORS) {
+            for (const { tree, paths, rule } of MENU_REFUSAL_VECTORS) {
                 const el = mount();
                 if (paths.length > 0) {
                     expect(() => {
-                        el.menuModel = model;
+                        el.menuModel = buildMenu(tree);
                     }).toThrow('adwaita-web');
                 } else {
-                    el.menuModel = model;
-                    expect(labels(el)).toStrictEqual(flattenMenu(model).map((row) => row.node.label));
+                    el.menuModel = buildMenu(tree);
+                    expect(labels(el)).toStrictEqual(flattenMenu(tree).map((row) => row.node.label));
                 }
                 expect(rule.length > 0).toBe(true);
                 el.remove();
@@ -263,7 +263,7 @@ export const GtkPopoverMenuTest = async () => {
         for (const { label, text, rule } of MENU_LABEL_TEXT_VECTORS) {
             await it(`item, submenu and back row: ${rule}`, () => {
                 const el = mount();
-                el.menuModel = [{ label }, { label, submenu: [{ label }] }];
+                el.menuModel = buildMenu([{ label }, { label, submenu: [{ label }] }]);
                 expect(labels(el)).toStrictEqual([text, text]);
                 el.openSubmenu(label);
                 expect(labels(el)).toStrictEqual([text, text]);

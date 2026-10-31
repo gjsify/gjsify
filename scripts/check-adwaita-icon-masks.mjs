@@ -118,7 +118,16 @@ const JS_ASSIGN = new RegExp(`(?:^|[^A-Za-z0-9_$-])(?:${KEY_ALT})\\s*[:=]\\s*(['
  * SCREAMING_SNAKE constant and reaching the element through a state property, so no
  * {@link KEYS} spelling appears at the point of use. The declaration is where it reads.
  */
-const ICON_CONST = /(?:^|[^A-Za-z0-9_$])[A-Z][A-Z0-9_]*ICON(?:_NAME)?\s*=\s*(['"`])([^'"`]*)\1/g;
+const ICON_CONST = /(?:^|[^A-Za-z0-9_$])([A-Z][A-Z0-9_]*ICON(?:_NAME)?)\s*=\s*(['"`])([^'"`]*)\2/g;
+/**
+ * A constant whose name says it holds an ATTRIBUTE name, not an icon name. ADR 0128's
+ * `MENU_ATTRIBUTE_ICON = 'icon'` is the GIO menu attribute `icon` — the key an icon name
+ * is stored UNDER — and {@link ICON_CONST} read it as the name itself, demanding a mask
+ * class for `icon`. The word is in the constant's name because the distinction matters at
+ * every point of use; it is what makes this narrowing a reading of the code, not an
+ * exemption from it.
+ */
+const ATTRIBUTE_CONST = /(?:^|_)ATTRIBUTE(?:_|$)/;
 /** `icon="go-next"` — the markup form, and the ONLY one read in a `.mdx`/`.astro`. */
 const MARKUP_ATTR = new RegExp(`(?:^|[^A-Za-z0-9_$-])(?:${KEY_ALT})=(['"])([^'"]*)\\1`, 'g');
 /**
@@ -142,7 +151,10 @@ const ICON_CONTROL = /name:\s*['"`][^'"`]*[Ii]con[^'"`]*['"`]/g;
 const SHAPES = {
     js: (code, add) => {
         for (const m of code.matchAll(JS_ASSIGN)) add(m[2]);
-        for (const m of code.matchAll(ICON_CONST)) add(m[2]);
+        for (const m of code.matchAll(ICON_CONST)) {
+            if (ATTRIBUTE_CONST.test(m[1])) continue;
+            add(m[3]);
+        }
     },
     markup: (code, add) => {
         for (const m of code.matchAll(MARKUP_ATTR)) add(m[2]);

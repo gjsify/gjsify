@@ -325,11 +325,14 @@ async function driveKeys(page: Page, bundleUrl: string) {
         el.id = 'menu';
         document.body.append(el);
         el.actions = { 'app.export': { enabled: false }, 'app.new': {} };
-        el.menuModel = [
+        // The JSON-STRING spelling of the door (ADR 0128 § 4): this body runs inside the
+        // page, where `buildMenu` is not importable, and a string is a write the door
+        // takes — an array is not.
+        el.menuModel = JSON.stringify([
             { label: 'New', action: 'app.new' },
             { section: [{ label: 'Export', action: 'app.export' }, { label: 'Print' }] },
             { label: 'More', submenu: [{ label: 'Rename' }, { label: 'Duplicate' }] },
-        ];
+        ]);
         (el as HTMLElement).addEventListener('menu-item-activated', (event) => {
             (window as unknown as { chosen: unknown }).chosen = (event as CustomEvent<{ path: number[] }>).detail.path;
         });
@@ -413,7 +416,9 @@ async function driveKeys(page: Page, bundleUrl: string) {
         after.textContent = 'Behind';
         document.body.append(el, after);
         el.actions = { 'app.off': { enabled: false } };
-        el.menuModel = [{ label: 'More', submenu: [{ label: 'SubDim', action: 'app.off' }, { label: 'SubLive' }] }];
+        el.menuModel = JSON.stringify([
+            { label: 'More', submenu: [{ label: 'SubDim', action: 'app.off' }, { label: 'SubLive' }] },
+        ]);
         (el.querySelector('.adw-menu-button-button') as HTMLElement).click();
         (el.querySelector('.adw-popover-item') as HTMLElement).focus();
     });

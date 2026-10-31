@@ -22,11 +22,10 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss (menubutton)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { normalizeMenuModel } from '@gjsify/adwaita-core';
-import type { AdwMenuActions, AdwMenuInput, AdwMenuModel } from '@gjsify/adwaita-core';
+import type { AdwMenuActions, AdwMenuModel } from '@gjsify/adwaita-core';
 import type { EventData } from '@nativescript/core';
 import { AdwImageButton } from './adw-image-button.js';
-import { assertPopupMenuAssignable, refuseMenuString } from './popup-menu.js';
+import { MenuSlot } from './menu-slot.js';
 import { showMenuPopup } from './popup-menu-view.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
@@ -53,7 +52,13 @@ export interface MenuItemActivatedEventData extends EventData {
 export class GtkMenuButton extends AdwImageButton {
     static readonly GTypeName: string = 'GtkMenuButton';
 
-    private _model: AdwMenuModel = [];
+    /**
+     * `Gtk.MenuButton` has NO identity guard on `menu-model` — measured: every write
+     * notifies, including the same model twice and `null` over `null`
+     * (`MENU_MODEL_NOTIFY_VECTORS`), which is the opposite of what `Adw.SplitButton` next
+     * door does. So the notify below is unconditional, and the slot does not gate it.
+     */
+    private readonly _slot = new MenuSlot('GtkMenuButton', () => undefined);
     private _actions: AdwMenuActions | null = null;
     private _menuTitle = '';
     private _primary = false;
@@ -72,38 +77,40 @@ export class GtkMenuButton extends AdwImageButton {
     }
 
     /**
-     * The menu, normalised (ADR 0042) — opened as an Android `PopupMenu` on tap.
+     * The menu — a real `Gio.MenuModel` since ADR 0128 — opened as an Android `PopupMenu`
+     * on tap. `null` is the one spelling of "no menu".
      *
-     * Accepts every input form the portable model does, a bare `string[]` included —
-     * but NOT a JSON string; see `AdwSplitButton.menuModel` for why the XML door stays
-     * shut until a probe can prove it, and why being shut is not the same as being
-     * silent.
+     * IT TAKES A MODEL AND NOTHING ELSE: `Gio.Menu` from this package's `Gio` namespace, or
+     * `buildMenu([…])` for the authored shorthands (a bare `string[]` included). An array
+     * written straight here is refused by the GObject value check, word for word as GJS
+     * refuses it. A JSON STRING is refused too, with its own message — see
+     * `AdwSplitButton.menuModel` for why the XML door stays shut until a probe can prove
+     * it, and why being shut is not the same as being silent.
      */
-    get menuModel(): AdwMenuModel {
-        return this._model;
+    get menuModel(): AdwMenuModel | null {
+        return this._slot.model;
     }
 
-    set menuModel(value: AdwMenuInput) {
-        refuseMenuString(value, 'GtkMenuButton');
-        const model = normalizeMenuModel(value);
-        assertPopupMenuAssignable(model);
-        this._model = model;
+    set menuModel(value: AdwMenuModel | null) {
+        const before = this._slot.model;
+        this._slot.write(value);
+        this.notifyPropertyChange('menuModel', this._slot.model, before);
     }
 
     /** `Gtk.MenuButton:menu-model` — the GIR spelling of {@link menuModel}. */
-    get menu_model(): AdwMenuModel {
+    get menu_model(): AdwMenuModel | null {
         return this.menuModel;
     }
 
-    set menu_model(value: AdwMenuInput) {
+    set menu_model(value: AdwMenuModel | null) {
         this.menuModel = value;
     }
 
-    get_menu_model(): AdwMenuModel {
+    get_menu_model(): AdwMenuModel | null {
         return this.menuModel;
     }
 
-    set_menu_model(value: AdwMenuInput): void {
+    set_menu_model(value: AdwMenuModel | null): void {
         this.menuModel = value;
     }
 
@@ -186,9 +193,9 @@ export class GtkMenuButton extends AdwImageButton {
     }
 
     private _openMenu(): void {
-        if (this._model.length === 0) return;
+        if (this._slot.isEmpty) return;
         showMenuPopup(this, {
-            model: this._model,
+            tree: this._slot.tree,
             actions: this._actions,
             onActivated: (item, path) => {
                 const data: MenuItemActivatedEventData = {

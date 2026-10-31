@@ -37,7 +37,8 @@
 //   menu-model — the portable menu model as JSON (ADR 0042), whose TOPLEVEL entries must
 //               all be submenus.
 // Properties:
-//   menuModel  — the model, normalised (get/set; a `custom` item throws here).
+//   menuModel  — the real `Gio.MenuModel`, or `null` (get/set; ADR 0128 — a `custom` item
+//               throws here).
 //   actions    — what the action group publishes about the actions the menus name.
 //   activeItem — the focused/selected item's button, or `null`. GTK's `active_item`.
 // Methods:
@@ -57,16 +58,10 @@
 // Copyright (c) GNOME contributors (GTK, libadwaita). LGPLv2.1+
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
-import {
-    ADW_MENU_SURFACE_WEB,
-    assertMenuRenderable,
-    menuItemAt,
-    menuLabelText,
-    menuRefusals,
-    normalizeMenuModel,
-    parseMenuModel,
-} from '@gjsify/adwaita-core';
-import type { AdwMenuActions, AdwMenuInput, AdwMenuModel, AdwMenuPath, AdwMenuSubmenu } from '@gjsify/adwaita-core';
+import { buildMenu, menuItemAt, menuLabelText } from '@gjsify/adwaita-core';
+import type { AdwMenuActions, AdwMenuModel, AdwMenuPath, AdwMenuSubmenu } from '@gjsify/adwaita-core';
+
+import { MenuSlot } from './menu-slot.js';
 
 // The definition has to be there before this module's own can build one in
 // `connectedCallback`; a combined `import { GtkPopoverMenu }` would be elided, because the
@@ -88,7 +83,8 @@ interface MenuBarItem {
 }
 
 export class GtkPopoverMenuBar extends WidgetElement {
-    private _model: AdwMenuModel = [];
+    /** The model, its tree snapshot and its `items-changed` subscription (ADR 0128). */
+    private readonly _slot = new MenuSlot(() => this._menuChanged());
     private _actions: AdwMenuActions | null = null;
     private _items: MenuBarItem[] = [];
     private _active: MenuBarItem | null = null;
@@ -98,14 +94,29 @@ export class GtkPopoverMenuBar extends WidgetElement {
         return ['menu-model'];
     }
 
-    /** The menu model, normalised (ADR 0042). */
-    get menuModel(): AdwMenuModel {
-        return this._model;
+    /** The menu this bar draws, by identity, or `null` (ADR 0128). */
+    get menuModel(): AdwMenuModel | null {
+        return this._slot.model;
     }
 
-    set menuModel(value: AdwMenuInput) {
-        this._model = normalizeMenuModel(value);
-        assertMenuRenderable(this._model, ADW_MENU_SURFACE_WEB);
+    set menuModel(value: AdwMenuModel | string | null) {
+        this._slot.write(value);
+        this._menuChanged();
+    }
+
+    /**
+     * The one place a changed menu is answered — from either door AND from a mutation of
+     * the menu the bar is holding, which is why the `console.warn` below is here rather
+     * than beside the attribute parse it used to live in: a toplevel entry that is not a
+     * submenu can arrive by `append_item` just as easily as by markup.
+     */
+    private _menuChanged(): void {
+        for (const [index, node] of this._slot.tree.entries()) {
+            if (node.kind === 'submenu') continue;
+            // A WARNING and not an error, and the distinction is GTK's: `g_warning` is
+            // recoverable, and the submenus beside the offending entry still work.
+            console.warn(`Don't know how to handle this item: top-level entry ${index} is a ${node.kind}.`);
+        }
         if (this._initialized) this._rebuild();
     }
 
@@ -136,14 +147,14 @@ export class GtkPopoverMenuBar extends WidgetElement {
         this.addEventListener('pointerleave', () => {
             if (this._active !== null && !this._active.popover.open) this._setActive(null, false);
         });
-        if (this._model.length === 0) this._model = this._parseMenuAttr();
-        this._rebuild();
+        if (this._slot.model === null) this._slot.writeMarkup(this.getAttribute('menu-model'));
+        this._menuChanged();
     }
 
     attributeChangedCallback(name?: string) {
         if (!this._initialized || name !== 'menu-model') return;
-        this._model = this._parseMenuAttr();
-        this._rebuild();
+        this._slot.writeMarkup(this.getAttribute('menu-model'));
+        this._menuChanged();
     }
 
     /** `gtk_popover_menu_bar_select_first` — activate and OPEN the first item. */
@@ -213,7 +224,7 @@ export class GtkPopoverMenuBar extends WidgetElement {
         this._items = [];
         this._active = null;
         const built: MenuBarItem[] = [];
-        this._model.forEach((node, index) => {
+        this._slot.tree.forEach((node, index) => {
             if (node.kind !== 'submenu') return;
             built.push(this._buildItem(node, [index]));
         });
@@ -237,8 +248,8 @@ export class GtkPopoverMenuBar extends WidgetElement {
     /**
      * One `menubar > item > popover` (the node tree in gtkpopovermenubar.c:38-46).
      *
-     * A toplevel node that is not a submenu is refused by `_parseMenuAttr` with GTK's own
-     * wording rather than drawn: `tracker_insert` builds nothing for it
+     * A toplevel node that is not a submenu is WARNED about by {@link _menuChanged} with
+     * GTK's own wording rather than drawn: `tracker_insert` builds nothing for it
      * (gtkpopovermenubar.c:466), and a row that opens nothing is the same lie in another
      * shape.
      */
@@ -269,9 +280,10 @@ export class GtkPopoverMenuBar extends WidgetElement {
         // (gtkpopovermenubar.c:435-436).
         popover.setAttribute('position', 'bottom');
         popover.setAttribute('align', 'start');
-        // The submenu's OWN items, handed back as they are: `normalizeMenuModel` is
-        // idempotent and explicitly takes an already-normalised node (ADR 0042).
-        popover.menuModel = node.items;
+        // The submenu's OWN items, as a menu OF THEIR OWN: since ADR 0128 the popover takes
+        // a real `Gio.MenuModel`, and `buildMenu` is how a tree becomes one. Handing over
+        // the bar's own model instead would give the popover the whole bar.
+        popover.menuModel = buildMenu(node.items);
         popover.actions = this._actions;
         popover.anchor = button;
         // `gtk_accessible_update_relation (…, LABELLED_BY, item->label, CONTROLS,
@@ -324,7 +336,7 @@ export class GtkPopoverMenuBar extends WidgetElement {
      * row is not the row that opened a submenu (gtkpopovermenu.c:257-259).
      */
     private _activate(item: MenuBarItem, path: AdwMenuPath): void {
-        const target = menuItemAt(this._model, path);
+        const target = menuItemAt(this._slot.tree, path);
         item.popover.popdown();
         item.button.focus();
         if (target === null) return;
@@ -334,23 +346,6 @@ export class GtkPopoverMenuBar extends WidgetElement {
                 detail: { id: target.id ?? target.label, label: target.label, path: [...path] },
             }),
         );
-    }
-
-    private _parseMenuAttr(): AdwMenuModel {
-        const model = normalizeMenuModel(parseMenuModel(this.getAttribute('menu-model')));
-        const refusals = menuRefusals(model, ADW_MENU_SURFACE_WEB);
-        if (refusals.length > 0) {
-            console.error(`${ADW_MENU_SURFACE_WEB.name} cannot render this menu, so it has none:`);
-            for (const refusal of refusals) console.error(`  [${refusal.path.join('.')}] ${refusal.message}`);
-            return [];
-        }
-        for (const [index, node] of model.entries()) {
-            if (node.kind === 'submenu') continue;
-            // A WARNING and not an error, and the distinction is GTK's: `g_warning` is
-            // recoverable, and the submenus beside the offending entry still work.
-            console.warn(`Don't know how to handle this item: top-level entry ${index} is a ${node.kind}.`);
-        }
-        return model;
     }
 }
 
