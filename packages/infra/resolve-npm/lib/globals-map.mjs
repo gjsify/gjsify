@@ -207,6 +207,7 @@ export const GJS_GLOBALS_MAP = {
     AbortSignal: 'abort-controller/register',
     MessageChannel: 'message-channel/register',
     MessagePort: 'message-channel/register',
+    Worker: 'web-worker/register',
     Event: 'dom-events/register/event-target',
     EventTarget: 'dom-events/register/event-target',
     CustomEvent: 'dom-events/register/custom-events',
