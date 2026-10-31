@@ -54,6 +54,9 @@ import { mergeConfig } from 'vite';
 import type { ConfigEnv, UserConfig, Plugin, AliasOptions, Alias } from 'vite';
 import { gjsifyNativescript as gjsifyNativescriptTransforms } from '@gjsify/vite-plugin-gjsify';
 import type { GjsifyNativescriptOptions } from '@gjsify/vite-plugin-gjsify';
+import { nativescriptCssNesting } from './css-nesting.js';
+
+export { nativescriptCssNesting } from './css-nesting.js';
 
 export type GjsifyNativescriptViteOptions = GjsifyNativescriptOptions;
 
@@ -114,9 +117,16 @@ export function defineNativescriptConfig(
         // Keep the strings and decorators NativeScript's static binding generator reads
         // (see {@link nativescriptReleaseMinify}); a consumer's own `build.minify` wins below.
         const withMinify = mergeConfig(withSbgFix, nativescriptReleaseMinify(withSbgFix));
-        if (userConfig === undefined) return withMinify;
-        const resolved = typeof userConfig === 'function' ? await userConfig(env) : userConfig;
-        return mergeConfig(withMinify, resolved);
+        const resolved =
+            userConfig === undefined
+                ? undefined
+                : typeof userConfig === 'function'
+                  ? await userConfig(env)
+                  : userConfig;
+        const merged = resolved === undefined ? withMinify : mergeConfig(withMinify, resolved);
+        // GTK-style nested stylesheets (`#id { child { … } }`) reach NativeScript's parser flat
+        // (see {@link nativescriptCssNesting}); last, so the user's own `css.postcss` is included.
+        return nativescriptCssNesting(merged, undefined, env.mode);
     };
 }
 
