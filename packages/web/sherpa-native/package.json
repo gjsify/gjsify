@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/sherpa-native",
-    "version": "0.64.13",
+    "version": "0.64.14",
     "description": "Optional Vala/GObject bridge over sherpa-onnx's C API, exposing the parts that cannot be expressed in JavaScript: a Silero voice activity detector and streaming/whole-utterance transducer recognizers, each an opaque handle configured through nested C structs. sherpa-onnx and onnxruntime are linked in statically, so the prebuild needs only the host GLib. Models are never bundled. Used by @gjsify/vad.",
     "type": "module",
     "main": "lib/esm/index.js",
