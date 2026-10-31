@@ -39,6 +39,7 @@ import { MenuModelDoorNsTest } from './menu-model-door.spec.js';
 import { GtkBoxNsTest } from './gtk-box.spec.js';
 import { AdwGObjectDoorNsTest } from './gobject-door.spec.js';
 import { AdwGTypeNameNsTest } from './gtype-name.spec.js';
+import { AdwCssNamesNsTest } from './css-names.spec.js';
 import { AdwGridLayoutNsTest } from './grid-layout.spec.js';
 import { GtkGridNsTest } from './gtk-grid.spec.js';
 import { GtkLabelMarkupNsTest } from './label-markup.spec.js';
@@ -87,6 +88,7 @@ run({
     AdwConstructVectorsNsTest,
     AdwGObjectDoorNsTest,
     AdwGTypeNameNsTest,
+    AdwCssNamesNsTest,
     AdwContainersNsTest,
     GtkBoxNsTest,
     GtkGridNsTest,
