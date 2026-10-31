@@ -5,7 +5,7 @@
 // worker-side scope is laid over its `parentPort` by `worker-scope.ts`.
 
 import { ErrorEvent, EventTarget, MessageEvent } from '@gjsify/dom-events';
-import { cwd } from 'node:process';
+import { cwd, versions } from 'node:process';
 import { pathToFileURL } from 'node:url';
 import { Worker as ThreadWorker } from 'node:worker_threads';
 import { buildWorkerSource } from './worker-scope.js';
@@ -21,7 +21,8 @@ export interface WorkerOptions {
 // oxlint-disable-next-line typescript/no-explicit-any -- event type differs per attribute and lib.dom is absent on GJS
 type Handler = ((event: any) => unknown) | null;
 
-const isGjs = typeof (globalThis as { imports?: unknown }).imports === 'object';
+// Not `globalThis.imports`: node-gi defines it on Node too. Only @gjsify/process sets `versions.gjs`.
+const isGjs = typeof (versions as { gjs?: unknown }).gjs === 'string';
 
 function resolveScript(scriptURL: string | URL): string {
     if (scriptURL instanceof URL) return scriptURL.href;
