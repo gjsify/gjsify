@@ -48,6 +48,7 @@ import {
     giRendererPlugin,
     platformResolvePlugin,
     nativescriptSuffixChain,
+    NATIVESCRIPT_PLATFORMS,
     browserSuffixChain,
     BROWSER_REFUSED_SUFFIXES,
     detectNativescriptPlatform,
@@ -59,6 +60,7 @@ import {
     nativescriptLocalePlugin,
     nativescriptGiSelectionPlugin,
     type NativescriptLocaleOptions,
+    type NativescriptPlatform,
 } from '@gjsify/rolldown-plugin-gjsify';
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
@@ -433,14 +435,47 @@ function nativescriptXmlnsBarrelsPlugin(): Plugin {
     };
 }
 
+const ENGINE_SOURCE_EXT_RE = /\.(?:[cm]?[jt]s)$/;
+const NS_VARIANT_SUFFIXES: readonly string[] = [...NATIVESCRIPT_PLATFORMS, 'native'];
+
+/**
+ * The file the build's platform resolution would pick for `stem` — `<stem>.<suffix>.<ext>`
+ * for the first suffix of `chain` present in `entries`, else `<stem>.<ext>` — or undefined
+ * when only other platforms' variants exist.
+ */
+function pickPlatformVariant(entries: readonly string[], stem: string, chain: readonly string[]): string | undefined {
+    for (const prefix of [...chain.map((suffix) => `${stem}.${suffix}`), stem]) {
+        const hit = entries.find(
+            (entry) => ENGINE_SOURCE_EXT_RE.test(entry) && entry.replace(ENGINE_SOURCE_EXT_RE, '') === prefix,
+        );
+        if (hit) return hit;
+    }
+    return undefined;
+}
+
 /**
  * The app modules that pick the GObject engine (ADR 0110): those importing
  * `@gjsify/adwaita-gobject-native` or calling `usePureJsGObjectEngine`. Root-relative
  * specs, sorted, so the generated import order is deterministic.
+ *
+ * An opt-in is imported as the PLATFORM VARIANT the app's own import would resolve to.
+ * The hoisted import is an absolute path, which no platform resolution touches, so taking
+ * the scanned file as-is put Android's `engine.ts` — real GObject through node-gi — into an
+ * iOS bundle beside the `engine.ios.ts` meant to replace it, and the app died at launch on a
+ * node-gi that iOS does not have. The variant itself need not contain the opt-in: iOS's
+ * pure-JS default is an empty slot, so its `engine.ios.ts` may select nothing.
  */
-function collectEngineOptIns(appDir: string, root: string): string[] {
+function collectEngineOptIns(appDir: string, root: string, platform: NativescriptPlatform | undefined): string[] {
     const optInRe = /from\s*["']@gjsify\/adwaita-gobject-native["']|\busePureJsGObjectEngine\s*\(/;
-    const specs: string[] = [];
+    const chain = nativescriptSuffixChain(platform);
+    const specs = new Set<string>();
+    const addVariant = (dir: string, entry: string, entries: readonly string[]): void => {
+        const name = entry.replace(ENGINE_SOURCE_EXT_RE, '');
+        const dot = name.lastIndexOf('.');
+        const stem = dot > 0 && NS_VARIANT_SUFFIXES.includes(name.slice(dot + 1)) ? name.slice(0, dot) : name;
+        const picked = pickPlatformVariant(entries, stem, chain);
+        if (picked) specs.add('/' + nodePath.relative(root, nodePath.join(dir, picked)).split(nodePath.sep).join('/'));
+    };
     const walk = (dir: string): void => {
         let entries: string[];
         try {
@@ -461,18 +496,18 @@ function collectEngineOptIns(appDir: string, root: string): string[] {
                 walk(full);
                 continue;
             }
-            if (!/\.(?:[cm]?[jt]s)$/.test(entry) || /\.d\.[cm]?ts$/.test(entry)) continue;
+            if (!ENGINE_SOURCE_EXT_RE.test(entry) || /\.d\.[cm]?ts$/.test(entry)) continue;
             let src: string;
             try {
                 src = readFileSync(full, 'utf8');
             } catch {
                 continue;
             }
-            if (optInRe.test(src)) specs.push('/' + nodePath.relative(root, full).split(nodePath.sep).join('/'));
+            if (optInRe.test(src)) addVariant(dir, entry, entries);
         }
     };
     walk(appDir);
-    return specs.sort();
+    return [...specs].sort();
 }
 
 /**
@@ -489,7 +524,7 @@ function collectEngineOptIns(appDir: string, root: string): string[] {
  * Prepends a side-effect import of each opt-in module to the bundler context; it is
  * registered after the xmlns plugin, so its import ends up first.
  */
-function nativescriptEngineFirstPlugin(): Plugin {
+function nativescriptEngineFirstPlugin(platform: NativescriptPlatform | undefined): Plugin {
     const BUNDLER_CONTEXT_ID = '\0virtual:ns-bundler-context';
     let root = process.cwd();
     let appDir: string | undefined;
@@ -501,7 +536,7 @@ function nativescriptEngineFirstPlugin(): Plugin {
         },
         transform(code, id) {
             if (id !== BUNDLER_CONTEXT_ID || !appDir) return null;
-            const optIns = collectEngineOptIns(appDir, root);
+            const optIns = collectEngineOptIns(appDir, root, platform);
             if (optIns.length === 0) return null;
             const imports = optIns.map((spec) => `import ${JSON.stringify(spec)};`).join('\n');
             return { code: `${imports}\n${code}`, map: null };
@@ -591,7 +626,7 @@ export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plu
         nativescriptXmlnsBarrelsPlugin(),
         // The app's GObject-engine opt-in (ADR 0110) ahead of everything the bundler
         // context imports. AFTER the xmlns plugin, so its prepend lands on top.
-        nativescriptEngineFirstPlugin(),
+        nativescriptEngineFirstPlugin(platform),
         // NO blueprintPlugin — Blueprint is GTK-specific
         // NO cssAsStringPlugin — NS handles CSS via @nativescript/core
         // `import bytes from './x.gresource.xml'` (ADR 0116 §§ 1, 7), as `--app nativescript`;
