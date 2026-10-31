@@ -1,8 +1,15 @@
 import { describe, expect, it } from '@gjsify/unit';
 
+import { CSS_LENGTH_VECTORS, driveCssLengthVectors } from './conformance/css-length.js';
 import { cssPxToDip } from './css-length.js';
 
 export default async () => {
+    await driveCssLengthVectors(
+        { name: 'adwaita-core', isOracle: false, toDip: cssPxToDip },
+        { describe, expect, it },
+        CSS_LENGTH_VECTORS,
+    );
+
     await describe('cssPxToDip', async () => {
         await it('drops px from a length', () => {
             expect(cssPxToDip('padding: 12px;')).toBe('padding: 12;');
