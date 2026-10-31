@@ -722,8 +722,8 @@ describe('CLI ship signing E2E', { timeout: 20 * 60 * 1000 }, () => {
          * `codesign` on Linux. `cc` comes with the Command Line Tools that ship
          * `codesign`, and `--arch` names the HOST because the image was built for it.
          */
-        async function stageSigned(format, { displayName, extraFiles = {}, plant = () => {} } = {}) {
-            const app = scaffoldNodeApp(mkdtempSync(join(tmpDir, `${format}-`)), {
+        async function stageSigned(format, { label = format, displayName, extraFiles = {}, plant = () => {} } = {}) {
+            const app = scaffoldNodeApp(mkdtempSync(join(tmpDir, `${label}-`)), {
                 extraFiles: { ...SIGNED_FIXTURE_FILES, ...extraFiles },
                 ...(displayName === undefined ? {} : { name: displayName }),
             });
@@ -807,7 +807,7 @@ describe('CLI ship signing E2E', { timeout: 20 * 60 * 1000 }, () => {
 
         it('a non-ASCII name seals, and the ZIP extraction verifies', async () => {
             if (!HAS_CODESIGN || !HAS_DITTO) return;
-            const { out } = await stageSigned('macos-app-zip-nfd', umlaut);
+            const { out } = await stageSigned('macos-app-zip', { ...umlaut, label: 'macos-app-zip-nfd' });
             const extracted = mkdtempSync(join(tmpDir, 'zip-nfd-'));
             execFileSync('ditto', ['-x', '-k', onlyArtifact(out, '.zip'), extracted], { stdio: 'pipe' });
             const bundle = readdirSync(extracted).find((name) => name.normalize('NFC') === `${UMLAUT_NAME}.app`);
@@ -824,7 +824,7 @@ describe('CLI ship signing E2E', { timeout: 20 * 60 * 1000 }, () => {
             // the image: the copy lands on APFS, which keeps whatever bytes it is handed,
             // and the defect lives in the HFS+ volume's own rewrite.
             if (!HAS_CODESIGN || !HAS_HDIUTIL) return;
-            const { out } = await stageSigned('macos-app-dmg-nfd', umlaut);
+            const { out } = await stageSigned('macos-app-dmg', { ...umlaut, label: 'macos-app-dmg-nfd' });
             const dmg = onlyArtifact(out, '.dmg');
             const mount = mkdtempSync(join(tmpDir, 'dmg-nfd-mounted-'));
             try {
