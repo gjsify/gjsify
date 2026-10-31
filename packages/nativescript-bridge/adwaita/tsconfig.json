@@ -26,6 +26,7 @@
   "exclude": [
     "src/test.ts",
     "src/test.mts",
-    "src/test.trees.mts"
+    "src/test.trees.mts",
+    "src/test.node-gi.mts"
   ]
 }

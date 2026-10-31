@@ -195,12 +195,12 @@ Comlink's own `comlink/dist/umd/node-adapter`.
 | a throw comes back as a rejection | pass | pass |
 | structured-clone-hard return value | **pass** (was failing before the codec fix) | pass |
 | 1 000 rows | pass | pass |
-| `Comlink.proxy()` callback — parent→worker port transfer | **fail**, times out | pass |
-| `createEndpoint()` — worker→parent port transfer | **fail**, `MessageChannel is not defined` | pass |
+| `Comlink.proxy()` callback — parent→worker port transfer | **pass** (was failing before step 4) | pass |
+| `createEndpoint()` — worker→parent port transfer | **pass** (was failing before step 4) | pass |
 | latency, 200 sequential calls | 0.17 ms/call | 0.04 ms/call |
 | 10 000 rows | 21 ms | 11 ms |
 
-Both failures are MessagePort transfer, and both are transport gaps rather than Comlink problems:
+Both failures were MessagePort transfer (closed in step 4, below), and both were transport gaps rather than Comlink problems:
 
 - A transferred port arrives in the child **EventEmitter-shaped** (`on`), not DOM-shaped
   (`addEventListener` + an `{data}` event), so Comlink's `expose` on the far end never hears it.
@@ -224,6 +224,33 @@ port transfer, at 0.17 ms per call; a JSON-RPC layer would be a second hand-roll
 the same transport underneath and none of the proxy ergonomics. The honest fallback for a consumer
 that needs callbacks *before* step 5 lands is what stamped already has: a serial request/reply
 queue with ids. Recommend Comlink, document the port-transfer gap, and close it in the transport.
+
+### What the fix in step 4 changed
+
+- **Child ports are DOM-shaped.** One child `MessagePort` class serves local pairs and wire ports:
+  `addEventListener`/`removeEventListener`, `onmessage`, `start`, `close`, a `MessageEvent`-like
+  `{data}` next to the EventEmitter surface. Ids are even in the child, odd in the parent.
+- **`MessageChannel` exists in the child**, inline in `BOOTSTRAP_CODE`, so `createEndpoint` runs under
+  bare `gjs`.
+- **Child→parent transfer** goes through the same placeholder as parent→child; the transfer is
+  committed only after the send succeeds. The parent also accepts a raw shared W3C port
+  (`@gjsify/message-channel`) as the transferred or kept end, since `./register` makes that the
+  global `MessageChannel` on GJS.
+- **Port-in-port** raises a clear `DataCloneError` on the cross-process paths; chaining is not
+  supported and is documented in `message-port.ts`.
+- **Exit codes.** Measured on Node 24.19: `process.exit(3)` in a worker gives `exit: 3` with **no**
+  `error`; a throw or import failure gives `error` then `exit: 1`. The plan's "`error` on every
+  non-zero exit" contradicts Node, so tests pin the Node behaviour instead. The worker context
+  gained `exit(code)` (shutdown, then `System.exit`) because a bare `System.exit` is deferred
+  while the child's loop runs and hangs.
+
+### Left for step 5
+
+- `onmessageerror`/`messageerror` bridge for the raw shared port and for child ports.
+- A SyntaxError thrown in a worker arrives on GJS as a generic `Error` (class lost).
+- Bundled children that send `worker_threads.MessageChannel` wrapper ports via `parentPort.postMessage`
+  are not recognised; the bootstrap's own global `MessageChannel` wins.
+- A user script calling bare `System.exit` in a worker child hangs; use the context's `exit`.
 
 ## #2338 — the bundler
 
@@ -296,10 +323,11 @@ It depends on `@gjsify/dom-events` and `@gjsify/message-channel`, both tier 1.
 3. **Stop swallowing the error.** `worker.ts:237-265` must let a `DataCloneError` from `encodeWire`
    reach the caller and keep catching only a closed stdin; a decode failure in the child must come
    back as `messageerror` rather than silence. Test: `postMessage` of a function throws
-   synchronously on both runtimes. **Landed in this PR.**
+   synchronously on both runtimes. **Landed in #2490.**
 4. **MessagePort transfer and death reporting.** DOM-shaped child-side ports, a child→parent port
    placeholder path, and `error` on a non-zero exit that had no prior `error`. Tests: the two
    Comlink cases that fail today, promoted from the spike into the package's suite.
+   **Landed in this PR.** Item 5 is pinned, not changed: see below.
 5. **`@gjsify/web-worker`.** `EventTarget`-based `Worker` over `worker_threads`, the routing above,
    `type: 'module'` and a URL from `import.meta.url`, `terminate()`, and the three event handler
    properties. Its own suite on GJS, Node and browser.

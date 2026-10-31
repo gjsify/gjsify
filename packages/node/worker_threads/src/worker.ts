@@ -36,9 +36,11 @@ import { fdChannel } from '@gjsify/sab-native';
 import { acquireMainLoop, releaseMainLoop } from '@gjsify/utils/main-loop';
 import { extractSharedBuffers } from './sab-transfer.js';
 import { encode as encodeWire, decode as decodeWire } from './structured-clone-wire.js';
+import { MessagePort as SharedMessagePort } from '@gjsify/message-channel';
 import { MessagePort } from './message-port.js';
 import {
     SubprocessPortTransport,
+    isCrossProcessPortPlaceholder,
     nextParentPortId,
     type CrossProcessPortRegistry,
 } from './subprocess-port-transport.js';
@@ -305,10 +307,14 @@ export class Worker extends EventEmitter {
      * up the same validation in a follow-up if a real bug shakes loose.
      */
     private _extractCrossProcessPorts(value: unknown, transferList: unknown[]): unknown {
-        const portToPlaceholder = new Map<MessagePort, { __gjsifyTransferredPort: true; portId: number }>();
+        const portToPlaceholder = new Map<object, { __gjsifyTransferredPort: true; portId: number }>();
         for (const item of transferList) {
-            if (!(item instanceof MessagePort)) continue;
-            const transferredPort = item;
+            // A raw shared W3C port is what the global `MessageChannel` makes once
+            // `@gjsify/message-channel/register` ran (Comlink, a web Worker); the
+            // `worker_threads` wrapper composes one as `_inner`. Both travel.
+            const isWrapper = item instanceof MessagePort;
+            if (!isWrapper && !(item instanceof SharedMessagePort)) continue;
+            const transferredPort = item as MessagePort | SharedMessagePort;
             const portId = nextParentPortId();
             // Identify the in-process kept end (the OTHER side of the channel).
             // If the user only had one end and is transferring it (no in-process
@@ -316,24 +322,32 @@ export class Worker extends EventEmitter {
             // entry — the child will be able to send but parent has nothing to
             // route inbound traffic to. That edge case is OK for v1 — most
             // callers transfer port2 and keep port1.
-            const keptPort = transferredPort._otherPort;
+            const keptPort = isWrapper
+                ? (transferredPort as MessagePort)._otherPort
+                : (transferredPort as SharedMessagePort)._partner;
             if (keptPort) {
                 // Sever the in-process link in both directions.
-                keptPort._otherPort = null;
-                transferredPort._otherPort = null;
+                const keptInner = keptPort instanceof MessagePort ? keptPort._inner : keptPort;
+                if (keptPort instanceof MessagePort) keptPort._otherPort = null;
+                if (isWrapper) (transferredPort as MessagePort)._otherPort = null;
+                keptInner._partner = null;
+                (transferredPort instanceof MessagePort ? transferredPort._inner : transferredPort)._partner = null;
                 // Wire the kept end's W3C inner with the cross-process transport.
-                // _inner.postMessage() will now call transport.send(portId, ...),
+                // postMessage() will now call transport.send(portId, ...),
                 // which writes a `{__msgport, op:'send', data}` line on stdin.
-                keptPort._inner._portId = portId;
-                keptPort._inner._partner = null;
-                keptPort._inner._transport = new SubprocessPortTransport(this._writeStdinLine, this._portRegistry);
+                keptInner._portId = portId;
+                keptInner._transport = new SubprocessPortTransport(this._writeStdinLine, this._portRegistry);
                 this._portRegistry.set(portId, keptPort);
             }
             // The transferred port itself is detached on the parent. Mark it as
             // such so any attempt to reuse it surfaces clearly.
-            (transferredPort as unknown as { _detached: boolean })._detached = true;
-            (transferredPort as unknown as { _closed: boolean })._closed = true;
-            transferredPort._inner.close();
+            if (transferredPort instanceof MessagePort) {
+                (transferredPort as unknown as { _detached: boolean })._detached = true;
+                (transferredPort as unknown as { _closed: boolean })._closed = true;
+                transferredPort._inner.close();
+            } else {
+                transferredPort.close();
+            }
             portToPlaceholder.set(transferredPort, { __gjsifyTransferredPort: true, portId });
         }
 
@@ -341,7 +355,7 @@ export class Worker extends EventEmitter {
 
         function walk(v: unknown, seen: Map<object, unknown>): unknown {
             if (v === null || typeof v !== 'object') return v;
-            if (v instanceof MessagePort) {
+            if (v instanceof MessagePort || v instanceof SharedMessagePort) {
                 const ph = portToPlaceholder.get(v);
                 return ph ?? v;
             }
@@ -365,6 +379,36 @@ export class Worker extends EventEmitter {
         }
 
         return walk(value, new Map());
+    }
+
+    /**
+     * Turn the `{ __gjsifyTransferredPort, portId }` placeholders a child put
+     * into a message (`parentPort.postMessage(value, [port])`) into parent-side
+     * ports. Each new port has no in-process partner; its transport writes
+     * `{ __msgport, op }` lines to the child's stdin and the registry routes the
+     * child's replies back to it by the same (even) id. Walks in place — the
+     * tree was just decoded, nothing else holds it.
+     */
+    private _adoptChildPorts(value: unknown, seen: Set<object>): unknown {
+        if (value === null || typeof value !== 'object') return value;
+        if (isCrossProcessPortPlaceholder(value)) {
+            const known = this._portRegistry.get(value.portId);
+            if (known) return known;
+            const port = new MessagePort();
+            port._inner._portId = value.portId;
+            port._inner._transport = new SubprocessPortTransport(this._writeStdinLine, this._portRegistry);
+            this._portRegistry.set(value.portId, port);
+            return port;
+        }
+        if (seen.has(value)) return value;
+        seen.add(value);
+        if (Array.isArray(value)) {
+            for (let i = 0; i < value.length; i++) if (i in value) value[i] = this._adoptChildPorts(value[i], seen);
+        } else if (Object.prototype.toString.call(value) === '[object Object]') {
+            const record = value as Record<string, unknown>;
+            for (const k of Object.keys(record)) record[k] = this._adoptChildPorts(record[k], seen);
+        }
+        return value;
     }
 
     /**
@@ -516,12 +560,15 @@ export class Worker extends EventEmitter {
                             try {
                                 decoded = decodeWire(msg.data);
                             } catch (err) {
+                                // The raw shared port has no 'messageerror' bridge yet.
                                 (
-                                    keptPort as unknown as { _receiveMessageError(e: unknown): void }
-                                )._receiveMessageError(err);
+                                    keptPort as unknown as { _receiveMessageError?(e: unknown): void }
+                                )._receiveMessageError?.(err);
                                 return;
                             }
-                            (keptPort as unknown as { _receiveMessage(m: unknown): void })._receiveMessage(decoded);
+                            if (keptPort instanceof SharedMessagePort) keptPort._receive(decoded);
+                            else
+                                (keptPort as unknown as { _receiveMessage(m: unknown): void })._receiveMessage(decoded);
                         } else if (msg.op === 'close') {
                             this._portRegistry.delete(msg.__msgport);
                             // _inner.close() flips the W3C-side state; close() on the
@@ -548,7 +595,7 @@ export class Worker extends EventEmitter {
                             this.emit('messageerror', err instanceof Error ? err : new Error(String(err)));
                             break;
                         }
-                        this.emit('message', decoded);
+                        this.emit('message', this._adoptChildPorts(decoded, new Set()));
                         break;
                     }
                     case 'error': {

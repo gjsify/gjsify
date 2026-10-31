@@ -11,9 +11,14 @@
 
 import type { PlatformHost } from '@gjsify/adwaita-core';
 import { cssPxToDip } from '@gjsify/adwaita-core/css-length';
-import { Application, type View } from '@nativescript/core';
+import { Application, CSSHelper, type View } from '@nativescript/core';
+
+import { type IdSelectorClass, provideIdSelector } from './name-selector.js';
 
 import { listenPlatformKeys, openPlatformUri } from './platform-source.js';
+
+// NativeScript's `IdSelector`, which `createSelector('#x')` answers an instance of.
+provideIdSelector(() => (CSSHelper.createSelector('#x') as { constructor: IdSelectorClass }).constructor);
 
 const applied = new Map<object, string>();
 
