@@ -58,6 +58,7 @@
 import { EventEmitter } from 'node:events';
 import { MessagePort as SharedMessagePort } from '@gjsify/message-channel';
 import { isSharedBuffer } from './sab-transfer.js';
+import { createDataCloneError } from './structured-clone-wire.js';
 
 /**
  * Internal placeholder used while serializing a transferred MessagePort.
@@ -361,28 +362,6 @@ export class MessagePort extends EventEmitter {
         if (event === 'message') this.start();
         return this;
     }
-}
-
-function createDataCloneError(message: string): Error {
-    const DOMExceptionCtor = (globalThis as Record<string, unknown>).DOMException as
-        | (new (message: string, name: string) => Error)
-        | undefined;
-    if (typeof DOMExceptionCtor === 'function') {
-        const err = new DOMExceptionCtor(message, 'DataCloneError');
-        // Ensure the `code` property matches Node/W3C (25 = DATA_CLONE_ERR).
-        if ((err as { code?: number }).code === undefined) {
-            try {
-                Object.defineProperty(err, 'code', { value: 25, configurable: true });
-            } catch {
-                /* ignore */
-            }
-        }
-        return err;
-    }
-    const err = new Error(message);
-    err.name = 'DataCloneError';
-    (err as { code?: number }).code = 25;
-    return err;
 }
 
 /**

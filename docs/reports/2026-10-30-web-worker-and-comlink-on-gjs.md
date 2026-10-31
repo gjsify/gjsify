@@ -18,7 +18,7 @@ consumer: [JumpLink/steuererklaerung#193](https://github.com/JumpLink/steuererkl
 
 Build `@gjsify/web-worker` as a thin DOM-shaped adapter over `@gjsify/worker_threads`, and fix
 everything below the adapter in `worker_threads` itself. The transport is sound — spawn to ready
-is ~41 ms, 10 000 rows round-trip in 55 ms, Comlink's core already works over it on GJS — and
+is ~40 ms, 10 000 rows round-trip in 49 ms, Comlink's core already works over it on GJS — and
 every gap that was measured is a gap in the shared transport, not in the web surface. Putting the
 fixes in the adapter would leave `node:worker_threads` consumers (stamped, among others) broken in
 exactly the same way.
@@ -29,7 +29,7 @@ silent today.
 
 ## What already works
 
-- **Spawn and transport.** Spawn → ready is 43/41/41 ms; a `Worker` from
+- **Spawn and transport.** Spawn → ready is 40/40/38 ms; a `Worker` from
   `new URL('./x.mjs', import.meta.url)` loads on both runtimes. `#2338.3` is done — the child is
   spawned with the parent's own binary via `/proc/self/exe`, not from PATH.
 - **#2476 (messages before ready) is already fixed on main.** 4 of 4 cases pass: a same-tick post
@@ -44,51 +44,87 @@ silent today.
 
 ## #2337 — structured clone across the boundary
 
-### What the fix in this PR changed
+### What the fix in #2479 changed
 
 The tagged-JSON codec's base64 used `btoa`/`atob`. The parent has them (a `--globals auto` build
 injects them); the child is a bare `gjs`, which has neither and no module resolution to reach a
 polyfill. So **every typed array, `ArrayBuffer` and typed-array view sent to a file-based worker
 died in the child** as `bootstrap message error: atob is not defined` — and the child exited 0, so
-the parent saw nothing but a timeout. This PR replaces both copies of the base64 helpers with an
+the parent saw nothing but a timeout. #2479 replaces both copies of the base64 helpers with an
 inline implementation and adds the tests.
 
 | | before | after |
 |---|---|---|
-| `docs/poc/web-worker/src/01-wire-roundtrip.mts` | 8 pass / 13 fail of 21 | **13 pass / 8 fail of 21** |
-| `@gjsify/worker_threads` suite, GJS | 164 tests, 299 assertions | **174 tests, 340 assertions** |
-| 1 MiB `Uint8Array` round trip | blocked | **95 ms** (encode 33 ms, decode 4 ms) |
+| `docs/poc/web-worker/src/01-wire-roundtrip.mts` | 8 pass / 13 fail of 21 | 13 pass / 8 fail of 21 |
+| `@gjsify/worker_threads` suite, GJS | 164 tests, 299 assertions | 174 tests, 340 assertions |
+| 1 MiB `Uint8Array` round trip | blocked | 95 ms (encode 33 ms, decode 4 ms) |
+
+### What the fix in this PR changed
+
+The codec's `seen` map threw on any second visit to an object, so a shared reference was
+indistinguishable from a cycle, and both died in the child. This PR replaces it with a **reference
+table** — implicit ids by pre-order traversal, so nothing extra goes on the wire — and adds tags
+for `undefined`, `-0`, array holes and `DataView`, reconstructs the seven interned `Error` names,
+and raises `DataCloneError` at the sender for functions, symbols and other non-cloneables.
+
+| | before | after |
+|---|---|---|
+| `docs/poc/web-worker/src/01-wire-roundtrip.mts` | 13 pass / 8 fail of 21 | **20 pass / 1 fail of 21** |
+| `@gjsify/worker_threads` suite, GJS | 174 tests, 340 assertions | **215 tests, 546 assertions** |
+| `@gjsify/worker_threads` suite, Node | not recorded | **210 tests, 535 assertions** |
+
+Both copies of the codec move in lockstep, and a **drift guard** keeps them that way: the
+`BOOTSTRAP_CODE` mirror is fenced by `GJSIFY_WIRE_CODEC_BEGIN/END` markers, and
+`structured-clone-wire.spec.ts` slices that text out, evaluates it with `new Function`, and runs
+the same 20-case matrix against both the TS module and the raw-JS mirror.
+
+One number above moved because the *instrument* was wrong, not the codec: the PoC's echo worker
+tagged a `DataView` as `object`, because its `tag()` tested `ArrayBuffer.isView` before it tested
+`DataView`. With a working `DataView` branch in the codec the case would have passed on the value
+and failed on the tag, so `echo.worker.mjs` got a `DataView` branch and `01-wire-roundtrip.mts`
+now expects `DataView(4)`.
 
 ### What still does not survive
 
 | Value | What happens | Where it is |
 |---|---|---|
-| cyclic object | child never answers, stays alive — parent sees a timeout | `encode`'s `seen` map throws; `worker.ts` swallows it |
-| shared reference (same object twice) | same silent timeout | `seen` has no ref table, so a repeat visit looks like a cycle |
-| `DataView` | same silent timeout | no `DataView` branch in `encode` |
-| a function | silently dropped; must raise `DataCloneError` | `typeof value !== 'object'` returns it unencoded |
-| `undefined` inside an object | key disappears entirely | `JSON.stringify` drops it; no tag for it |
-| `-0` | comes back `+0` | no tag for it |
-| sparse array holes | filled with `null` | `Array.prototype.map` + JSON |
-| `Error` subclasses | `RangeError` arrives as `Error` with `.name === 'RangeError'` | `decode` always builds a plain `Error` |
+| a function | the **whole message** is dropped silently; `DataCloneError` must reach the caller | `encode` now raises it correctly — `worker.ts:237-265` swallows it |
 
-Three of these are worse than a wrong value: **the parent cannot tell they happened.**
-`worker.ts:237-265` wraps `postMessage` in `try { … } catch { /* Worker stdin closed */ }`, which
-swallows every `DataCloneError` `encodeWire` raises, and on the child side a decode failure prints
-to the child's stderr and leaves the parent waiting. A spec `postMessage` throws synchronously.
+That one remaining failure got *worse-looking*, not worse: before this PR a function was dropped
+from the payload and the rest of the message arrived. Now `encode` raises `DataCloneError` as the
+spec requires, `worker.ts` wraps `postMessage` in `try { … } catch { /* Worker stdin closed */ }`,
+and the entire message vanishes. The codec is right and the caller is wrong, which is why step 3
+is load-bearing rather than cosmetic. A spec `postMessage` throws synchronously.
+
+Two deliberate deviations remain, both documented in-code:
+
+- **A typed-array view carries its window, not its backing buffer.** Two views onto one
+  `ArrayBuffer` arrive as two independent buffers. [§2.7.3](https://html.spec.whatwg.org/multipage/structured-data.html#structuredserializeinternal)
+  would preserve the sharing; doing so needs buffer identity on the wire, which is the same
+  machinery `transferList` wants and belongs with it.
+- **`Error.cause` is not serialized**, and `AggregateError.errors` is not special-cased.
 
 ### What the wire costs
 
+Measured with the reference table in place:
+
 | rows | → worker | ← worker | parent encode | plain `JSON.stringify`+`parse` | wire |
 |---|---|---|---|---|---|
-| 100 | 2 ms | 1 ms | 1 ms (decode 0 ms) | 0 ms | 11 KiB |
-| 1 000 | 7 ms | 3 ms | 2 ms (decode 1 ms) | 1 ms | 111 KiB |
-| 10 000 | 55 ms | 25 ms | 10 ms (decode 10 ms) | 6 ms | 1 125 KiB |
+| 100 | 3 ms | 1 ms | 0 ms (decode 1 ms) | 0 ms | 11 KiB |
+| 1 000 | 7 ms | 2 ms | 1 ms (decode 2 ms) | 1 ms | 111 KiB |
+| 10 000 | 49 ms | 22 ms | 8 ms (decode 6 ms) | 6 ms | 1 125 KiB |
 
-Binary: 64 KiB round-trips in 7 ms, 1 MiB in 95 ms, both at 1.33× the payload on the wire (base64).
+Binary: 64 KiB round-trips in 7 ms, 1 MiB in 82 ms, both at 1.33× the payload on the wire (base64).
+
+**The reference table costs nothing measurable.** The worry was that registering every object in a
+`Map` would show up on large payloads; on 10 000 rows encode went 10 ms → 8 ms and decode 10 ms →
+6 ms against the #2479 baseline, and the wire bytes are identical (11 / 111 / 1 125 KiB, unchanged).
+Both directions are within run-to-run noise of the old numbers — the ids are implicit in traversal
+order, so no bytes were added, and the `Map`/array operations are cheaper than the `Array.isArray`
+re-walks they replaced.
 
 Read against stamped's measurement of ~190 ms for 10 000 rows with hand-rolled JSON, the tagged
-codec is not the bottleneck: it costs ~1.7× a bare `JSON.stringify`/`parse` pair (10 ms vs 6 ms on
+codec is not the bottleneck: it costs ~1.3× a bare `JSON.stringify`/`parse` pair (8 ms vs 6 ms on
 10 000 rows) and the rest is the pipe. **Nothing here argues for a second, faster wire format.**
 The 1.33× base64 overhead is the one place a binary framing would pay, and only for payloads that
 are mostly bytes.
@@ -224,11 +260,14 @@ It depends on `@gjsify/dom-events` and `@gjsify/message-channel`, both tier 1.
    `BOOTSTRAP_CODE`; tests in a new `structured-clone-wire.spec.ts` (padding lengths, all 256 byte
    values, a wire-format assertion against known base64, and a case that deletes the globals) plus
    three subprocess cases in `file-based-worker.spec.ts` that exercise the child's copy.
+   **Landed in #2479.**
+2. **The remaining clone gaps.** A ref table instead of the throw-on-revisit `seen` map — shared
+   references *and* real cycles round-trip, as [§2.7.3](https://html.spec.whatwg.org/multipage/structured-data.html#structuredserializeinternal)
+   requires (the sketch here said cycles would still raise; a memo keyed by object identity gives
+   both for free, so they do not). Tags for `undefined`, `-0`, array holes and `DataView`, `Error`
+   subclasses reconstructed by name, and `DataCloneError` for functions and symbols. Both copies,
+   in lockstep, with a drift guard that runs the same matrix against the `BOOTSTRAP_CODE` mirror.
    **Landed in this PR.**
-2. **The remaining clone gaps.** A ref table instead of the throw-on-revisit `seen` map (shared
-   references work, real cycles still raise), tags for `undefined`, `-0`, array holes and
-   `DataView`, `Error` subclasses reconstructed by name, and `DataCloneError` for functions and
-   symbols. Both copies, in lockstep. Extends `structured-clone-wire.spec.ts`.
 3. **Stop swallowing the error.** `worker.ts:237-265` must let a `DataCloneError` from `encodeWire`
    reach the caller and keep catching only a closed stdin; a decode failure in the child must come
    back as `messageerror` rather than silence. Test: `postMessage` of a function throws

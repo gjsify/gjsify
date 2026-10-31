@@ -122,66 +122,107 @@ function drainSabFds(count) {
   }
 }
 
-// Tagged JSON codec for structured-clone types (mirrors structured-clone-wire.ts).
+// --- GJSIFY_WIRE_CODEC_BEGIN ---
+// Tagged JSON codec for structured-clone types — the child-side MIRROR of
+// structured-clone-wire.ts. Everything between the BEGIN/END markers is
+// sliced out of this string by structured-clone-wire.spec.ts and run through
+// the same case matrix as the TS copy, so the two cannot drift unnoticed.
+// The spec citations live in the TS file; keep the behaviour identical.
 const __TYPED_ARRAYS = ['Int8Array','Uint8Array','Uint8ClampedArray','Int16Array','Uint16Array','Int32Array','Uint32Array','Float32Array','Float64Array','BigInt64Array','BigUint64Array'];
+const __ERROR_CTORS = {Error:Error,EvalError:EvalError,RangeError:RangeError,ReferenceError:ReferenceError,SyntaxError:SyntaxError,TypeError:TypeError,URIError:URIError};
 // No btoa/atob here: this code is evaluated by a bare gjs. See the comment on
 // toBase64 in structured-clone-wire.ts for what depending on them cost.
 const __B64C='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 const __B64D=new Uint8Array(128);for(let i=0;i<64;i++)__B64D[__B64C.charCodeAt(i)]=i;
 function __toB64(buf){const b=new Uint8Array(buf);let s='';for(let i=0;i<b.length;i+=3){const h1=i+1<b.length,h2=i+2<b.length;const n=(b[i]<<16)|((h1?b[i+1]:0)<<8)|(h2?b[i+2]:0);s+=__B64C[(n>>18)&63]+__B64C[(n>>12)&63]+(h1?__B64C[(n>>6)&63]:'=')+(h2?__B64C[n&63]:'=');}return s;}
 function __fromB64(s){let len=s.length;while(len>0&&s.charCodeAt(len-1)===61)len--;const out=new Uint8Array((len*3)>>2);let acc=0,bits=0,o=0;for(let i=0;i<len;i++){acc=(acc<<6)|__B64D[s.charCodeAt(i)];bits+=6;if(bits>=8){bits-=8;out[o++]=(acc>>bits)&255;}}return out;}
-function encodeWire(value, seen){
-  if(value===null||value===undefined) return value;
-  if(typeof value==='bigint') return {__gjsify:'BigInt', value:value.toString()};
-  if(value===Infinity) return {__gjsify:'Infinity'};
-  if(value===-Infinity) return {__gjsify:'NegInfinity'};
-  if(typeof value==='number' && isNaN(value)) return {__gjsify:'NaN'};
-  if(typeof value!=='object') return value;
+function __dataCloneError(message){
+  if(typeof DOMException==='function'){const e=new DOMException(message,'DataCloneError');if(e.code===undefined){try{Object.defineProperty(e,'code',{value:25,configurable:true});}catch(_){}}return e;}
+  const e=new Error(message);e.name='DataCloneError';e.code=25;return e;
+}
+function __isHole(v){return typeof v==='object'&&v!==null&&!Array.isArray(v)&&v.__gjsify==='Hole';}
+function encodeWire(value, refs){
+  if(refs===undefined) refs=new Map();
+  if(value===null) return null;
+  if(value===undefined) return {__gjsify:'Undefined'};
+  const t=typeof value;
+  if(t==='bigint') return {__gjsify:'BigInt', value:value.toString()};
+  if(t==='number'){
+    if(value===Infinity) return {__gjsify:'Infinity'};
+    if(value===-Infinity) return {__gjsify:'NegInfinity'};
+    if(isNaN(value)) return {__gjsify:'NaN'};
+    if(Object.is(value,-0)) return {__gjsify:'NegZero'};
+    return value;
+  }
+  if(t==='string'||t==='boolean') return value;
+  if(t==='function'||t==='symbol') throw __dataCloneError(String(value)+' could not be cloned.');
+  const seen=refs.get(value);
+  if(seen!==undefined) return {__gjsify:'Ref', id:seen};
+  refs.set(value, refs.size);
   if(value instanceof Date) return {__gjsify:'Date', value:value.getTime()};
   if(value instanceof RegExp) return {__gjsify:'RegExp', source:value.source, flags:value.flags};
-  if(value instanceof Error) return {__gjsify:'Error', name:value.name, message:value.message, stack:value.stack};
-  if(value instanceof Map){const e=[];for(const [k,v] of value) e.push([encodeWire(k,seen),encodeWire(v,seen)]);return {__gjsify:'Map', entries:e};}
-  if(value instanceof Set){const v=[];for(const x of value) v.push(encodeWire(x,seen));return {__gjsify:'Set', values:v};}
+  if(value instanceof Error){const n=__ERROR_CTORS[value.name]===undefined?'Error':value.name;return {__gjsify:'Error', name:n, message:value.message, stack:value.stack};}
+  if(value instanceof Map){const e=[];for(const [k,v] of value) e.push([encodeWire(k,refs),encodeWire(v,refs)]);return {__gjsify:'Map', entries:e};}
+  if(value instanceof Set){const v=[];for(const x of value) v.push(encodeWire(x,refs));return {__gjsify:'Set', values:v};}
   const tag=Object.prototype.toString.call(value).slice(8,-1);
   if(tag==='ArrayBuffer') return {__gjsify:'ArrayBuffer', data:__toB64(value)};
-  if(__TYPED_ARRAYS.indexOf(tag)!==-1){const ta=value;return {__gjsify:tag, data:__toB64(ta.buffer.slice(ta.byteOffset, ta.byteOffset+ta.byteLength))};}
-  if(Array.isArray(value)) return value.map(function(x){return encodeWire(x,seen);});
-  if(tag==='Object'){const out={};for(const k of Object.keys(value)) out[k]=encodeWire(value[k],seen);return out;}
-  throw new Error('DataCloneError: value could not be cloned');
+  if(tag==='DataView'||__TYPED_ARRAYS.indexOf(tag)!==-1){const ta=value;return {__gjsify:tag, data:__toB64(ta.buffer.slice(ta.byteOffset, ta.byteOffset+ta.byteLength))};}
+  if(Array.isArray(value)){const out=[];for(let i=0;i<value.length;i++) out.push(i in value?encodeWire(value[i],refs):{__gjsify:'Hole'});return out;}
+  if(tag==='Object'){const out={};for(const k of Object.keys(value)) out[k]=encodeWire(value[k],refs);if(typeof value.__gjsify==='string') return {__gjsify:'Object', value:out};return out;}
+  throw __dataCloneError('value could not be cloned.');
 }
-function decodeWire(value){
+function decodeWire(value, refs){
+  if(refs===undefined) refs=[];
   if(value===null||value===undefined) return value;
   if(typeof value!=='object') return value;
-  if(Array.isArray(value)) return value.map(decodeWire);
+  if(Array.isArray(value)){const out=[];out.length=value.length;refs.push(out);for(let i=0;i<value.length;i++){if(__isHole(value[i])) continue;out[i]=decodeWire(value[i],refs);}return out;}
   const obj=value;
   if(typeof obj.__gjsify==='string'){
     switch(obj.__gjsify){
+      case 'Ref': return refs[obj.id];
+      case 'Undefined': return undefined;
+      case 'Hole': return undefined;
       case 'BigInt': return BigInt(obj.value);
       case 'Infinity': return Infinity;
       case 'NegInfinity': return -Infinity;
       case 'NaN': return NaN;
-      case 'Date': return new Date(obj.value);
-      case 'RegExp': return new RegExp(obj.source, obj.flags);
-      case 'Error': {const e=new Error(obj.message); e.name=obj.name; if(obj.stack) e.stack=obj.stack; return e;}
-      case 'Map': {const m=new Map(); for(const [k,v] of obj.entries) m.set(decodeWire(k),decodeWire(v)); return m;}
-      case 'Set': {const s=new Set(); for(const v of obj.values) s.add(decodeWire(v)); return s;}
-      case 'ArrayBuffer': return __fromB64(obj.data).buffer;
+      case 'NegZero': return -0;
+      case 'Date': {const d=new Date(obj.value);refs.push(d);return d;}
+      case 'RegExp': {const r=new RegExp(obj.source, obj.flags);refs.push(r);return r;}
+      case 'Error': {const C=__ERROR_CTORS[obj.name]||Error;const e=new C(obj.message);if(obj.stack) e.stack=obj.stack;refs.push(e);return e;}
+      case 'Map': {const m=new Map();refs.push(m);for(const [k,v] of obj.entries) m.set(decodeWire(k,refs),decodeWire(v,refs));return m;}
+      case 'Set': {const s=new Set();refs.push(s);for(const v of obj.values) s.add(decodeWire(v,refs));return s;}
+      case 'ArrayBuffer': {const b=__fromB64(obj.data).buffer;refs.push(b);return b;}
+      case 'DataView': {const d=new DataView(__fromB64(obj.data).buffer);refs.push(d);return d;}
+      case 'Object': {const out={};refs.push(out);for(const k of Object.keys(obj.value)) out[k]=decodeWire(obj.value[k],refs);return out;}
       default: {
         if(__TYPED_ARRAYS.indexOf(obj.__gjsify)!==-1){
           const bytes=__fromB64(obj.data);
           const Ctor=globalThis[obj.__gjsify];
-          return new Ctor(bytes.buffer);
+          const ta=new Ctor(bytes.buffer);
+          refs.push(ta);
+          return ta;
         }
+        refs.push(value);
         return value;
       }
     }
   }
   const tag=Object.prototype.toString.call(value).slice(8,-1);
-  if(tag==='Object'){const out={};for(const k of Object.keys(obj)) out[k]=decodeWire(obj[k]);return out;}
+  if(tag==='Object'){const out={};refs.push(out);for(const k of Object.keys(obj)) out[k]=decodeWire(obj[k],refs);return out;}
+  refs.push(value);
   return value;
 }
+// --- GJSIFY_WIRE_CODEC_END ---
 
-function materialise(value) {
+// Walks the DECODED tree, so it has to cope with what the wire codec now
+// reconstructs: shared and cyclic references (hence \`seen\`, or a self-
+// referencing workerData recurses until the child dies) and sparse arrays
+// (hence \`i in value\`, or every hole becomes an own \`undefined\` property and
+// the array stops being sparse). The parent-side equivalents in
+// sab-transfer.ts guard both already.
+function materialise(value, seen) {
+  if (seen === undefined) seen = new Set();
   if (value === null || typeof value !== 'object') return value;
   if (typeof value.__sab === 'number' && typeof value.size === 'number') {
     const fd = sabFds.get(value.__sab);
@@ -194,12 +235,14 @@ function materialise(value) {
   if (isPortPlaceholder(value)) {
     return makeChildSidePort(value.portId);
   }
+  if (seen.has(value)) return value;
+  seen.add(value);
   if (Array.isArray(value)) {
-    for (let i = 0; i < value.length; i++) value[i] = materialise(value[i]);
+    for (let i = 0; i < value.length; i++) if (i in value) value[i] = materialise(value[i], seen);
     return value;
   }
   if (Object.prototype.toString.call(value) === '[object Object]') {
-    for (const k of Object.keys(value)) value[k] = materialise(value[k]);
+    for (const k of Object.keys(value)) value[k] = materialise(value[k], seen);
     return value;
   }
   return value;

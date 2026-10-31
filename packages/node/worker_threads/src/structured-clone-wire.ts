@@ -3,7 +3,14 @@
 // here (parent↔child over JSON lines) we tag the types JSON cannot carry
 // so they survive the round trip. The same logic is inlined in
 // `worker-bootstrap.ts` (BOOTSTRAP_CODE) because the bootstrap runs in a
-// separate runtime with no module resolution. Keep the two in sync.
+// separate runtime with no module resolution. Keep the two in sync — the
+// drift guard in `structured-clone-wire.spec.ts` extracts the bootstrap copy
+// between its marker comments and runs this file's case matrix against it.
+//
+// Reference: HTML Living Standard §2.7.3 StructuredSerializeInternal /
+// StructuredDeserialize. The behaviour that is not obvious from the code —
+// the shared-reference memory, which Error names are interned, what makes a
+// value uncloneable — is cited at the branch that implements it.
 
 const TYPED_ARRAYS = [
     'Int8Array',
@@ -18,6 +25,20 @@ const TYPED_ARRAYS = [
     'BigInt64Array',
     'BigUint64Array',
 ];
+
+// The error names StructuredSerializeInternal interns. Any other `Error`
+// subclass serialises with name "Error" (§2.7.3 step 26: "If name is not one
+// of ... then set name to 'Error'"), so a custom subclass arrives as a plain
+// Error rather than as a half-reconstructed impostor.
+const ERROR_CTORS: Record<string, new (message?: string) => Error> = {
+    Error,
+    EvalError,
+    RangeError,
+    ReferenceError,
+    SyntaxError,
+    TypeError,
+    URIError,
+};
 
 // Base64 WITHOUT `btoa`/`atob`. The mirror of this codec in BOOTSTRAP_CODE is
 // raw JS evaluated by a BARE `gjs` — which has neither, and no module
@@ -66,73 +87,149 @@ function fromBase64(s: string): Uint8Array {
     return out;
 }
 
-export function encode(value: unknown, seen = new Map<object, unknown>()): unknown {
-    if (value === null || value === undefined) return value;
-    if (typeof value === 'bigint') return { __gjsify: 'BigInt', value: value.toString() };
-    if (value === Infinity) return { __gjsify: 'Infinity' };
-    if (value === -Infinity) return { __gjsify: 'NegInfinity' };
-    if (typeof value === 'number' && Number.isNaN(value)) return { __gjsify: 'NaN' };
-    if (typeof value !== 'object') return value;
-    if (seen.has(value as object)) {
-        // Circular reference — structured clone throws DataCloneError; mirror.
-        throw new Error('DataCloneError: circular reference');
+/** True for the array-hole marker the encoder writes for a missing index. */
+function isHoleTag(value: unknown): boolean {
+    return (
+        typeof value === 'object' &&
+        value !== null &&
+        !Array.isArray(value) &&
+        (value as Record<string, unknown>).__gjsify === 'Hole'
+    );
+}
+
+/**
+ * Encode `value` into a JSON-safe tree.
+ *
+ * `refs` is the serialisation memory of §2.7.3: every object gets an id the
+ * first time it is reached, and a second sighting becomes a `Ref` to that id.
+ * The ids are implicit — pre-order position, assigned by `refs.size` here and
+ * by push order in `decode` — so sharing and cycles cost no extra bytes on the
+ * wire and need no second pass over the tree.
+ */
+export function encode(value: unknown, refs = new Map<object, number>()): unknown {
+    if (value === null) return null;
+    // `undefined` survives in an array but a JSON object key holding it is
+    // dropped entirely, so it needs a tag of its own.
+    if (value === undefined) return { __gjsify: 'Undefined' };
+    switch (typeof value) {
+        case 'bigint':
+            return { __gjsify: 'BigInt', value: value.toString() };
+        case 'number':
+            if (value === Infinity) return { __gjsify: 'Infinity' };
+            if (value === -Infinity) return { __gjsify: 'NegInfinity' };
+            if (Number.isNaN(value)) return { __gjsify: 'NaN' };
+            // JSON.stringify writes -0 as `0`; the sign is only recoverable
+            // from a tag, and structured clone preserves it.
+            if (Object.is(value, -0)) return { __gjsify: 'NegZero' };
+            return value;
+        case 'string':
+        case 'boolean':
+            return value;
+        case 'function':
+        case 'symbol':
+            // §2.7.3 step 4: a function or symbol throws DataCloneError at the
+            // sender. Nothing is written to the wire.
+            throw createDataCloneError(`${String(value)} could not be cloned.`);
+        default:
+            break;
     }
-    if (value instanceof Date) return { __gjsify: 'Date', value: (value as Date).getTime() };
+
+    const seen = refs.get(value as object);
+    if (seen !== undefined) return { __gjsify: 'Ref', id: seen };
+    // Register BEFORE recursing: a cycle reaches its own id this way, and the
+    // decoder's push-before-recurse mirrors it.
+    refs.set(value as object, refs.size);
+
+    if (value instanceof Date) return { __gjsify: 'Date', value: value.getTime() };
     if (value instanceof RegExp) {
         const r = value as RegExp;
         return { __gjsify: 'RegExp', source: r.source, flags: r.flags };
     }
     if (value instanceof Error) {
         const e = value as Error;
-        return { __gjsify: 'Error', name: e.name, message: e.message, stack: e.stack };
+        const name = ERROR_CTORS[e.name] === undefined ? 'Error' : e.name;
+        return { __gjsify: 'Error', name, message: e.message, stack: e.stack };
     }
     if (value instanceof Map) {
-        seen.set(value, null);
         const entries: [unknown, unknown][] = [];
         for (const [k, v] of value as Map<unknown, unknown>) {
-            entries.push([encode(k, seen), encode(v, seen)]);
+            entries.push([encode(k, refs), encode(v, refs)]);
         }
         return { __gjsify: 'Map', entries };
     }
     if (value instanceof Set) {
-        seen.set(value, null);
         const values: unknown[] = [];
-        for (const v of value as Set<unknown>) values.push(encode(v, seen));
+        for (const v of value as Set<unknown>) values.push(encode(v, refs));
         return { __gjsify: 'Set', values };
     }
     const tag = Object.prototype.toString.call(value).slice(8, -1);
     if (tag === 'ArrayBuffer') {
         return { __gjsify: 'ArrayBuffer', data: toBase64(value as ArrayBuffer) };
     }
-    if (TYPED_ARRAYS.includes(tag)) {
-        const ta = value as { buffer: ArrayBuffer; byteOffset: number; byteLength: number };
-        return { __gjsify: tag, data: toBase64(ta.buffer.slice(ta.byteOffset, ta.byteOffset + ta.byteLength)) };
+    if (tag === 'DataView' || TYPED_ARRAYS.includes(tag)) {
+        // The view only, not the whole backing buffer: two views of one buffer
+        // therefore decode to two independent buffers. A known deviation from
+        // §2.7.3, which clones the buffer once and keeps the views aliased.
+        const view = value as { buffer: ArrayBufferLike; byteOffset: number; byteLength: number };
+        const slice = (view.buffer as ArrayBuffer).slice(view.byteOffset, view.byteOffset + view.byteLength);
+        return { __gjsify: tag, data: toBase64(slice) };
     }
     if (Array.isArray(value)) {
-        seen.set(value, null);
-        return (value as unknown[]).map((v) => encode(v, seen));
-    }
-    if (tag === 'Object') {
-        seen.set(value, null);
-        const out: Record<string, unknown> = {};
-        for (const k of Object.keys(value as Record<string, unknown>)) {
-            out[k] = encode((value as Record<string, unknown>)[k], seen);
+        const out: unknown[] = [];
+        for (let i = 0; i < value.length; i++) {
+            // A hole is not `undefined` — JSON writes both as `null` and the
+            // decoder could not tell them apart, so holes get their own tag.
+            out.push(i in value ? encode(value[i], refs) : { __gjsify: 'Hole' });
         }
         return out;
     }
-    // Anything else (functions, symbols, ...) cannot be cloned.
-    throw new Error('DataCloneError: value could not be cloned');
+    if (tag === 'Object') {
+        const src = value as Record<string, unknown>;
+        const out: Record<string, unknown> = {};
+        for (const k of Object.keys(src)) out[k] = encode(src[k], refs);
+        // An own `__gjsify` string key would be read back as a tag; wrapping
+        // keeps user data out of the tag namespace.
+        if (typeof src.__gjsify === 'string') return { __gjsify: 'Object', value: out };
+        return out;
+    }
+    // Anything else — boxed primitives, platform objects, WeakMap, Promise.
+    throw createDataCloneError('value could not be cloned.');
 }
 
-export function decode(value: unknown): unknown {
+/**
+ * Decode a tree produced by `encode`. `refs` is the deserialisation memory:
+ * each object is pushed in the same pre-order the encoder numbered it in, so
+ * `Ref` ids resolve by index. Containers are pushed BEFORE their children so
+ * that a cycle can point back at a half-built parent.
+ */
+export function decode(value: unknown, refs: unknown[] = []): unknown {
     if (value === null || value === undefined) return value;
     if (typeof value !== 'object') return value;
     if (Array.isArray(value)) {
-        return value.map((v) => decode(v));
+        // Set the length up front rather than pushing, so that trailing holes
+        // keep the array's length instead of truncating it.
+        const out: unknown[] = [];
+        out.length = value.length;
+        refs.push(out);
+        for (let i = 0; i < value.length; i++) {
+            if (isHoleTag(value[i])) continue; // leave the index unset
+            out[i] = decode(value[i], refs);
+        }
+        return out;
     }
     const obj = value as Record<string, unknown>;
     if (typeof obj.__gjsify === 'string') {
         switch (obj.__gjsify) {
+            // Tags below that yield a primitive must NOT touch `refs`: the
+            // encoder did not number them either.
+            case 'Ref':
+                return refs[obj.id as number];
+            case 'Undefined':
+                return undefined;
+            case 'Hole':
+                // Only reachable when a hole marker is handed to `decode`
+                // outside an array; the array branch above intercepts it.
+                return undefined;
             case 'BigInt':
                 return BigInt(obj.value as string);
             case 'Infinity':
@@ -141,38 +238,69 @@ export function decode(value: unknown): unknown {
                 return -Infinity;
             case 'NaN':
                 return NaN;
-            case 'Date':
-                return new Date(obj.value as number);
-            case 'RegExp':
-                return new RegExp(obj.source as string, obj.flags as string);
+            case 'NegZero':
+                return -0;
+            case 'Date': {
+                const d = new Date(obj.value as number);
+                refs.push(d);
+                return d;
+            }
+            case 'RegExp': {
+                const r = new RegExp(obj.source as string, obj.flags as string);
+                refs.push(r);
+                return r;
+            }
             case 'Error': {
-                const e = new Error(obj.message as string);
-                e.name = obj.name as string;
+                const Ctor = ERROR_CTORS[obj.name as string] ?? Error;
+                const e = new Ctor(obj.message as string);
                 if (obj.stack) e.stack = obj.stack as string;
+                refs.push(e);
                 return e;
             }
             case 'Map': {
                 const m = new Map();
+                refs.push(m);
                 for (const [k, v] of obj.entries as [unknown, unknown][]) {
-                    m.set(decode(k), decode(v));
+                    m.set(decode(k, refs), decode(v, refs));
                 }
                 return m;
             }
             case 'Set': {
                 const s = new Set();
-                for (const v of obj.values as unknown[]) s.add(decode(v));
+                refs.push(s);
+                for (const v of obj.values as unknown[]) s.add(decode(v, refs));
                 return s;
             }
-            case 'ArrayBuffer':
-                return fromBase64(obj.data as string).buffer;
+            case 'ArrayBuffer': {
+                const b = fromBase64(obj.data as string).buffer as ArrayBuffer;
+                refs.push(b);
+                return b;
+            }
+            case 'DataView': {
+                const dv = new DataView(fromBase64(obj.data as string).buffer as ArrayBuffer);
+                refs.push(dv);
+                return dv;
+            }
+            case 'Object': {
+                const src = obj.value as Record<string, unknown>;
+                const out: Record<string, unknown> = {};
+                refs.push(out);
+                for (const k of Object.keys(src)) out[k] = decode(src[k], refs);
+                return out;
+            }
             default: {
                 if (TYPED_ARRAYS.includes(obj.__gjsify)) {
                     const bytes = fromBase64(obj.data as string);
                     const Ctor = (globalThis as Record<string, unknown>)[obj.__gjsify] as new (
                         b: ArrayBuffer,
                     ) => unknown;
-                    return new Ctor(bytes.buffer as ArrayBuffer);
+                    const ta = new Ctor(bytes.buffer as ArrayBuffer);
+                    refs.push(ta);
+                    return ta;
                 }
+                // Unknown tag from a newer sender: pass the data through, but
+                // number it, or every later `Ref` id is off by one.
+                refs.push(value);
                 return value;
             }
         }
@@ -180,11 +308,11 @@ export function decode(value: unknown): unknown {
     const tag = Object.prototype.toString.call(value).slice(8, -1);
     if (tag === 'Object') {
         const out: Record<string, unknown> = {};
-        for (const k of Object.keys(obj)) {
-            out[k] = decode(obj[k]);
-        }
+        refs.push(out);
+        for (const k of Object.keys(obj)) out[k] = decode(obj[k], refs);
         return out;
     }
+    refs.push(value);
     return value;
 }
 
@@ -194,6 +322,14 @@ export function createDataCloneError(message: string): Error {
         | undefined;
     if (typeof DOMExceptionCtor === 'function') {
         const err = new DOMExceptionCtor(message, 'DataCloneError');
+        // Ensure the `code` property matches Node/W3C (25 = DATA_CLONE_ERR).
+        if ((err as { code?: number }).code === undefined) {
+            try {
+                Object.defineProperty(err, 'code', { value: 25, configurable: true });
+            } catch {
+                /* ignore */
+            }
+        }
         return err;
     }
     const err = new Error(message);
