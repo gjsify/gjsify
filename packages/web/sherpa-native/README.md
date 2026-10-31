@@ -219,20 +219,48 @@ by relinking the same objects both ways: 5,113,824 bytes with `--strip-debug`,
 symbol table and that nothing reads. `.dynsym` is untouched, so the ELF read-back still
 measures the exports.
 
-### The linux-x64 prebuild is built by CI, not committed
+### The linux-x64 prebuild is built and committed by CI
 
-`gjsify.platforms` declares `linux-x64`, but `@gjsify/sherpa-native-linux-x64` carries
-`gjsify.platformsUncommitted` and ships no `prebuilds/` directory in git — the
-[`@gjsify/napi-linux-x64`](../../napi/napi-linux-x64/package.json) arrangement. The two
-`.so` files are 29.9 MiB together — 4.1 MiB of bridge and 25.8 MiB of engine — against the
-largest prebuild this repository commits at 12.8 MB (`rolldown-native-linux-x64`), and they
-would be re-committed in full on every sherpa-onnx bump. `prebuilds.yml` builds them on its
-own `sherpa-native-prebuild` job; a local `build:prebuilds` stages them into the child
-package, where `.gitignore` keeps them out of a commit.
+`prebuilds.yml` builds it on its own `sherpa-native-prebuild` job — a separate job only
+because this bridge needs `cmake` and `libstdc++-static` on top of the toolchain the other
+Vala legs install — and `commit-prebuilds` downloads the artifact into
+`@gjsify/sherpa-native-linux-x64/prebuilds/linux-x64/` and pushes it to `main` as
+`chore: update native prebuilds [skip ci]`. That is the one route every native prebuild in
+this repository takes; nothing is ever committed by hand.
 
-For the same reason `build:gir-types` reads `--girDirectories=build` — the meson build
-directory — rather than the child's `prebuilds/linux-x64` as `sqlite-native` does. There
-is no staged artifact to generate types from.
+The staged directory is **24.2 MiB**: 4.1 MiB of bridge, 20.0 MiB of engine, plus the GIR
+and typelib. Big, against the 12.8 MB of `rolldown-native-linux-x64` — the largest the
+repository committed before this one — and a sherpa-onnx bump re-commits all of it. Both
+`.so` files are stripped to get there: the bridge by `-Wl,--strip-all` at link time, and
+the engine by `strip --strip-all` as `meson.build` stages it, because upstream ships the
+release unstripped and 6.0 MB of it (22 %) is a debug symbol table nothing in a prebuild
+can read. `strip` is probed, not assumed; a host without binutils gets a warning and an
+unstripped copy, while the CI leg asserts the stripped form of the staged artifact.
+
+A local meson build stages into this bridge's own `prebuilds/linux-x64/` — the path the CI
+upload reads — and the root `.gitignore` lists it, for the reason the note beside
+`packages/napi/napi/prebuilds/` gives: untracked and unignored is one `git add -A` away from
+25 MB of binary in a package that declares no `gjsify.prebuilds` and therefore has no
+conformance rule watching it.
+
+Delete that directory before running `scripts/generate-platform-packages.mjs`. Its `--write`
+still carries the ADR 0017 migration step — `git mv <bridge>/prebuilds/<target>` into the
+per-target package — and a scratch staging dir looks exactly like the thing that step exists
+to move. It crashes rather than moving it, which is the safe failure, but `--check` reports a
+`libc` field the generator would only have measured from those bytes, and the error names
+neither the staging dir nor the build that wrote it.
+
+`gjsify.platformsUncommitted` is still set on the child package until that first commit
+lands, and it is not a deferral to clear by hand: `commit-prebuilds` runs
+`scripts/clear-committed-platform-exemptions.mjs` immediately before staging, so the run
+that downloads the artifact is the run that drops the marker, in the same commit as the
+bytes.
+
+`build:gir-types` reads `--girDirectories=build` — the meson build directory — rather than
+the child's `prebuilds/linux-x64` as `sqlite-native` does, and keeps doing so after the
+artifact is committed: the GIR that describes the library you just built is the one in your
+own build tree, and a checkout must be able to generate types before any CI run has touched
+it.
 
 ## Testing
 

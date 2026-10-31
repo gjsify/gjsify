@@ -4021,8 +4021,40 @@ jobs:
           node ../../../scripts/stage-prebuild.mjs . --scratch
           ls -l prebuilds/linux-*/
 
-      # `if-no-files-found: error`: this upload is the only evidence the leg
-      # produced anything, since nothing is committed for a later run to check.
+      # THE SAME READ-BACK, ON WHAT IS ACTUALLY SHIPPED.
+      #
+      # `elf-deps` above runs in `build/`, where the engine sits beside the
+      # library because meson's `custom_target` put it there. The prebuild is a
+      # DIFFERENT directory, assembled by `stage-prebuild.mjs` from whatever it
+      # recognises in the build root — so "the engine is beside the library" is
+      # asserted of the build tree and merely hoped of the artifact. That is the
+      # one gap that matters here: this is the only prebuild in the tree whose
+      # library is unloadable without a second file travelling with it, and from
+      # this run on the bytes get COMMITTED, so a staging rule that stopped
+      # copying `libonnxruntime.so` would ship a library that cannot start.
+      #
+      # `stage-prebuild.mjs` already calls `checkPrebuildDir()` on its own output
+      # (RUNPATH `$ORIGIN`, siblings resolvable), which is why there is no
+      # separate `check-prebuild-loader-path.mjs` step like darwin's — darwin
+      # stages with a hand-written `cp` list and has nothing else checking it.
+      # What that does NOT read is the engine's exports, its GLIBCXX floor, or
+      # whether it is stripped. This does, on the staged copy.
+      #
+      # Both flags are unconditional here, unlike in meson.build: a committed
+      # prebuild with a dynamic libstdc++ or an unstripped 27 MB engine is not an
+      # artifact worth having, so a missing `libstdc++.a` or `strip` in the image
+      # must red the leg rather than quietly lower the bar.
+      - name: Verify the STAGED prebuild, not just the build tree
+        if: ${{ !contains(needs.changes.outputs.skip, '"sherpa-native"') }}
+        working-directory: packages/web/sherpa-native
+        run: >
+          python3 test/check-elf-deps.py
+          prebuilds/linux-${{ matrix.arch }}/libgjsifysherpa.so
+          --require-static-libstdcxx --require-stripped-engine
+
+      # `if-no-files-found: error`: this upload is what `commit-prebuilds`
+      # downloads into `@gjsify/sherpa-native-linux-x64`, so an empty one is a
+      # commit of nothing dressed up as a green run.
       - name: Upload @gjsify/sherpa-native prebuilds artifact
         if: ${{ !contains(needs.changes.outputs.skip, '"sherpa-native"') }}
         uses: actions/upload-artifact@v7
@@ -4031,6 +4063,23 @@ jobs:
           path: packages/web/sherpa-native/prebuilds/linux-${{ matrix.arch }}/
           if-no-files-found: error
           retention-days: 30
+
+      # THE MEASUREMENT `commit-prebuilds` RUNS POST-MERGE, MOVED ONTO THE PR —
+      # the same step `build-prebuilds` carries, for the same reason and with the
+      # same two environment values; the long form of why is in the banner over
+      # that copy (search `#1232`). This leg needs it from the moment its
+      # artifact is committed: the glibc floor of these bytes is set by the
+      # `fedora:43` image above, and `@gjsify/sherpa-native-linux-x64` publishes
+      # that number as `gjsify.glibcRequires`.
+      #
+      # No `if:` — deliberately. An unexplained zero staged prebuilds is an
+      # error; `PREBUILD_REPORT` is what lets the gate tell "this package was
+      # skipped" apart from "the collect step silently produced nothing".
+      - name: Gate on the glibc floor of what this leg just built
+        env:
+          PREBUILD_TARGET: linux-${{ matrix.arch }}
+          PREBUILD_REPORT: ${{ needs.changes.outputs.report }}
+        run: node scripts/check-staged-prebuild-libc.mjs
 
   build-prebuilds-musl:
     name: Build prebuilds (linux-${{ matrix.arch }}-musl) [Alpine/musl]
@@ -4356,7 +4405,15 @@ jobs:
     # (there is no `always()` here — deliberately; see gate 3 in the comment
     # above), so a leg that skipped itself because it had nothing to build
     # would silently suppress committing everything the OTHER legs produced.
-    needs: [changes, build-prebuilds, build-prebuilds-qemu, build-prebuilds-macos, build-prebuilds-musl, build-prebuilds-win32, build-prebuilds-win32-webview2, build-prebuilds-win32-gamepad]
+    #
+    # `sherpa-native-prebuild` is here because it is the only route its artifact
+    # has. It is a separate job rather than a step of `build-prebuilds` only
+    # because it needs cmake and a static libstdc++ on top of that leg's
+    # toolchain — the artifact it uploads is the same shape as spiel-native's,
+    # and leaving it out of this list would mean a leg that builds a prebuild
+    # every run and hands it to nobody. It satisfies the corollary above: every
+    # step of it is gated individually, so it never skips as a whole job.
+    needs: [changes, build-prebuilds, build-prebuilds-qemu, build-prebuilds-macos, build-prebuilds-musl, build-prebuilds-win32, build-prebuilds-win32-webview2, build-prebuilds-win32-gamepad, sherpa-native-prebuild]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     permissions:
@@ -4500,6 +4557,24 @@ jobs:
         with:
           name: spiel-native-prebuilds-linux-arm64
           path: packages/web/spiel-native-linux-arm64/prebuilds/linux-arm64/
+
+      # -------- @gjsify/sherpa-native (linux-x64 only; built by its own leg) --------
+      # The artifact is two files and ~25 MB, almost all of it the onnxruntime
+      # engine that `libgjsifysherpa.so` records by SONAME and resolves through
+      # RUNPATH `$ORIGIN`. Committing BOTH is what makes the pair loadable;
+      # neither half is usable alone, and the build leg asserts that of the staged
+      # directory before uploading it. Precedent for the size:
+      # `@gjsify/rolldown-native-linux-x64` commits a 12 MB `.so`.
+      #
+      # linux-arm64 has no row because nothing builds it yet — `gjsify.platforms`
+      # declares `linux-x64` alone, and `platforms-ci` fails on a declared target
+      # with no job as loudly as on a job with no declaration.
+      - name: Download sherpa-native x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"sherpa-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: sherpa-native-prebuilds-linux-x64
+          path: packages/web/sherpa-native-linux-x64/prebuilds/linux-x64/
 
       - name: Download webrtc-native x64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"webrtc-native"') }}
