@@ -380,3 +380,41 @@ declaration and therefore notify like a write.
 0128's own wording instead of `readDeclaredValue`'s generic "holds an object" — safe because
 `coerceDeclared` calls `normalize` INSTEAD of `readDeclaredValue`, and necessary because a
 refusal may not live in a `notify::` handler, where an exception is swallowed.
+
+### A5. The device found a route-D hole that is older than this ADR, and it now has a leg
+
+`Gtk.MenuButton` is the FIRST declared property in the `AdwImageButton` chain, and that is why
+it was the first widget to hit this. The device run was pure-js 182/182 and real-gio 280/285:
+four cases threw `TypeError: Cannot read properties of undefined (reading 'call')` from
+`connect('notify::menu-model')` and a fifth reported that `notify({ eventName })` did not refuse.
+The split-button twin was green throughout, which is the clue — the two differ only in their
+door.
+
+**The cause.** `realize()` returns at `if (declaration.meta === undefined) return;` before route
+D, and `AdwImageButton extends withSignals(GridLayout)` passes no meta. So that door registered
+no GType and captured no gi thunks. `GtkMenuButton`'s `withProperties` declaration then set
+`routeD = true` with `routers === undefined`, which `registerRouteD` read as "the ancestor's
+thunks answer" — the invariant its own comment states — and skipped the capture, the
+no-silent-fallback throw AND `refuseDeclaredNotifyPayload` with it. `resolved.giConnect` stayed
+`undefined`; the throw that exists to forbid exactly this was on the branch that did not run.
+
+**The fix: the leaf BORROWS the verbs** (`borrowChainVerbs`). When a `withProperties`
+declaration finds no ancestor declaration holding thunks, `connect` / `disconnect` / `emit` are
+taken off whichever prototype above it owns them for the duration of `register()`, so node-gi
+installs the real thunks on the LEAF prototype; they are captured onto the leaf declaration,
+deleted off the leaf prototype again — an instance must keep reaching the router, the only thing
+that tells a declared signal from a NativeScript event — and the chain's are put back.
+`refuseDeclaredNotifyPayload` runs on this path too, over the `notify` node-gi installed. The
+thunks are reached through the instance's GType, so a subclass picks them up via `resolvedFor`.
+
+Registering the meta-less door instead was rejected: it is a mixin class with no `GTypeName`, so
+giving it one would invent a GType for every platform base in the port. The leaf already has one.
+
+**A leg, not a field report.** The hole survived because route D had no harness off a device: the
+pure-JS legs answer a declared property from the seam's own accessors and pass by construction.
+`src/menu-model-route-d.node-gi.spec.ts` + `src/test.node-gi.mts` now drive the device's own
+vectors against real GObject on a laptop, under `node --conditions=gjsify-foreign-parents` — a
+new node-gi `#host` that re-exports `host.node.js` with `FOREIGN_PARENT_CLASSES` flipped and
+nothing else (`docs/node-gi-gjs-surface.md`). The five failures reproduced there first and the
+fix turned the leg 12/12; it runs in the `gtk-host-node` job. `Adw.SplitButton` is in the file as
+the CONTROL: a leg that drove only one of the two widgets would have stayed green.

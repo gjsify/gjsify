@@ -345,11 +345,28 @@ precedent — so a consumer can name the type without a cast. Specs:
 `menu-model-door.spec.ts` (the ADR 0128 conformance table, now driven through `connect`),
 `specs/split-button.ts` and `specs/menu-button.ts` (device, both engines).
 
-1798 tests / 4778 assertions (node and gjs), 1226 / 3812 trees. DEVICE: NOT RE-RUN for this
-change — the S9 had another app resumed in front of the launcher, which is the one condition that
-stops a device run. The 12 new cases per engine (5 added to `specs/split-button.ts`, all 7 of
-`specs/menu-button.ts`) are written and registered in `app/app.ts`, and unmeasured until that run
-happens; `libnode_gi.so` for arm64-v8a is already built from this worktree in
+THE DEVICE RUN FOUND A ROUTE-D HOLE, AND IT IS WHY THIS PACKAGE NOW HAS A THIRD TEST ENTRY.
+S9, first run: pure-js 182/182, real-gio 280/285 — four of `specs/menu-button.ts`'s cases threw
+`Cannot read properties of undefined (reading 'call')` from `connect('notify::menu-model')` and a
+fifth found no refusal around `notify({ eventName })`, while every split-button case was green.
+Cause: `realize()` returns before route D when a declaration has no meta, so
+`AdwImageButton extends withSignals(GridLayout)` captured no gi thunks, and `GtkMenuButton`'s
+`withProperties` declaration skipped the capture — and the no-silent-fallback throw with it — on
+the invariant that an ancestor holds them. Fixed in `widgets/signals.ts` by letting such a leaf
+BORROW the verbs (`borrowChainVerbs`): see ADR 0128 Amendment § A5 for the mechanism and for why
+registering the meta-less door was rejected.
+
+It survived this long because route D was measured on nothing but a phone — the pure-JS legs
+answer a declared property from the seam's own accessors and pass by construction. So
+`src/menu-model-route-d.node-gi.spec.ts` + `src/test.node-gi.mts` (`npm run test:gjs-on-node`,
+12 cases, `Adw.SplitButton` as the control) drive the device's own vectors against real GObject
+off-device, under `node --conditions=gjsify-foreign-parents` — a new node-gi `#host`
+(`host.node.foreign.js`) that re-exports `host.node.js` with `FOREIGN_PARENT_CLASSES` flipped and
+nothing else. The five failures reproduced there BEFORE the fix; it is now 12/12 and wired into
+the `gtk-host-node` job of `.github/workflows/node-gi.yml`.
+
+1798 tests / 4778 assertions (node and gjs), 1226 / 3812 trees, 12 route-D (node-gi).
+`libnode_gi.so` for arm64-v8a is built from this worktree in
 `~/.cache/gjsify-android/routed-lib-2026-10-31`, with the AAR in place.
 
 DONE (`widgets/gtk-entry.ts`): `text`, `text-length`, `max-length`, `placeholder-text` and
