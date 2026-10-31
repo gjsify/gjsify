@@ -1,3 +1,4 @@
+import type { WorkerEntries } from '../plugins/worker-url.js';
 import type { NativescriptLocaleOptions } from '../plugins/nativescript-locale.js';
 import type { App } from './app.js';
 import type { SourceDialect } from './source-dialect.js';
@@ -11,6 +12,12 @@ export interface GjsifyCssOptions {
 }
 
 export interface PluginOptions {
+    /**
+     * Registry the worker-URL plugin records `new Worker(new URL('./x', import.meta.url))`
+     * targets in. Set by the CLI for `--app gjs|node|browser`, which then builds every
+     * registered source beside the bundle; unset leaves the URL untouched.
+     */
+    workers?: WorkerEntries;
     debug?: boolean;
     app?: App;
     aliases?: Record<string, string>;

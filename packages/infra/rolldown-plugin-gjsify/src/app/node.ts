@@ -20,6 +20,7 @@ import { giOptionalPlugin } from '../plugins/gi-optional.js';
 import { gschemaPlugin } from '../plugins/gschema.js';
 import { gresourcePlugin } from '../plugins/gresource.js';
 import { implicitGlobalAssignPlugin } from '../plugins/implicit-global-assign.js';
+import { workerUrlPlugin } from '../plugins/worker-url.js';
 import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
 import { nodeNativeExternalPlugin } from '../plugins/node-native-external.js';
 import {
@@ -395,6 +396,8 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         gschemaPlugin({ mode: 'ignore' }),
         gresourcePlugin({ compressed: 'keep' }),
         implicitGlobalAssignPlugin(),
+        // `new Worker(new URL('./x', import.meta.url))` → the file the CLI builds beside the bundle.
+        ...(input.pluginOptions.workers ? [workerUrlPlugin(input.pluginOptions.workers)] : []),
         // Decides the fate of `@girs/*` before `aliasPlugin` and the default
         // resolver (same composition order as `app/browser.ts`). `emptyGirs` is
         // gated on `gjsSourceBuild`:

@@ -43,6 +43,14 @@ export {
     IMPLICIT_GLOBAL_ASSIGN_PLUGIN,
 } from './plugins/implicit-global-assign.js';
 export type { ImplicitGlobalAssignment } from './plugins/implicit-global-assign.js';
+export {
+    workerUrlPlugin,
+    findWorkerUrls,
+    rewriteWorkerUrls,
+    WorkerEntries,
+    WORKER_URL_PLUGIN,
+} from './plugins/worker-url.js';
+export type { WorkerUrlSite } from './plugins/worker-url.js';
 export { gschemaPlugin, parseGschema, GSCHEMA_PLUGIN, GSCHEMA_REGISTER } from './plugins/gschema.js';
 export type { GschemaOut, GschemaKey, GschemaPluginOptions } from './plugins/gschema.js';
 export {

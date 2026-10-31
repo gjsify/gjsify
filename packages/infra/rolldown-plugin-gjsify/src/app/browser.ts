@@ -39,6 +39,7 @@ import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace
 import { GSCHEMA_REGISTER, gschemaPlugin } from '../plugins/gschema.js';
 import { gresourcePlugin } from '../plugins/gresource.js';
 import { implicitGlobalAssignPlugin } from '../plugins/implicit-global-assign.js';
+import { workerUrlPlugin } from '../plugins/worker-url.js';
 
 export interface BrowserBuildConfig {
     /** Transforms that must see the ORIGINAL source; composed before the caller's plugins. */
@@ -177,6 +178,8 @@ export const setupForBrowser = async (input: BrowserFactoryInput): Promise<Brows
         gschemaPlugin({ mode: 'emit', register: GSCHEMA_REGISTER.browser }),
         gresourcePlugin({ compressed: 'strip' }),
         implicitGlobalAssignPlugin(),
+        // `new Worker(new URL('./x', import.meta.url))` → the file the CLI builds beside the bundle.
+        ...(input.pluginOptions.workers ? [workerUrlPlugin(input.pluginOptions.workers)] : []),
         cssAsStringPlugin(),
         // `order: 'post'` — see app/gjs.ts. The browser target's whole job is to
         // replace Node builtins with their `@gjsify/*` browser entries; when one
