@@ -15,7 +15,7 @@ export default async () => {
         await describe('@gjsify/web-worker/register', async () => {
             await it('installs a WHATWG Worker on globalThis', async () => {
                 await import('./register.js');
-                const Ctor = (globalThis as Holder).Worker;
+                const Ctor = (globalThis as unknown as Holder).Worker;
                 expect(typeof Ctor).toBe('function');
                 expect(Ctor?.name).toBe('Worker');
                 expect(typeof Ctor?.prototype.postMessage).toBe('function');
