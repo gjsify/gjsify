@@ -20,7 +20,7 @@
  * NO MODEL AND NO AUDIO DEVICE: everything here runs on a bare runner.
  */
 
-import GjsifySherpa from 'gi://GjsifySherpa';
+import GjsifySherpa from 'gi://GjsifySherpa?version=1.0';
 import System from 'system';
 
 let failures = 0;

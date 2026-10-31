@@ -26,8 +26,8 @@
  * Float32Array of zeros.
  */
 
-import GLib from 'gi://GLib';
-import GjsifySherpa from 'gi://GjsifySherpa';
+import GLib from 'gi://GLib?version=2.0';
+import GjsifySherpa from 'gi://GjsifySherpa?version=1.0';
 import System from 'system';
 
 // The same location @gjsify/vad installs into, so a developer who has run that
