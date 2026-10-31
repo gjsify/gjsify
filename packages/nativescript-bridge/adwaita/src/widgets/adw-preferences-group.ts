@@ -22,6 +22,7 @@
 import type { View } from '@nativescript/core';
 import { GridLayout, ItemSpec, Label, StackLayout } from '@nativescript/core';
 import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
+import { applyTemplateXalign } from './gtk-label.js';
 import { PREFERENCES_GROUP_HEADER_CLASS, preferencesGroupVisuals } from './preferences-group-state.js';
 import type { NsSearchableGroup, NsSearchableRow } from './preferences-search.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
@@ -77,14 +78,18 @@ export class AdwPreferencesGroup extends withSignals(StackLayout) implements NsS
         GridLayout.setColumn(labels, 0);
         header.addChild(labels);
 
+        // Both carry the `xalign 0` that `adw-preferences-group.ui` puts on them, stated rather
+        // than inherited from a platform whose default happens to agree (GTK's is 0.5).
         const titleLabel = new Label();
         titleLabel.className = 'adw-preferences-group-title';
         titleLabel.textWrap = true;
+        applyTemplateXalign(titleLabel, 0);
         labels.addChild(titleLabel);
 
         const descriptionLabel = new Label();
         descriptionLabel.className = 'adw-preferences-group-description';
         descriptionLabel.textWrap = true;
+        applyTemplateXalign(descriptionLabel, 0);
         labels.addChild(descriptionLabel);
 
         const suffixHost = new StackLayout();

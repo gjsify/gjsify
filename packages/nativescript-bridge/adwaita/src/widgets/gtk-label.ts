@@ -45,11 +45,23 @@
 // `wrap`, no newline). FILL is Android's `JUSTIFICATION_MODE_INTER_WORD` (API 26): word gaps
 // stretched, the last line left ragged — Pango's own rule. NativeScript's `'justify'` carries it
 // in LTR; in RTL its gravity is LEFT, so there the port writes `'right'` and sets the mode on
-// the `TextView` itself. A label that can show several lines, with a written `xalign` and a
-// non-default `justify` on different edges, has no exact rendering and is REFUSED. Two edges
-// stay, both older than `justify`: an UNWRITTEN `xalign` keeps the platform's start-aligned text
-// where GTK centres it (the lines follow `justify` when it was written), and under the default
-// `justify` a label of several lines aligns each line where GTK aligns the block.
+// the `TextView` itself. A label that can show several lines, with a WRITTEN `xalign` and a
+// non-default `justify` on different edges, has no exact rendering and is REFUSED; under the
+// default `justify` a label of several lines aligns each line where GTK aligns the block.
+//
+// THE UNWRITTEN `xalign` IS 0.5 AND IS DRAWN, which is the whole of `Gtk.Label:xalign`'s pspec
+// default and NOT a GNOME-only courtesy: a label nobody aligned CENTRES its text in GTK on every
+// platform. This port used to leave such a label on the platform's start-aligned `'initial'` and
+// declare the difference — a declared divergence is still a divergence, and it made the port a
+// SUPERSET-shaped lie: Blueprint written against real GTK (a centred bottom-bar label, say) drew
+// left here and nowhere else. libadwaita's own rows are not evidence for a left default; they set
+// `xalign 0` on their internal title and subtitle labels in their OWN templates
+// (`refs/libadwaita/src/adw-action-row.ui`, `adw-entry-row.ui`, `adw-preferences-group.ui`,
+// `adw-about-dialog.ui`) and `xalign 0.5` where a row centres (`adw-button-row.ui`), and this port
+// now states each of them through {@link applyTemplateXalign}. The one thing the written flag
+// decides is the CONFLICT above: a default nobody asked for does not out-argue a written `justify`,
+// so an unwritten `xalign` facing a different `justify` edge on a multi-line label follows
+// `justify` instead of throwing.
 //
 // `ELLIPSIZE` AND `LINES` REACH REAL NATIVE MECHANISMS, MEASURED IN `@nativescript/core`'s OWN
 // SOURCE rather than assumed from its `.d.ts`: `textOverflow` ('clip' | 'ellipsis') and `maxLines`
@@ -147,6 +159,26 @@ function physical(edge: Edge, rtl: boolean): 'left' | 'center' | 'right' {
     return (edge === 'start') !== rtl ? 'left' : 'right';
 }
 
+/**
+ * `Gtk.Label:xalign` on a TEMPLATE CHILD — a plain `@nativescript/core` `Label` an Adw widget
+ * builds inside itself, standing in for a `<object class="GtkLabel">` in the upstream `.ui`.
+ *
+ * WHY IT EXISTS AND WHY IT IS NOT A NO-OP AT 0. The platform's own default is start-aligned, so
+ * `0` writes the word the view already had; the point is that the widget now STATES the alignment
+ * its upstream template states, instead of agreeing with it by accident. Upstream rows read
+ * left-aligned because `adw-action-row.ui` and its siblings each say `<property name="xalign">0`,
+ * not because GTK's default is 0 — it is 0.5 — and a port that leaves them implicit cannot be read
+ * against the `.ui` file that is its specification.
+ *
+ * START IS `'initial'`, NOT `'left'`: GTK's 0 is the START edge and mirrors in RTL, and `'initial'`
+ * is the platform's own direction-aware start. Only `0` and `0.5` are here, which is every value
+ * libadwaita's templates put on a label; `1` belongs to `adw-spin-row.ui`'s `GtkSpinButton`, an
+ * entry's `xalign` and not this one.
+ */
+export function applyTemplateXalign(label: Label, xalign: 0 | 0.5): void {
+    label.textAlignment = xalign === 0 ? 'initial' : 'center';
+}
+
 export class GtkLabel extends withSignals(Label) {
     static readonly GTypeName: string = 'GtkLabel';
 
@@ -176,6 +208,9 @@ export class GtkLabel extends withSignals(Label) {
             this._applySelectable();
             this._applyJustificationMode();
         });
+        // `xalign` defaults to 0.5 and is DRAWN from the start: a label nobody aligned centres
+        // its text in GTK, and the platform's untouched `textAlignment` is the start edge.
+        this._applyAlignment({});
         applyConstructProps(this, props);
     }
 
@@ -359,16 +394,20 @@ export class GtkLabel extends withSignals(Label) {
         text?: string;
         wrap?: boolean;
     }): void {
-        const xalign = next.xalign ?? (this._xalignWritten ? this._xalign : null);
+        const xalign = next.xalign ?? this._xalign;
+        const written = next.xalign !== undefined || this._xalignWritten;
         const justify = next.justify ?? this._justify;
         const text = next.text ?? this.text ?? '';
         const multiline = (next.wrap ?? this.textWrap) || text.includes('\n');
         const lines = JUSTIFY_EDGES[justify];
-        const block = xalign === null ? null : XALIGN_EDGES.get(xalign);
+        // `_xalign` only ever holds one of the three values the setter admits.
+        const block = XALIGN_EDGES.get(xalign) as Edge;
 
-        let edge: Edge | null;
-        if (block === null) edge = justify === 'left' ? null : lines;
-        else if (block === lines || !multiline || justify === 'left') edge = block;
+        let edge: Edge;
+        if (block === lines || !multiline || justify === 'left') edge = block;
+        // The pspec default is drawn, but it is not an argument: a `justify` somebody wrote wins
+        // the collision an `xalign` nobody wrote would otherwise lose the label to.
+        else if (!written) edge = lines;
         else {
             throw new TypeError(
                 `Gtk.Label justify ${justify} beside xalign ${xalign} has no NativeScript counterpart on a label ` +
@@ -383,11 +422,6 @@ export class GtkLabel extends withSignals(Label) {
             this._xalignWritten = true;
         }
         if (next.justify !== undefined) this._justify = next.justify;
-        if (edge === null) {
-            // Only a label whose alignment was never written keeps the platform's own.
-            if (next.xalign !== undefined || next.justify !== undefined) this.textAlignment = 'initial';
-            return;
-        }
         const side = physical(edge, this.style?.direction === 'rtl');
         this.textAlignment = justify === 'fill' && side === 'left' ? 'justify' : side;
         this._applyJustificationMode();
