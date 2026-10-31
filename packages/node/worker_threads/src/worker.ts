@@ -35,7 +35,7 @@ import { fdChannel } from '@gjsify/sab-native';
 // its own import of this pair runs the same single-file, Node-safe surface.
 import { acquireMainLoop, releaseMainLoop } from '@gjsify/utils/main-loop';
 import { extractSharedBuffers } from './sab-transfer.js';
-import { encode as encodeWire, decode as decodeWire } from './structured-clone-wire.js';
+import { createErrorByName, encode as encodeWire, decode as decodeWire } from './structured-clone-wire.js';
 import { MessagePort as SharedMessagePort } from '@gjsify/message-channel';
 import { MessagePort } from './message-port.js';
 import {
@@ -531,6 +531,7 @@ export class Worker extends EventEmitter {
                 op?: string;
                 __msgport?: number;
                 data?: unknown;
+                name?: string;
                 message?: string;
                 stack?: string;
             };
@@ -560,10 +561,11 @@ export class Worker extends EventEmitter {
                             try {
                                 decoded = decodeWire(msg.data);
                             } catch (err) {
-                                // The raw shared port has no 'messageerror' bridge yet.
-                                (
-                                    keptPort as unknown as { _receiveMessageError?(e: unknown): void }
-                                )._receiveMessageError?.(err);
+                                if (keptPort instanceof SharedMessagePort) keptPort._receiveMessageError();
+                                else
+                                    (
+                                        keptPort as unknown as { _receiveMessageError(e: unknown): void }
+                                    )._receiveMessageError(err);
                                 return;
                             }
                             if (keptPort instanceof SharedMessagePort) keptPort._receive(decoded);
@@ -599,7 +601,7 @@ export class Worker extends EventEmitter {
                         break;
                     }
                     case 'error': {
-                        const err = new Error(msg.message);
+                        const err = createErrorByName(msg.name, msg.message ?? '');
                         if (msg.stack) err.stack = msg.stack;
                         this.emit('error', err);
                         break;

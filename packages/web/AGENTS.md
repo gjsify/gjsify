@@ -12,6 +12,7 @@
 | dom-exception | — | DOMException (WebIDL) |
 | abort-controller | — | AbortController, AbortSignal |
 | message-channel | — | MessageChannel, MessagePort (W3C, EventTarget-based, transport-pluggable — backs `@gjsify/iframe` WebKit bridge + worker_threads cross-process). Stock GJS exposes neither |
+| web-worker | — | WHATWG Worker over worker_threads (+ worker-side `self` scope); Comlink works |
 | formdata | — | FormData, File |
 | streams | — | ReadableStream, WritableStream, TransformStream, TextEncoder/DecoderStream |
 | compression-streams | Gio | CompressionStream, DecompressionStream |

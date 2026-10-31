@@ -40,6 +40,13 @@ const ERROR_CTORS: Record<string, new (message?: string) => Error> = {
     URIError,
 };
 
+/** An error rebuilt from a name and message sent as plain fields (the child's
+ *  `error` line), with the same interned names as the codec's `Error` tag. */
+export function createErrorByName(name: string | undefined, message: string): Error {
+    const Ctor = (name === undefined ? undefined : ERROR_CTORS[name]) ?? Error;
+    return new Ctor(message);
+}
+
 // Base64 WITHOUT `btoa`/`atob`. The mirror of this codec in BOOTSTRAP_CODE is
 // raw JS evaluated by a BARE `gjs` — which has neither, and no module
 // resolution to reach a polyfill. Measured on gjs 1.88.1: every typed array,

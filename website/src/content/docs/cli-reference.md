@@ -247,6 +247,7 @@ GJS provides `setTimeout` and `setInterval` natively, but their return value is 
 |---|---|
 | `AbortController`, `AbortSignal` | `abort-controller/register` |
 | `MessageChannel`, `MessagePort` | `message-channel/register` |
+| `Worker` | `web-worker/register` |
 | `Event`, `EventTarget` | `dom-events/register/event-target` |
 | `CustomEvent`, `MessageEvent`, `ErrorEvent`, `CloseEvent`, `ProgressEvent` | `dom-events/register/custom-events` |
 | `UIEvent`, `MouseEvent`, `PointerEvent`, `KeyboardEvent`, `WheelEvent`, `FocusEvent` | `dom-events/register/ui-events` |
