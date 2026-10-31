@@ -52,8 +52,11 @@
 // object whose `postMessage` writes back over stdout. Both sides use
 // the same `portId` as a registry key for inbound routing. See
 // `subprocess-port-transport.ts` for the adapter + nextParentPortId
-// counter. transferList-within-transferList chains (port-in-port) are
-// not supported on the cross-process path.
+// counter. The child can send ports back the same way
+// (`parentPort.postMessage(value, [port])`); `Worker` adopts the placeholders
+// it finds in the message. transferList-within-transferList chains
+// (port-in-port) are not supported on the cross-process path and throw a
+// DataCloneError.
 
 import { EventEmitter } from 'node:events';
 import { MessagePort as SharedMessagePort } from '@gjsify/message-channel';
@@ -119,12 +122,16 @@ export class MessagePort extends EventEmitter {
         // SubprocessPortTransport is attached to `_inner._transport`. The
         // surviving end routes outbound messages over the worker IPC wire
         // (parent ↔ child stdin/stdout) instead of an in-process partner.
-        // transferList is intentionally restricted on the cross-process path
-        // in v1 — port-in-port-in-port chains and ArrayBuffer-over-wire are
-        // separate workstreams (see status/open-todos/README.md).
+        // Nothing can be transferred through such a port: a port-in-port would
+        // need a per-message port table on both ends of the wire, so it throws
+        // a DataCloneError rather than guess. Ports travel only on
+        // `Worker.postMessage` / `parentPort.postMessage`.
         if (!target && this._inner._transport !== null) {
             if (transferList && transferList.length > 0) {
-                throw createDataCloneError('transferList is not supported on cross-process MessagePort yet');
+                throw createDataCloneError(
+                    'Transferring objects through a MessagePort that crosses a worker boundary is not supported; ' +
+                        'send the port with Worker.postMessage or parentPort.postMessage instead',
+                );
             }
             this._inner.postMessage(value);
             return;
