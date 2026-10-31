@@ -2001,6 +2001,8 @@ gjsify site i18n --check                # fail instead of writing
 
 This is a subcommand rather than a `gjsify-site` bin on purpose: a bin's shebang would pick the runtime for you, while the CLI already runs on whichever runtime you installed it with. The screenshot renditions go through GdkPixbuf — natively under GJS, through the [`@gjsify/node-gi`](#gjsify-install) reverse bridge otherwise — so the page is built the same way on all four. `GITHUB_TOKEN` is optional and only raises the API rate limit; a failed lookup warns rather than failing the build.
 
+Blog code blocks are rendered plain — no highlighter is compiled into the generator, and the page has to keep working without JavaScript. A project that wants colours drives the build through [`buildSite`](https://github.com/gjsify/gjsify/tree/main/packages/infra/site#code-blocks) instead of the CLI and passes a `markdown.highlight` hook; [`@gjsify/site-highlight`](https://www.npmjs.com/package/@gjsify/site-highlight) is the ready-made one (Shiki, light and dark from CSS variables, Blueprint included).
+
 ## Publish to npm
 
 ### `gjsify pack`
