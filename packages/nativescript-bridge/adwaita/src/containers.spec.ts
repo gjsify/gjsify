@@ -273,6 +273,14 @@ export const AdwContainersNsTest = async () => {
         const scrollOf = (window: object): ScrollView =>
             childrenOf(window).find((view) => view instanceof ScrollView) as ScrollView;
 
+        // The box the child sits in: the viewport box under `never`, one level deeper (inside the
+        // horizontal ScrollView) when both axes scroll.
+        const holderOf = (window: Gtk.ScrolledWindow): ContentView => {
+            let box = scrollOf(window).content as ContentView;
+            if (box.content instanceof ScrollView) box = box.content.content as ContentView;
+            return box;
+        };
+
         await it('wraps a real ScrollView and puts the child in its content box', () => {
             const window = new Gtk.ScrolledWindow();
             const child = label();
@@ -281,7 +289,7 @@ export const AdwContainersNsTest = async () => {
             // NOT the scroll view's content itself — see "THE CHILD IS NOT THE CONTENT".
             // A margin on the platform's scroll content inset and clipped the VIEWPORT,
             // which cut the first and last line of a scrolling sheet at every offset.
-            const box = scrollOf(window).content as ContentView;
+            const box = holderOf(window);
             expect(box === (child as unknown)).toBe(false);
             expect(box.content === (child as unknown)).toBe(true);
             expect(window.child === (child as unknown)).toBe(true);
@@ -297,13 +305,13 @@ export const AdwContainersNsTest = async () => {
 
         await it('removing the child empties the content box, never the ScrollView', () => {
             const window = new Gtk.ScrolledWindow();
-            const box = scrollOf(window).content as ContentView;
+            const box = holderOf(window);
             window.child = label() as unknown as never;
             window.child = null;
             expect(box.content).toBe(null);
             // The box outlives the child: a scroll view left with no content is the state
             // a later child's margin would reach the platform through.
-            expect(scrollOf(window).content).toBe(box);
+            expect(holderOf(window)).toBe(box);
         });
 
         await it('scrolls vertically by default and for `hscrollbar-policy: never`', () => {
@@ -311,6 +319,40 @@ export const AdwContainersNsTest = async () => {
             expect(scrollOf(window).orientation).toBe('vertical');
             window.hscrollbarPolicy = 'never';
             expect(scrollOf(window).orientation).toBe('vertical');
+        });
+
+        await it('nests a horizontal ScrollView when both axes scroll, so a wide child scrolls sideways', () => {
+            // Learn6502's editor: a non-wrapping text view wider than the screen. A lone vertical
+            // ScrollView measured it at viewport width and a sideways swipe moved nothing.
+            const window = new Gtk.ScrolledWindow();
+            const child = label();
+            window.child = child as unknown as never;
+            const outer = scrollOf(window);
+            const inner = (outer.content as ContentView).content as ScrollView;
+            expect(inner instanceof ScrollView).toBe(true);
+            expect(outer.orientation).toBe('vertical');
+            expect(inner.orientation).toBe('horizontal');
+            expect((inner.content as ContentView).content === (child as unknown)).toBe(true);
+        });
+
+        await it('keeps one ScrollView under `never`, moving the child out of the nested pair and back', () => {
+            const window = new Gtk.ScrolledWindow();
+            const child = label();
+            window.child = child as unknown as never;
+            window.hscrollbarPolicy = 'never';
+            expect((scrollOf(window).content as ContentView).content === (child as unknown)).toBe(true);
+            window.hscrollbarPolicy = 'automatic';
+            expect(holderOf(window).content === (child as unknown)).toBe(true);
+            expect((scrollOf(window).content as ContentView).content instanceof ScrollView).toBe(true);
+        });
+
+        await it('the horizontal adjustment drives the nested ScrollView', () => {
+            const window = new Gtk.ScrolledWindow();
+            const adjustment = window.get_hadjustment();
+            adjustment.configure(0, 0, 900, 1, 10, 100);
+            adjustment.set_value(25);
+            const inner = (scrollOf(window).content as ContentView).content as ScrollView;
+            expect(inner.horizontalOffset).toBe(25);
         });
 
         await it('scrolls horizontally when only the horizontal axis may', () => {
@@ -347,7 +389,7 @@ export const AdwContainersNsTest = async () => {
             }) as unknown as Gtk.ScrolledWindow;
             expect(window.child instanceof View).toBe(true);
             expect(scrollOf(window).content instanceof Adw.Clamp).toBe(false);
-            expect((scrollOf(window).content as ContentView).content instanceof Adw.Clamp).toBe(true);
+            expect(holderOf(window).content instanceof Adw.Clamp).toBe(true);
         });
 
         await it('the content box hands its one child the whole viewport', () => {
@@ -360,6 +402,7 @@ export const AdwContainersNsTest = async () => {
                 const window = new Gtk.ScrolledWindow();
                 window.vscrollbarPolicy = policy;
                 expect(scrollOf(window).content instanceof ContentView).toBe(true);
+                expect(holderOf(window) instanceof ContentView).toBe(true);
             }
         });
 
