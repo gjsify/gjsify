@@ -100,8 +100,8 @@ export const pillarCoverage: readonly PillarCoverage[] = [
     },
     {
         category: 'Build/Infra tools',
-        total: 25,
-        full: 20,
+        total: 26,
+        full: 21,
         partial: 5,
         stub: 0,
     },
