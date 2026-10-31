@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@gjsify/unit';
 
-import { createHighlighter, HIGHLIGHT_CSS } from './index.js';
+import { createHighlighter, HIGHLIGHT_CSS, highlightCss } from './index.js';
 
 const TS = `const greet = (name: string): string => \`hi ${'${name}'}\`;\nexport default greet;\n`;
 const CSS = '.demo { color: #1c7a4a; /* accent */ }\n';
@@ -85,6 +85,16 @@ export default async () => {
             expect(HIGHLIGHT_CSS).toContain("[data-theme='light']");
             // `pre.shiki`, not `.shiki`: the site's own `pre` rule has to be beatable by order.
             expect(HIGHLIGHT_CSS).toContain('pre.shiki');
+        });
+
+        await it('follows the scheme attribute a site names', async () => {
+            const css = highlightCss('data-scheme');
+            expect(css).toContain("[data-scheme='dark'] pre.shiki");
+            expect(css).toContain("[data-scheme='light'] pre.shiki");
+            expect(css).not.toContain('data-theme');
+            const custom = await createHighlighter({ schemeAttribute: 'data-scheme' });
+            expect(custom.css).toBe(css);
+            expect(() => highlightCss("x'] {}")).toThrow();
         });
     });
 };

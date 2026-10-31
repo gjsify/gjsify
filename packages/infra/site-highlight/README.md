@@ -59,9 +59,14 @@ const stylesheet = `${readFileSync(siteCssPath, 'utf8')}\n${highlighter.css}`;
 
 The sheet colours from `@media (prefers-color-scheme: dark)`, and additionally from
 `[data-theme='dark']` / `[data-theme='light']` for a site whose toggle sets a `data-theme`
-attribute on `<html>`. A site that spells the attribute differently (`data-scheme`, a class, …)
-has two choices: set `data-theme` alongside it, or copy `HIGHLIGHT_CSS` and rename the two
-selectors.
+attribute on `<html>`. A site that spells the attribute differently names it:
+
+```typescript
+const highlighter = await createHighlighter({ schemeAttribute: 'data-scheme' });
+```
+
+`highlightCss(attribute)` answers the same stylesheet without loading any grammar. A toggle that
+is a class rather than an attribute needs its own selectors.
 
 ## Languages
 

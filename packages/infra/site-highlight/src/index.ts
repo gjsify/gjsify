@@ -60,12 +60,20 @@ const LANGUAGES = [
  * does) ties with a bare class selector, so appending this AFTER that stylesheet is what lets the
  * highlighter's background win, and a later override is still a plain CSS edit away.
  *
- * The attribute selectors exist for sites whose scheme toggle is not the OS preference. `jumplink`
- * (the first consumer) sets `data-scheme` on `<html>`; change the two selectors below to whatever a
- * site sets, and `[data-theme="light"]` is there so a reader who forces light keeps it while their
- * OS is dark.
+ * The attribute selectors exist for sites whose scheme toggle is not the OS preference: a reader
+ * who forces `dark` gets it while their OS is light, and one who forces `light` keeps it while
+ * their OS is dark. `schemeAttribute` names the attribute the site sets on an ancestor (usually
+ * `<html>`) to `light` or `dark`.
  */
-export const HIGHLIGHT_CSS = `pre.shiki,
+export function highlightCss(schemeAttribute = 'data-theme'): string {
+    // The name lands in a selector verbatim; a build-time option, but a typo should fail loudly
+    // here rather than ship a stylesheet that silently matches nothing.
+    if (!/^[a-z_][\w-]*$/i.test(schemeAttribute)) {
+        throw new Error(`highlightCss: "${schemeAttribute}" is not an attribute name`);
+    }
+    const dark = `[${schemeAttribute}='dark']`;
+    const light = `[${schemeAttribute}='light']`;
+    return `pre.shiki,
 pre.shiki span {
     color: var(--shiki-light);
     background-color: var(--shiki-light-bg);
@@ -77,17 +85,30 @@ pre.shiki span {
         background-color: var(--shiki-dark-bg);
     }
 }
-[data-theme='dark'] pre.shiki,
-[data-theme='dark'] pre.shiki span {
+${dark} pre.shiki,
+${dark} pre.shiki span {
     color: var(--shiki-dark);
     background-color: var(--shiki-dark-bg);
 }
-[data-theme='light'] pre.shiki,
-[data-theme='light'] pre.shiki span {
+${light} pre.shiki,
+${light} pre.shiki span {
     color: var(--shiki-light);
     background-color: var(--shiki-light-bg);
 }
 `;
+}
+
+/** {@link highlightCss} for the default `data-theme` attribute. */
+export const HIGHLIGHT_CSS = highlightCss();
+
+/** What {@link createHighlighter} accepts. */
+export interface HighlighterOptions {
+    /**
+     * The attribute the site's scheme toggle sets to `light` or `dark` on an ancestor of the code
+     * blocks. Default `data-theme`.
+     */
+    schemeAttribute?: string;
+}
 
 /** What {@link createHighlighter} answers: the hook for `@gjsify/site`, plus the CSS it needs. */
 export interface CodeHighlighter {
@@ -116,7 +137,10 @@ function languageName(info: string): string {
  * would re-parse every grammar per code block — measurably slower, and it is the only thing this
  * package does that is not free.
  */
-export async function createHighlighter(): Promise<CodeHighlighter> {
+export async function createHighlighter(
+    options: HighlighterOptions = {},
+): Promise<CodeHighlighter> {
+    const css = highlightCss(options.schemeAttribute);
     const core = await createHighlighterCore({
         themes: [themeLight, themeDark],
         langs: LANGUAGES,
@@ -133,6 +157,6 @@ export async function createHighlighter(): Promise<CodeHighlighter> {
             if (!known.has(name)) return undefined;
             return core.codeToHtml(code, { lang: name, themes: THEMES, defaultColor: false });
         },
-        css: HIGHLIGHT_CSS,
+        css,
     };
 }
