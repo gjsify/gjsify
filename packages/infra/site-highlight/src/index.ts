@@ -137,9 +137,7 @@ function languageName(info: string): string {
  * would re-parse every grammar per code block — measurably slower, and it is the only thing this
  * package does that is not free.
  */
-export async function createHighlighter(
-    options: HighlighterOptions = {},
-): Promise<CodeHighlighter> {
+export async function createHighlighter(options: HighlighterOptions = {}): Promise<CodeHighlighter> {
     const css = highlightCss(options.schemeAttribute);
     const core = await createHighlighterCore({
         themes: [themeLight, themeDark],
