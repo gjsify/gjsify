@@ -71,9 +71,10 @@ Each is declared in `status/status.json` rather than left to be found.
   through `addSchemeFromXml()`.
 - **Fallback schemes are our own.** `fallback-schemes.ts` holds colours this package chose; they
   exist because schemes name `Adwaita` as `parent-scheme`, not because they match it.
-- **Android only, and device-verified in part (see the last amendment).** `native-editor.android.ts` is held by type-checking
-  alone; the specs drive `EditorSession` through a fake driver, which is not a device.
-  There is no iOS driver.
+- **Device-verified in part on Android, not at all on iOS (see the amendments).**
+  `native-editor.android.ts` is held by type-checking plus the two device-verified signals;
+  `native-editor.ios.ts` by type-checking and the UIKit-free arithmetic alone. The specs drive
+  `EditorSession` through a fake driver, which is not a device.
 
 ## Shared widget classes: actions, tooltips, icons
 
@@ -216,3 +217,41 @@ ADR 0116 is accepted, so:
   answer when no path supplies `Adwaita`.
 
 Accepted with ADR 0116 on 2026-10-15.
+
+## Amendment (2026-10-31): an iOS driver, unverified on device
+
+`native-editor.ios.ts` is the second platform half: a `UITextView` whose `NSTextStorage` carries
+the highlight as attributes, with the gutter and the current-line band drawn in `drawRect:` from
+the `NSLayoutManager`'s line fragments. `gjsify.nativescriptPlatforms` is `['android', 'ios']`
+accordingly, so the `nativescript-platforms` rule now holds BOTH halves of every platform-resolved
+module in this package.
+
+Why it exists before anyone can run it: the base `native-editor.ts` refuses with
+`'Platform not supported'`, which on iOS is indistinguishable from a silently missing variant —
+the shape that shipped `icons.android.ts` without an iOS twin and rendered no icon at all for the
+life of the declaration (the incident the conformance rule carries).
+
+**What differs from Android, and is the reason for the two new modules.** `NSTextStorage` holds
+attributes on ranges, not span OBJECTS the platform moves through edits and a repaint removes by
+identity. So a repaint must NAME the range it overwrites: it resets the line's extent to the base
+attributes and adds the runs over it, and the extent is read off the LIVE text every pass
+(`lineExtent`), never remembered. `text-ranges.ts` holds that arithmetic UIKit-free — offsets,
+line starts, the ARGB split, the edit queue — so `text-ranges.spec.ts` measures it on Node and
+GJS; `ios-types.ts` names the UIKit/Foundation members called, as `android-types.ts` does.
+Two further asymmetries are paid for in the driver rather than hidden: setting `font` or
+`textColor` rewrites the whole storage's attributes, so a palette or layout change repaints every
+line that carries runs (a span survives the same call); and TextKit 1 is pinned by reading
+`layoutManager`, because TextKit 2 answers fragment geometry only through viewport layout, which
+a gutter drawn in `drawRect:` cannot ask.
+
+**Named gaps, not approximations.** `extend-selection` is not emitted on iOS: the text view's
+double/triple-tap selection comes from its internal gesture recognisers, which offer no documented
+veto before they select. `copy-clipboard` is not emitted either: UIKit's copy arrives as the
+`-copy:` editing action, whose override name collides with `NSObject`'s own `-copy`. Both keep
+UIKit's own behaviour. `selectionBackground` has no counterpart — UIKit derives the selection fill
+from the `tintColor` that also paints the caret, where GTK gives two colours.
+
+**NOT VERIFIED ON A DEVICE OR A SIMULATOR.** The arithmetic half is green on Node and GJS; the
+UIKit call sequence is written from the documented API and has been run by nothing. There is no
+iOS leg in `tests/integration/nativescript/` — it drives Android over `adb logcat` — and no NS CLI
+on this machine, so no simulator run was possible (#1051). The package stays `partial`.
