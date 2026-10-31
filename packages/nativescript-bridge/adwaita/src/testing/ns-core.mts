@@ -1304,7 +1304,10 @@ export const ApplicationSettings = {
 
 /** `CSSHelper.createSelector('#x')` answers an `IdSelector`; the double is the stock one's shape. */
 class MockIdSelector {
-    constructor(public id: string) {}
+    id: string;
+    constructor(id: string) {
+        this.id = id;
+    }
     match(node: { id?: string }): boolean {
         return node.id === this.id;
     }
