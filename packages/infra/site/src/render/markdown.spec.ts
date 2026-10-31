@@ -47,5 +47,42 @@ export default async () => {
         await it('escapes HTML in the source, never renders it', async () => {
             expect(renderMarkdown('<script>alert(1)</script>')).toBe('<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>');
         });
+
+        await it('handles a fenced code block when no highlighter is asked for', async () => {
+            const source = '```ts\nconst x: number = 1;\n```';
+            expect(renderMarkdown(source)).toBe('<pre><code class="language-ts">const x: number = 1;</code></pre>');
+            expect(renderMarkdown(source, {})).toBe(renderMarkdown(source));
+        });
+
+        await it('replaces a code block with the hook’s HTML, inserted as markup rather than escaped', async () => {
+            const seen: [string, string][] = [];
+            const html = renderMarkdown('```ts\na < b & c\n```', {
+                highlight: (code, lang) => {
+                    seen.push([code, lang]);
+                    return `<pre class="hl"><code>${code.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</code></pre>`;
+                },
+            });
+            expect(seen).toStrictEqual([['a < b & c', 'ts']]);
+            expect(html).toBe('<pre class="hl"><code>a &lt; b &amp; c</code></pre>');
+        });
+
+        await it('keeps the plain block when the hook declines, with or without a language', async () => {
+            const decline = () => undefined;
+            expect(renderMarkdown('```blp\nusing Gtk 4.0;\n```', { highlight: decline })).toBe(
+                '<pre><code class="language-blp">using Gtk 4.0;</code></pre>',
+            );
+            expect(renderMarkdown('```\nplain\n```', { highlight: decline })).toBe('<pre><code>plain</code></pre>');
+        });
+
+        await it('passes the info string as-is and an empty language when the fence names none', async () => {
+            const langs: string[] = [];
+            renderMarkdown('```sh title=demo\nls\n```\n\n```\nnone\n```', {
+                highlight: (_code, lang) => {
+                    langs.push(lang);
+                    return undefined;
+                },
+            });
+            expect(langs).toStrictEqual(['sh title=demo', '']);
+        });
     });
 };
