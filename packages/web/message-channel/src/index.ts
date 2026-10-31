@@ -116,6 +116,16 @@ export class MessagePort extends EventTarget {
         this._dispatch(data);
     }
 
+    /** @internal A payload arrived off the wire that this end could not
+     *  deserialise. Same async scheduling as a message; the port stays open. */
+    _receiveMessageError(): void {
+        if (this._closed) return;
+        Promise.resolve().then(() => {
+            if (this._closed) return;
+            this.dispatchEvent(new MessageEvent('messageerror', { data: null }));
+        });
+    }
+
     private _dispatch(data: unknown): void {
         // Async dispatch matches W3C MessagePort + browser MessageEvent
         // scheduling — listeners run in a microtask, never re-entrantly.
