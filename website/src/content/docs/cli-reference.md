@@ -2109,6 +2109,7 @@ Print the `releases` entry for one version as GitHub Markdown, the same entry th
 ```bash
 gjsify release-notes                      # version from package.json
 gjsify release-notes v0.1.7 --compare
+gjsify release-notes --metainfo data/eu.example.App.metainfo.xml
 gh release create v0.1.7 --notes "$(gjsify release-notes v0.1.7 --compare)"
 ```
 
@@ -2116,8 +2117,9 @@ gh release create v0.1.7 --notes "$(gjsify release-notes v0.1.7 --compare)"
 |---|---|---|
 | `[release]` | `version` in `package.json` | Version or tag; a leading `v` is accepted. |
 | `--compare` | `false` | Append `**Full changelog:** <vcsBrowserUrl>/compare/v<prev>...v<version>` using the next-older `releases` entry. Skipped without a previous entry or `vcsBrowserUrl`. |
+| `--metainfo <path>` | none | Read the `<release>` entries from this AppStream metainfo file instead of the config. |
 
-The entry is read from `gjsify.ship.releases`, falling back to `gjsify.flatpak.releases`.
+Lookup order: `--metainfo`, then `gjsify.ship.releases`, then `gjsify.flatpak.releases`, then the file named by `gjsify.site.metainfo`. The metainfo reader takes the untagged `<description>` of each `<release>` (`xml:lang` translations are skipped): `<p>` becomes a paragraph, `<ul>`/`<ol>` with `<li>` become `- ` items, `<em>`/`<code>`/`<strong>` become `*…*`/`` `…` ``/`**…**`, and entities are decoded. Newest entry first, as in the file, so `--compare` uses the next entry down.
 
 ### `gjsify login`
 
