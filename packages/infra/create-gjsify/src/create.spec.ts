@@ -22,6 +22,7 @@ interface PackageJson {
     license?: string;
     author?: string;
     scripts?: Record<string, string>;
+    devDependencies?: Record<string, string>;
     optionalDependencies?: Record<string, string>;
     gjsify?: {
         ship?: {
@@ -114,6 +115,23 @@ export default async () => {
                     const content = readFileSync(full, 'utf-8');
                     expect(content.includes('new-gjsify-app')).toBe(false);
                 }
+            });
+
+            await it('ships a typed stylesheet a scaffolded app needs no css.d.ts for', () => {
+                // Three files are one feature: the bundler already turns a `.css` import into
+                // a string default export, but only `./types` declares that, and only a
+                // dependency the scaffold can install reaches it. Drop any one of them and
+                // `npm run check` fails in a fresh project with TS2307 on `./style.css`.
+                expect(paths).toContain('src/style.css');
+                expect(readFileSync(join(projectDir, 'src/style.css'), 'utf-8')).toContain('.demo-status');
+
+                const tsconfig = readFileSync(join(projectDir, 'tsconfig.json'), 'utf-8');
+                expect(tsconfig).toContain('"@gjsify/rolldown-plugin-gjsify/types"');
+
+                // `workspace:^` / `file:` are resolved to the release train on the way into
+                // `dist-templates` — same rule as the optional runtimes above.
+                const spec = pkg.devDependencies?.['@gjsify/rolldown-plugin-gjsify'];
+                expect(/^\^\d+\.\d+\.\d+/.test(spec ?? '')).toBe(true);
             });
         } finally {
             process.chdir(cwd);

@@ -23,6 +23,7 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/oxlint-plugin-gjsify": "workspace:^",
         "@gjsify/rolldown-native": "workspace:^",
+        "@gjsify/rolldown-plugin-gjsify": "workspace:^",
         "@gjsify/vite-plugin-blueprint": "workspace:^",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3"

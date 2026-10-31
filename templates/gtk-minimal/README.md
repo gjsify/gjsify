@@ -16,6 +16,11 @@ app carries it too. The three `adw-*` templates work the same way.
 The parser holds a subset of the language, and a construct outside it fails the build naming the
 construct, the file and the line rather than emitting something plausible and wrong.
 
+`src/style.css` is the app's stylesheet: it is imported as a **string** and handed to a
+`Gtk.CssProvider` in the `activate` handler, the first point at which a display exists, while
+`main-window.blp` names its class. `@gjsify/rolldown-plugin-gjsify/types` in `tsconfig.json` is
+what types that import — no hand-written `css.d.ts` needed.
+
 ## Install
 
 ```bash
