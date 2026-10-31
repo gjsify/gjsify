@@ -1014,7 +1014,7 @@ jobs:
           PREBUILD_TARGET: linux-${{ matrix.arch }}
           PREBUILD_REPORT: ${{ needs.changes.outputs.report }}
         run: |
-          PREBUILD_REPORT=$(node -e 'const r = JSON.parse(process.env.PREBUILD_REPORT); process.stdout.write(JSON.stringify(r.map((e) => e.dir === "packages/web/sherpa-native" ? { ...e, build: false, why: "built in sherpa-native-prebuild" } : e)))')
+          PREBUILD_REPORT=$(node -e 'const r = JSON.parse(process.env.PREBUILD_REPORT); process.stdout.write(JSON.stringify(r.map((e) => e.key === "sherpa-native" ? { ...e, build: false, why: "built in sherpa-native-prebuild" } : e)))')
           export PREBUILD_REPORT
           node scripts/check-staged-prebuild-libc.mjs
 
@@ -1316,7 +1316,7 @@ jobs:
           PREBUILD_TARGET: linux-${{ matrix.arch }}
           PREBUILD_REPORT: ${{ needs.changes.outputs.report }}
         run: |
-          PREBUILD_REPORT=$(node -e 'const r = JSON.parse(process.env.PREBUILD_REPORT); process.stdout.write(JSON.stringify(r.map((e) => e.dir === "packages/web/sherpa-native" ? { ...e, build: false, why: "built in sherpa-native-prebuild" } : e)))')
+          PREBUILD_REPORT=$(node -e 'const r = JSON.parse(process.env.PREBUILD_REPORT); process.stdout.write(JSON.stringify(r.map((e) => e.key === "sherpa-native" ? { ...e, build: false, why: "built in sherpa-native-prebuild" } : e)))')
           export PREBUILD_REPORT
           node scripts/check-staged-prebuild-libc.mjs
 
