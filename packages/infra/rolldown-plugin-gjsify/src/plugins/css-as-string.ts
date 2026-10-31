@@ -477,6 +477,22 @@ export function cssAsStringPlugin(options: CssAsStringOptions = {}): Plugin {
                         ? new TextDecoder('utf-8').decode(await loadAndBundleCss(id, targets, declare))
                         : await readFile(id, 'utf8');
                 }
+                // A stylesheet that PARSES to nothing loses every rule SILENTLY: lightningcss
+                // accepts a `//` header (Sass syntax, not CSS) and emits an empty file, so a
+                // template shipped an unstyled window at exit 0 with a green build. Anything left
+                // after stripping comments is content that must survive; a genuinely empty or
+                // comment-only file stays legal. Sass is exempt: dart-sass IS the authority on
+                // what its source compiles to, and a comment-only `.scss` legitimately has no CSS.
+                if (bundle && !/\.s[ac]ss$/.test(id) && !code.trim()) {
+                    const source = await readFile(stripQuery(id), 'utf8');
+                    if (source.replace(/\/\*[\s\S]*?\*\//g, '').trim()) {
+                        throw new Error(
+                            `gjsify css-as-string: ${id} holds CSS but bundled to nothing. A \`//\` ` +
+                                'comment is Sass syntax, not CSS — lightningcss drops the rule that ' +
+                                'follows it. Use /* … */ comments, or move the file to `.scss`.',
+                        );
+                    }
+                }
                 return {
                     code: `export default ${JSON.stringify(code)};`,
                     moduleType: 'js' as const,
