@@ -207,8 +207,12 @@ export class MessagePort extends EventEmitter {
                 transfer: arrayBufferTransfers.length > 0 ? arrayBufferTransfers : undefined,
             });
         } catch (err) {
-            this.emit('messageerror', err instanceof Error ? err : new Error('Could not clone message'));
-            return;
+            // Sender-side failure, so it is the SENDER that must hear about it:
+            // Node throws DOMException [DataCloneError] synchronously out of
+            // postMessage and sends nothing. 'messageerror' is the receiver's
+            // event — emitting it here told the wrong end, and told it in a way
+            // a caller cannot catch.
+            throw err instanceof Error ? err : createDataCloneError('Could not clone message');
         }
 
         // For each transferred port: detach the source MessagePort locally, then
@@ -251,6 +255,24 @@ export class MessagePort extends EventEmitter {
         // unstarted ports buffer; `receiveMessageOnPort` can pull from the buffer
         // without dispatching).
         if (this._inner._started) this._dispatchEmit(message);
+    }
+
+    /**
+     * @internal An incoming message arrived but could not be deserialised, so
+     * there is no `message` to deliver. Node surfaces exactly this as
+     * `'messageerror'` on the receiving port and stays usable afterwards, which
+     * is the alternative to the message vanishing without a trace.
+     *
+     * EventEmitter surface only: the W3C side wants a `MessageEvent` on the
+     * inner port so that `onmessageerror` fires too, and that mapping belongs
+     * with the rest of the web surface in `@gjsify/web-worker`.
+     */
+    _receiveMessageError(err: unknown): void {
+        if (this._closed) return;
+        const error = err instanceof Error ? err : new Error(String(err));
+        Promise.resolve().then(() => {
+            if (!this._closed) this.emit('messageerror', error);
+        });
     }
 
     get _hasQueuedMessages(): boolean {

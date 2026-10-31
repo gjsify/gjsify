@@ -9,4 +9,14 @@ import sabSuite from './worker-shared-buffer.gjs.spec.js';
 import fileBasedWorkerSuite from './file-based-worker.spec.js';
 import orphanSuite from './worker-orphan.gjs.spec.js';
 import wireSuite from './structured-clone-wire.spec.js';
-run({ testSuite, sabSuite, fileBasedWorkerSuite, orphanSuite, wireSuite });
+import messageErrorsSuite from './message-errors.spec.js';
+import messageErrorsGjsSuite from './message-errors.gjs.spec.js';
+run({
+    testSuite,
+    sabSuite,
+    fileBasedWorkerSuite,
+    orphanSuite,
+    wireSuite,
+    messageErrorsSuite,
+    messageErrorsGjsSuite,
+});

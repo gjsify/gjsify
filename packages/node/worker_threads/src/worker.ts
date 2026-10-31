@@ -236,29 +236,36 @@ export class Worker extends EventEmitter {
 
     postMessage(value: unknown, transferList?: unknown[]): void {
         if (this._exited || !this._stdinPipe) return;
+        // Cross-process MessagePort handling. For each MessagePort listed
+        // in transferList: detach the in-process partnership, attach a
+        // SubprocessPortTransport to the kept end's `_inner._transport`,
+        // register the kept end in `_portRegistry` keyed by a fresh portId,
+        // and substitute the port in the value tree with a
+        // `{ __gjsifyTransferredPort: true, portId }` placeholder. The
+        // child bootstrap's materialise() rebuilds a child-side port-like
+        // object that routes traffic back over the same portId.
+        let processed = value;
+        if (transferList && transferList.length > 0) {
+            processed = this._extractCrossProcessPorts(value, transferList);
+        }
+        // _serializeWithSabTransfer walks for SharedBuffer instances and
+        // sends each fd over the SCM_RIGHTS channel BEFORE we write the
+        // JSON line — the child's recv-loop populates its fd map first,
+        // then materialise() finds every tag when the JSON arrives. The
+        // ordering is load-bearing: kernel guarantees ordered delivery
+        // within each fd (stdin, side-channel) but the two fds are
+        // independent.
+        //
+        // Everything up to here stays OUTSIDE the try: a value that cannot be
+        // cloned has to reach the caller as a synchronous DataCloneError, the
+        // way both Node and the HTML spec throw it, and an fd that could not be
+        // sent is a real failure too. Only the write is allowed to fail quietly
+        // — a worker that exited between the guard above and this line is a
+        // race, not a programming error.
+        const serialised = this._serializeWithSabTransfer(processed);
+        const encoded = encodeWire(serialised);
+        const line = JSON.stringify({ type: 'message', data: encoded }) + '\n';
         try {
-            // Cross-process MessagePort handling. For each MessagePort listed
-            // in transferList: detach the in-process partnership, attach a
-            // SubprocessPortTransport to the kept end's `_inner._transport`,
-            // register the kept end in `_portRegistry` keyed by a fresh portId,
-            // and substitute the port in the value tree with a
-            // `{ __gjsifyTransferredPort: true, portId }` placeholder. The
-            // child bootstrap's materialise() rebuilds a child-side port-like
-            // object that routes traffic back over the same portId.
-            let processed = value;
-            if (transferList && transferList.length > 0) {
-                processed = this._extractCrossProcessPorts(value, transferList);
-            }
-            // _serializeWithSabTransfer walks for SharedBuffer instances and
-            // sends each fd over the SCM_RIGHTS channel BEFORE we write the
-            // JSON line — the child's recv-loop populates its fd map first,
-            // then materialise() finds every tag when the JSON arrives. The
-            // ordering is load-bearing: kernel guarantees ordered delivery
-            // within each fd (stdin, side-channel) but the two fds are
-            // independent.
-            const serialised = this._serializeWithSabTransfer(processed);
-            const encoded = encodeWire(serialised);
-            const line = JSON.stringify({ type: 'message', data: encoded }) + '\n';
             this._stdinPipe.write_all(_encoder.encode(line), null);
         } catch {
             // Worker stdin closed
@@ -472,11 +479,27 @@ export class Worker extends EventEmitter {
 
     private _readMessages(dataStream: Gio.DataInputStream): void {
         dataStream.read_line_async(GLib.PRIORITY_DEFAULT, null, (_source: unknown, result: Gio.AsyncResult) => {
+            // Read and parse are stream-level: a closed stream or a line that
+            // is not JSON means there is nothing left to read, so the loop ends.
+            // Everything after this point is message-level — see below.
+            let msg: {
+                type?: string;
+                op?: string;
+                __msgport?: number;
+                data?: unknown;
+                message?: string;
+                stack?: string;
+            };
             try {
                 const [line] = dataStream.read_line_finish_utf8(result);
                 if (line === null) return; // EOF
+                msg = JSON.parse(line);
+            } catch {
+                // Stream closed or unparseable line
+                return;
+            }
 
-                const msg = JSON.parse(line);
+            try {
                 // Cross-process MessagePort traffic from child stdout. Look up
                 // the kept-end port in the parent registry and route. 'send' →
                 // wrapper's _receiveMessage (which fans out to EventEmitter +
@@ -486,9 +509,19 @@ export class Worker extends EventEmitter {
                     const keptPort = this._portRegistry.get(msg.__msgport);
                     if (keptPort) {
                         if (msg.op === 'send') {
-                            (keptPort as unknown as { _receiveMessage(m: unknown): void })._receiveMessage(
-                                decodeWire(msg.data),
-                            );
+                            // A payload this end cannot decode is reported to the
+                            // port as 'messageerror' rather than dropped — the
+                            // channel itself is fine and stays open.
+                            let decoded: unknown;
+                            try {
+                                decoded = decodeWire(msg.data);
+                            } catch (err) {
+                                (
+                                    keptPort as unknown as { _receiveMessageError(e: unknown): void }
+                                )._receiveMessageError(err);
+                                return;
+                            }
+                            (keptPort as unknown as { _receiveMessage(m: unknown): void })._receiveMessage(decoded);
                         } else if (msg.op === 'close') {
                             this._portRegistry.delete(msg.__msgport);
                             // _inner.close() flips the W3C-side state; close() on the
@@ -497,16 +530,27 @@ export class Worker extends EventEmitter {
                             (keptPort as unknown as { close(): void }).close();
                         }
                     }
-                    this._readMessages(dataStream);
                     return;
                 }
                 switch (msg.type) {
                     case 'online':
                         this.emit('online');
                         break;
-                    case 'message':
-                        this.emit('message', decodeWire(msg.data));
+                    case 'message': {
+                        // Decoding is guarded on its own, and the emit is left
+                        // outside that guard: an exception thrown by a user's
+                        // 'message' listener is the listener's bug and must not
+                        // be reported back as a decode failure.
+                        let decoded: unknown;
+                        try {
+                            decoded = decodeWire(msg.data);
+                        } catch (err) {
+                            this.emit('messageerror', err instanceof Error ? err : new Error(String(err)));
+                            break;
+                        }
+                        this.emit('message', decoded);
                         break;
+                    }
                     case 'error': {
                         const err = new Error(msg.message);
                         if (msg.stack) err.stack = msg.stack;
@@ -514,10 +558,13 @@ export class Worker extends EventEmitter {
                         break;
                     }
                 }
-
-                this._readMessages(dataStream);
             } catch {
-                // Stream closed or parse error
+                // A listener of ours threw, or 'error' was emitted with nothing
+                // listening (EventEmitter rethrows then). Not the read loop's to
+                // handle — but unlike before it no longer ENDS the loop either:
+                // the finally below arms the next read either way.
+            } finally {
+                this._readMessages(dataStream);
             }
         });
     }

@@ -309,7 +309,16 @@ function makeChildSidePort(portId) {
      *  semantics. */
     _receive(data) {
       if (closed) return;
-      Promise.resolve().then(() => { if (!closed) emit('message', decodeWire(data)); });
+      Promise.resolve().then(() => {
+        if (closed) return;
+        // A payload this end cannot decode becomes 'messageerror' on the port.
+        // Letting decodeWire throw here would reject this microtask, and GJS
+        // has no unhandled-rejection surface — the message would vanish.
+        let decoded;
+        try { decoded = decodeWire(data); }
+        catch (err) { emit('messageerror', err instanceof Error ? err : new Error(String(err))); return; }
+        emit('message', decoded);
+      });
     },
     /** @internal Called by the dispatcher when the parent sends
      *  {__msgport: portId, op: 'close'}. Fires the local 'close' event
@@ -541,8 +550,22 @@ function dispatchLine(line) {
     // recv_fd is synchronous but the sender always wrote the SCM_RIGHTS
     // messages before writing this stdin line, so they're already
     // buffered.
-    if (init.sabSocketFd === 3) drainSabFds(countSabPlaceholders(msg.data));
-    parentPort.emit('message', materialise(decodeWire(msg.data)));
+    //
+    // Deserialising is guarded, the emit is not: a message we cannot decode is
+    // reported as 'messageerror' on parentPort and the worker stays alive,
+    // whereas an exception from a user's 'message' listener still belongs in
+    // readNext's catch (= the crash contract). Before this, BOTH went there,
+    // so one undecodable message killed the worker with a 'bootstrap message
+    // error'.
+    let value;
+    try {
+      if (init.sabSocketFd === 3) drainSabFds(countSabPlaceholders(msg.data));
+      value = materialise(decodeWire(msg.data));
+    } catch (err) {
+      parentPort.emit('messageerror', err instanceof Error ? err : new Error(String(err)));
+      return true;
+    }
+    parentPort.emit('message', value);
   }
   else if (msg.type === 'terminate') { send({ type: 'exit', code: 1 }); requestShutdown(); return false; }
   return true;
