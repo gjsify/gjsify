@@ -185,7 +185,10 @@ export default async () => {
                     // Wait for 'ready' by way of the collector, then poke the port.
                     await new Promise<void>((resolve) => worker.once('message', () => resolve()));
                     const [portId] = [...registry.keys()];
-                    writeRawLine(worker, JSON.stringify({ __msgport: portId, op: 'send', data: UNDECODABLE_PAYLOAD }) + '\n');
+                    writeRawLine(
+                        worker,
+                        JSON.stringify({ __msgport: portId, op: 'send', data: UNDECODABLE_PAYLOAD }) + '\n',
+                    );
                     expect(await messages).toStrictEqual(['ready', 'child:messageerror']);
                 } finally {
                     await worker.terminate();
