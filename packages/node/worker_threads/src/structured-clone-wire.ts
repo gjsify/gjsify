@@ -206,7 +206,10 @@ export function decode(value: unknown, refs: unknown[] = []): unknown {
     if (value === null || value === undefined) return value;
     if (typeof value !== 'object') return value;
     if (Array.isArray(value)) {
-        const out: unknown[] = new Array(value.length);
+        // Set the length up front rather than pushing, so that trailing holes
+        // keep the array's length instead of truncating it.
+        const out: unknown[] = [];
+        out.length = value.length;
         refs.push(out);
         for (let i = 0; i < value.length; i++) {
             if (isHoleTag(value[i])) continue; // leave the index unset

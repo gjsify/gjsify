@@ -175,7 +175,7 @@ function decodeWire(value, refs){
   if(refs===undefined) refs=[];
   if(value===null||value===undefined) return value;
   if(typeof value!=='object') return value;
-  if(Array.isArray(value)){const out=new Array(value.length);refs.push(out);for(let i=0;i<value.length;i++){if(__isHole(value[i])) continue;out[i]=decodeWire(value[i],refs);}return out;}
+  if(Array.isArray(value)){const out=[];out.length=value.length;refs.push(out);for(let i=0;i<value.length;i++){if(__isHole(value[i])) continue;out[i]=decodeWire(value[i],refs);}return out;}
   const obj=value;
   if(typeof obj.__gjsify==='string'){
     switch(obj.__gjsify){
