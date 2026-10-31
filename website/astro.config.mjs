@@ -4,8 +4,13 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
 
+// The grammar lives in `@gjsify/site-highlight`, which is also what a blog build highlights `.blp`
+// with — one copy, so the website's own `.blp` tabs and a consumer's pages cannot drift apart.
 const blueprintGrammar = JSON.parse(
-    readFileSync(new URL('./src/grammars/blueprint.tmLanguage.json', import.meta.url), 'utf8'),
+    readFileSync(
+        new URL('../packages/infra/site-highlight/grammars/blueprint.tmLanguage.json', import.meta.url),
+        'utf8',
+    ),
 );
 
 export default defineConfig({
@@ -90,7 +95,7 @@ export default defineConfig({
             description: 'GTK 4 & Adwaita everywhere, in type-safe TypeScript — on GJS, Node.js, Bun or Deno',
             // The widget gallery carries a `.blp` tab, and Shiki bundles no
             // Blueprint grammar. Scope and limits: the `_comment` header in
-            // src/grammars/blueprint.tmLanguage.json.
+            // packages/infra/site-highlight/grammars/blueprint.tmLanguage.json.
             expressiveCode: {
                 shiki: { langs: [blueprintGrammar] },
             },

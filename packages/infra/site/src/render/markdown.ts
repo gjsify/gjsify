@@ -14,6 +14,17 @@ import { esc } from './html.js';
 export interface MarkdownOptions {
     /** Rewrites a link href or image src; absolute and `#` URLs are passed in too. */
     resolveUrl?: (url: string) => string;
+    /**
+     * Renders one fenced code block instead of the plain `<pre><code>` element — a syntax
+     * highlighter, for instance. `lang` is the fence's info string verbatim (empty when the fence
+     * names none), so a hook that only knows a few languages can answer `undefined` and leave the
+     * block as it is.
+     *
+     * Returning `undefined` falls back to the plain block. Returned HTML is inserted AS-IS and is
+     * therefore never escaped again: the hook owns escaping, because only it knows which parts of
+     * its output are markup.
+     */
+    highlight?: (code: string, lang: string) => string | undefined;
 }
 
 interface HeadingBlock {
@@ -391,6 +402,10 @@ function renderBlock(block: Block, options: MarkdownOptions = {}): string {
         case 'hr':
             return '<hr>';
         case 'code': {
+            const highlighted = options.highlight?.(block.content, block.lang ?? '');
+            if (highlighted !== undefined) {
+                return highlighted;
+            }
             if (block.lang) {
                 return `<pre><code class="language-${esc(block.lang)}">${esc(block.content)}</code></pre>`;
             }

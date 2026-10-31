@@ -10,7 +10,7 @@ import { atomFeed, type FeedEntry } from './feed.js';
 import { esc, fmt, plain } from './html.js';
 import { icon } from './icons.js';
 import { absoluteUrl, documentPage, pageMasthead, sitePageUrl, type PageMeta, type Shell } from './layout.js';
-import { renderMarkdown } from './markdown.js';
+import { renderMarkdown, type MarkdownOptions } from './markdown.js';
 import { blogPostingJsonLd, metaDescription } from './seo.js';
 
 type Config = Pick<SiteCommonConfig, 'base'>;
@@ -309,7 +309,17 @@ export function tagsOf(posts: readonly BlogPost[], lang: string): string[] {
     return [...new Set(posts.filter((post) => post.lang === lang).flatMap((post) => post.tags))];
 }
 
-/** Renders a post's Markdown with its URLs resolved. */
-export function renderPostBody(config: Config, post: BlogPost, postsDir: string, posts: readonly BlogPost[]): string {
-    return renderMarkdown(post.body, { resolveUrl: postUrlResolver(config, post, postsDir, posts) });
+/**
+ * Renders a post's Markdown with its URLs resolved. `markdown` reaches the renderer untouched,
+ * except for `resolveUrl`, which the post's own URL resolver supplies — that is what makes a
+ * relative image or a link to another post's `.md` file work on the published page.
+ */
+export function renderPostBody(
+    config: Config,
+    post: BlogPost,
+    postsDir: string,
+    posts: readonly BlogPost[],
+    markdown: MarkdownOptions = {},
+): string {
+    return renderMarkdown(post.body, { ...markdown, resolveUrl: postUrlResolver(config, post, postsDir, posts) });
 }
