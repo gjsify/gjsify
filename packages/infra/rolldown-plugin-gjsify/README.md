@@ -55,6 +55,10 @@ For a GJS build the bundle records the addon's **package identity**, not a path 
 
 `import bytes from './data/app.data.gresource.xml'` yields the compiled GResource as a `Uint8Array` ([ADR 0116](../../../docs/adr/0116-app-gresources-are-embedded-at-build-time-for-web-and-nativescript.md)). To type it, add `"@gjsify/rolldown-plugin-gjsify/types"` to your `tsconfig.json` `compilerOptions.types`. The same entry declares `*.gschema.xml?schema` ([ADR 0099](../../../docs/adr/0099-gio-settings-runs-on-the-browser-and-nativescript.md) § 1).
 
+## Stylesheet imports
+
+The same entry types `import css from './style.css'` — plus `.scss`/`.sass` — as the `string` that `cssAsStringPlugin` emits, so a `Gtk.CssProvider` app needs no hand-written `css.d.ts`. Import the value and apply it: a bare `import './style.css'` has no effect to keep and is tree-shaken away.
+
 ## License
 
 MIT
