@@ -1301,3 +1301,18 @@ export const ApplicationSettings = {
         SETTINGS.set(key, value);
     },
 };
+
+/** `CSSHelper.createSelector('#x')` answers an `IdSelector`; the double is the stock one's shape. */
+class MockIdSelector {
+    constructor(public id: string) {}
+    match(node: { id?: string }): boolean {
+        return node.id === this.id;
+    }
+    lookupSort(sorter: { sortAsUniversal(selector: unknown): void }, base?: unknown): void {
+        sorter.sortAsUniversal(base ?? this);
+    }
+}
+
+export const CSSHelper = {
+    createSelector: (selector: string): object => new MockIdSelector(selector.slice(1)),
+};

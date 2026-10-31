@@ -82,6 +82,7 @@ import type { Observable } from '@nativescript/core';
 import { GTK_ALIGN, NS_HORIZONTAL_ALIGNMENT, NS_VERTICAL_ALIGNMENT } from './gtk-align.js';
 import { cssTypeOf } from './css-names.js';
 import { gtypeNameOfInstance } from './gtype-name.js';
+import { installProvidedNameSelector } from '../name-selector.js';
 import { nsAlignment } from './construct-props.js';
 import { lengthValue, type NsLength } from './ns-length.js';
 import { gtkBuilderInteger, xmlBoolean } from './xml-values.js';
@@ -520,6 +521,7 @@ export function withGtkWidgetLayout<TBase extends ObservableConstructor>(
 
         set name(value: string | null) {
             const view = laidOut(this, 'name');
+            installProvidedNameSelector();
             const previous = NAMES.get(this);
             const next = value ?? '';
             if (next === '') NAMES.delete(this);
