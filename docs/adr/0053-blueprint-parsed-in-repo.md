@@ -37,7 +37,7 @@ the tree disagree, so a thirteenth `.blp` cannot leave any of it quietly wrong.
 | `title: "…"` — every property whose value is not an anonymous object | 561 | `props: { title: '…' }` | yes — a ParamSpec |
 | `[start]`, `[end]`, `[top]`, `[bottom]`, `[center]`, `[breakpoint]` | 49 | `slot: 'start'` | yes — ADR 0029 § 4 derives slot candidates from GIR |
 | `content: Adw.ToolbarView { }` — an ANONYMOUS object as a property value | 49 | a child carrying `slot: 'content'` | yes — a ParamSpec, read as a slot |
-| `styles ["flat"]` | 42 | `cssClasses: ['flat']` | yes — ADR 0049 decided style classes are a list |
+| `styles ["flat"]` | 43 | `cssClasses: ['flat']` | yes — ADR 0049 decided style classes are a list |
 | `template $Foo: Adw.Bin` | 16 | — | **no** — a GtkBuilder composite-template declaration |
 | `Gtk.Box canvasContainer { }` | 100 of those 234 | — | **no** — a GtkBuilder object id |
 | `_("Back")` | 151 | — | **no** — a `translatable` attribute on the emitted XML |

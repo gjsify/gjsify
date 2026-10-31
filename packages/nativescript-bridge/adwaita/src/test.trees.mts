@@ -39,6 +39,7 @@ import { MenuModelDoorNsTest } from './menu-model-door.spec.js';
 import { GtkBoxNsTest } from './gtk-box.spec.js';
 import { AdwGObjectDoorNsTest } from './gobject-door.spec.js';
 import { AdwGTypeNameNsTest } from './gtype-name.spec.js';
+import { AdwCssNamesNsTest } from './css-names.spec.js';
 import { AdwGridLayoutNsTest } from './grid-layout.spec.js';
 import { GtkGridNsTest } from './gtk-grid.spec.js';
 import { GtkLabelMarkupNsTest } from './label-markup.spec.js';
@@ -56,6 +57,7 @@ import { AdwSharedTreesNsTest } from './shared-trees.spec.js';
 import { AdwValueListsNsTest } from './value-lists.spec.js';
 import { AdwViewSwitcherStackNsTest } from './view-switcher-stack.spec.js';
 import { AdwWidgetBaseNsTest } from './widget-base.spec.js';
+import nameSelectorTestSuite from './name-selector.spec.js';
 import { AdwWidgetMapNsTest } from './widget-map.spec.js';
 import { AdwWindowRootsNsTest } from './window-roots.spec.js';
 import { AdwWindowShellNsTest } from './window-shell.spec.js';
@@ -68,6 +70,7 @@ import { AdwEntryRowPropertiesNsTest } from './entry-row-properties.spec.js';
 import { AdwExpanderRowPropertiesNsTest } from './expander-row-properties.spec.js';
 import { AdwButtonContentPropertiesNsTest } from './button-content-properties.spec.js';
 import { AdwSplitButtonPropertiesNsTest } from './split-button-properties.spec.js';
+import { GtkMenuButtonPropertiesNsTest } from './menu-button-properties.spec.js';
 import { AdwComboRowPropertiesNsTest } from './combo-row-properties.spec.js';
 import { GtkDropDownPropertiesNsTest } from './drop-down-properties.spec.js';
 import { GtkEntryPropertiesNsTest } from './entry-properties.spec.js';
@@ -87,6 +90,7 @@ run({
     AdwConstructVectorsNsTest,
     AdwGObjectDoorNsTest,
     AdwGTypeNameNsTest,
+    AdwCssNamesNsTest,
     AdwContainersNsTest,
     GtkBoxNsTest,
     GtkGridNsTest,
@@ -96,6 +100,7 @@ run({
     GtkControlsNsTest,
     GtkStackNsTest,
     AdwWidgetBaseNsTest,
+    nameSelectorTestSuite,
     AdwWidgetMapNsTest,
     AdwWindowRootsNsTest,
     GtkWindowMembersNsTest,
@@ -109,6 +114,7 @@ run({
     AdwExpanderRowPropertiesNsTest,
     AdwButtonContentPropertiesNsTest,
     AdwSplitButtonPropertiesNsTest,
+    GtkMenuButtonPropertiesNsTest,
     AdwComboRowPropertiesNsTest,
     GtkDropDownPropertiesNsTest,
     GtkEntryPropertiesNsTest,

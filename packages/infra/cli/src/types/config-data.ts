@@ -210,6 +210,11 @@ export interface ConfigData {
      */
     ship?: ConfigDataShip;
     /**
+     * Config for `gjsify site`, owned and validated by `@gjsify/site`. Only the metainfo path is
+     * typed here: `gjsify release-notes` reads releases from it when the config has none.
+     */
+    site?: { metainfo?: string };
+    /**
      * Config for `gjsify format` / `lint` / `fix`. A thin shell: oxc's own
      * `.oxfmtrc.json` / `.oxlintrc.json` are the real configuration files.
      */

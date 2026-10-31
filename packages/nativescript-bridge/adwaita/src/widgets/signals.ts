@@ -575,6 +575,13 @@ type GiDisconnect = (this: object, id: number) => void;
 type GiEmit = (this: object, key: string, ...args: unknown[]) => unknown;
 
 /**
+ * The three verbs a route-D registration installs and this seam routes over. `notify` is NOT
+ * one of them: node-gi never skips it and captures the host's as its object-payload half, so it
+ * is taken and wrapped on its own rather than swapped.
+ */
+const GI_VERBS = ['connect', 'disconnect', 'emit'] as const;
+
+/**
  * One declaration — one `withSignals(Base, meta)` or `withProperties(Base, meta)` call, one
  * class, and under route D one GType. Mutable where realization fills it in; see the header for
  * why this is a registry entry rather than the call's own closure.
@@ -763,12 +770,13 @@ function registerRouteD(declaration: Declaration, register: (klass: object, meta
     // which is the behaviour the pure-JS leg installs by hand — with one refusal wrapped around
     // it: a payload naming a declared member, which on this leg could only reach nobody.
     //
-    // A `withProperties` declaration deletes nothing (it owns none of these) and so is
-    // registered with all four already on the chain. That is deliberate: the names land in its
-    // `$foreignSkipped`, and the ancestor's thunks keep answering — for the derived class's own
-    // properties too, because `g_signal_connect` keys on the instance's GType, which is the
-    // leaf's.
+    // A `withProperties` declaration owns none of these and is normally registered with all
+    // four already on the chain. That is deliberate: the names land in its `$foreignSkipped`,
+    // and the ANCESTOR's thunks keep answering — for the derived class's own properties too,
+    // because `g_signal_connect` keys on the instance's GType, which is the leaf's. When no
+    // ancestor has any, {@link borrowChainVerbs} says so and the leaf takes them itself.
     const { meta, prototype, routers } = declaration;
+    const borrowed = routers === undefined ? borrowChainVerbs(declaration) : undefined;
     if (routers !== undefined) {
         delete prototype.connect;
         delete prototype.disconnect;
@@ -778,21 +786,7 @@ function registerRouteD(declaration: Declaration, register: (klass: object, meta
     register(declaration.klass, meta!);
     wrapRouteDAccessors(declaration);
     if (routers !== undefined) {
-        declaration.giConnect = prototype.connect as GiConnect | undefined;
-        declaration.giDisconnect = prototype.disconnect as GiDisconnect | undefined;
-        declaration.giEmit = prototype.emit as GiEmit | undefined;
-        if (
-            declaration.giConnect === undefined ||
-            declaration.giDisconnect === undefined ||
-            declaration.giEmit === undefined
-        ) {
-            throw new Error(
-                `Registering '${meta!.GTypeName}' over its NativeScript base installed no ` +
-                    'connect/disconnect/emit, so the widget would answer neither GObject nor this port. ' +
-                    'ADR 0105 refuses a silent fallback here: the subset is reachable only by calling ' +
-                    "usePureJsGObjectEngine() from '@gjsify/adwaita-core' before the port loads.",
-            );
-        }
+        captureGiVerbs(declaration);
         for (const [name, method] of Object.entries(routers)) {
             Object.defineProperty(prototype, name, {
                 configurable: true,
@@ -802,8 +796,100 @@ function registerRouteD(declaration: Declaration, register: (klass: object, meta
             });
         }
         refuseDeclaredNotifyPayload(prototype, prototype.notify as (this: object, ...args: unknown[]) => unknown);
+    } else if (borrowed !== undefined) {
+        captureGiVerbs(declaration);
+        // Off the LEAF again, before the chain's come back: an instance has to keep reaching the
+        // router, the only thing that tells a declared signal from a NativeScript event.
+        for (const name of GI_VERBS) delete prototype[name];
+        for (const { owner, name, descriptor } of borrowed) Object.defineProperty(owner, name, descriptor);
+        // The refusal has nothing behind it to fall through to on this path — a door that
+        // registered would have installed one, and the whole reason the verbs had to be
+        // borrowed is that none did. Ordinary derived classes keep inheriting it: node-gi's own
+        // `notify` captures whatever answered before as its object-payload half.
+        refuseDeclaredNotifyPayload(prototype, prototype.notify as (this: object, ...args: unknown[]) => unknown);
     }
     declaration.routeD = true;
+}
+
+/**
+ * Take the real thunks the registration installed onto `declaration`. Reads through the chain,
+ * so it has to run while the leaf still owns them.
+ *
+ * A missing one THROWS: it means the registration installed no GObject verbs at all, and a
+ * widget that answers neither GObject nor this port is the silent fallback ADR 0105 refuses.
+ */
+function captureGiVerbs(declaration: Declaration): void {
+    const { meta, prototype } = declaration;
+    declaration.giConnect = prototype.connect as GiConnect | undefined;
+    declaration.giDisconnect = prototype.disconnect as GiDisconnect | undefined;
+    declaration.giEmit = prototype.emit as GiEmit | undefined;
+    if (
+        declaration.giConnect === undefined ||
+        declaration.giDisconnect === undefined ||
+        declaration.giEmit === undefined
+    ) {
+        throw new Error(
+            `Registering '${meta!.GTypeName}' over its NativeScript base installed no ` +
+                'connect/disconnect/emit, so the widget would answer neither GObject nor this port. ' +
+                'ADR 0105 refuses a silent fallback here: the subset is reachable only by calling ' +
+                "usePureJsGObjectEngine() from '@gjsify/adwaita-core' before the port loads.",
+        );
+    }
+}
+
+/** One verb taken off the prototype that owned it, and what to put back there. */
+interface BorrowedVerb {
+    readonly owner: Record<string, unknown>;
+    readonly name: (typeof GI_VERBS)[number];
+    readonly descriptor: PropertyDescriptor;
+}
+
+/**
+ * Take {@link GI_VERBS} off whichever prototype above this declaration answers them, so the
+ * registration installs the real thunks on the LEAF prototype — and hand back what to restore.
+ * `undefined` when an ancestor declaration already captured thunks: then there is nothing to
+ * borrow and the leaf shares the ancestor's, which is the ordinary case.
+ *
+ * WHY A DERIVED DECLARATION EVER HAS TO. Sharing the ancestor's thunks holds only while the
+ * ancestor DOOR registered, and `withSignals(Base)` without meta returns from {@link realize}
+ * before route D ever runs — it has no `GTypeName` to register under. `Gtk.MenuButton` is the
+ * first declared property under such a door (`AdwImageButton extends withSignals(GridLayout)`)
+ * and it reached a device with `resolved.giConnect === undefined`: four cases threw
+ * `Cannot read properties of undefined (reading 'call')` on `connect('notify::menu-model')` and
+ * a fifth found no refusal wrapped around `notify`. ADR 0128 Amendment § A5; the same five fail
+ * off-device in the `test:gjs-on-node` leg, which is what this is measured by.
+ *
+ * Borrowing and not registering the meta-less door instead: that door is a mixin class with no
+ * GTypeName of its own, so giving it a GType would invent a type for every platform base in the
+ * port. The leaf already has one, and the thunks only ever needed to be installed SOMEWHERE the
+ * leaf's declaration can reach.
+ */
+function borrowChainVerbs(declaration: Declaration): BorrowedVerb[] | undefined {
+    for (const other of declarationsOf(declaration.klass)) {
+        if (other !== declaration && other.giConnect !== undefined) return undefined;
+    }
+    const borrowed: BorrowedVerb[] = [];
+    for (const name of GI_VERBS) {
+        let at: Record<string, unknown> | null = declaration.prototype;
+        while (at !== null) {
+            const descriptor = Object.getOwnPropertyDescriptor(at, name);
+            if (descriptor === undefined) {
+                at = Object.getPrototypeOf(at) as Record<string, unknown> | null;
+                continue;
+            }
+            if (descriptor.configurable !== true) {
+                throw new Error(
+                    `Registering '${declaration.meta!.GTypeName}' needs node-gi to install '${name}' on its ` +
+                        `own prototype, but the '${name}' it inherits cannot be taken off for the ` +
+                        'registration. Declare the properties on the class that owns it instead.',
+                );
+            }
+            borrowed.push({ owner: at, name, descriptor });
+            delete at[name];
+            break;
+        }
+    }
+    return borrowed;
 }
 
 /**

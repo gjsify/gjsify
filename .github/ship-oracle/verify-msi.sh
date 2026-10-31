@@ -142,11 +142,39 @@ mkdir -p "$SCRATCH/export"
 # `Icon` ("the installer names no icon") and `Shortcut` ("the user has nothing to
 # start"). Everywhere else a zero-ROW export of a table § 1 has just seen listed
 # is the reader, or whatever last wrote the file, losing that table's stream.
-idt() {
-    local out
-    if ! out=$(cd "$SCRATCH/export" && msiinfo export "$MSI" "$1" | tr -d '\r'); then
+#
+# EVERY TABLE IS READ UNTIL TWO READS AGREE, because one read is not evidence.
+# Measured 2026-10-31 on `E2E 4/4` (PR #2488, a branch that touches no ship
+# code): an export of `Directory` came back with rows but WITHOUT the INSTALLDIR
+# row, on the original installer — no mutation anywhere near it — while the case
+# just after it read that row out of the same file. Rows present, so neither
+# floor below could see it. The bytes do not change between two reads, so a
+# correct reader answers the same twice; an answer the next read contradicts is
+# the reader's, and is discarded with a warning naming both row counts. A table
+# that is truly missing a row reads the same every time and still fails below.
+idt_once() {
+    (cd "$SCRATCH/export" && msiinfo export "$MSI" "$1" | tr -d '\r') ||
         fail "msiinfo export $1 exited non-zero on $MSI. That is the reader failing, not a finding about the installer."
-    fi
+}
+
+idt() {
+    local out prev attempt counts
+    prev=$(idt_once "$1")
+    counts=$(grep -c . <<<"$prev" || true)
+    out=
+    for attempt in 2 3 4; do
+        out=$(idt_once "$1")
+        [ "$out" = "$prev" ] && break
+        counts="$counts, $(grep -c . <<<"$out" || true)"
+        prev=$out
+        out=
+    done
+    [ -n "$out" ] || [ -z "$prev" ] ||
+        fail "msiinfo export $1 did not answer the same twice in a row in four reads of $MSI (line counts $counts). The file did not change between the reads, so this is the reader, not a finding about the installer."
+    out=$prev
+    case "$counts" in
+    *,*) echo "::warning title=Ship msi::msiinfo export $1 disagreed with itself on $MSI (line counts $counts); kept the answer two reads in a row agreed on" >&2 ;;
+    esac
     local lines
     lines=$(grep -c . <<<"$out" || true)
     if [ "$lines" -lt 3 ]; then

@@ -3,8 +3,8 @@
 // WRAPS A REAL NativeScript `ScrollView`: a one-cell `GridLayout` whose cell holds the
 // `ScrollView`, and the child is the `ScrollView`'s `content`. A `ScrollView` scrolls on one
 // axis where GTK scrolls on two, so `hscrollbar-policy` and `vscrollbar-policy` are folded
-// into one `orientation` by `scrolled-window-policy.ts`, and the loss — a window scrolling
-// both ways scrolls vertically only — is declared in the coverage ledger.
+// into one `orientation` by `scrolled-window-policy.ts`. A window that scrolls on BOTH axes
+// nests a second, horizontal `ScrollView` inside the viewport box (see "TWO AXES" below).
 //
 // `hscrollbar-policy: never` is what a `.blp` writes to keep a page from growing sideways
 // (Learn6502's debugger and message console); on the vertical `ScrollView` that is already
@@ -24,6 +24,15 @@
 // it comes to REST at either end. One box in between restores that: the box has no margins of
 // its own, so nothing reaches the scroll view, and the child's margins are measured into the
 // length being scrolled like any other content.
+//
+// TWO AXES. A non-wrapping `GtkTextView` requests its natural width and a `GtkScrolledWindow`
+// scrolls to it; a lone vertical `ScrollView` measures its content at the viewport width, so
+// Learn6502's editor (an `EditText` with `setHorizontallyScrolling(true)`) was clipped at the
+// right edge and a swipe sideways moved nothing, MEASURED on a Galaxy S9. When neither policy
+// is `never` the viewport box therefore holds a horizontal `ScrollView` whose own box holds the
+// child: the outer view takes vertical drags, the inner one horizontal drags, and the child is
+// measured unbounded in width. A `never` axis keeps the single `ScrollView` and the child held
+// to the viewport on that axis.
 //
 // THE BOX FILLS THE VIEWPORT, AND SO DOES THE CHILD. GtkViewport allocates its child
 // `MAX (minimum, viewport size)` on each axis (`gtk_viewport_size_allocate`), so a child
@@ -59,6 +68,7 @@ import {
     GTK_POLICY_TYPES,
     normalizePolicy,
     scrollOrientationFor,
+    scrollsBothAxes,
     type GtkPolicyNick,
 } from './scrolled-window-policy.js';
 import { AdwSingleChildBase } from './single-child-base.js';
@@ -73,6 +83,11 @@ export class GtkScrolledWindow extends AdwSingleChildBase {
     private readonly _scroll = new ScrollView();
     /** The box the child really goes in — see "THE CHILD IS NOT THE CONTENT" in the header. */
     private readonly _viewport = new ContentView();
+    /** The horizontal half of a two-axis window — see "TWO AXES" in the header. */
+    private readonly _hscroll = new ScrollView();
+    /** The box the child goes in once `_hscroll` is in play, for the same margin reason. */
+    private readonly _hbox = new ContentView();
+    private _nested = false;
     private _hscrollbarPolicy: GtkPolicyNick = DEFAULT_SCROLLBAR_POLICY;
     private _vscrollbarPolicy: GtkPolicyNick = DEFAULT_SCROLLBAR_POLICY;
     private _hasFrame = false;
@@ -86,6 +101,8 @@ export class GtkScrolledWindow extends AdwSingleChildBase {
         GridLayout.setColumn(this._scroll, 0);
         GridLayout.setRow(this._scroll, 0);
         this._scroll.content = this._viewport;
+        this._hscroll.orientation = 'horizontal';
+        this._hscroll.content = this._hbox;
         this.addChild(this._scroll);
         this._applyOrientation();
         applyConstructProps(this, props);
@@ -166,13 +183,14 @@ export class GtkScrolledWindow extends AdwSingleChildBase {
             // The platform scroll view reports no window-resize, so the post-layout sizes and
             // the scroll event are the sources the adjustments are configured from.
             this._scroll.addEventListener('scroll', this._syncAdjustments);
+            this._hscroll.addEventListener('scroll', this._syncAdjustments);
             this._scroll.addEventListener('layoutChanged', this._syncAdjustments);
             this._viewport.addEventListener('layoutChanged', this._syncAdjustments);
         }
         adjustment.connect('value-changed', () => {
             const current = axis === 'horizontal' ? this._hadjustment : this._vadjustment;
             if (this._syncing || current !== adjustment) return;
-            if (axis === 'horizontal') this._scroll.scrollToHorizontalOffset(adjustment.value, false);
+            if (axis === 'horizontal') this._horizontalScroller.scrollToHorizontalOffset(adjustment.value, false);
             else this._scroll.scrollToVerticalOffset(adjustment.value, false);
         });
         this._syncAxis(axis, adjustment);
@@ -186,11 +204,12 @@ export class GtkScrolledWindow extends AdwSingleChildBase {
 
     private _syncAxis(axis: 'horizontal' | 'vertical', adjustment: GtkAdjustment): void {
         const vertical = axis === 'vertical';
-        const page = this._scroll.getActualSize();
-        const content = this._viewport.getActualSize();
+        const horizontal = this._horizontalScroller;
+        const page = (vertical ? this._scroll : horizontal).getActualSize();
+        const content = (vertical || !this._nested ? this._viewport : this._hbox).getActualSize();
         const pageSize = vertical ? page.height : page.width;
         const upper = Math.max(vertical ? content.height : content.width, pageSize);
-        const value = vertical ? this._scroll.verticalOffset : this._scroll.horizontalOffset;
+        const value = vertical ? this._scroll.verticalOffset : horizontal.horizontalOffset;
         this._syncing = true;
         try {
             adjustment.configure(value, 0, upper, pageSize * 0.1, pageSize * 0.9, pageSize);
@@ -208,16 +227,33 @@ export class GtkScrolledWindow extends AdwSingleChildBase {
         this._hasFrame = xmlBoolean(raw, this._hasFrame);
     }
 
+    /** The view that scrolls sideways: the inner one of a two-axis window, else the only one. */
+    private get _horizontalScroller(): ScrollView {
+        return this._nested ? this._hscroll : this._scroll;
+    }
+
+    /** Where the child sits: the viewport box, or the horizontal scroller's box inside it. */
+    private get _holder(): ContentView {
+        return this._nested ? this._hbox : this._viewport;
+    }
+
     protected _adopt(view: View): void {
-        this._viewport.content = view;
+        this._holder.content = view;
     }
 
     protected _release(view: View): void {
-        if (this._viewport.content === view) this._viewport.content = null;
+        if (this._holder.content === view) this._holder.content = null;
     }
 
     private _applyOrientation(): void {
-        const orientation = scrollOrientationFor(this._hscrollbarPolicy, this._vscrollbarPolicy);
-        this._scroll.orientation = orientation;
+        this._scroll.orientation = scrollOrientationFor(this._hscrollbarPolicy, this._vscrollbarPolicy);
+        const nested = scrollsBothAxes(this._hscrollbarPolicy, this._vscrollbarPolicy);
+        if (nested === this._nested && this._viewport.content !== null) return;
+        // A view has one parent: lift the child out of its old box before the new one takes it.
+        const child = this.child;
+        this._holder.content = null;
+        this._nested = nested;
+        this._viewport.content = nested ? this._hscroll : null;
+        this._holder.content = child;
     }
 }

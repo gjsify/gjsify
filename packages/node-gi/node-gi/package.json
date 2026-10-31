@@ -11,6 +11,7 @@
     "#host": {
       "nativescript": "./host.nativescript.js",
       "wasm": "./host.wasm.js",
+      "gjsify-foreign-parents": "./host.node.foreign.js",
       "default": "./host.node.js"
     }
   },
@@ -48,6 +49,7 @@
   "files": [
     "index.js",
     "host.node.js",
+    "host.node.foreign.js",
     "host.nativescript.js",
     "nativescript.webpack.js",
     "index.d.ts",

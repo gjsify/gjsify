@@ -264,6 +264,16 @@ export class View extends Observable {
      */
     readonly cssClasses: Set<string> = new Set();
     /**
+     * The real `View.cssType` derives `typeName.toLowerCase()` on first read and keeps it in
+     * `_cssType`; a subclass accessor wins over both, which is what a port widget relies on.
+     */
+    get cssType(): string | undefined {
+        return this.constructor.name.toLowerCase();
+    }
+
+    set cssType(_value: string | undefined) {}
+
+    /**
      * `'auto'` until written, and HELD ON THE {@link Style} as `widthProperty` /
      * `heightProperty` are (`ui/styling/style-properties.ts` registers both on `Style`;
      * `view-common.ts`'s `get width()` is a one-line forward to `this.style.width`).
@@ -1290,4 +1300,22 @@ export const ApplicationSettings = {
     setNumber(key: string, value: number): void {
         SETTINGS.set(key, value);
     },
+};
+
+/** `CSSHelper.createSelector('#x')` answers an `IdSelector`; the double is the stock one's shape. */
+class MockIdSelector {
+    id: string | undefined;
+    constructor(id: string) {
+        this.id = id;
+    }
+    match(node: { id?: string }): boolean {
+        return node.id === this.id;
+    }
+    lookupSort(sorter: { sortAsUniversal(selector: unknown): void }, base?: unknown): void {
+        sorter.sortAsUniversal(base ?? this);
+    }
+}
+
+export const CSSHelper = {
+    createSelector: (selector: string): object => new MockIdSelector(selector.slice(1)),
 };

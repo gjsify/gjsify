@@ -33,6 +33,9 @@
 // limit.
 
 declare module '@nativescript/core' {
+    /** The selector helpers; only `createSelector` is read (`css-selector-source.ts`). */
+    export const CSSHelper: { createSelector(selector: string): object };
+
     /** Payload shape for NativeScript's `Observable.notify` / event listeners. */
     export interface EventData {
         eventName: string;
@@ -127,6 +130,12 @@ declare module '@nativescript/core' {
          * (`ui/core/view-base/index.ts:1620`).
          */
         id: string | undefined;
+        /**
+         * The lower-case type name a CSS type selector (`button`) matches. NativeScript derives it from
+         * the class name; a port widget answers its GTK css-name instead (`widgets/css-names.ts`).
+         */
+        get cssType(): string | undefined;
+        set cssType(value: string | undefined);
         /** This view or the first descendant whose `id` matches, depth first. */
         getViewById<T extends View = View>(id: string): T | undefined;
         /**
