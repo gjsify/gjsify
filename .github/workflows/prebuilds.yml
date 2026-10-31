@@ -1005,10 +1005,18 @@ jobs:
         # explain a zero, and an unexplained zero remains an error. It is the
         # fail-closed direction, and `tests/e2e/staged-prebuild-libc-gate` holds
         # both keys to this step so the wire cannot go missing quietly.
+        #
+        # sherpa-native is marked not-built in `run:`: it builds and gates in its
+        # own leg (`sherpa-native-prebuild`), so here it would read as "told to
+        # build, staged nothing". Marked rather than dropped, so a report that
+        # held only sherpa does not shrink to the `[]` the gate rejects.
         env:
           PREBUILD_TARGET: linux-${{ matrix.arch }}
           PREBUILD_REPORT: ${{ needs.changes.outputs.report }}
-        run: node scripts/check-staged-prebuild-libc.mjs
+        run: |
+          PREBUILD_REPORT=$(node -e 'const r = JSON.parse(process.env.PREBUILD_REPORT); process.stdout.write(JSON.stringify(r.map((e) => e.dir === "packages/web/sherpa-native" ? { ...e, build: false, why: "built in sherpa-native-prebuild" } : e)))')
+          export PREBUILD_REPORT
+          node scripts/check-staged-prebuild-libc.mjs
 
   # ----------------------------------------------------------------
   # QEMU-emulated builds — ppc64, s390x, riscv64
@@ -1299,10 +1307,18 @@ jobs:
         # explain a zero, and an unexplained zero remains an error. It is the
         # fail-closed direction, and `tests/e2e/staged-prebuild-libc-gate` holds
         # both keys to this step so the wire cannot go missing quietly.
+        #
+        # sherpa-native is marked not-built in `run:`: it builds and gates in its
+        # own leg (`sherpa-native-prebuild`), so here it would read as "told to
+        # build, staged nothing". Marked rather than dropped, so a report that
+        # held only sherpa does not shrink to the `[]` the gate rejects.
         env:
           PREBUILD_TARGET: linux-${{ matrix.arch }}
           PREBUILD_REPORT: ${{ needs.changes.outputs.report }}
-        run: node scripts/check-staged-prebuild-libc.mjs
+        run: |
+          PREBUILD_REPORT=$(node -e 'const r = JSON.parse(process.env.PREBUILD_REPORT); process.stdout.write(JSON.stringify(r.map((e) => e.dir === "packages/web/sherpa-native" ? { ...e, build: false, why: "built in sherpa-native-prebuild" } : e)))')
+          export PREBUILD_REPORT
+          node scripts/check-staged-prebuild-libc.mjs
 
   # ----------------------------------------------------------------
   # macOS — prebuilds/darwin-arm64 (Apple silicon) + prebuilds/darwin-x64 (Intel)
