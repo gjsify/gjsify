@@ -11,6 +11,7 @@ import {
     globToEntryPoints,
     scanGiNamespaces,
     planGiSelection,
+    WorkerEntries,
 } from '@gjsify/rolldown-plugin-gjsify';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { resolveUserPlugins } from '../utils/resolve-plugin-by-name.js';
@@ -794,6 +795,8 @@ export class BuildAction {
             preserveDefaultExport?: boolean;
             toolchainAnchor?: string;
             onWatchFiles?: RunBundleOptions['onWatchFiles'];
+            /** Set by the top-level build for its nested worker builds, so names and "already built" are shared. */
+            workers?: WorkerEntries;
         } = {},
     ): Promise<RolldownOutput[]> {
         const { verbose, typescript, exclude, library: pkg, aliases, excludeGlobals } = this.configData;
@@ -885,6 +888,16 @@ export class BuildAction {
             ...(opts.preserveDefaultExport ? { preserveDefaultExport: true } : {}),
             ...(opts.toolchainAnchor !== undefined ? { toolchainAnchor: opts.toolchainAnchor } : {}),
         };
+
+        // `new Worker(new URL('./x', import.meta.url))` targets are built beside the bundle after it
+        // (see `buildWorkers`). Needs a concrete output location and a one-file app target.
+        const ownsWorkers = opts.workers === undefined;
+        const workers =
+            opts.workers ??
+            (app !== 'nativescript' && !opts.watch && (outfile || outdir)
+                ? new WorkerEntries(outfile ? extname(outfile) || '.js' : '.js')
+                : undefined);
+        if (workers) pluginOpts.workers = workers;
 
         const { autoMode, extras } = this.parseGlobalsValue(globals);
 
@@ -1130,7 +1143,38 @@ export class BuildAction {
             await this.applyBrowserHtml(htmlEntry, outfile, verbose);
         }
 
+        if (workers && ownsWorkers) {
+            await this.buildWorkers(workers, app, dirname(resolve(outfile ?? join(outdir as string, 'x'))), opts);
+        }
+
         return [writeResult];
+    }
+
+    /**
+     * Build every worker script the main bundle (or an earlier worker) names by
+     * `new Worker(new URL('./x', import.meta.url))`, each as its own app build beside the
+     * output, under the main build's config. Rounds, not recursion: a nested build registers
+     * what ITS workers need, and the shared registry hands each source out once.
+     */
+    private async buildWorkers(
+        workers: WorkerEntries,
+        app: App,
+        outDir: string,
+        opts: { preserveDefaultExport?: boolean; toolchainAnchor?: string },
+    ): Promise<void> {
+        const { esbuild: _legacy, ...rest } = this.configData;
+        const bundler = normalizeBundlerOptions(this.configData);
+        for (let round = workers.takePending(); round.length > 0; round = workers.takePending()) {
+            for (const { source, fileName } of round) {
+                if (this.configData.verbose) console.debug(`[gjsify] bundling worker ${source} → ${fileName}`);
+                const { dir: _dir, ...output } = bundler.output ?? {};
+                await new BuildAction({
+                    ...rest,
+                    shebang: false,
+                    bundler: { ...bundler, input: source, output: { ...output, file: join(outDir, fileName) } },
+                }).buildApp(app, { ...opts, workers });
+            }
+        }
     }
 
     /**
