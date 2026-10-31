@@ -1,6 +1,6 @@
 # Shipping a Worker from a bundle
 
-`new Worker(new URL('./w.ts', import.meta.url))` names a file beside the *source*. A bundle is one
+`new Worker(new URL('./w.ts', import.meta.url))` names a file beside the _source_. A bundle is one
 file, so after `gjsify build` that path exists nowhere beside the artifact and the Worker dies with
 `Cannot find module …/w.ts` (#2338, part 1). esbuild and Vite turn the expression into a second
 entry and rewrite the URL; gjsify now does the same.
