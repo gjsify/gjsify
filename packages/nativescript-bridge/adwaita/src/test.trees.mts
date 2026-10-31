@@ -30,6 +30,7 @@ import { AdwContainersNsTest } from './containers.spec.js';
 import { AdwGalleryBlueprintsNsTest } from './gallery-blueprints.spec.js';
 import { GtkButtonActionsNsTest } from './gtk-button-actions.spec.js';
 import { GtkButtonClickedNsTest } from './gtk-button-clicked.spec.js';
+import { GtkButtonBinNsTest } from './button-bin.spec.js';
 import gtkPlatformNsTest from './gtk-platform.spec.js';
 import gioNsTest from './gio.spec.js';
 import { GtkMenuTreeNsTest } from './gtk-menu-tree.spec.js';
@@ -115,6 +116,7 @@ run({
     GtkWidgetTreeNsTest,
     GtkButtonActionsNsTest,
     GtkButtonClickedNsTest,
+    GtkButtonBinNsTest,
     GtkMenuTreeNsTest,
     gtkPlatformNsTest,
     gioNsTest,

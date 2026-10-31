@@ -4,9 +4,12 @@
 // icon centered in a ~34px ROUNDED SQUARE (the `$button_radius: 9px` corner — a full
 // circle is the explicit `.circular` exception, e.g. window controls / FABs) that is
 // transparent at rest and darkens on press. NativeScript's `Button` is text-only (it
-// cannot host a child view), so an icon button is a tappable `GridLayout` holding a
-// centered `Image` whose source is an Adwaita symbolic icon rasterised by
-// {@link renderSymbolicIcon}. Press feedback reuses the same
+// cannot host a child view), so an icon button is a tappable BIN (`./bin-layout.ts`)
+// holding a centered `Image` whose source is an Adwaita symbolic icon rasterised by
+// {@link renderSymbolicIcon}. It was a one-star-cell `GridLayout`, which cannot centre
+// inside a size floor — the header's 120×133 open button drew its icon 20.5px above its
+// own centre; `bin-layout.ts` carries that measurement and the alternatives it refused.
+// Press feedback reuses the same
 // {@link attachRowPressFeedback} the activatable rows use (NS only auto-highlights
 // `Button`); the rounded-square shape + flat fill come from the `.adw-image-button` CSS.
 //
@@ -18,7 +21,8 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss (.image-button)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { GridLayout, Image, ItemSpec } from '@nativescript/core';
+import { DockLayout, Image } from '@nativescript/core';
+import { adoptIntoBin } from './bin-layout.js';
 import { onAdwaitaColorSchemeChanged, themeIconColor } from './color-scheme.js';
 import { DEFAULT_ICON_COLOR } from './icon-path.js';
 import { drawIcon, onIconsChanged } from './icon-render.js';
@@ -46,7 +50,7 @@ import { withSignals } from './signals.js';
  */
 export const DEFAULT_ICON_BUTTON_ICON_SIZE = DEFAULT_ICON_PIXEL_SIZE;
 
-export class AdwImageButton extends withSignals(GridLayout) {
+export class AdwImageButton extends withSignals(DockLayout) {
     static readonly GTypeName: string = 'AdwImageButton';
 
     /** The centered icon image. */
@@ -69,21 +73,15 @@ export class AdwImageButton extends withSignals(GridLayout) {
         super();
 
         this.className = 'adw-image-button';
-        // `star` (not `auto`) so the single cell FILLS the 34px button — an `auto`
-        // cell shrinks to the 16px icon and pins it top-left; a filled cell lets the
-        // icon's center/middle alignment actually centre it.
-        this.addRow(new ItemSpec(1, 'star'));
-        this.addColumn(new ItemSpec(1, 'star'));
 
         const image = new Image();
         image.className = 'adw-image-button-icon';
         image.stretch = 'aspectFit';
         image.width = this._renderedSize;
         image.height = this._renderedSize;
-        image.horizontalAlignment = 'center';
-        image.verticalAlignment = 'middle';
-        this.addChild(image);
-        this._image = image;
+        // The 16px icon centred in the 34px button — and in whatever larger box a
+        // `width-request` or the theme's floor makes of it.
+        this._image = adoptIntoBin(this, image);
 
         // Adwaita flat buttons darken on press; NS auto-applies the `highlighted`
         // state only to `Button`, so wire it by hand (shared helper).
