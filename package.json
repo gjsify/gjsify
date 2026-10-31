@@ -1,6 +1,6 @@
 {
     "name": "gjsify",
-    "version": "0.64.14",
+    "version": "0.64.15",
     "description": "The full JavaScript ecosystem, native on GNOME",
     "type": "module",
     "private": true,
@@ -42,7 +42,7 @@
         "test:e2e:cli-only": "node --test tests/e2e/cli-only/run.mjs",
         "test:e2e:cli-only-pnp": "node --test tests/e2e/cli-only-pnp/run.mjs",
         "test:e2e:site-highlight": "node --test tests/e2e/site-highlight/run.mjs",
-    "test:e2e:site-standalone": "node --test tests/e2e/site-standalone/run.mjs",
+        "test:e2e:site-standalone": "node --test tests/e2e/site-standalone/run.mjs",
         "test:e2e:pnp-zip-static-reads": "node --test tests/e2e/pnp-zip-static-reads/run.mjs",
         "test:e2e:release-window-skip": "node --test tests/e2e/release-window-skip/run.mjs",
         "test:e2e:standalone-plugin": "node --test tests/e2e/standalone-plugin/run.mjs",

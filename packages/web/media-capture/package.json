@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/media-capture",
-    "version": "0.64.14",
+    "version": "0.64.15",
     "description": "GStreamer capture chain for GJS (pipewiresrc / pulsesrc / v4l2src with probed fallback) and a 16 kHz mono PCM audio source",
     "type": "module",
     "module": "lib/esm/index.js",
