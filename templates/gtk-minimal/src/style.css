@@ -1,0 +1,10 @@
+/* Imported as a STRING (`.css` → `export default "<css>"`, see the build), because GTK has no
+ * stylesheet module. `main-window.blp` puts this class on the hint label.
+ *
+ * Block comments only: CSS has no `//`, and lightningcss drops a rule that follows one, so a
+ * JS-style header would ship an app with an empty stylesheet and no error.
+ */
+.demo-status {
+    color: #9141ac;
+    font-weight: bold;
+}

@@ -7,6 +7,7 @@ import cssAsStringSuite from './plugins/css-as-string.spec.js';
 import gschemaSuite from './plugins/gschema.spec.js';
 import gresourceSuite from './plugins/gresource.spec.js';
 import gresourceTypesSuite from './plugins/gresource-types.spec.js';
+import cssTypesSuite from './plugins/css-types.spec.js';
 import giOptionalSuite from './plugins/gi-optional.spec.js';
 import giSelectionSuite from './utils/gi-selection.spec.js';
 import nativescriptGiSelectionSuite from './plugins/nativescript-gi-selection.spec.js';
@@ -21,6 +22,7 @@ run({
     addonResolveSuite,
     autoGlobalsSuite,
     cssAsStringSuite,
+    cssTypesSuite,
     entryWrapperSuite,
     giOptionalSuite,
     giSelectionSuite,

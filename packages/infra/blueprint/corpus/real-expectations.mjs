@@ -904,7 +904,7 @@ export const REAL_EXPECTATIONS = [
                             translatable: { label: {} },
                             styleClasses: ['title-2'],
                         },
-                        { tag: 'GtkLabel', id: 'hint', props: { xalign: 0.5 } },
+                        { tag: 'GtkLabel', id: 'hint', props: { xalign: 0.5 }, styleClasses: ['demo-status'] },
                     ],
                 },
             ],
@@ -913,7 +913,7 @@ export const REAL_EXPECTATIONS = [
             {
                 kind: 'comment',
                 line: 17,
-                detail: 'five comment lines in two blocks, saying why the tree lives here rather than in the callback that used to build it; neither exit carries them',
+                detail: "comment lines in two blocks, saying why the tree lives here rather than in the callback that used to build it, and that the hint label's class is the contract with `src/style.css`; neither exit carries them",
             },
         ],
         note: 'The first probe that is neither Adwaita nor a showcase: plain `Gtk.ApplicationWindow`, `child:` rather than `content:`, and the only real file whose caption is the POINT — it was converted from a TypeScript `new Gtk.Label({ label: ... })` that xgettext could not see. Dropping the marking here turned the conversion back into the thing it replaced, which is the argument ADR 0067 § 2 makes from this one line. The `comment` loss is all that is left, and it is the one kind no projection can take: comments never reach the AST.',
