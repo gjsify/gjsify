@@ -23,6 +23,7 @@ import { storybookSpec } from './specs/storybook.js';
 import { buttonSpec } from './specs/button.js';
 import { buttonContentSpec } from './specs/button-content.js';
 import { splitButtonSpec } from './specs/split-button.js';
+import { menuButtonSpec } from './specs/menu-button.js';
 import { comboRowSpec } from './specs/combo-row.js';
 import { entrySpec } from './specs/entry.js';
 import { spinnerSpec } from './specs/spinner.js';
@@ -100,8 +101,11 @@ async function runSuite(): Promise<void> {
                 await buttonSpec(engine)();
                 // Four properties of a container, and a NativeScript-only accessor beside them.
                 await buttonContentSpec(engine)();
-                // Two signals and five properties of a split button.
+                // Two signals and six properties of a split button, `menu-model` among them.
                 await splitButtonSpec(engine)();
+                // The same `menu-model` on the other widget that holds one, whose C setter has
+                // no identity guard — one slot, two declarations, both driven so neither drifts.
+                await menuButtonSpec(engine)();
                 // The first OBJECT-typed properties on this port — a list model and the item it
                 // derives — held by the seam rather than by the GObject, and the notify orders
                 // ADR 0122 § 5 measured.
