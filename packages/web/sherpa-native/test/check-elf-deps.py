@@ -26,6 +26,11 @@ rather than from meson.build.
      not cost the prebuild its portability. A wrap bump to an archive built by a
      newer toolchain would raise the floor silently, so the bound is asserted
      rather than assumed.
+  5. With `--require-stripped-engine`: that the staged engine has no `.symtab`.
+     Upstream ships the release unstripped — 27.0 MB, of which 6.0 MB is a debug
+     symbol table nothing in this prebuild can use — and meson.build strips it
+     while staging. The flag is passed only when `strip` was found, so the
+     assertion holds exactly where the saving was actually taken.
 
 Prints every list so the CI log carries the measurement, and exits 1 on anything
 outside them. Uses `readelf` (binutils) — the file format is the contract, not
@@ -117,18 +122,33 @@ def glibcxx_versions(path):
     return sorted({tuple(int(n) for n in v.split(".")) for v in found})
 
 
-def check_engine(path):
+def is_stripped(path):
+    # `.symtab` is the debug symbol table `strip --strip-all` removes, and it is
+    # exactly what `file` reports as "not stripped". `.dynsym` survives either
+    # way — the loader reads it — so its presence says nothing about stripping.
+    return not re.search(r"\s\.symtab\s", readelf("-S", path))
+
+
+def check_engine(path, require_stripped=False):
     """The engine's own surface and portability floor. Returns a problem list."""
     exported = sorted(set(exports_of(path)))
     stray = [s for s in exported if s not in ENGINE_ALLOWED_EXPORTS]
     versions = glibcxx_versions(path)
     floor = versions[-1] if versions else (0, 0, 0)
+    stripped = is_stripped(path)
 
     print(f"  {ENGINE} exported ({len(exported)}): {', '.join(exported) or '(none)'}")
     print(f"  {ENGINE} GLIBCXX floor: {'.'.join(str(n) for n in floor)}")
+    print(f"  {ENGINE} stripped: {'yes' if stripped else 'no'}")
 
     problems = [f"{ENGINE} exports {s}, which is not one of the Ort entry points"
                 for s in stray[:20]]
+    if require_stripped and not stripped:
+        problems.append(
+            f"{ENGINE} still carries .symtab — the upstream release is shipped "
+            "unstripped and meson.build strips it while staging, so this is the "
+            "unstripped copy and the prebuild is 6 MB bigger than it has to be"
+        )
     if floor > ENGINE_MAX_GLIBCXX:
         problems.append(
             f"{ENGINE} needs GLIBCXX_{'.'.join(str(n) for n in floor)}, above the "
@@ -140,7 +160,7 @@ def check_engine(path):
     return problems
 
 
-def main(path, require_static_libstdcxx=False):
+def main(path, require_static_libstdcxx=False, require_stripped_engine=False):
     needed = needed_of(path)
     exported = exports_of(path)
     stray = [s for s in exported if not s.startswith("gjsify_sherpa_")]
@@ -177,7 +197,7 @@ def main(path, require_static_libstdcxx=False):
             "sibling, RUNPATH $ORIGIN has nothing to resolve"
         )
     else:
-        problems += check_engine(engine_path)
+        problems += check_engine(engine_path, require_stripped_engine)
 
     for p in problems:
         print(f"  FAIL: {p}")
@@ -186,4 +206,8 @@ def main(path, require_static_libstdcxx=False):
 
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    sys.exit(main(args[0], "--require-static-libstdcxx" in sys.argv[1:]))
+    sys.exit(main(
+        args[0],
+        "--require-static-libstdcxx" in sys.argv[1:],
+        "--require-stripped-engine" in sys.argv[1:],
+    ))

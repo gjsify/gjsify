@@ -227,7 +227,31 @@ sherpa_inc = include_directories('subprojects' / 'sherpa-onnx')
 # there (rightly, in general — but this is a byte copy of a binary release
 # artifact), and the path therefore goes in as a plain string, which also means
 # there is no dependency edge back to it.
+#
+# AND IT IS STRIPPED ON THE WAY. The upstream release is shipped "not stripped":
+# 27,026,609 bytes, of which a `.symtab` plus a 4.9 MB `.strtab` are a debug
+# symbol table nothing in this prebuild can use — `strip --strip-all` measured
+# 21,007,808, so 6.0 MB (22 %) of the biggest file in the artifact is dead weight
+# that `commit-prebuilds` would write into git on every rebuild.
+# `libgjsifysherpa.so` is already stripped by `-Wl,--strip-all` at link time; this
+# is the same decision applied to the one file in the prebuild that is not ours to
+# link.
+#
+# `strip` is PROBED rather than assumed, like libstdc++.a above: a host without
+# binutils must still get a working build, so staging falls back to the plain `cp`
+# with a warning. The `elf-deps` test gets `--require-stripped-engine` only when
+# the probe found it, so the assertion is made exactly where the saving was taken.
 # ----------------------------------------------------------------------------
+strip_prog = find_program('strip', required: false)
+
+if is_linux and not strip_prog.found()
+    warning(
+        'strip not found — staging the engine unstripped.\n' +
+        '  libonnxruntime.so stays ~6 MB larger than it needs to be, which costs nothing\n' +
+        '  locally and 6 MB per rebuild in a committed prebuild. Install binutils.',
+    )
+endif
+
 if is_linux
     onnxruntime_built = meson.project_build_root() / 'subprojects' / 'sherpa-onnx' \
         / '__CMake_build' / '_deps' / 'onnxruntime-src' / 'lib' / 'libonnxruntime.so'
@@ -246,10 +270,15 @@ if is_linux
         )
     endif
 
+    # `strip -o` writes a stripped COPY and leaves the input alone, so this is
+    # still one command producing one output — the subproject's file is never
+    # modified in place, which would make the build non-idempotent.
     onnxruntime_staged = custom_target(
         'libonnxruntime.so',
         output: 'libonnxruntime.so',
-        command: [find_program('cp'), onnxruntime_built, '@OUTPUT@'],
+        command: strip_prog.found()
+            ? [strip_prog, '--strip-all', '-o', '@OUTPUT@', onnxruntime_built]
+            : [find_program('cp'), onnxruntime_built, '@OUTPUT@'],
         build_by_default: true,
     )
 endif
@@ -472,7 +501,18 @@ if is_linux and python3.found()
     if have_static_libstdcxx
         elf_deps_args += ['--require-static-libstdcxx']
     endif
-    test('elf-deps', python3, args: elf_deps_args, depends: libGjsifySherpa)
+    # Same shape, one level down: the engine is only expected to be stripped on a
+    # build that had a `strip` to do it with.
+    if strip_prog.found()
+        elf_deps_args += ['--require-stripped-engine']
+    endif
+    # `onnxruntime_staged` is in `depends` because this test reads that file too
+    # — the sibling, its exports, its GLIBCXX floor and now its `.symtab`. It is
+    # `build_by_default`, so a full build has it either way; naming it is what
+    # makes `meson test elf-deps` on its own true as well.
+    test('elf-deps', python3,
+         args: elf_deps_args,
+         depends: [libGjsifySherpa, onnxruntime_staged])
 endif
 
 # The same engines through the typelib under gjs — i.e. the GIR this package's
