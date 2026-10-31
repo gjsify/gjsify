@@ -366,6 +366,9 @@ function makeIsolatedFixture(nsVite, { linkLib = false } = {}) {
         const parentNm = join(root, 'node_modules');
         mkdirSync(join(parentNm, '@gjsify'), { recursive: true });
         symlinkSync(join(WORKSPACE_NODE_MODULES, 'vite'), join(parentNm, 'vite'), 'dir');
+        for (const dep of ['postcss-nesting', 'postcss-selector-parser']) {
+            symlinkSync(join(WORKSPACE_NODE_MODULES, dep), join(parentNm, dep), 'dir');
+        }
         symlinkSync(
             join(WORKSPACE_NODE_MODULES, '@gjsify', 'vite-plugin-gjsify'),
             join(parentNm, '@gjsify', 'vite-plugin-gjsify'),
@@ -385,6 +388,8 @@ function makeIsolatedFixture(nsVite, { linkLib = false } = {}) {
         symlinkSync(libDir, join(appNm, '@gjsify', 'nativescript-vite'), 'dir');
     }
     copyFileSync(fileURLToPath(LIB_URL), join(libDir, 'index.js'));
+    // index.js imports its sibling modules, so a fixture lib without them dies at link time.
+    copyFileSync(new URL('css-nesting.js', LIB_URL), join(libDir, 'css-nesting.js'));
     writeFileSync(
         join(libDir, 'package.json'),
         JSON.stringify({
