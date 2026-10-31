@@ -1,0 +1,81 @@
+{
+    "name": "@gjsify/web-worker",
+    "version": "0.64.14",
+    "description": "WHATWG Worker for GJS (and Node) over worker_threads — new Worker(url), postMessage, terminate, onmessage/onerror, with a DedicatedWorkerGlobalScope-shaped scope inside the worker. Works with Comlink unmodified.",
+    "type": "module",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        },
+        "./register": {
+            "types": "./lib/types/register.d.ts",
+            "default": "./lib/esm/register.js"
+        },
+        "./globals": "./globals.mjs"
+    },
+    "files": [
+        "lib",
+        "globals.mjs"
+    ],
+    "sideEffects": [
+        "./lib/esm/register.js",
+        "./globals.mjs"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo fixtures test.gjs.mjs test.node.mjs",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "gjsify tsc",
+        "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
+        "prebuild:test:fixtures": "gjsify copy src/fixtures/*.mjs fixtures/",
+        "build:test:gjs": "gjsify run prebuild:test:fixtures && gjsify build src/bundled-fixtures/comlink.worker.mjs --app gjs --outfile fixtures/comlink.worker.bundle.mjs && gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:browser": "gjsify build src/test.browser.mts --app browser --outfile dist/test.browser.mjs",
+        "build:test:node": "gjsify run prebuild:test:fixtures && gjsify build src/bundled-fixtures/comlink.worker.mjs --app node --outfile fixtures/comlink.worker.bundle.mjs && gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "test": "gjsify run build:gjsify && gjsify run test:node && gjsify run test:gjs",
+        "test:gjs": "gjsify run build:test:gjs && gjsify run test.gjs.mjs",
+        "test:node": "gjsify run build:test:node && node test.node.mjs"
+    },
+    "keywords": [
+        "gjs",
+        "web",
+        "worker",
+        "web-worker",
+        "comlink"
+    ],
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "comlink": "^4.4.2",
+        "typescript": "^6.0.3"
+    },
+    "dependencies": {
+        "@gjsify/dom-events": "workspace:^",
+        "@gjsify/worker_threads": "workspace:^"
+    },
+    "license": "MIT",
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "polyfill",
+            "browser": "native",
+            "nativescript": "native"
+        },
+        "tier": 1
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/web/web-worker"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/web/web-worker#readme"
+}
