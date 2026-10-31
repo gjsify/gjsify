@@ -386,3 +386,75 @@ describe('clear-committed-platform-exemptions', () => {
         }
     });
 });
+
+describe('a floor declared on an `uncommitted` target', () => {
+    // Run 41233580941: `--check` wanted the floor absent while the exemption was live
+    // and the clearer wanted it present once the bytes landed, so no commit passed
+    // both. The declaration is carried over while nothing can be measured.
+    const child = (f) => JSON.parse(readFileSync(join(f.childDir, 'package.json'), 'utf8'));
+    const wanted = (f) => {
+        const plan = planPlatformPackages(generatorContext(f.root));
+        for (const parent of plan.parents) {
+            const planned = parent.targets.find((t) => t.name === f.childName);
+            if (planned) return JSON.parse(expectedFiles(parent, planned)['package.json']);
+        }
+        throw new Error(`no planned target named ${f.childName}`);
+    };
+    const declare = (f, libc, floor) => {
+        const manifest = child(f);
+        if (libc) manifest.libc = libc;
+        else delete manifest.libc;
+        if (floor) manifest.gjsify.glibcRequires = { [f.target]: floor };
+        else delete manifest.gjsify.glibcRequires;
+        writeFileSync(join(f.childDir, 'package.json'), `${JSON.stringify(manifest, null, 4)}\n`);
+    };
+
+    it('is kept while there is no artifact to measure', () => {
+        const f = splitPairFixture({ pillar: 'web', bridge: 'sherpa-native', target: 'linux-x64' });
+        try {
+            rmSync(join(f.childDir, 'prebuilds'), { recursive: true, force: true });
+            declare(f, ['glibc'], '2.38');
+            const want = wanted(f);
+            assert.deepEqual(want.libc, ['glibc']);
+            assert.deepEqual(want.gjsify.glibcRequires, { 'linux-x64': '2.38' });
+            assert.ok(want.gjsify.platformsUncommitted, 'the exemption is still live');
+        } finally {
+            f.cleanup();
+        }
+    });
+
+    it('stays absent when nothing was declared', () => {
+        const f = splitPairFixture({ pillar: 'web', bridge: 'sherpa-native', target: 'linux-x64' });
+        try {
+            rmSync(join(f.childDir, 'prebuilds'), { recursive: true, force: true });
+            declare(f, null, null);
+            const want = wanted(f);
+            assert.equal(want.libc, undefined);
+            assert.equal(want.gjsify.glibcRequires, undefined);
+        } finally {
+            f.cleanup();
+        }
+    });
+
+    it('loses to the measurement once the artifact is there', () => {
+        // spiel-native-linux-x64 has a committed .so, so the measurement is real.
+        const f = splitPairFixture({
+            pillar: 'web',
+            bridge: 'spiel-native',
+            target: 'linux-x64',
+            artifact: ['libspiel-1.0.so', 'Spiel-1.0.gir', 'Spiel-1.0.typelib'],
+        });
+        try {
+            declare(f, ['glibc'], '9.99');
+            assert.equal(wanted(f).gjsify.glibcRequires['linux-x64'], '2.28');
+            // The wrong declaration is a generator diff, not a silent pass.
+            assert.notEqual(
+                auditPlatformPackages(generatorContext(f.root)).failures.length,
+                0,
+                'a declaration that disagrees with the bytes must be reported',
+            );
+        } finally {
+            f.cleanup();
+        }
+    });
+});
