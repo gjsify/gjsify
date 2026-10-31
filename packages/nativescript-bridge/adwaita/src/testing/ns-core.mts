@@ -264,6 +264,16 @@ export class View extends Observable {
      */
     readonly cssClasses: Set<string> = new Set();
     /**
+     * The real `View.cssType` derives `typeName.toLowerCase()` on first read and keeps it in
+     * `_cssType`; a subclass accessor wins over both, which is what a port widget relies on.
+     */
+    get cssType(): string | undefined {
+        return this.constructor.name.toLowerCase();
+    }
+
+    set cssType(_value: string | undefined) {}
+
+    /**
      * `'auto'` until written, and HELD ON THE {@link Style} as `widthProperty` /
      * `heightProperty` are (`ui/styling/style-properties.ts` registers both on `Style`;
      * `view-common.ts`'s `get width()` is a one-line forward to `this.style.width`).

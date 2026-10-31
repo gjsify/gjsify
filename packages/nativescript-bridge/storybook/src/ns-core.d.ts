@@ -47,6 +47,8 @@ declare module '@nativescript/core' {
     export class View extends Observable {
         /** CSS class list applied to this view (space-separated). */
         className: string;
+        get cssType(): string | undefined;
+        set cssType(value: string | undefined);
         /** Inline width in DIPs or a percentage string. */
         width: number | string;
         /** Inline height in DIPs or a percentage string. */
