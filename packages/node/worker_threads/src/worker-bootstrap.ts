@@ -300,6 +300,7 @@ class MessagePort {
     this._ee = new Map();
     this._dom = new Map();
     this._onmessage = null;
+    this._onmessageerror = null;
     this._started = false;
     this._closed = false;
     this._detached = false;
@@ -335,7 +336,9 @@ class MessagePort {
     try { decoded = decodeWire(data); }
     catch (err) {
       Promise.resolve().then(() => {
-        if (!this._closed) this._emitEE('messageerror', [err instanceof Error ? err : new Error(String(err))]);
+        if (this._closed) return;
+        this._emitEE('messageerror', [err instanceof Error ? err : new Error(String(err))]);
+        this._emitDom('messageerror', null);
       });
       return;
     }
@@ -360,6 +363,9 @@ class MessagePort {
     }
     if (type === 'message' && typeof this._onmessage === 'function') {
       try { this._onmessage.call(this, event); } catch (_) { /* swallow */ }
+    }
+    if (type === 'messageerror' && typeof this._onmessageerror === 'function') {
+      try { this._onmessageerror.call(this, event); } catch (_) { /* swallow */ }
     }
   }
 
@@ -465,6 +471,8 @@ class MessagePort {
     this._onmessage = typeof fn === 'function' ? fn : null;
     if (this._onmessage) this.start();
   }
+  get onmessageerror() { return this._onmessageerror; }
+  set onmessageerror(fn) { this._onmessageerror = typeof fn === 'function' ? fn : null; }
 }
 
 /** A port whose peer lives in the parent, routed by portId. */
@@ -568,7 +576,7 @@ if (init.sabSocketFd === 3) {
   try {
     drainSabFds(countSabPlaceholders(init.workerData));
   } catch (err) {
-    send({ type: 'error', message: 'init fd drain failed: ' + (err && err.message ? err.message : err), stack: '' });
+    send({ type: 'error', name: 'Error', message: 'init fd drain failed: ' + (err && err.message ? err.message : err), stack: '' });
   }
 }
 
@@ -640,7 +648,7 @@ function maybeExit() {
 
 function crash(error) {
   try {
-    send({ type: 'error', message: (error && error.message) ? error.message : String(error), stack: (error && error.stack) || '' });
+    send({ type: 'error', name: (error && error.name) || 'Error', message: (error && error.message) ? error.message : String(error), stack: (error && error.stack) || '' });
   } catch (_) { /* parent's stdout is gone — the exit below is what it still sees */ }
   requestShutdown();
   System.exit(1);
@@ -803,7 +811,7 @@ function readNext() {
       if (dispatchLine(line)) readNext();
     } catch (err) {
       try {
-        send({ type: 'error', message: 'bootstrap message error: ' + (err && err.message ? err.message : err), stack: err && err.stack || '' });
+        send({ type: 'error', name: 'Error', message: 'bootstrap message error: ' + (err && err.message ? err.message : err), stack: err && err.stack || '' });
       } catch (_) { /* parent's end of stdout is gone too — nothing to report to */ }
       requestShutdown();
     }
@@ -840,7 +848,7 @@ if (!shuttingDown) {
         // keeping the loop alive strands the parent on \`exit\` the same way the
         // silent orphan does. Node emits \`error\` and then \`exit\` 1 (the exit
         // reaches the parent through wait_async, not through a line).
-        try { send({ type: 'error', message: error.message, stack: error.stack || '' }); } catch (_) {}
+        try { send({ type: 'error', name: (error && error.name) || 'Error', message: error.message, stack: error.stack || '' }); } catch (_) {}
         requestShutdown();
         System.exit(1);
       }
