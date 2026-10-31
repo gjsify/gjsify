@@ -1,14 +1,5 @@
 # @gjsify/sherpa-native-linux-x64
 
-> **No artifact in this tarball yet.** `linux-x64` is declared by
-> `@gjsify/sherpa-native` and built by CI, but not committed to the repository:
-> prebuilds.yml's `sherpa-native-prebuild` job builds it and `commit-prebuilds` downloads the artifact into this package's `prebuilds/linux-x64/` and pushes it to main — the same route every other native prebuild here takes. This entry is the gap between those two sentences and nothing more: no run has taken that route yet, so the directory does not exist in git, and a `platforms` declaration whose artifact is absent is exactly what this field exists to say out loud. It is NOT a deferral to remove by hand — `commit-prebuilds` runs `scripts/clear-committed-platform-exemptions.mjs` immediately before staging, so the run whose download satisfies this entry is the run that deletes it, in the same commit as the bytes. Do not drop it earlier: the conformance rule fails on an entry whose `prebuilds/<target>/` is already there, and it would equally be a lie to claim an artifact that is not. Expect ~24.2 MiB, almost all of it the `libonnxruntime.so` the bridge records by SONAME and resolves through RUNPATH $ORIGIN (ADR 0127 step 2)
->
-> The package exists so the artifact has somewhere to land — and so its npm name
-> is claimed before the release that first ships it. Until then installing it is
-> harmless and does nothing: `@gjsify/sherpa-native` finds no typelib and takes its
-> no-native path, exactly as if this package were absent.
-
 
 The **linux-x64** native artifacts of [`@gjsify/sherpa-native`](https://www.npmjs.com/package/@gjsify/sherpa-native) — a shared
 library plus its GObject-Introspection typelib, and nothing else. There is no
