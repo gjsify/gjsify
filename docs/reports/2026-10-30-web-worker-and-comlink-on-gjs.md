@@ -59,10 +59,10 @@ inline implementation and adds the tests.
 | `@gjsify/worker_threads` suite, GJS | 164 tests, 299 assertions | 174 tests, 340 assertions |
 | 1 MiB `Uint8Array` round trip | blocked | 95 ms (encode 33 ms, decode 4 ms) |
 
-### What the fix in this PR changed
+### What the fix in #2485 changed
 
 The codec's `seen` map threw on any second visit to an object, so a shared reference was
-indistinguishable from a cycle, and both died in the child. This PR replaces it with a **reference
+indistinguishable from a cycle, and both died in the child. #2485 replaces it with a **reference
 table** — implicit ids by pre-order traversal, so nothing extra goes on the wire — and adds tags
 for `undefined`, `-0`, array holes and `DataView`, reconstructs the seven interned `Error` names,
 and raises `DataCloneError` at the sender for functions, symbols and other non-cloneables.
@@ -84,19 +84,44 @@ tagged a `DataView` as `object`, because its `tag()` tested `ArrayBuffer.isView`
 and failed on the tag, so `echo.worker.mjs` got a `DataView` branch and `01-wire-roundtrip.mts`
 now expects `DataView(4)`.
 
+### What the fix in this PR changed
+
+The codec was already raising `DataCloneError` correctly; every caller around it threw the result
+away. This PR makes a failure to serialise or deserialise observable at the end that can act on it.
+
+| | before | after |
+|---|---|---|
+| `docs/poc/web-worker/src/01-wire-roundtrip.mts` | 20 pass / 1 fail of 21 | **21 pass / 0 fail of 21** |
+| `@gjsify/worker_threads` suite, GJS | 215 tests, 546 assertions | **222 tests, 561 assertions** |
+| `@gjsify/worker_threads` suite, Node | 210 tests, 535 assertions | **215 tests, 547 assertions** |
+
+**Sender.** `postMessage` now throws `DataCloneError` synchronously and sends nothing, on `Worker`,
+`parentPort` and `MessagePort` alike. `Worker.postMessage` had its whole body inside a
+`try { … } catch { /* Worker stdin closed */ }` meant for a closed pipe, so it swallowed the clone
+error too — and the fd-send failure that `_serializeWithSabTransfer`'s own comment says should
+surface. Only the `write_all` is inside the `try` now. The in-process `MessagePort` emitted
+`messageerror` on the **sender**, which is both the wrong end and uncatchable by a caller; it
+throws instead, matching Node's `DOMException [DataCloneError]: () => {} could not be cloned.`
+
+**Receiver.** A message that arrives but cannot be decoded now emits `messageerror` and the
+channel keeps working. `Worker._readMessages` had read, parse and dispatch under one `catch {}`,
+so a decode failure silently **ended the read loop** — no event, and every later message lost too;
+read and parse stay stream-level (end the loop), everything after is per-message. In the child,
+the same failure threw out of `dispatchLine` into `readNext`'s catch, which reported a *bootstrap
+message error* to the parent and shut the worker down: one undecodable message killed it.
+
+The sender-side expectations run on both runtimes, so the Node leg measures them against real
+`node:worker_threads` rather than asserting them from the docs. The receiver side needs a line on
+the wire that the encoder would never produce, which has no portable Node equivalent — those two
+cases are GJS-only (`message-errors.gjs.spec.ts`) and reach for the private `_stdinPipe` in one
+direction and a raw fd-1 write from inside the child in the other.
+
+`messageerror` stays on the `worker_threads` EventEmitter surface here. The W3C mapping —
+`onmessageerror` and a `MessageEvent` — belongs with the rest of the web surface in step 5.
+
 ### What still does not survive
 
-| Value | What happens | Where it is |
-|---|---|---|
-| a function | the **whole message** is dropped silently; `DataCloneError` must reach the caller | `encode` now raises it correctly — `worker.ts:237-265` swallows it |
-
-That one remaining failure got *worse-looking*, not worse: before this PR a function was dropped
-from the payload and the rest of the message arrived. Now `encode` raises `DataCloneError` as the
-spec requires, `worker.ts` wraps `postMessage` in `try { … } catch { /* Worker stdin closed */ }`,
-and the entire message vanishes. The codec is right and the caller is wrong, which is why step 3
-is load-bearing rather than cosmetic. A spec `postMessage` throws synchronously.
-
-Two deliberate deviations remain, both documented in-code:
+All 21 wire cases pass. Two deliberate deviations remain, both documented in-code:
 
 - **A typed-array view carries its window, not its backing buffer.** Two views onto one
   `ArrayBuffer` arrive as two independent buffers. [§2.7.3](https://html.spec.whatwg.org/multipage/structured-data.html#structuredserializeinternal)
@@ -267,11 +292,11 @@ It depends on `@gjsify/dom-events` and `@gjsify/message-channel`, both tier 1.
    both for free, so they do not). Tags for `undefined`, `-0`, array holes and `DataView`, `Error`
    subclasses reconstructed by name, and `DataCloneError` for functions and symbols. Both copies,
    in lockstep, with a drift guard that runs the same matrix against the `BOOTSTRAP_CODE` mirror.
-   **Landed in this PR.**
+   **Landed in #2485.**
 3. **Stop swallowing the error.** `worker.ts:237-265` must let a `DataCloneError` from `encodeWire`
    reach the caller and keep catching only a closed stdin; a decode failure in the child must come
    back as `messageerror` rather than silence. Test: `postMessage` of a function throws
-   synchronously on both runtimes.
+   synchronously on both runtimes. **Landed in this PR.**
 4. **MessagePort transfer and death reporting.** DOM-shaped child-side ports, a child→parent port
    placeholder path, and `error` on a non-zero exit that had no prior `error`. Tests: the two
    Comlink cases that fail today, promoted from the spike into the package's suite.
