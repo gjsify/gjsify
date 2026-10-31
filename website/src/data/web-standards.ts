@@ -70,6 +70,7 @@ export const webStandardsCategories: readonly WebStandardCategory[] = [
             { name: 'DOMException', status: 'full', pkg: '@gjsify/dom-exception' },
             { name: 'AbortController / AbortSignal', status: 'full', pkg: '@gjsify/abort-controller' },
             { name: 'Channel Messaging (MessageChannel)', status: 'full', pkg: '@gjsify/message-channel' },
+            { name: 'Web Workers (Worker)', status: 'full', pkg: '@gjsify/web-worker' },
             {
                 name: 'Prioritized Task Scheduling',
                 status: 'missing',
