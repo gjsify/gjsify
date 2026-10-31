@@ -121,7 +121,7 @@ gjsify workspace @gjsify/spiel-native run build:prebuilds   # meson + stage-preb
 ```
 
 `meson setup` clones the two pinned upstream checkouts, so the first setup needs network
-access. Three things in `meson.build` are worth knowing:
+access. Four things in `meson.build` are worth knowing:
 
 - **libspeechprovider is linked statically** (`default_library=static`,
   `introspection=false`). It is libspiel's own dependency; vendoring it as a second shared
@@ -133,6 +133,14 @@ access. Three things in `meson.build` are worth knowing:
   `add_global_link_arguments('-Wl,--version-script=…')` before `subproject()`, so it covers
   the subproject's objects too. Measured on the built artifact: 89 exported symbols, all
   `spiel_*`, none else.
+- **`_FILE_OFFSET_BITS` is undefined** (`add_global_arguments('-U_FILE_OFFSET_BITS')`, before
+  `subproject()` for the same reason), and it is guarded on 64-bit pointers. Meson always
+  passes `-D_FILE_OFFSET_BITS=64`, which on glibc ≥ 2.28 redirects upstream
+  libspeechprovider's `fcntl()` to `fcntl64@GLIBC_2.28` — a symbol musl does not export, in a
+  prebuild npm installs on musl hosts too. On LP64 `off_t` is already 64-bit, so undefining it
+  changes no ABI and `fcntl` binds to `fcntl@GLIBC_2.2.5`. Measured: the built file's newest
+  versioned undefined symbol is `__stack_chk_fail@GLIBC_2.4`. `elf-deps` fails on anything
+  versioned `GLIBC_2.28` or newer.
 
 The versioned SONAME is handled without patching upstream: `cp -L` to a plain
 `libspiel-1.0.so`, rewrite the `.gir`'s `shared-library`, recompile the typelib with
@@ -150,8 +158,8 @@ Measured DT_NEEDED: `libgio-2.0`, `libgobject-2.0`, `libglib-2.0`, `libgstreamer
 gjsify workspace @gjsify/spiel-native run test:meson
 ```
 
-- `elf-deps` — reads DT_NEEDED, RUNPATH and the exported symbol table back off the built
-  file (`test/check-elf-deps.py`).
+- `elf-deps` — reads DT_NEEDED, RUNPATH, the exported symbol table and the glibc version
+  floor back off the built file (`test/check-elf-deps.py`).
 - `load-typelib-gjs` — imports `gi://Spiel?version=1.0` under `gjs` from the build
   directory and touches the classes, which is what proves the rewritten GIR and the
   recompiled typelib agree with the library.

@@ -5,12 +5,13 @@
 # No C of our own: unlike the sibling bridges here, this build wraps an UPSTREAM
 # GNOME library unchanged (LGPL-2.1-or-later, see README.md § License and
 # docs/attribution.md). What this file adds is only what makes the upstream build
-# shippable as a prebuild — three properties, each measured rather than assumed,
+# shippable as a prebuild — four properties, each measured rather than assumed,
 # and each with its own section below:
 #
 #   1. ONE library, not two (libspeechprovider is linked statically),
 #   2. nothing but spiel_* leaves it (version script),
-#   3. an UNVERSIONED leaf the typelib names (`libspiel-1.0.so`).
+#   3. an UNVERSIONED leaf the typelib names (`libspiel-1.0.so`),
+#   4. ONE artifact for both libcs — no glibc-only symbol (no LFS redirect).
 #
 # LINUX ONLY, and that is a property of Spiel rather than of this build: a client
 # finds its speech providers over the D-Bus SESSION BUS and plays their audio
@@ -60,6 +61,44 @@ endif
 # ----------------------------------------------------------------------------
 spiel_map = meson.current_source_dir() / 'src' / 'c' / 'spiel.map'
 add_global_link_arguments('-Wl,--version-script=' + spiel_map, language: 'c')
+
+# ----------------------------------------------------------------------------
+# 4. ONE ARTIFACT, BOTH LIBCS — undefine _FILE_OFFSET_BITS.
+#
+# Like the version script above this must be a GLOBAL argument applied before
+# `subproject()`, and for the same reason: it has to reach the objects of
+# libspiel AND of libspeechprovider. It touches no source of ours — upstream
+# libspeechprovider calls `fcntl(fd, F_GETFD)` in speech-provider-stream-{reader,
+# writer}.c, and we do not patch third-party projects.
+#
+# Meson always passes `-D_FILE_OFFSET_BITS=64`, and on glibc >= 2.28 that header
+# redirect turns `fcntl()` into `fcntl64@GLIBC_2.28`. musl exports no `fcntl64`,
+# so the prebuild — installed on musl by design, see
+# .github/prebuild-toolchain/musl-committed-check.sh — referenced one symbol no
+# musl host can bind. Measured on the committed linux-x64 file: `fcntl64` is the
+# only symbol above `GLIBC_2.4`, everything else is 2.2.5/2.4.
+#
+# Undefining it is a no-op on the ABI where it is safe, and that is why it is
+# guarded: on LP64 `off_t` is already 64-bit, so `-D_FILE_OFFSET_BITS=64` only
+# changes spellings, and without it `fcntl` binds to plain `fcntl@GLIBC_2.2.5`,
+# which musl does export. On ILP32 it WOULD change the ABI (32-bit `off_t`), so
+# this build refuses that host instead of shipping a subtly wrong library —
+# every target in package.json `gjsify.platforms` is 64-bit today.
+#
+# The sibling case is packages/node/sab-native/src/vala/sab-helpers.c: there the
+# call was OURS, so it goes through `syscall(SYS_fcntl, …)` instead; here it is
+# upstream's, so the only lever is the compiler flag. Both land on the same
+# result: no `fcntl64` in the dynamic symbol table, which test/check-elf-deps.py
+# now reads back from the built file.
+# ----------------------------------------------------------------------------
+cc = meson.get_compiler('c')
+if cc.sizeof('void*') != 8
+    error('@gjsify/spiel-native ships 64-bit targets only (package.json ' +
+          'gjsify.platforms: linux-x64, linux-arm64). On a 32-bit target ' +
+          '_FILE_OFFSET_BITS=64 is a real ABI change, not just a symbol ' +
+          'spelling, so refusing here is deliberate — see meson.build § 4.')
+endif
+add_global_arguments('-U_FILE_OFFSET_BITS', language: 'c')
 
 # ----------------------------------------------------------------------------
 # 1. ONE LIBRARY — libspeechprovider linked STATICALLY into libspiel.

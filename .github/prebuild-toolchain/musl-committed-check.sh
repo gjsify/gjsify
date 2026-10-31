@@ -3,26 +3,26 @@
 #
 # WHY THIS IS ITS OWN FILE
 #
-# It has two callers and must have exactly one body. `musl-build.sh` runs it at
-# the end of the dispatch-only build leg, where it began; `prebuilds.yml` runs it
-# in two more places the build leg cannot reach — a `check-committed-musl` job on
-# every PR and push that touches the native paths, and inside `commit-prebuilds`
-# just before the binaries are committed. A second copy of the ledger below would
-# be a second truth, and the ledger is the part that must not drift: an entry that
-# stops applying is a FAILURE here, so a stale copy fails in one place and passes
-# in another.
+# It has exactly two callers and must have exactly one body: a
+# `check-committed-musl` job on every PR and push that touches the native paths,
+# and a step inside `commit-prebuilds` just before the binaries are committed. A
+# second copy of the ledger below would be a second truth, and the ledger is the
+# part that must not drift: an entry that stops applying is a FAILURE here, so a
+# stale copy fails in one place and passes in another.
 #
-# WHY IT HAD TO LEAVE THE BUILD LEG
+# WHY THE BUILD LEG MUST NOT CALL IT
 #
-# `build-prebuilds-musl` WAS `if: github.event_name == 'workflow_dispatch'` AND
-# `continue-on-error: true`, so nothing it asserted could reach a PR or a merge
-# and it could not colour anything red even on a dispatch. It has since lost
-# both, which makes that the history of the split rather than its justification.
-# What keeps the two separate is the next paragraph's distinction plus one fact:
-# this half needs no build at all — it reads binaries already in the tree — so it
-# can also run inside `commit-prebuilds`, where a build leg has no business being.
-# Two questions, two jobs: that one asks whether the SOURCES work when compiled
-# against musl, this one whether the binaries users actually get resolve there.
+# `musl-build.sh` ran it once, and that handoff deadlocked: `commit-prebuilds`
+# needs `build-prebuilds-musl`, so a committed artifact failing here blocked the
+# only job that could replace it. Measured on 2026-10-25 with #2494's `fcntl64`:
+# the red leg judged the OLD `.so` while holding the rebuild hostage, so a
+# regression fixed at the SOURCE could never self-heal. The two callers above ask
+# the committed-artifact question without gating the replacement, and the
+# staged-tree step is the one that still prevents a bad binary from landing.
+#
+# Two questions, two jobs: `build-prebuilds-musl` asks whether the SOURCES work
+# when compiled against musl (it builds and dlopens its own output), this script
+# whether the binaries users actually get resolve there.
 #
 # WHAT IT ANSWERS, AND WHAT IT DOES NOT
 #
