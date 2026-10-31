@@ -32,14 +32,12 @@ import System from 'system';
 
 // The same location @gjsify/vad installs into, so a developer who has run that
 // package's `install()` gets this test for free.
-const cached = GLib.build_filenamev([
-    GLib.get_user_cache_dir(), 'gjsify', 'speech-models', 'silero_vad_v5.onnx',
-]);
+const cached = GLib.build_filenamev([GLib.get_user_cache_dir(), 'gjsify', 'speech-models', 'silero_vad_v5.onnx']);
 const model = GLib.getenv('GJSIFY_SHERPA_VAD_MODEL') || cached;
 
 if (!GjsifySherpa.file_exists(model)) {
-    print(`no Silero model at ${model}`);
-    print('set GJSIFY_SHERPA_VAD_MODEL, or run @gjsify/vad\'s install() to cache one');
+    console.log(`no Silero model at ${model}`);
+    console.log("set GJSIFY_SHERPA_VAD_MODEL, or run @gjsify/vad's install() to cache one");
     System.exit(77); // meson: skipped
 }
 
@@ -48,10 +46,10 @@ let failures = 0;
 const check = (what, fn) => {
     try {
         fn();
-        print(`ok       ${what}`);
+        console.log(`ok       ${what}`);
     } catch (error) {
         failures += 1;
-        print(`FAIL     ${what}: ${error.message}`);
+        console.log(`FAIL     ${what}: ${error.message}`);
     }
 };
 
@@ -59,7 +57,7 @@ const assert = (condition, message) => {
     if (!condition) throw new Error(message);
 };
 
-print(`model    ${model}`);
+console.log(`model    ${model}`);
 
 // THE REGRESSION GUARD. open() is the call that used to abort the process, so
 // reaching the next line at all is the measurement; the assertions after it are
@@ -109,6 +107,6 @@ check('silence produces no speech and no segment', () => {
 });
 
 if (failures > 0) {
-    printerr(`${failures} check(s) failed`);
+    console.error(`${failures} check(s) failed`);
     System.exit(1);
 }

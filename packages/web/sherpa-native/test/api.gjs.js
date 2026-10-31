@@ -20,7 +20,6 @@
  * NO MODEL AND NO AUDIO DEVICE: everything here runs on a bare runner.
  */
 
-import GLib from 'gi://GLib';
 import GjsifySherpa from 'gi://GjsifySherpa';
 import System from 'system';
 
@@ -29,10 +28,10 @@ let failures = 0;
 const check = (what, fn) => {
     try {
         fn();
-        print(`ok       ${what}`);
+        console.log(`ok       ${what}`);
     } catch (error) {
         failures += 1;
-        print(`FAIL     ${what}: ${error.message}`);
+        console.log(`FAIL     ${what}: ${error.message}`);
     }
 };
 
@@ -47,13 +46,12 @@ check('version strings', () => {
     const ort = GjsifySherpa.onnxruntime_version();
     assert(typeof sherpa === 'string' && sherpa.length > 0, `sherpa version was ${sherpa}`);
     assert(typeof ort === 'string' && ort.length > 0, `onnxruntime version was ${ort}`);
-    print(`         sherpa-onnx ${sherpa}, onnxruntime ${ort}`);
+    console.log(`         sherpa-onnx ${sherpa}, onnxruntime ${ort}`);
 });
 
 check('file_exists', () => {
     assert(GjsifySherpa.file_exists('/proc/self/exe') === true, '/proc/self/exe reported missing');
-    assert(GjsifySherpa.file_exists('/nonexistent/silero_vad.onnx') === false,
-        'a nonexistent path reported present');
+    assert(GjsifySherpa.file_exists('/nonexistent/silero_vad.onnx') === false, 'a nonexistent path reported present');
 });
 
 // The construct properties, read back. If valac's GIR had not carried them,
@@ -62,8 +60,10 @@ check('file_exists', () => {
 check('Vad construct properties', () => {
     const vad = new GjsifySherpa.Vad({ model: '/nonexistent/silero_vad.onnx' });
     assert(vad.model === '/nonexistent/silero_vad.onnx', `model was ${vad.model}`);
-    assert(Math.abs(vad.min_silence_duration - 0.3) < 1e-6,
-        `min-silence-duration defaulted to ${vad.min_silence_duration}, not 0.3`);
+    assert(
+        Math.abs(vad.min_silence_duration - 0.3) < 1e-6,
+        `min-silence-duration defaulted to ${vad.min_silence_duration}, not 0.3`,
+    );
     assert(vad.sample_rate === 16000, `sample-rate defaulted to ${vad.sample_rate}`);
     assert(vad.is_open === false, 'a fresh Vad reported itself open');
 
@@ -72,10 +72,11 @@ check('Vad construct properties', () => {
         min_silence_duration: 0.8,
         threshold: 0.7,
     });
-    assert(Math.abs(configured.min_silence_duration - 0.8) < 1e-6,
-        'min-silence-duration was not taken from the constructor');
-    assert(Math.abs(configured.threshold - 0.7) < 1e-6,
-        'threshold was not taken from the constructor');
+    assert(
+        Math.abs(configured.min_silence_duration - 0.8) < 1e-6,
+        'min-silence-duration was not taken from the constructor',
+    );
+    assert(Math.abs(configured.threshold - 0.7) < 1e-6, 'threshold was not taken from the constructor');
 });
 
 // The errordomain, which is the part @gjsify/vad branches on.
@@ -88,10 +89,14 @@ check('Vad.open names the missing model', () => {
         thrown = error;
     }
     assert(thrown !== null, 'opening a nonexistent model did not throw');
-    assert(thrown.code === GjsifySherpa.SherpaError.MODEL_MISSING,
-        `code was ${thrown.code}, not SherpaError.MODEL_MISSING`);
-    assert(thrown.message.includes('/nonexistent/silero_vad.onnx'),
-        `the message does not name the file: ${thrown.message}`);
+    assert(
+        thrown.code === GjsifySherpa.SherpaError.MODEL_MISSING,
+        `code was ${thrown.code}, not SherpaError.MODEL_MISSING`,
+    );
+    assert(
+        thrown.message.includes('/nonexistent/silero_vad.onnx'),
+        `the message does not name the file: ${thrown.message}`,
+    );
 });
 
 // Using a closed object is NOT_OPEN rather than a crash — the mistake every
@@ -105,8 +110,7 @@ check('Vad methods refuse a closed detector', () => {
         thrown = error;
     }
     assert(thrown !== null, 'accept() on a closed Vad did not throw');
-    assert(thrown.code === GjsifySherpa.SherpaError.NOT_OPEN,
-        `code was ${thrown.code}, not SherpaError.NOT_OPEN`);
+    assert(thrown.code === GjsifySherpa.SherpaError.NOT_OPEN, `code was ${thrown.code}, not SherpaError.NOT_OPEN`);
 });
 
 for (const [name, Klass] of [
@@ -121,8 +125,10 @@ for (const [name, Klass] of [
             tokens: '/nonexistent/tokens.txt',
         });
         assert(recognizer.provider === 'cpu', `provider defaulted to ${recognizer.provider}`);
-        assert(recognizer.decoding_method === 'greedy_search',
-            `decoding-method defaulted to ${recognizer.decoding_method}`);
+        assert(
+            recognizer.decoding_method === 'greedy_search',
+            `decoding-method defaulted to ${recognizer.decoding_method}`,
+        );
 
         let thrown = null;
         try {
@@ -131,8 +137,10 @@ for (const [name, Klass] of [
             thrown = error;
         }
         assert(thrown !== null, 'opening nonexistent weights did not throw');
-        assert(thrown.code === GjsifySherpa.SherpaError.MODEL_MISSING,
-            `code was ${thrown.code}, not SherpaError.MODEL_MISSING`);
+        assert(
+            thrown.code === GjsifySherpa.SherpaError.MODEL_MISSING,
+            `code was ${thrown.code}, not SherpaError.MODEL_MISSING`,
+        );
         assert(thrown.message.includes('encoder'), `the message does not name it: ${thrown.message}`);
     });
 }
@@ -142,6 +150,6 @@ for (const [name, Klass] of [
 // this file keeps the promise in its header and runs everywhere.
 
 if (failures > 0) {
-    printerr(`${failures} check(s) failed`);
+    console.error(`${failures} check(s) failed`);
     System.exit(1);
 }
