@@ -4075,11 +4075,19 @@ jobs:
       # No `if:` — deliberately. An unexplained zero staged prebuilds is an
       # error; `PREBUILD_REPORT` is what lets the gate tell "this package was
       # skipped" apart from "the collect step silently produced nothing".
+      #
+      # The report is narrowed to sherpa-native in `run:`: this leg builds only
+      # that one bridge, and every other entry the classifier marked `build`
+      # would read as "told to build, staged nothing". The env wire stays the
+      # full report so `tests/e2e/staged-prebuild-libc-gate` still holds it.
       - name: Gate on the glibc floor of what this leg just built
         env:
           PREBUILD_TARGET: linux-${{ matrix.arch }}
           PREBUILD_REPORT: ${{ needs.changes.outputs.report }}
-        run: node scripts/check-staged-prebuild-libc.mjs
+        run: |
+          PREBUILD_REPORT=$(node -e 'const r = JSON.parse(process.env.PREBUILD_REPORT); process.stdout.write(JSON.stringify(r.filter((e) => e.dir === "packages/web/sherpa-native")))')
+          export PREBUILD_REPORT
+          node scripts/check-staged-prebuild-libc.mjs
 
   build-prebuilds-musl:
     name: Build prebuilds (linux-${{ matrix.arch }}-musl) [Alpine/musl]
