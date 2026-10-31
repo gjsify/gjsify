@@ -1,0 +1,27 @@
+/* The ELF export list of libgjsifysherpa.so.
+ *
+ * sherpa-onnx AND onnxruntime are linked in statically, and ELF has ONE flat
+ * symbol namespace: an exported `OrtGetApiBase` here would interpose on (or be
+ * interposed by) any other onnxruntime in the process. That is not theoretical
+ * on the development host — Fedora 44 ships `libonnxruntime.so.1` (1.22.2),
+ * while this library carries 1.28.2 — and the two ABIs are not interchangeable.
+ * `local: *` plus `-Wl,--exclude-libs,ALL` (meson.build) is what keeps both
+ * engines private; test/check-elf-deps.py reads the result back from the built
+ * file so a regression here fails the build rather than a user's process.
+ *
+ * The one glob covers BOTH halves of this library's own API: the
+ * `gjsify_sherpa_*` symbols valac generates for the GjsifySherpa namespace, and
+ * the `gjsify_sherpa_shim_*` ones from src/c/gjsify-sherpa-shim.c, whose prefix
+ * is a subset. Keeping the shim exported too is deliberate rather than
+ * overlooked: an ld version script's behaviour when two WILDCARDS match the same
+ * symbol is unspecified, so excluding the narrower prefix would be a trick that
+ * works until a linker disagrees — and the shim's prefix belongs to nobody else,
+ * so exporting it costs no collision risk. The hazard this file exists for is
+ * the vendored engines' symbols, and those match neither pattern.
+ */
+{
+    global:
+        gjsify_sherpa_*;
+    local:
+        *;
+};

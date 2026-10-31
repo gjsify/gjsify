@@ -1,0 +1,56 @@
+# sherpa-onnx (Apache-2.0, docs/attribution.md) — the speech engine this bridge
+# exposes: the Silero VAD @gjsify/vad runs on, and the online/offline transducer
+# recognizers @gjsify/speech-recognition will run on (ADR 0127 decision 5).
+#
+# Consumed as a CMAKE SUBPROJECT, not a meson one — sherpa-onnx has no meson
+# build — exactly as `sdl3.wrap` is in packages/web/gamepad-native. meson's cmake
+# module reads the target graph, so what this build links is `sherpa-onnx-c-api`
+# and whatever CMake says that needs; see meson.build § sherpa-onnx.
+#
+# PINNED TO THE v2.0.1 TAG, which is commit
+# af2d8d81dbfa61c4cea4c568da78f3982edca005 — verify with
+# `git -C subprojects/sherpa-onnx rev-parse HEAD`. A tag rather than that raw sha
+# because `depth = 1` is only possible for a ref the server offers, and the full
+# history is several hundred MB against a 53 MB shallow checkout.
+#
+# sherpa-onnx's own CMake then DOWNLOADS more: onnxruntime 1.28.2, eigen,
+# kaldi-native-fbank, kaldi-decoder, kissfft, kaldifst, openfst, utf8proc,
+# simple-sentencepiece and nlohmann/json, each pinned and checksummed upstream.
+# That is why a first build needs the network even though every revision here is
+# fixed; README.md § Building records how to pre-place the onnxruntime zip for an
+# offline build.
+#
+# ONE FILE OF THE CHECKOUT IS REPLACED, by `patch_directory` below:
+# `cmake/onnxruntime-linux-x86_64-static.cmake`. sherpa-onnx is built static, and
+# upstream's static branch links the prebuilt `libonnxruntime.a` — which was
+# compiled by an old GCC and collides with the HOST GCC's own vague-linkage
+# instantiations: 54 weak symbols defined under identical mangled names by both
+# archives, of which `std::__detail::_Scanner<char>`'s members are the fatal
+# ones (libstdc++ keeps `regex_traits` in the inline namespace `std::__cxx11` but
+# `_Scanner` in plain `std::__detail`, so the name is stable across GCC versions
+# while the layout is not). The linker dedupes them silently and the first
+# inference session dies in `free(): invalid pointer` — reproduced from gjs, from
+# a plain C caller, with the v4 and the v5 Silero model, on a clean build dir.
+# Relinking the identical archives against the SHARED libonnxruntime.so is what
+# fixed it, and that `.so` exports two dynamic symbols and no `std::` anything,
+# so nothing is left to dedupe. The overlay therefore puts upstream's own SHARED
+# x86_64 file under the static file's name.
+#
+# Why an overlay rather than options: see meson.build § onnxruntime for the two
+# arrangements that were tried first and what each one did.
+#
+# Per-ARCHITECTURE: the overlay is one named file, so a new linux target needs
+# its own overlay file beside it and meson.build errors out rather than quietly
+# falling back to upstream's static one.
+#
+# BUMPING sherpa-onnx: change `revision`, update the sha in this comment, diff
+# the two upstream x86_64 onnxruntime files against the overlay (see its header),
+# `rm -rf subprojects/sherpa-onnx` so the patch re-applies, rebuild, re-run
+# `meson test -C build` (the ELF read-back asserts that NOTHING from onnxruntime
+# is exported) and re-measure the prebuild size in README.md § Updating sherpa-onnx.
+[wrap-git]
+directory = sherpa-onnx
+url = https://github.com/k2-fsa/sherpa-onnx.git
+revision = v2.0.1
+depth = 1
+patch_directory = sherpa-onnx-shared-onnxruntime
