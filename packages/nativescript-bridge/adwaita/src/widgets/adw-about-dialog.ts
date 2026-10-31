@@ -65,6 +65,7 @@ import { Button, GridLayout, ItemSpec, Label, ScrollView, StackLayout, type Even
 import { nativeClipboardHost } from '../clipboard-host.js';
 import { nativePlatformHost } from '../platform-host.js';
 import { GtkImage } from './gtk-image.js';
+import { applyTemplateXalign } from './gtk-label.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
@@ -168,6 +169,10 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         this._versionLabel = this._addCardLabel(card, 'adw-about-dialog-version');
         this._developerLabel = this._addCardLabel(card, 'adw-about-dialog-developer');
         this._commentsLabel = this._addCardLabel(card, 'adw-about-dialog-comments');
+        // `comments_label` is the one card label whose upstream counterpart states an alignment
+        // (`xalign 0`, on the details subpage in `adw-about-dialog.ui`). The rest carry none
+        // there, so they keep the centred card presentation `_addCardLabel` gives them.
+        applyTemplateXalign(this._commentsLabel, 0);
         this._releaseNotesLabel = this._addCardLabel(card, 'adw-about-dialog-release-notes');
         this._websiteButton = this._addLinkButton(card, 'adw-about-dialog-website');
         this._linksBox = new StackLayout();

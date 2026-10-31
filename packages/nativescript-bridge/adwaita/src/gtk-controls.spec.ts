@@ -264,10 +264,13 @@ export const GtkControlsNsTest = async () => {
             return modes;
         };
 
-        await it('reads back left by default and leaves the platform alignment alone', () => {
+        await it('reads back left by default, over the centred text the xalign default draws', () => {
+            // `justify` LEFT and `xalign` 0.5 are both pspec defaults and they do not collide:
+            // `justify` only reaches a label of several lines. `template-xalign.spec.ts` is
+            // where the 0.5 itself is measured.
             const label = new Gtk.Label();
             expect(label.justify).toBe('left');
-            expect(label.textAlignment).toBe('initial');
+            expect(label.textAlignment).toBe('center');
         });
 
         await it('takes the nick, the Gtk.Justification constant and its XML string, and reads the nick', () => {

@@ -63,6 +63,7 @@ import {
 
 import { AdwActionRow } from './adw-action-row.js';
 import { GtkImage } from './gtk-image.js';
+import { applyTemplateXalign } from './gtk-label.js';
 import { AdwImageButton } from './adw-image-button.js';
 import { NS_EDIT_ICON_CLASS, NS_ENTRY_ROW_CLASS, applyEntryRowState } from './entry-row-view.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
@@ -219,6 +220,8 @@ export class AdwEntryRow extends withProperties(AdwActionRow, {
         // the large placeholder shown while the row is empty, the inherited title
         // shrinks to the small floating label above the value.
         this._titleLabel.className = 'adw-row-title adw-entry-title';
+        // `adw-entry-row.ui` states `xalign 0` on both of its titles, so both say it here.
+        applyTemplateXalign(this._titleLabel, 0);
         // The inherited `string_is_not_empty` title binding does NOT apply: which of
         // the two titles shows is the empty↔filled cross-fade's answer, owned by
         // `applyEntryRowState`.
@@ -226,6 +229,7 @@ export class AdwEntryRow extends withProperties(AdwActionRow, {
         const emptyTitle = new Label();
         emptyTitle.className = 'adw-row-title adw-entry-empty-title';
         emptyTitle.textWrap = true;
+        applyTemplateXalign(emptyTitle, 0);
         this._textStack.insertChild(emptyTitle, 0);
         this._emptyTitle = emptyTitle;
 

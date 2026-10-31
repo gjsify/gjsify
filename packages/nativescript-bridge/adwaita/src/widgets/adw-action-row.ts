@@ -46,6 +46,7 @@ import { GridLayout, ItemSpec, StackLayout, Label, type EventData } from '@nativ
 import { adwSubtitleWriteNotifies } from '@gjsify/adwaita-core';
 import { ActionRowState, isViewSensitive, rowLabelVisuals } from './row-state.js';
 import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
+import { applyTemplateXalign } from './gtk-label.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
 import type { GObjectNotify } from './signals.js';
@@ -160,9 +161,13 @@ export class AdwActionRow extends withSignals(GridLayout, {
         textStack.className = 'adw-row-text';
         GridLayout.setColumn(textStack, 1);
 
+        // `xalign 0` IS STATED, as `adw-action-row.ui` states it on both labels. GTK's own
+        // default is 0.5 — a row reads left-aligned because the template says so, not because
+        // a label centres nothing.
         const titleLabel = new Label();
         titleLabel.className = 'adw-row-title';
         titleLabel.textWrap = true;
+        applyTemplateXalign(titleLabel, 0);
         textStack.addChild(titleLabel);
 
         // Both labels live in the tree from the start and are COLLAPSED when empty,
@@ -170,6 +175,7 @@ export class AdwActionRow extends withSignals(GridLayout, {
         const subtitleLabel = new Label();
         subtitleLabel.className = 'adw-row-subtitle';
         subtitleLabel.textWrap = true;
+        applyTemplateXalign(subtitleLabel, 0);
         textStack.addChild(subtitleLabel);
 
         this.addChild(textStack);

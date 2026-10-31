@@ -28,6 +28,7 @@ import { StackLayout } from '@nativescript/core';
 import { adwaitaAccent, onAdwaitaAccentChanged } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';
 import { GtkImage } from './gtk-image.js';
+import { applyTemplateXalign } from './gtk-label.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { ButtonRowState, buttonRowIconColor, buttonRowIconVisuals } from './row-state.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
@@ -77,6 +78,9 @@ export class AdwButtonRow extends AdwActionRow {
         // inherited `_titleLabel` as the accent text.
         this._titleLabel.className = 'adw-button-row-title';
         this._titleLabel.horizontalAlignment = 'center';
+        // `adw-button-row.ui` is the one row template that centres its title: `xalign 0.5`,
+        // overriding the `xalign 0` AdwActionRow's template put on the inherited label.
+        applyTemplateXalign(this._titleLabel, 0.5);
 
         // Wrap the inherited title label inside a horizontal box so the optional
         // glyphs can sit either side of it, all centered.
