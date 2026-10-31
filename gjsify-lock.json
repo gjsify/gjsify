@@ -128,6 +128,7 @@
     "@lezer/highlight@^1.2.3",
     "@girs/manette-0.2@5.4.0",
     "@girs/gstapp-1.0@5.4.0",
+    "comlink@^4.4.2",
     "@girs/gstaudio-1.0@5.4.0",
     "@girs/gstbase-1.0@5.4.0",
     "@girs/gstsdp-1.0@5.4.0",
@@ -8914,6 +8915,11 @@
       "dependencies": {
         "delayed-stream": "~1.0.0"
       }
+    },
+    "node_modules/comlink": {
+      "version": "4.4.2",
+      "resolved": "https://registry.npmjs.org/comlink/-/comlink-4.4.2.tgz",
+      "integrity": "sha512-OxGdvBmJuNKSCMO4NTl1L47VRp6xn2wG4F/2hYzB6tiCb709otOxtEYCSvK80PtjODfXXZu8ds+Nw5kVCjqd2g=="
     },
     "node_modules/comma-separated-tokens": {
       "version": "2.0.3",

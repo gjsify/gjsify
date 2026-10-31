@@ -246,8 +246,8 @@ queue with ids. Recommend Comlink, document the port-transfer gap, and close it 
 
 ### Left for step 5
 
-- `onmessageerror`/`messageerror` bridge for the raw shared port and for child ports.
-- A SyntaxError thrown in a worker arrives on GJS as a generic `Error` (class lost).
+- ~~`onmessageerror`/`messageerror` bridge for the raw shared port and for child ports.~~ Closed in step 5 (`fix(worker_threads): bridge messageerror, keep error names`).
+- ~~A SyntaxError thrown in a worker arrives on GJS as a generic `Error` (class lost).~~ Closed in step 5 (same commit).
 - Bundled children that send `worker_threads.MessageChannel` wrapper ports via `parentPort.postMessage`
   are not recognised; the bootstrap's own global `MessageChannel` wins.
 - A user script calling bare `System.exit` in a worker child hangs; use the context's `exit`.
@@ -331,6 +331,9 @@ It depends on `@gjsify/dom-events` and `@gjsify/message-channel`, both tier 1.
 5. **`@gjsify/web-worker`.** `EventTarget`-based `Worker` over `worker_threads`, the routing above,
    `type: 'module'` and a URL from `import.meta.url`, `terminate()`, and the three event handler
    properties. Its own suite on GJS, Node and browser.
+   **Landed in this PR**, with the Comlink cases of step 6 folded into its suite (`comlink.spec.ts`).
+   The adapter needs no bootstrap change: it starts the child in `eval` mode and lays the worker-side
+   scope over `parentPort` from a generated source.
 6. **Comlink as a consumer test.** The eight cases from `05`/`06` as an e2e against the new
    package, so the port-transfer fixes stay fixed.
 7. **#2338 in the bundler.** The recognition pass and the post-bundle entry emission described

@@ -22,7 +22,8 @@
 // corrupt and no portable way to reach this path.
 
 import { describe, it, expect, on } from '@gjsify/unit';
-import { Worker } from 'node:worker_threads';
+import { Worker, MessageChannel } from 'node:worker_threads';
+import { MessageChannel as SharedMessageChannel } from '@gjsify/message-channel';
 import type Gio from '@girs/gio-2.0';
 
 /**
@@ -114,6 +115,97 @@ export default async () => {
                 } finally {
                     await worker.terminate();
                 }
+            });
+        });
+
+        await describe("a port's undecodable message becomes 'messageerror'", async () => {
+            // The child writes the bad line to fd 1 itself, addressed to the
+            // port it was handed by its wire id.
+            const SEND_BAD_FROM_CHILD = `parentPort.on('message', (msg) => {
+                     const Gio = imports.gi.Gio;
+                     const out = Gio.UnixOutputStream.new(1, false);
+                     out.write_all(new TextEncoder().encode(JSON.stringify({
+                         __msgport: msg.port._wireId, op: 'send', data: ${JSON.stringify(UNDECODABLE_PAYLOAD)}
+                     }) + '\\n'), null);
+                     msg.port.postMessage('after');
+                 });`;
+
+            await it('reaches onmessageerror of a raw shared port in the parent', async () => {
+                const worker = new Worker(SEND_BAD_FROM_CHILD, { eval: true });
+                try {
+                    const { port1, port2 } = new SharedMessageChannel();
+                    const errored = new Promise<string>((resolve, reject) => {
+                        setTimeout(() => reject(new Error('no messageerror within 5000 ms')), 5000);
+                        port1.onmessageerror = (event) => resolve(event.type);
+                    });
+                    const after = new Promise<unknown>((resolve) => {
+                        port1.onmessage = (event) => resolve(event.data);
+                    });
+                    worker.postMessage({ port: port2 }, [port2 as never]);
+                    expect(await errored).toBe('messageerror');
+                    // The channel survives: the good message behind it arrives.
+                    expect(await after).toBe('after');
+                    port1.close();
+                } finally {
+                    await worker.terminate();
+                }
+            });
+
+            await it('reaches both surfaces of a wrapper port in the parent', async () => {
+                const worker = new Worker(SEND_BAD_FROM_CHILD, { eval: true });
+                try {
+                    const { port1, port2 } = new MessageChannel();
+                    const viaEmitter = new Promise<Error>((resolve) => port1.once('messageerror', resolve));
+                    const viaDom = new Promise<string>((resolve) => {
+                        port1.onmessageerror = (event: { type: string }) => resolve(event.type);
+                    });
+                    port1.on('message', () => {});
+                    worker.postMessage({ port: port2 }, [port2]);
+                    expect((await viaEmitter).name).toBe('SyntaxError');
+                    expect(await viaDom).toBe('messageerror');
+                    port1.close();
+                } finally {
+                    await worker.terminate();
+                }
+            });
+
+            await it('reaches onmessageerror of a port inside the child', async () => {
+                const worker = new Worker(
+                    `parentPort.on('message', (msg) => {
+                         msg.port.onmessageerror = (event) => parentPort.postMessage('child:' + event.type);
+                         parentPort.postMessage('ready');
+                     });`,
+                    { eval: true },
+                );
+                try {
+                    const { port2 } = new MessageChannel();
+                    const messages = collect(worker, 2);
+                    worker.postMessage({ port: port2 }, [port2]);
+                    const registry = (worker as unknown as { _portRegistry: Map<number, unknown> })._portRegistry;
+                    // Wait for 'ready' by way of the collector, then poke the port.
+                    await new Promise<void>((resolve) => worker.once('message', () => resolve()));
+                    const [portId] = [...registry.keys()];
+                    writeRawLine(
+                        worker,
+                        JSON.stringify({ __msgport: portId, op: 'send', data: UNDECODABLE_PAYLOAD }) + '\n',
+                    );
+                    expect(await messages).toStrictEqual(['ready', 'child:messageerror']);
+                } finally {
+                    await worker.terminate();
+                }
+            });
+        });
+
+        await describe('Worker — a thrown error keeps its class', async () => {
+            await it('delivers a SyntaxError as a SyntaxError', async () => {
+                const worker = new Worker(`throw new SyntaxError('bad-syntax');`, { eval: true });
+                const error = await new Promise<Error>((resolve, reject) => {
+                    setTimeout(() => reject(new Error('no error within 5000 ms')), 5000);
+                    worker.once('error', resolve);
+                });
+                expect(error.name).toBe('SyntaxError');
+                expect(error.message).toBe('bad-syntax');
+                expect(error instanceof SyntaxError).toBe(true);
             });
         });
     });

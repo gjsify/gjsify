@@ -270,15 +270,16 @@ export class MessagePort extends EventEmitter {
      * `'messageerror'` on the receiving port and stays usable afterwards, which
      * is the alternative to the message vanishing without a trace.
      *
-     * EventEmitter surface only: the W3C side wants a `MessageEvent` on the
-     * inner port so that `onmessageerror` fires too, and that mapping belongs
-     * with the rest of the web surface in `@gjsify/web-worker`.
+     * Both surfaces: the EventEmitter `'messageerror'` and, through the inner
+     * W3C port, `addEventListener('messageerror')` / `onmessageerror`.
      */
     _receiveMessageError(err: unknown): void {
         if (this._closed) return;
         const error = err instanceof Error ? err : new Error(String(err));
         Promise.resolve().then(() => {
-            if (!this._closed) this.emit('messageerror', error);
+            if (this._closed) return;
+            this.emit('messageerror', error);
+            this._inner._receiveMessageError();
         });
     }
 
