@@ -39,6 +39,7 @@
     ],
     "license": "MIT",
     "dependencies": {
+        "@gjsify/adwaita-core": "workspace:^",
         "@gjsify/vite-plugin-gjsify": "workspace:^",
         "postcss-nesting": "^13.0.2",
         "postcss-selector-parser": "^7.1.0"

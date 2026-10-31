@@ -4,10 +4,13 @@
 //
 //   - styles: `Application.addCss`, which is APPEND-ONLY (`widgets/adw-accent.ts`): a provider's
 //     rules are added when they are new or changed, and removing a provider cannot take them back.
+//     GTK's `px` is a logical pixel, NativeScript's a physical one, so `px` is dropped on the way in
+//     (`cssPxToDip`); the build does the same for `app.css` (`@gjsify/nativescript-vite`).
 //   - uris and keys: `./platform-source.ts` and its `.android` / `.ios` variants.
 //   - font: the platform does not say, so `Gtk.Settings:gtk-font-name` is null until written.
 
 import type { PlatformHost } from '@gjsify/adwaita-core';
+import { cssPxToDip } from '@gjsify/adwaita-core/css-length';
 import { Application, type View } from '@nativescript/core';
 
 import { listenPlatformKeys, openPlatformUri } from './platform-source.js';
@@ -19,7 +22,7 @@ export const nativePlatformHost: PlatformHost = {
         for (const { owner, css } of list) {
             if (applied.get(owner) === css) continue;
             applied.set(owner, css);
-            if (css) Application.addCss(css);
+            if (css) Application.addCss(cssPxToDip(css));
         }
     },
     openUri: (uri) => openPlatformUri(uri),
