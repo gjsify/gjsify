@@ -230,9 +230,9 @@ guard is `g_strcmp0 (value, get_icon_name ())` against a readback `GtkImage` kee
 `DeclaredProperty.changed` is how the pure leg says so. CONSUMER-VISIBLE: `label`/`iconName` read
 `null` when unset (was `''`); `setActionIcon` and the `CLICKED` export are gone;
 `on`/`addEventListener`/`notify({ eventName })` refuse `clicked` and `activate`. REMAINDERS:
-`direction` stays hand-written (a shadowed name, no enum kind); `menu-model`, `popover`, `child`
-are object-typed, so they wait for the object-kind decision (`menu-model`'s wall MOVED — see the
-remainders below) — and with no `child` property there
+`direction` stays hand-written (a shadowed name, no enum kind); `menu-model` is declared now (see
+the entry below); `popover` and `child` are not properties of this class at all — and with no
+`child` property there
 is no `notify::child` in the sequence, which is the one part of the measured order this surface
 cannot reach. Specs: `split-button-properties.spec.ts` (pure-JS),
 `signals-gobject.spec.ts` (the two hooks), `specs/split-button.ts` (device).
@@ -288,19 +288,86 @@ SPLIT-BUTTON REMAINDERS, re-examined with the object-kind decision in hand and s
 `popover` and `child` are not properties of this class at all. Leaving them hand-written is the
 decision, not the backlog.
 
-`menuModel`'s WALL MOVED, and it is now a backlog item rather than a refusal. The old reasoning
-here was that it holds a plain `AdwMenuModel` ARRAY, not a GObject, so there is no `valueType` to
-declare and route D's `g_value_copy` refuses the value — the same wall `AdwButtonContent.hostButton`
-documents — and that it reads back a different shape than it takes (`AdwMenuInput` in,
-`AdwMenuModel` out), which one declared store cannot express. ADR 0128 removed BOTH halves:
-`AdwMenuModel` IS `GioMenuModel`, a registered GObject class with a `$gtype`, so there is a
-`valueType` to declare; and the property now reads back exactly what it takes, because the
-authored array is a separate type (`AdwMenuTree`, built with `buildMenu`) and is no longer
-something the property accepts. What is left is the ParamSpec gap ADR 0128 § 7 names: the door
-checks the class ABOVE the pspec, because `ParamSpec.object` takes `TYPE_OBJECT` or a subset
-INTERFACE and `GMenuModel` is a CLASS. Declaring `menu-model` on route D therefore waits on
-widening `ParamSpec.object` to registered classes, which is its own ADR with its own vectors —
-not on anything about menus.
+DONE (`widgets/adw-split-button.ts` + `widgets/gtk-menu-button.ts`): `menu-model` is a declared
+OBJECT property on BOTH widgets that hold one — the wall ADR 0128 moved is gone, not postponed.
+`valueType: GioMenuModel.$gtype` is the whole type declaration: `registerBaseClass(GioMenuModel,
+'GMenuModel', …)` already calls `makeType('GMenuModel')`, so there is no new token to invent, and
+`realValueTypeFor` (`nativescript-bridge/gobject/src/engine.ts`) answers `'GMenuModel'` with
+`Gio.MenuModel` beside `GObject` and `GListModel`.
+
+THE ParamSpec GAP ADR 0128 § 7 NAMED IS NOT ON THIS PATH, and that is a measurement rather than a
+hope: `ParamSpec.object` takes `TYPE_OBJECT` or an INTERFACE and `GMenuModel` is a CLASS, but an
+object-kind declared property is `isSeamOwned`, and the pure leg reaches
+`installPureJsProperties` and never builds a ParamSpec for a declared foreign property at all
+(`PURE_JS_ENGINE.registerForeignClass` throws on one, `gobject.ts:576`), so the `valueType` check
+at `gobject.ts:301` is never reached. Widening the twin's `ParamSpec.object` therefore stays its
+own ADR with its own vectors, and nothing about menus waits on it.
+
+The two declarations differ in exactly ONE hook, measured on GJS 1.88 / GTK 4.22:
+`Adw.SplitButton:menu-model` is `G_PARAM_EXPLICIT_NOTIFY` (`flags=1073742051`) and C notifies
+LAST — it swaps the model, rebuilds the dropdown, then calls `g_object_notify_by_pspec` — so the
+widget declares `explicitNotify: true` and ends its `afterNotify` with `notify('menu-model')`
+after the slot adopted the model. Left to the seam the emission would come FIRST and a handler
+would read the PREVIOUS dropdown. It needs NO `changed` hook: C's guard is identity and the
+seam's default identity check IS that guard (measured 1, 0, 1, 1, 0 for A, A, B, null, null, and
+nothing for `null` on a fresh widget). `Gtk.MenuButton:menu-model` has `flags=227` — no
+`EXPLICIT_NOTIFY` and NO guard: every write notifies, the equal ones, `null` over `null` and
+`null` on a fresh widget included. That is `changed: () => true`, the `AdwSplitButton:icon-name`
+spelling, and no `explicitNotify`, because nothing on the button repaints from the model and the
+seam's own emission order is therefore fine.
+
+`Gtk.MenuButton` is the first declared property in the `AdwImageButton` chain, so it migrates
+with `withProperties(AdwImageButton, …)` over a base `withSignals` already covers rather than
+with a second `withSignals`. Both widgets keep their hand-written `get_menu_model` /
+`set_menu_model` verbs — C has them, the seam declares properties — and both route through the
+declaration, so a verb notifies like a write. `MenuSlot` split into `read(value)` (the refusals,
+for `normalize`) and `adopt(next)` (the snapshot and the watch, for `afterNotify`), because the
+seam calls those at two different moments; `write(value) = adopt(read(value))` stays for the one
+un-migrated holder, `widgets/gtk-popover-menu.ts`.
+
+THE XML DOOR STAYS SHUT, and not where it first looks: `readDeclaredValue` would answer a string
+with `Property 'menu-model' holds an object; 'app-menu' is a string.`, which says nothing about
+menus, so `refuseMenuString` runs in `normalize` AHEAD of `readMenuModelWrite` and keeps its own
+wording. That is safe because `coerceDeclared` (`widgets/signals.ts:268`) calls `normalize`
+INSTEAD of `readDeclaredValue`, not before it — and a refusal may not live in a `notify::`
+handler (see CARRY THESE).
+
+CONSUMER-VISIBLE, on both widgets: `menuModelChange` is GONE as an event. The seam no longer
+calls `notifyPropertyChange`, so `addEventListener('menuModelChange')` installs a listener that
+never fires — it is NOT refused, because `refuseDeclaredEvent` only names the spellings GObject
+owns, and `notify::menu-model` / `notify::menuModel` / `notify::menu_model` ARE refused on
+`addEventListener` and on `notify({ eventName })`. The door to the change is
+`connect('notify::menu-model', …)`. `Gtk.MenuButton` additionally lost its `menuModel` /
+`menu_model` hand-rolled accessor pair (the seam installs both, plus `menu-model`), and
+`GioMenuModel` gained a `declare static readonly $gtype: GType;` — the `Gtk.FileFilter.$gtype`
+precedent — so a consumer can name the type without a cast. Specs:
+`split-button-properties.spec.ts` and `menu-button-properties.spec.ts` (pure-JS, the iOS leg),
+`menu-model-door.spec.ts` (the ADR 0128 conformance table, now driven through `connect`),
+`specs/split-button.ts` and `specs/menu-button.ts` (device, both engines).
+
+THE DEVICE RUN FOUND A ROUTE-D HOLE, AND IT IS WHY THIS PACKAGE NOW HAS A THIRD TEST ENTRY.
+S9, first run: pure-js 182/182, real-gio 280/285 — four of `specs/menu-button.ts`'s cases threw
+`Cannot read properties of undefined (reading 'call')` from `connect('notify::menu-model')` and a
+fifth found no refusal around `notify({ eventName })`, while every split-button case was green.
+Cause: `realize()` returns before route D when a declaration has no meta, so
+`AdwImageButton extends withSignals(GridLayout)` captured no gi thunks, and `GtkMenuButton`'s
+`withProperties` declaration skipped the capture — and the no-silent-fallback throw with it — on
+the invariant that an ancestor holds them. Fixed in `widgets/signals.ts` by letting such a leaf
+BORROW the verbs (`borrowChainVerbs`): see ADR 0128 Amendment § A5 for the mechanism and for why
+registering the meta-less door was rejected.
+
+It survived this long because route D was measured on nothing but a phone — the pure-JS legs
+answer a declared property from the seam's own accessors and pass by construction. So
+`src/menu-model-route-d.node-gi.spec.ts` + `src/test.node-gi.mts` (`npm run test:gjs-on-node`,
+12 cases, `Adw.SplitButton` as the control) drive the device's own vectors against real GObject
+off-device, under `node --conditions=gjsify-foreign-parents` — a new node-gi `#host`
+(`host.node.foreign.js`) that re-exports `host.node.js` with `FOREIGN_PARENT_CLASSES` flipped and
+nothing else. The five failures reproduced there BEFORE the fix; it is now 12/12 and wired into
+the `gtk-host-node` job of `.github/workflows/node-gi.yml`.
+
+1798 tests / 4778 assertions (node and gjs), 1226 / 3812 trees, 12 route-D (node-gi).
+`libnode_gi.so` for arm64-v8a is built from this worktree in
+`~/.cache/gjsify-android/routed-lib-2026-10-31`, with the AAR in place.
 
 DONE (`widgets/gtk-entry.ts`): `text`, `text-length`, `max-length`, `placeholder-text` and
 `editable` are declared, plus the signals `changed` and `activate`. The question this one had to
@@ -359,9 +426,12 @@ MIGRATE NEXT: `widgets/gtk-check-button.ts`. It is the next cheapest: three hand
 does. The measurement to take first is the ORDER a tap produces — `gtk_check_button_real_clicked`
 clears `inconsistent` before it toggles, so there are two notifies and two signals in one gesture
 and the entry's `explicitNotify` lesson decides whether `active` can stay change-based. `group`
-is write-only in GTK and object-shaped here (`setCheckGroup` over the core), so it stays
-hand-written for the reason `AdwSplitButton.menuModel` records: a plain-JS value `g_value_copy`
-refuses, read back as a different shape than it takes.
+is write-only in GTK (`G_PARAM_WRITABLE`) and takes another CHECK BUTTON — a NativeScript `View`,
+not a GObject on either leg — or a `ViewId` resolved out of the loaded tree
+(`builderReferences`), so it stays hand-written for two reasons the menu-model migration does not
+remove: the seam has no write-only arm (`AdwComboRow:selected-item` is read-only BY DERIVATION,
+which is the opposite shape), and `GioMenuModel.$gtype` has no counterpart here — there is no
+registered class to name in a `valueType`.
 
 RESOLVED (owner, 2026-10-27): `emit('<undeclared>')` throws `No signal '<name>' on object '<class>'`,
 as in GJS, on both legs. `emit` is GObject's only; a NativeScript event goes through

@@ -77,25 +77,39 @@ export class MenuSlot {
     }
 
     /**
-     * A property write: a real model by identity, `null` for no menu — and a `TypeError` for
-     * a string, an array or anything else, which this door does not take (`buildMenu` is how
-     * an array becomes a model now).
+     * READ a property write without holding it: a real model by identity, `null` for no menu —
+     * and a `TypeError` for a string, an array or anything else, which this door does not take
+     * (`buildMenu` is how an array becomes a model now).
      *
      * The refusal is a THROW because a property assignment is a call: whoever wrote the
      * menu is on the stack and can hear it. There is no second, quieter door here the way
      * the browser has one for markup.
+     *
+     * SPLIT FROM {@link adopt} for the seam: a declared property reads the write in `normalize`,
+     * ahead of the store and of the equal-write check, and takes the value on in `afterNotify`,
+     * which runs only for a write that moved (`signals.ts`). A single `write` would snapshot and
+     * re-watch on every write including an equal one, which is a notify the measurement says
+     * `Adw.SplitButton` does not make.
      */
-    write(value: unknown): void {
+    read(value: unknown): GioMenuModel | null {
         refuseMenuString(value, this.widget);
         const next = readMenuModelWrite(value, this._authored);
         // LOUD, at the assignment: a `custom` item names an application widget, which a
         // PopupMenu row cannot host — a surface that ignored it would offer a blank row.
         if (next !== null) assertPopupMenuAssignable(menuTree(next));
-        this._adopt(next);
+        return next;
+    }
+
+    /**
+     * {@link read} and {@link adopt} in one — the door for a widget whose `menuModel` the seam
+     * does NOT own (`gtk-popover-menu.ts`).
+     */
+    write(value: unknown): void {
+        this.adopt(this.read(value));
     }
 
     /** Hold `next`, snapshot it, and listen to it — the three that always happen together. */
-    private _adopt(next: GioMenuModel | null): void {
+    adopt(next: GioMenuModel | null): void {
         this._unwatch?.();
         this._unwatch = null;
         this._model = next;
@@ -106,7 +120,7 @@ export class MenuSlot {
         // handler list and skips ones disconnected mid-emission, so disconnecting here is
         // safe (`gobject.ts`, `emit`).
         this._unwatch = watchMenuModel(next, () => {
-            this._adopt(this._model);
+            this.adopt(this._model);
             this.onItemsChanged();
         });
     }

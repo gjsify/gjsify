@@ -60,6 +60,7 @@ import {
     TYPE_OBJECT,
     TYPE_UINT,
 } from './gobject.js';
+import type { GType } from './gobject.js';
 import { normalizeMenuModel, parseMenuModel } from './menu.js';
 import type { AdwMenuInput, AdwMenuNode, AdwMenuTree } from './menu.js';
 
@@ -476,6 +477,15 @@ registerBaseClass(GioMenuLinkIter as never, 'GMenuLinkIter', {});
  */
 export abstract class GioMenuModel extends GObjectObject {
     static [GIR_TYPE] = 'Gio.MenuModel';
+
+    /**
+     * `Gio.MenuModel.$gtype` — installed by the `registerBaseClass` below, declared here so a
+     * caller can NAME the type. It is the `valueType` a widget declaring a `menu-model` property
+     * passes (`ForeignObjectProperty`), which is why this one needs a type where the other
+     * registered base classes do not: `Gtk.FileFilter.$gtype` is declared for the same reason,
+     * a `Gio.ListStore`'s `item_type`.
+     */
+    declare static readonly $gtype: GType;
 
     constructor() {
         super();

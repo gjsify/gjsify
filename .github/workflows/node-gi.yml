@@ -822,6 +822,10 @@ jobs:
           # A devDependency of adwaita-gobject-native (its Settings vectors), so the line above
           # does not build it.
           gjsify workspace @gjsify/app-settings build:gjsify --with-dependencies
+          # The NativeScript port's own workspace deps (fonts, icons, canvas2d-core,
+          # native-platform) for the route-D leg below; the test bundle inlines this package's
+          # own sources, so the --library step here is for the deps.
+          gjsify workspace @gjsify/adwaita-nativescript build:gjsify --with-dependencies
 
       # Guarantee the devDependency file: link resolves to the freshly node-gyp-built
       # addon regardless of how the install materialised it (belt-and-suspenders,
@@ -829,7 +833,8 @@ jobs:
       - name: Link the node-gi devDependency
         run: |
           for pkg in packages/framework/gtk-host packages/framework/iframe packages/web/adwaita-core \
-                     packages/nativescript-bridge/gobject packages/infra/site; do
+                     packages/nativescript-bridge/gobject packages/nativescript-bridge/adwaita \
+                     packages/infra/site; do
             mkdir -p "$pkg/node_modules/@gjsify"
             ln -sfn ../../../../node-gi/node-gi "$pkg/node_modules/@gjsify/node-gi"
             ls -l "$pkg/node_modules/@gjsify/node-gi"
@@ -907,6 +912,29 @@ jobs:
           xvfb-run -a dbus-run-session -- \
             env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
             NODE_GI_NATIVE=build gjsify run test:gjs-on-node
+
+      # ROUTE D itself (ADR 0105 stage 2 → `withProperties` over a FOREIGN NativeScript parent),
+      # which until now was measured on an Android device and nowhere else. The pure-JS legs of
+      # this package answer declared properties from the seam's own accessors and pass by
+      # construction, so the one path that can break had no harness: `Gtk.MenuButton:menu-model`
+      # reached a phone with `resolved.giConnect === undefined` and five red cases, none of them
+      # reproducible on a laptop (ADR 0128 Amendment § A5).
+      #
+      # `--conditions=gjsify-foreign-parents` (inside the package's script) is what makes it
+      # reproducible: registering a GType over a foreign parent is refused on a plain Node host on
+      # purpose, because a program there can also be run under real GJS, which rejects such a
+      # base. The condition picks `host.node.foreign.js`, which overrides that one export and
+      # nothing else, and can only be passed on a process's own command line — so this leg opts
+      # in and no consumer can.
+      #
+      # No xvfb: the subject is GObject registration and signal plumbing over the ns-core testing
+      # double. No widget is realized and nothing opens a display, so a display here would only
+      # hide an accidental Gtk import behind a working one.
+      - name: Run the route-D menu-model leg on the real-Gio engine (node-gi)
+        working-directory: packages/nativescript-bridge/adwaita
+        run: |
+          export PATH="$PWD/../../../node_modules/.bin:$PATH"
+          NODE_GI_NATIVE=build gjsify run test:gjs-on-node
 
       # `@gjsify/site`'s image backend on the bridge (ADR 0109 § 4). The package names
       # no runtime at all: `gjsify site build` runs on whatever runtime the CLI itself

@@ -106,8 +106,12 @@ export const PopupMenuWidgetsNsTest = async () => {
 
         await it('menu_model is the GIR spelling of menuModel, getter, setter and accessors', () => {
             const button = new Gtk.MenuButton();
-            button.menu_model = buildMenu(['Save']);
-            expect(button.menuModel).toBe(button.menu_model);
+            // The declared property answers all three GObject spellings, and only the camel one
+            // is typed — `declare` names one, the seam installs three (`spellingsOf`).
+            const loose = button as unknown as Record<string, unknown>;
+            loose.menu_model = buildMenu(['Save']);
+            expect(button.menuModel).toBe(loose.menu_model);
+            expect(loose['menu-model']).toBe(button.menuModel);
             button.set_menu_model(buildMenu(['Save', 'Quit']));
             expect(button.get_menu_model()?.get_n_items()).toBe(2);
             expect(button.get_menu_model()).toBe(button.menuModel);

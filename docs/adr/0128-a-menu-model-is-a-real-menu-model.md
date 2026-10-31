@@ -227,7 +227,7 @@ rather than closes.** `ParamSpec.object` accepts `TYPE_OBJECT` or a subset INTER
 `ParamSpec.object('menu-model', '', '', READWRITE, TYPE_OBJECT)` and the door checks the class
 itself. Widening `ParamSpec.object` to registered classes is a later ADR with its own vectors;
 until then the check lives one layer above the pspec, where a reader of `checkPropertyValue` can
-see it.
+see it. (The NativeScript widgets never meet that gap — see the amendment below.)
 
 **Each element holds ONE authored menu instance, and a re-parse RECONCILES into it.**
 `GjsifyMenu.reconcile(tree)` emits the single minimal `items-changed(0, old, new)` that turns the
@@ -271,12 +271,12 @@ working letter for letter. There is no deprecation window and no array-accepting
 
 ## What this does NOT decide
 
-- **`menu-model` as a declared object-kind property on route D.** `realValueTypeFor` in
+- **`menu-model` as a declared object-kind property on route D.** ~~`realValueTypeFor` in
   `packages/nativescript-bridge/gobject/src/engine.ts` would gain `'GMenuModel'` →
-  `requireGi('Gio', '2.0').MenuModel`, the shape ADR 0122 A1 built for `GListModel`. It is a
-  separate PR with its own measurement, and until then the NativeScript widgets hold the model on
-  the twin, as they hold every other subset object.
-- **Widening `ParamSpec.object` to registered classes.** § 7: named, not closed.
+  `requireGi('Gio', '2.0').MenuModel`, the shape ADR 0122 A1 built for `GListModel`.~~ DONE in the
+  separate PR this asked for — see the amendment below.
+- **Widening `ParamSpec.object` to registered classes.** § 7: named, not closed — and the
+  amendment below measures that route D does not wait on it.
 - **`Gio.MenuModel` as a general abstract-base mechanism.** This ADR registers two base classes
   through the door `registerBaseClass` already has. Nothing about abstract bases in general is
   decided here.
@@ -316,3 +316,105 @@ working letter for letter. There is no deprecation window and no array-accepting
    the type of its value, and its value was always a tree.
 9. Docs, storybook, examples, and `status/open-todos/nativescript.md`; ADR 0042 and ADR 0097
    amended with a pointer here.
+
+## Amendment (2026-10-31) — `menu-model` IS declared on route D, and the pspec gap is not on that path
+
+§ "What this does NOT decide" deferred the NativeScript declaration to its own PR with its own
+measurement. This is that measurement. `Adw.SplitButton:menu-model` and `Gtk.MenuButton:menu-model`
+are declared object-kind properties at the `withSignals` / `withProperties` seam, and
+`realValueTypeFor` gained the row ADR 0122 A1's table now carries.
+
+### A1. `GioMenuModel.$gtype` is the whole type declaration
+
+No new token was needed. `registerBaseClass(GioMenuModel, 'GMenuModel', …)` already calls
+`makeType('GMenuModel')` and installs `$gtype`, and `realValueTypeFor`'s discriminant is
+`valueType.name`, so the declaration reads `valueType: GioMenuModel.$gtype` and the engine
+answers `requireGi('Gio', '2.0').MenuModel`. `GioMenuModel` gained one line —
+`declare static readonly $gtype: GType;`, the `Gtk.FileFilter.$gtype` precedent — so a consumer
+names the type without a cast.
+
+### A2. § 7's ParamSpec gap is never REACHED by these two properties
+
+An object-kind declared property is `isSeamOwned` (ADR 0122 A2): its value lives in the seam's
+store on both legs and never enters the GObject. On the pure leg that means the widget goes
+through `installPureJsProperties` and no ParamSpec is built for the declared property at all —
+`PURE_JS_ENGINE.registerForeignClass` throws on one (`gobject.ts:576`) — so the `valueType` check
+at `gobject.ts:301`, the one § 7 names, is never executed. Widening the twin's `ParamSpec.object`
+to registered classes therefore stays a later ADR and nothing on this path waits for it. On the
+node-gi leg the pspec IS real, which is exactly what `realValueTypeFor` is for.
+
+### A3. One slot, TWO declarations, because the two C setters differ
+
+Measured on GJS 1.88 / GTK 4.22 (`Adw.SplitButton.find_property('menu-model')`;
+`GObject.ObjectClass` is not exposed in GJS, which is why the lookup is on the class):
+
+| | `Adw.SplitButton` | `Gtk.MenuButton` |
+|---|---|---|
+| pspec flags | `1073742051` — `G_PARAM_EXPLICIT_NOTIFY` | `227` — no explicit notify |
+| A, then A again | 1 notify, then 0 | 1, then 1 |
+| B over A · `null` · `null` again | 1 · 1 · 0 | 1 · 1 · 1 |
+| `null` on a FRESH widget | 0 | 1 |
+| mutating the HELD model | 0 on both — `items-changed` is not `notify::` | |
+| readback | by identity on both | |
+
+So `Adw.SplitButton` declares `explicitNotify: true` and emits `notify('menu-model')` at the END
+of its `afterNotify`, after the slot adopted the model — C rebuilds the dropdown before it
+notifies, and left to the seam the emission would come first and a handler would read the
+PREVIOUS dropdown. It declares NO `changed` hook: C's guard is identity and the seam's default
+identity check is that guard. `Gtk.MenuButton` declares `changed: () => true` (the
+`AdwSplitButton:icon-name` spelling) and no `explicitNotify`, because nothing on the button
+repaints from the model.
+
+### A4. Consumer-visible: `menuModelChange` is gone, `notify::menu-model` is the door
+
+On both widgets. The seam no longer calls `notifyPropertyChange`, so
+`addEventListener('menuModelChange')` installs a listener that never fires; it is NOT refused,
+because `refuseDeclaredEvent` names only the spellings GObject owns — and those
+(`notify::menu-model`, `notify::menuModel`, `notify::menu_model`) ARE refused on
+`addEventListener` and on `notify({ eventName })`. `Gtk.MenuButton` additionally lost its
+hand-rolled `menuModel` / `menu_model` accessor pair; the seam installs all three spellings, and
+both widgets keep their `get_menu_model` / `set_menu_model` verbs, which route through the
+declaration and therefore notify like a write.
+
+`refuseMenuString` runs in `normalize` AHEAD of `readMenuModelWrite`, so the XML door keeps ADR
+0128's own wording instead of `readDeclaredValue`'s generic "holds an object" — safe because
+`coerceDeclared` calls `normalize` INSTEAD of `readDeclaredValue`, and necessary because a
+refusal may not live in a `notify::` handler, where an exception is swallowed.
+
+### A5. The device found a route-D hole that is older than this ADR, and it now has a leg
+
+`Gtk.MenuButton` is the FIRST declared property in the `AdwImageButton` chain, and that is why
+it was the first widget to hit this. The device run was pure-js 182/182 and real-gio 280/285:
+four cases threw `TypeError: Cannot read properties of undefined (reading 'call')` from
+`connect('notify::menu-model')` and a fifth reported that `notify({ eventName })` did not refuse.
+The split-button twin was green throughout, which is the clue — the two differ only in their
+door.
+
+**The cause.** `realize()` returns at `if (declaration.meta === undefined) return;` before route
+D, and `AdwImageButton extends withSignals(GridLayout)` passes no meta. So that door registered
+no GType and captured no gi thunks. `GtkMenuButton`'s `withProperties` declaration then set
+`routeD = true` with `routers === undefined`, which `registerRouteD` read as "the ancestor's
+thunks answer" — the invariant its own comment states — and skipped the capture, the
+no-silent-fallback throw AND `refuseDeclaredNotifyPayload` with it. `resolved.giConnect` stayed
+`undefined`; the throw that exists to forbid exactly this was on the branch that did not run.
+
+**The fix: the leaf BORROWS the verbs** (`borrowChainVerbs`). When a `withProperties`
+declaration finds no ancestor declaration holding thunks, `connect` / `disconnect` / `emit` are
+taken off whichever prototype above it owns them for the duration of `register()`, so node-gi
+installs the real thunks on the LEAF prototype; they are captured onto the leaf declaration,
+deleted off the leaf prototype again — an instance must keep reaching the router, the only thing
+that tells a declared signal from a NativeScript event — and the chain's are put back.
+`refuseDeclaredNotifyPayload` runs on this path too, over the `notify` node-gi installed. The
+thunks are reached through the instance's GType, so a subclass picks them up via `resolvedFor`.
+
+Registering the meta-less door instead was rejected: it is a mixin class with no `GTypeName`, so
+giving it one would invent a GType for every platform base in the port. The leaf already has one.
+
+**A leg, not a field report.** The hole survived because route D had no harness off a device: the
+pure-JS legs answer a declared property from the seam's own accessors and pass by construction.
+`src/menu-model-route-d.node-gi.spec.ts` + `src/test.node-gi.mts` now drive the device's own
+vectors against real GObject on a laptop, under `node --conditions=gjsify-foreign-parents` — a
+new node-gi `#host` that re-exports `host.node.js` with `FOREIGN_PARENT_CLASSES` flipped and
+nothing else (`docs/node-gi-gjs-surface.md`). The five failures reproduced there first and the
+fix turned the leg 12/12; it runs in the `gtk-host-node` job. `Adw.SplitButton` is in the file as
+the CONTROL: a leg that drove only one of the two widgets would have stayed green.
