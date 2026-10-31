@@ -581,6 +581,10 @@
       "status": "full",
       "note": "ReadableStream (incl. `type:'bytes'`), WritableStream, TransformStream, ReadableByteStreamController + `autoAllocateChunkSize`, ReadableStreamBYOBReader (`read(view, {min?})` preserves view-constructor), ReadableStreamBYOBRequest, polymorphic close/error/cancel for default + BYOB readers, byte-stream `tee()`, TextEncoderStream, TextDecoderStream, ByteLengthQueuingStrategy, CountQueuingStrategy (WHATWG Streams polyfill for GJS)."
     },
+    "@gjsify/web-worker": {
+      "status": "full",
+      "note": "WHATWG Worker over worker_threads: postMessage, terminate, onmessage/onerror/onmessageerror, ErrorEvent, and a DedicatedWorkerGlobalScope-shaped self inside the worker. Comlink works unmodified. Module scripts only; the worker file must be self-contained on GJS."
+    },
     "@gjsify/webassembly": {
       "status": "full",
       "note": "WebAssembly Promise-API polyfill \u2014 `compile`, `compileStreaming`, `instantiate`, `instantiateStreaming`, `validate` wrap SpiderMonkey's working synchronous constructors. Granular `/register/promise` subpath; auto-injected by `--globals auto` via `WebAssembly.<method>` METHOD_MARKERS."
