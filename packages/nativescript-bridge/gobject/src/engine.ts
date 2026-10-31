@@ -114,13 +114,14 @@ interface RealGObject {
     signal_stop_emission_by_name(instance: RealInstance, detailedSignal: string): void;
 }
 
-/** As much of `Gio` as this engine needs: the one interface an object property may name. */
+/** As much of `Gio` as this engine needs: the object types a property's value type may name. */
 interface RealGio {
     ListModel: unknown;
+    MenuModel: unknown;
 }
 
 /** The object value types this engine can translate, for the refusal that names them. */
-const OBJECT_TYPES = 'GObject, GListModel';
+const OBJECT_TYPES = 'GObject, GListModel, GMenuModel';
 
 /** The subset's signal parameter types in node-gi's vocabulary; the core refuses every other. */
 const SIGNAL_TYPES: Readonly<Record<string, string>> = {
@@ -188,7 +189,7 @@ export function createRealGioEngine(requireGi: RequireGi): GObjectEngine {
      */
     const OBJECTS = new WeakMap<object, Map<string, unknown>>();
 
-    /** Set once a widget declares a list-model property; see {@link realValueTypeFor}. */
+    /** Set once a widget declares a list- or menu-model property; see {@link realValueTypeFor}. */
     let Gio: RealGio | undefined;
     let registrations = 0;
 
@@ -234,6 +235,10 @@ export function createRealGioEngine(requireGi: RequireGi): GObjectEngine {
                 // Lazily: a host's `gi-runtime.json` may list GObject alone, so requiring Gio at
                 // engine construction would break every app that declares no list-model property.
                 return (Gio ??= requireGi('Gio', '2.0') as RealGio).ListModel;
+            case 'GMenuModel':
+                // `Gio.MenuModel` is a CLASS, not an interface (ADR 0128) — `g_param_spec_object`
+                // takes either, so the two arrive here the same way and only the lookup differs.
+                return (Gio ??= requireGi('Gio', '2.0') as RealGio).MenuModel;
         }
         throw new TypeError(
             `real-gio engine: no GObject type for the value type '${typeName}' of object property ` +
