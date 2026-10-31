@@ -4,6 +4,8 @@
     "version": "0.1.10",
     "type": "module",
     "private": true,
+    "license": "MIT",
+    "author": "new-gjsify-app contributors",
     "scripts": {
         "clear": "gjsify clear dist tsconfig.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
@@ -14,12 +16,14 @@
         "start:node": "gjsify run dist/index.node.mjs --runtime node",
         "start:bun": "gjsify run dist/index.node.mjs --runtime bun",
         "start:deno": "gjsify run dist/index.node.mjs --runtime deno",
-        "dev": "gjsify dev --runtime gjs"
+        "dev": "gjsify dev --runtime gjs",
+        "ship": "gjsify ship"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/oxlint-plugin-gjsify": "workspace:^",
         "@gjsify/rolldown-native": "workspace:^",
+        "@gjsify/rolldown-plugin-gjsify": "workspace:^",
         "@gjsify/vite-plugin-blueprint": "workspace:^",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
@@ -31,6 +35,11 @@
         "@girs/gtk-4.0": "5.4.0",
         "@gjsify/node-gi": "file:../../packages/node-gi/node-gi"
     },
+    "optionalDependencies": {
+        "@gjsify/node-runtime-darwin-arm64": "file:../../packages/node-runtime/node-runtime-darwin-arm64",
+        "@gjsify/node-runtime-darwin-x64": "file:../../packages/node-runtime/node-runtime-darwin-x64",
+        "@gjsify/node-runtime-win32-x64": "file:../../packages/node-runtime/node-runtime-win32-x64"
+    },
     "gjsify": {
         "main": "dist/index.gjs.js",
         "example": {
@@ -41,6 +50,18 @@
                 "deno"
             ],
             "node": "dist/index.node.mjs"
+        },
+        "ship": {
+            "appId": "org.gjsify.example",
+            "app": {
+                "darwin": "node",
+                "win32": "node"
+            },
+            "bundle": {
+                "darwin": "dist/index.node.mjs",
+                "win32": "dist/index.node.mjs"
+            },
+            "icon": "data/icons"
         }
     }
 }
