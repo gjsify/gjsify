@@ -310,10 +310,7 @@ const CODEC_CASES: { name: string; check: (codec: Codec) => void }[] = [
         check: (codec) => {
             // Without the escape wrapper the decoder reads this data as a tag
             // and hands back a Date — user data must never reach the switch.
-            const back = roundTripWith(codec, { __gjsify: 'Date', value: 0, real: true }) as Record<
-                string,
-                unknown
-            >;
+            const back = roundTripWith(codec, { __gjsify: 'Date', value: 0, real: true }) as Record<string, unknown>;
             expect(back instanceof Date).toBe(false);
             expect(back.__gjsify).toBe('Date');
             expect(back.value).toBe(0);
