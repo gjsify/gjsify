@@ -1,0 +1,80 @@
+{
+    "name": "@gjsify/vad",
+    "version": "0.64.13",
+    "description": "Voice activity detection for GJS: Silero on sherpa-onnx, reporting when speech starts and when a stretch of speech has ended after 300 ms of silence. Takes PCM from @gjsify/media-capture or any async iterable of chunks, and downloads its model on first use instead of bundling one.",
+    "type": "module",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        }
+    },
+    "files": [
+        "lib"
+    ],
+    "sideEffects": false,
+    "scripts": {
+        "clear": "gjsify clear lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test*.{mts,ts}'",
+        "build:types": "gjsify tsc",
+        "build:test": "gjsify run build:test:gjs",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs"
+    },
+    "keywords": [
+        "gjs",
+        "vad",
+        "voice-activity-detection",
+        "silero",
+        "sherpa-onnx",
+        "speech"
+    ],
+    "dependencies": {
+        "@gjsify/fetch": "workspace:^",
+        "@gjsify/sherpa-native": "workspace:^",
+        "@gjsify/utils": "workspace:^"
+    },
+    "devDependencies": {
+        "@girs/gio-2.0": "5.4.0",
+        "@girs/gjs": "5.4.0",
+        "@girs/glib-2.0": "5.4.0",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "none"
+        },
+        "os": {
+            "linux": "partial",
+            "darwin": "none",
+            "win32": "none"
+        },
+        "osNotes": {
+            "linux": "Needs the @gjsify/sherpa-native prebuild, which exists for linux-x64 only today. Without it available() answers 'unavailable' and createVad() throws with the package to install; hasVadBackend() is the quiet check.",
+            "darwin": "@gjsify/sherpa-native is not built for macOS yet, so there is no detector to drive. available() answers 'unavailable'.",
+            "win32": "@gjsify/sherpa-native is not built for Windows yet, so there is no detector to drive. available() answers 'unavailable'."
+        },
+        "tier": 3
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/web/vad"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/web/vad#readme"
+}
