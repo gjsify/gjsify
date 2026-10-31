@@ -29,6 +29,10 @@
         "./accent": {
             "types": "./lib/types/accent.d.ts",
             "default": "./lib/esm/accent.js"
+        },
+        "./css-length": {
+            "types": "./lib/types/css-length.d.ts",
+            "default": "./lib/esm/css-length.js"
         }
     },
     "files": [
