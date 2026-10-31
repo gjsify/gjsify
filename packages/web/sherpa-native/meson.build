@@ -359,8 +359,19 @@ else
     # The final link is ours, not sherpa-onnx's, so the C++ runtime choice made
     # above has to be repeated here — the CMake subproject's flags apply to its
     # own objects. See § THE LIBSTDC++ DECISION.
+    #
+    # `-static-libstdc++` alone is not enough: the CMake dependency appends a
+    # bare `-lstdc++` (CMake's implicit C++ link libraries), and `ld` resolves
+    # that to `libstdc++.so` wherever the `.so` and the `.a` share a directory —
+    # which is exactly the Fedora layout once `libstdc++-static` is installed. The
+    # result was a DT_NEEDED on libstdc++.so.6 in CI while a laptop with the
+    # archive unpacked elsewhere linked clean. A `-L` of our own cannot win: the
+    # same dependency puts the compiler's implicit directories first. These args
+    # land inside its `--start-group`, ahead of that `-lstdc++`, so naming the
+    # probed archive here resolves every C++ symbol from it, and `--as-needed`
+    # then drops the `.so`, which no longer satisfies anything.
     if have_static_libstdcxx
-        link_args += ['-static-libstdc++', '-static-libgcc']
+        link_args += [libstdcxx_a_path, '-static-libstdc++', '-static-libgcc']
     endif
 endif
 
