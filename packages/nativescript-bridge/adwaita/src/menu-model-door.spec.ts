@@ -10,8 +10,9 @@
 //     kept that door shut. That is the `bySurface` field, and reading it is the whole reason
 //     the same table can be held against two surfaces at all.
 //   * `MENU_MODEL_NOTIFY_VECTORS` — the identity guard `Adw.SplitButton` has and
-//     `Gtk.MenuButton` does not. Measured in GJS as `notify::menu-model`; here it arrives as
-//     NativeScript's `menuModelChange`, which `notifyPropertyChange` emits. Both widgets run
+//     `Gtk.MenuButton` does not. Measured in GJS as `notify::menu-model`, which is what it
+//     arrives as on the widget whose property has moved onto the seam; the other still emits
+//     NativeScript's `menuModelChange` (see {@link SUBSCRIBE}). Both widgets run
 //     every row, because a guard measured on one and applied to the other is the exact
 //     mistake the table exists to catch.
 //
@@ -40,12 +41,25 @@ const SURFACE = 'nativescript';
 /** A `menuModel` holder — both widgets the table names, and both are measured. */
 interface MenuHolder {
     menuModel: AdwMenuModel | null;
+    connect(detailedSignal: string, callback: () => void): number;
     addEventListener(eventName: string, callback: () => void): void;
 }
 
 const HOLDERS: Record<MenuModelHolder, () => MenuHolder> = {
     'Adw.SplitButton': () => new Adw.SplitButton({ label: 'Save' }) as unknown as MenuHolder,
     'Gtk.MenuButton': () => new Gtk.MenuButton() as unknown as MenuHolder,
+};
+
+/**
+ * Where a change arrives, per widget — ONE row apart for exactly as long as the migration is:
+ * `Adw.SplitButton` declares `menu-model` at the seam and so answers `notify::menu-model`, while
+ * `Gtk.MenuButton` still hand-rolls the property and emits NativeScript's `menuModelChange`
+ * through `notifyPropertyChange`. The table itself is channel-agnostic — it counts changes — so
+ * the two rows are read here and nowhere else, and this map goes when the second widget lands.
+ */
+const SUBSCRIBE: Record<MenuModelHolder, (holder: MenuHolder, seen: () => void) => void> = {
+    'Adw.SplitButton': (holder, seen) => void holder.connect('notify::menu-model', seen),
+    'Gtk.MenuButton': (holder, seen) => holder.addEventListener('menuModelChange', seen),
 };
 
 export const MenuModelDoorNsTest = async () => {
@@ -103,7 +117,7 @@ export const MenuModelDoorNsTest = async () => {
         }
     });
 
-    await describe('menuModelChange and the identity guard (ADR 0128 conformance vectors)', async () => {
+    await describe('a change and the identity guard (ADR 0128 conformance vectors)', async () => {
         for (const vector of MENU_MODEL_NOTIFY_VECTORS) {
             const label = `${vector.widget} [${vector.writes.map((w) => w ?? 'null').join(', ')}]`;
             await it(`${label}: ${vector.rule}`, () => {
@@ -117,7 +131,7 @@ export const MenuModelDoorNsTest = async () => {
                 };
 
                 let notifies = 0;
-                holder.addEventListener('menuModelChange', () => notifies++);
+                SUBSCRIBE[vector.widget](holder, () => notifies++);
 
                 const counted: number[] = [];
                 const write = (name: MenuModelWrite) => {
