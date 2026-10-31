@@ -107,6 +107,9 @@
     "@vue/compiler-sfc@^3.5.41",
     "fast-xml-parser@^5.11.2",
     "qrcode-generator@^2.0.4",
+    "@shikijs/langs@^4.5.0",
+    "@shikijs/themes@^4.5.0",
+    "shiki@^4.5.0",
     "minify-xml@^4.5.2",
     "execa@^9.6.1",
     "gettext-parser@^9.0.2",
@@ -6216,68 +6219,68 @@
       "integrity": "sha512-831qok9r2t8AlxLko40y2ebgSDhenenCatLVeW/uBtnHPyhHOvG0C7TvfgecV+wHzIm5KUICgzmVpWS+IMEAeg=="
     },
     "node_modules/@shikijs/core": {
-      "version": "4.2.0",
-      "resolved": "https://registry.npmjs.org/@shikijs/core/-/core-4.2.0.tgz",
-      "integrity": "sha512-Hc87Ab1Ld/vEbZRCbwx344I5v+4RU8CVToUTRkqXL1+TjbuOp9U5Xa0M23V4GEWHxVn+yO5otb+HkQVm3ptWQQ==",
+      "version": "4.5.0",
+      "resolved": "https://registry.npmjs.org/@shikijs/core/-/core-4.5.0.tgz",
+      "integrity": "sha512-6CIgwq+bt2JZ3OSjb/nBkkwEf/CfpHcbam+Mg5Pllco7HAGRQ2/EFhZrrJtbyNTgKwknfVS+llsXGygiDGwJWw==",
       "dependencies": {
-        "@types/hast": "^3.0.4",
-        "@shikijs/types": "4.2.0",
+        "@types/hast": "^3.0.5",
+        "@shikijs/types": "4.5.0",
         "hast-util-to-html": "^9.0.5",
-        "@shikijs/primitive": "4.2.0",
+        "@shikijs/primitive": "4.5.0",
         "@shikijs/vscode-textmate": "^10.0.2"
       }
     },
     "node_modules/@shikijs/engine-javascript": {
-      "version": "4.2.0",
-      "resolved": "https://registry.npmjs.org/@shikijs/engine-javascript/-/engine-javascript-4.2.0.tgz",
-      "integrity": "sha512-fjETeq1k5ffyXqRgS6+3hpvqseLalp1kjNfRbXpUgWR8FpZ1CmQfiNHovc5lncYjt/Vg5JK/WJEmLahjwMa0og==",
+      "version": "4.5.0",
+      "resolved": "https://registry.npmjs.org/@shikijs/engine-javascript/-/engine-javascript-4.5.0.tgz",
+      "integrity": "sha512-Ed6UdEj84LyYkwnxM5CvSMWAD+id9ExTYri0/+x41U9zrgNifPSS9lZm0JqBP0VfYI8yr8tY5nbNq9+p9R0kFA==",
       "dependencies": {
-        "@shikijs/types": "4.2.0",
+        "@shikijs/types": "4.5.0",
         "oniguruma-to-es": "^4.3.6",
         "@shikijs/vscode-textmate": "^10.0.2"
       }
     },
     "node_modules/@shikijs/engine-oniguruma": {
-      "version": "4.2.0",
-      "resolved": "https://registry.npmjs.org/@shikijs/engine-oniguruma/-/engine-oniguruma-4.2.0.tgz",
-      "integrity": "sha512-hTorK1dffPkpbMUk6Z+828PgRo7d07HbnizoP0hNPFjhxMHctj0Px/qoHeGMYafc6ju+u9iMldN4JbVzNQM++g==",
+      "version": "4.5.0",
+      "resolved": "https://registry.npmjs.org/@shikijs/engine-oniguruma/-/engine-oniguruma-4.5.0.tgz",
+      "integrity": "sha512-dKVmbJecVdB9recl8a/CU4jdpNXyjJQrIcesIkpS70s5HS02ohpnCSpMUbotPnEUzbAcLQ+S4hwZYbkBBiTcJw==",
       "dependencies": {
-        "@shikijs/types": "4.2.0",
+        "@shikijs/types": "4.5.0",
         "@shikijs/vscode-textmate": "^10.0.2"
       }
     },
     "node_modules/@shikijs/langs": {
-      "version": "4.2.0",
-      "resolved": "https://registry.npmjs.org/@shikijs/langs/-/langs-4.2.0.tgz",
-      "integrity": "sha512-bwrVRlJ0wUhZxAbVdvBbv2TTC9yLsh4C/IO5Ofz0T8MQntgDvyVnkbjw9vi50r1kx7RCIJdnJnjZAwmAsXFLZQ==",
+      "version": "4.5.0",
+      "resolved": "https://registry.npmjs.org/@shikijs/langs/-/langs-4.5.0.tgz",
+      "integrity": "sha512-wwBTqwduXSz0X4v9Qa2EWeFaYJEw1clCncWjoRNQRbVDu3SPRTRWucnouYapKj3b8Q+sk/41Vbc4B5c8nuYzLA==",
       "dependencies": {
-        "@shikijs/types": "4.2.0"
+        "@shikijs/types": "4.5.0"
       }
     },
     "node_modules/@shikijs/primitive": {
-      "version": "4.2.0",
-      "resolved": "https://registry.npmjs.org/@shikijs/primitive/-/primitive-4.2.0.tgz",
-      "integrity": "sha512-NOq+DtUkVBJtZMVXL5A0vI0Xk8nvDYaXetFHSJFlOqjDZIVhIPRYFdGkSoElDqNuegikcc3A76SNUa8dTqtAYA==",
+      "version": "4.5.0",
+      "resolved": "https://registry.npmjs.org/@shikijs/primitive/-/primitive-4.5.0.tgz",
+      "integrity": "sha512-UM7ShlA8oz0OWxLLO8BmO9Ip6fVqdkt8yF0EH7nOCqHfrx1eEAzF0ZUVK7L+I8NEgeu1PEWSRlxaiPPeCb4iDg==",
       "dependencies": {
-        "@types/hast": "^3.0.4",
-        "@shikijs/types": "4.2.0",
+        "@types/hast": "^3.0.5",
+        "@shikijs/types": "4.5.0",
         "@shikijs/vscode-textmate": "^10.0.2"
       }
     },
     "node_modules/@shikijs/themes": {
-      "version": "4.2.0",
-      "resolved": "https://registry.npmjs.org/@shikijs/themes/-/themes-4.2.0.tgz",
-      "integrity": "sha512-RX8IHYeLv8Cu2W6ruc3RxUqWn0IYCqSrMBzi/uRGAmfyDNOnNO5BF/Px7o97n4XTpmFTo5GbRaazuOWj+2ak2w==",
+      "version": "4.5.0",
+      "resolved": "https://registry.npmjs.org/@shikijs/themes/-/themes-4.5.0.tgz",
+      "integrity": "sha512-zGb87H3UBbpuI4yoh5UguB1XbU+2BDU3kflM7UfZ+Cy2hWo9lBtqjSVK20gmLY6ukYl040hAypGXMgud9vul8Q==",
       "dependencies": {
-        "@shikijs/types": "4.2.0"
+        "@shikijs/types": "4.5.0"
       }
     },
     "node_modules/@shikijs/types": {
-      "version": "4.2.0",
-      "resolved": "https://registry.npmjs.org/@shikijs/types/-/types-4.2.0.tgz",
-      "integrity": "sha512-VT/MKtlpOhEPZloSH3Pb9WCZEBDoQVMa9jedp5UAwmJOar1DVc9DRODAxmYPW9M93IK4ryuqRejFfmlvlVDemw==",
+      "version": "4.5.0",
+      "resolved": "https://registry.npmjs.org/@shikijs/types/-/types-4.5.0.tgz",
+      "integrity": "sha512-drtPrtD8N0DENyD2cyt6Ajy+IWsiCLgMxODwLTpvH1UsN6a9jf90tNTPjqwHvA+0Lzu9e0txk8DjfqH1p9UJRw==",
       "dependencies": {
-        "@types/hast": "^3.0.4",
+        "@types/hast": "^3.0.5",
         "@shikijs/vscode-textmate": "^10.0.2"
       }
     },
@@ -6716,9 +6719,9 @@
       "integrity": "sha512-fluxdy7ryD3MV6h8pTfTYpy/xQzCFC7m89nOH9y94cNqJ1mDIDPut7MnRHI3F6qRmh/cT2fUjG1MLdCNb4hE9A=="
     },
     "node_modules/@types/hast": {
-      "version": "3.0.4",
-      "resolved": "https://registry.npmjs.org/@types/hast/-/hast-3.0.4.tgz",
-      "integrity": "sha512-WPs+bbQw5aCj+x6laNGWLH3wviHtoCv/P3+otBhbOhJgG8qtpdAMlTCxLtsTWA7LH1Oh/bFCHsBn0TPS5m30EQ==",
+      "version": "3.0.5",
+      "resolved": "https://registry.npmjs.org/@types/hast/-/hast-3.0.5.tgz",
+      "integrity": "sha512-rp/ezSWaD1m44dPKICGhiskI13nVr7qTloFwDa/IYkhhf5nzwP+zIQcIJh3WIFSBOy/H1PzB40jPjMDksN4F+g==",
       "dependencies": {
         "@types/unist": "*"
       }
@@ -11147,14 +11150,14 @@
       "resolved": "https://registry.npmjs.org/hast-util-from-parse5/-/hast-util-from-parse5-8.0.3.tgz",
       "integrity": "sha512-3kxEVkEKt0zvcZ3hCRYI8rqrgwtlIOFMWkbclACvjlDw8Li9S2hk/d51OI0nr/gIpdMHNepwgOKqZ/sy0Clpyg==",
       "dependencies": {
-        "@types/hast": "^3.0.0",
-        "@types/unist": "^3.0.0",
+        "vfile": "^6.0.0",
         "devlop": "^1.0.0",
         "hastscript": "^9.0.0",
-        "property-information": "^7.0.0",
-        "vfile": "^6.0.0",
+        "@types/hast": "^3.0.0",
+        "@types/unist": "^3.0.0",
         "vfile-location": "^5.0.0",
-        "web-namespaces": "^2.0.0"
+        "web-namespaces": "^2.0.0",
+        "property-information": "^7.0.0"
       }
     },
     "node_modules/hast-util-has-property": {
@@ -11283,17 +11286,17 @@
       "resolved": "https://registry.npmjs.org/hast-util-to-html/-/hast-util-to-html-9.0.5.tgz",
       "integrity": "sha512-OguPdidb+fbHQSU4Q4ZiLKnzWo8Wwsf5bZfbvu7//a9oTYoqD/fWpe96NuHkoS9h0ccGOTe0C4NGXdtS0iObOw==",
       "dependencies": {
+        "ccount": "^2.0.0",
+        "zwitch": "^2.0.4",
         "@types/hast": "^3.0.0",
         "@types/unist": "^3.0.0",
-        "ccount": "^2.0.0",
-        "comma-separated-tokens": "^2.0.0",
-        "hast-util-whitespace": "^3.0.0",
         "html-void-elements": "^3.0.0",
         "mdast-util-to-hast": "^13.0.0",
-        "property-information": "^7.0.0",
-        "space-separated-tokens": "^2.0.0",
         "stringify-entities": "^4.0.0",
-        "zwitch": "^2.0.4"
+        "hast-util-whitespace": "^3.0.0",
+        "property-information": "^7.0.0",
+        "comma-separated-tokens": "^2.0.0",
+        "space-separated-tokens": "^2.0.0"
       }
     },
     "node_modules/hast-util-to-jsx-runtime": {
@@ -11301,21 +11304,21 @@
       "resolved": "https://registry.npmjs.org/hast-util-to-jsx-runtime/-/hast-util-to-jsx-runtime-2.3.6.tgz",
       "integrity": "sha512-zl6s8LwNyo1P9uw+XJGvZtdFF1GdAkOg8ujOw+4Pyb76874fLps4ueHXDhXWdk6YHQ6OgUtinliG7RsYvCbbBg==",
       "dependencies": {
-        "@types/estree": "^1.0.0",
-        "@types/hast": "^3.0.0",
-        "@types/unist": "^3.0.0",
-        "comma-separated-tokens": "^2.0.0",
         "devlop": "^1.0.0",
-        "estree-util-is-identifier-name": "^3.0.0",
-        "hast-util-whitespace": "^3.0.0",
-        "mdast-util-mdx-expression": "^2.0.0",
+        "@types/hast": "^3.0.0",
+        "style-to-js": "^1.0.0",
+        "@types/unist": "^3.0.0",
+        "@types/estree": "^1.0.0",
+        "vfile-message": "^4.0.0",
         "mdast-util-mdx-jsx": "^3.0.0",
+        "unist-util-position": "^5.0.0",
+        "hast-util-whitespace": "^3.0.0",
         "mdast-util-mdxjs-esm": "^2.0.0",
         "property-information": "^7.0.0",
+        "comma-separated-tokens": "^2.0.0",
         "space-separated-tokens": "^2.0.0",
-        "style-to-js": "^1.0.0",
-        "unist-util-position": "^5.0.0",
-        "vfile-message": "^4.0.0"
+        "mdast-util-mdx-expression": "^2.0.0",
+        "estree-util-is-identifier-name": "^3.0.0"
       }
     },
     "node_modules/hast-util-to-parse5": {
@@ -11365,10 +11368,10 @@
       "integrity": "sha512-g7df9rMFX/SPi34tyGCyUBREQoKkapwdY/T04Qn9TDWfHhAYt4/I0gMVirzK5wEzeUqIjEB+LXC/ypb7Aqno5w==",
       "dependencies": {
         "@types/hast": "^3.0.0",
-        "comma-separated-tokens": "^2.0.0",
-        "hast-util-parse-selector": "^4.0.0",
         "property-information": "^7.0.0",
-        "space-separated-tokens": "^2.0.0"
+        "comma-separated-tokens": "^2.0.0",
+        "space-separated-tokens": "^2.0.0",
+        "hast-util-parse-selector": "^4.0.0"
       }
     },
     "node_modules/he": {
@@ -16270,18 +16273,18 @@
       "integrity": "sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw=="
     },
     "node_modules/shiki": {
-      "version": "4.2.0",
-      "resolved": "https://registry.npmjs.org/shiki/-/shiki-4.2.0.tgz",
-      "integrity": "sha512-hjNax6o/ylDy9lefQEaSDtzaT3iVNtZ3WmpQnbuQNoG4xvnSKf2kSKbihZVO4JRG1TTMejs7CmNRYlWgAL66pQ==",
+      "version": "4.5.0",
+      "resolved": "https://registry.npmjs.org/shiki/-/shiki-4.5.0.tgz",
+      "integrity": "sha512-OcRW72ngQvc+MSVWBRIovC/BTW589iUE/Vxav7VeM4RcY9MUjqB+IR6ILG1k9nuW6LiG/nct9uma4/MBtnZbmQ==",
       "dependencies": {
-        "@types/hast": "^3.0.4",
-        "@shikijs/core": "4.2.0",
-        "@shikijs/langs": "4.2.0",
-        "@shikijs/types": "4.2.0",
-        "@shikijs/themes": "4.2.0",
+        "@types/hast": "^3.0.5",
+        "@shikijs/core": "4.5.0",
+        "@shikijs/langs": "4.5.0",
+        "@shikijs/types": "4.5.0",
+        "@shikijs/themes": "4.5.0",
         "@shikijs/vscode-textmate": "^10.0.2",
-        "@shikijs/engine-oniguruma": "4.2.0",
-        "@shikijs/engine-javascript": "4.2.0"
+        "@shikijs/engine-oniguruma": "4.5.0",
+        "@shikijs/engine-javascript": "4.5.0"
       }
     },
     "node_modules/shx": {

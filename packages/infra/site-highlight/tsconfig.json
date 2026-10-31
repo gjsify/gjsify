@@ -1,0 +1,26 @@
+{
+    "compilerOptions": {
+        "rootDir": "src",
+        "outDir": "lib",
+        "declaration": true,
+        "target": "ESNext",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "resolveJsonModule": true,
+        "types": ["node"]
+    },
+    "include": ["src/**/*"],
+    "comment": [
+        "Specs stay INCLUDED here on purpose, so `check` type-checks them; only",
+        "`tsconfig.build.json` drops them, because `files` publishes `lib/` and an",
+        "emitted spec would ship. The test entry is excluded from both: it is",
+        "compiled by the test task, which resolves `@gjsify/unit` for it.",
+        "`grammars/` sits outside `rootDir` on purpose — it is read as a JSON module, so an",
+        "unbundled `lib/index.js` resolves `../grammars/…` and a bundle inlines it; tsc keeps",
+        "the import as written and emits nothing for it."
+    ],
+    "exclude": ["src/test.mts", "src/test.gjs.mts"]
+}
