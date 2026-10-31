@@ -16,16 +16,20 @@
 // `Gtk.Image` rather than a flat button, and every click was a `tap` listener where GJS
 // spells it `connect('clicked', …)`.
 //
-// So this is now a TAPPABLE `GridLayout` with one star cell, which is the construction
-// every other button-shaped widget in this port already uses: `AdwImageButton` (a centred
-// `Image`), `AdwSplitButton` (a `Label` OR a `GtkImage` per part), `AdwButtonRow`. What it
-// costs is stated rather than hidden:
+// So this is now a TAPPABLE BIN: a `DockLayout` whose single child is stretched across the
+// button's allocation and centred in it (`./bin-layout.ts`). It was a one-star-cell
+// `GridLayout`, the construction the other button-shaped widgets here use, and that cell
+// could not centre anything inside a `width-request` — a grid freezes its track lengths
+// during `onMeasure` and a size floor is applied to the view afterwards, so Learn6502's
+// 55×55 "A" drew its glyph 79px left of the button's centre. The incident, the three
+// containers that were refused and why `Adw.Bin` keeps its grid are all in `bin-layout.ts`.
+// What the shape costs is stated rather than hidden:
 //
 //   · the platform's automatic `:highlighted` state goes with the platform `Button`, so
 //     the press-darken is wired by hand through `attachRowPressFeedback` — the same helper
 //     the activatable rows use, and the same `*:highlighted` shades;
-//   · `.adw-button`'s `color` and `font-weight` cannot reach a `GridLayout`, which has no
-//     text, so the label carries `.adw-button-label` and the theme styles that in both
+//   · `.adw-button`'s `color` and `font-weight` cannot reach a layout container, which has
+//     no text, so the label carries `.adw-button-label` and the theme styles that in both
 //     schemes — modelled on `.adw-button-content-label`, which already had to exist for
 //     exactly this reason one widget over;
 //   · `text` IS GONE. It was NativeScript's name for the label, INHERITED rather than
@@ -56,9 +60,10 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss
 // Copyright (c) The GTK Team, GNOME contributors. LGPLv2.1+.
 
-import { GridLayout, ItemSpec, Label, type View } from '@nativescript/core';
+import { DockLayout, Label, type View } from '@nativescript/core';
 
 import { labelDisplayText } from '@gjsify/adwaita-core';
+import { adoptIntoBin } from './bin-layout.js';
 import { buttonSlotAfterWrite, buttonSlotDetaches, type ButtonSlot } from './button-slot.js';
 import { builderSlotsOf } from './builder-slots.js';
 import { GtkImage } from './gtk-image.js';
@@ -79,7 +84,7 @@ export const GTK_BUTTON_IMAGE_CLASS = 'image-button';
 /** The class the button's own label carries, so the theme can give it Adwaita's type. */
 export const GTK_BUTTON_LABEL_CLASS = 'adw-button-label';
 
-export class GtkButton extends withSignals(GridLayout, {
+export class GtkButton extends withSignals(DockLayout, {
     GTypeName: 'GtkButton',
     // `G_SIGNAL_RUN_FIRST | G_SIGNAL_ACTION`, no arguments. Declared, so on Android with the real
     // engine it is a real GObject signal and `emit('clicked')` / `connect('clicked', …)` are
@@ -109,11 +114,6 @@ export class GtkButton extends withSignals(GridLayout, {
         super();
 
         this.className = classNameWith('adw-button', this._styleClasses);
-        // `star` (not `auto`) so the single cell FILLS the button — the same reason
-        // `AdwImageButton` gives: an `auto` cell shrinks to its content and pins it
-        // top-left, where a filled cell lets the content's centre alignment centre it.
-        this.addRow(new ItemSpec(1, 'star'));
-        this.addColumn(new ItemSpec(1, 'star'));
 
         // Adwaita darkens a button on press rather than showing a Material ripple, and
         // NativeScript auto-applies `:highlighted` only to `Button` — which this is no
@@ -326,8 +326,9 @@ export class GtkButton extends withSignals(GridLayout, {
      * Put `value` in the single cell under `wrote`'s slot, detaching whatever the previous
      * slot had parented.
      *
-     * The detach is the whole reason `button-slot.ts` exists: two views left in one
-     * `GridLayout` cell paint on top of each other and nothing complains.
+     * The detach is the whole reason `button-slot.ts` exists: two views left in one bin
+     * paint on top of each other and nothing complains. It is also what keeps the content
+     * the LAST child, which is the one `DockLayout` stretches.
      */
     private _fill(wrote: 'label' | 'icon' | 'child', value: unknown): void {
         const next = buttonSlotAfterWrite(wrote, value);
@@ -395,13 +396,9 @@ export class GtkButton extends withSignals(GridLayout, {
         this._content = null;
     }
 
-    /** Parent `view` in the single cell, centred, and remember it as the content. */
+    /** Parent `view` as the bin's one child, centred, and remember it as the content. */
     private _adopt<T extends View>(view: T): T {
-        view.horizontalAlignment = 'center';
-        view.verticalAlignment = 'middle';
-        GridLayout.setColumn(view, 0);
-        GridLayout.setRow(view, 0);
-        this.addChild(view);
+        adoptIntoBin(this, view);
         this._content = view;
         return view;
     }

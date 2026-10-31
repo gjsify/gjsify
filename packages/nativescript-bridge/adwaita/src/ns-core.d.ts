@@ -349,6 +349,26 @@ declare module '@nativescript/core' {
         orientation: 'horizontal' | 'vertical';
     }
 
+    /**
+     * Children docked to the four edges, the last one taking what is left —
+     * `<DockLayout>`.
+     *
+     * DECLARED FOR ITS LAST CHILD, which is the only part this port uses: with
+     * `stretchLastChild` (the platform default, `ui/layouts/dock-layout/dock-layout-common`)
+     * the last child is laid out across the container's PADDING BOX — `DockLayout.java`'s
+     * `onLayout` computes `remainingWidth = right - left - (paddingLeft + paddingRight)`
+     * from the allocation it was given and hands exactly that to `layoutChild`. That is
+     * what a GTK layout manager does with a single child, and it is the one thing a
+     * one-star-cell `GridLayout` cannot do: a grid freezes its track lengths during
+     * `onMeasure`, so a `minWidth` / `minHeight` floor — which is what the bridge makes of
+     * `width-request` / `height-request` and of the theme's `min-*` — grows the VIEW after
+     * the cells are settled and never reaches them (see `widgets/bin-layout.ts`).
+     */
+    export class DockLayout extends LayoutBase {
+        /** Whether the last child is laid out across what the others left. Default `true`. */
+        stretchLastChild: boolean;
+    }
+
     /** A row/column sizing spec for {@link GridLayout}. */
     export class ItemSpec {
         constructor(value: number, type: GridUnitType);

@@ -97,6 +97,15 @@ declare module '@nativescript/core' {
         orientation: 'horizontal' | 'vertical';
     }
 
+    /**
+     * Children docked to the four edges, the last one taking what is left — `<DockLayout>`.
+     * `@gjsify/adwaita-nativescript`'s buttons extend it; without this declaration they
+     * resolve to `any` here and stop being a `View` (no `className`, not packable).
+     */
+    export class DockLayout extends LayoutBase {
+        stretchLastChild: boolean;
+    }
+
     export class GridLayout extends LayoutBase {
         addColumn(itemSpec: ItemSpec): void;
         addRow(itemSpec: ItemSpec): void;

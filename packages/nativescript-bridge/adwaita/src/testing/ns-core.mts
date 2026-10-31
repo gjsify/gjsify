@@ -624,6 +624,17 @@ export class StackLayout extends LayoutBase {
     orientation: 'horizontal' | 'vertical' = 'vertical';
 }
 
+/**
+ * Upstream's `DockLayout`, of which only `stretchLastChild` is state a spec can read — the
+ * docking itself is `onLayout`'s arithmetic on a real allocation and happens nowhere off a
+ * device. `true` is the platform default (`ui/layouts/dock-layout/dock-layout-common`), and a
+ * double that started at `false` would let `widgets/bin-layout.ts` rely on a default it does
+ * not have.
+ */
+export class DockLayout extends LayoutBase {
+    stretchLastChild: boolean = true;
+}
+
 export type GridUnitType = 'auto' | 'star' | 'pixel';
 
 export class ItemSpec {
