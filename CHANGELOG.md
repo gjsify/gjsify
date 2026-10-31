@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.64.14](https://github.com/gjsify/gjsify/compare/v0.64.13...v0.64.14) (2026-10-31)
+
+### Features
+
+* **adwaita:** a real Gio.MenuModel at menu-model ([#2483](https://github.com/gjsify/gjsify/issues/2483)) ([faa1656](https://github.com/gjsify/gjsify/commit/faa1656ff167efab64a23d5481eecdddf6169b20))
+* **adwaita:** declare Gtk.Entry's text and length at the seam ([#2473](https://github.com/gjsify/gjsify/issues/2473)) ([7b03073](https://github.com/gjsify/gjsify/commit/7b0307380493fb1e2d1131c8610edc3741802ebc)), closes [#2469](https://github.com/gjsify/gjsify/issues/2469)
+* **cli:** add release-notes command ([#2482](https://github.com/gjsify/gjsify/issues/2482)) ([ae51b40](https://github.com/gjsify/gjsify/commit/ae51b40b44f13bf5cfeb934d037346c1ede0ce31))
+* **media-capture:** extract capture chain, add PCM source ([#2472](https://github.com/gjsify/gjsify/issues/2472)) ([1884261](https://github.com/gjsify/gjsify/commit/18842610e9cb2cd3a2cb2112b6778157d5fe7ec5))
+
+### Bug Fixes
+
+* **adwaita:** a one-child container's row, and button sizes as floors ([#2481](https://github.com/gjsify/gjsify/issues/2481)) ([eae7c08](https://github.com/gjsify/gjsify/commit/eae7c081fd3a4cf5392da0c52dd7f0dcd008ccae))
+* **adwaita:** draw Gtk.Label's 0.5 xalign default ([#2486](https://github.com/gjsify/gjsify/issues/2486)) ([c3bbd81](https://github.com/gjsify/gjsify/commit/c3bbd81ff98ef41166a2ee0065195bd95e2fc289))
+* **cli:** stage .app names as NFD for the HFS+ dmg ([#2480](https://github.com/gjsify/gjsify/issues/2480)) ([97eab19](https://github.com/gjsify/gjsify/commit/97eab19bdeaecdd879b181cfbbf89eef945a1ae6))
+* **napi:** resolve mozjs from the gjs host on darwin ([#2477](https://github.com/gjsify/gjsify/issues/2477)) ([0edd659](https://github.com/gjsify/gjsify/commit/0edd65971ab64a1d9a3a28646a3445a40b6079d9))
+* **utils:** count the nextTick drainer as pending ([#2478](https://github.com/gjsify/gjsify/issues/2478)) ([de36718](https://github.com/gjsify/gjsify/commit/de36718b1cf06bfdd747fda5cb6335e7199e832e))
+* **worker_threads:** close the structured clone gaps ([#2485](https://github.com/gjsify/gjsify/issues/2485)) ([5d567df](https://github.com/gjsify/gjsify/commit/5d567dff5ac3c8551dbf8f698995efcdc6d94578))
+
+### Performance Improvements
+
+* **adwaita:** incremental GtkBox tracks, native Android label markup ([#2474](https://github.com/gjsify/gjsify/issues/2474)) ([bdeb5e0](https://github.com/gjsify/gjsify/commit/bdeb5e01b296d24623ae82ac931739b9bdac28a6))
+
+### Documentation
+
+* spike a web Worker and Comlink on GJS ([#2479](https://github.com/gjsify/gjsify/issues/2479)) ([e0f3a2f](https://github.com/gjsify/gjsify/commit/e0f3a2f8cd4f98f7f2fa0667a2be5f5e0cb89971)), closes [#2337](https://github.com/gjsify/gjsify/issues/2337) [#2358](https://github.com/gjsify/gjsify/issues/2358) [#2338](https://github.com/gjsify/gjsify/issues/2338) [#2337](https://github.com/gjsify/gjsify/issues/2337) [#2338](https://github.com/gjsify/gjsify/issues/2338) [#2476](https://github.com/gjsify/gjsify/issues/2476) [#2358](https://github.com/gjsify/gjsify/issues/2358)
+
+### Tests
+
+* **cli:** pass real targets to the NFD seal cases ([#2484](https://github.com/gjsify/gjsify/issues/2484)) ([e1215df](https://github.com/gjsify/gjsify/commit/e1215df2e612ba5be6a4ad96ecd5916a2d7995b2)), closes [#2480](https://github.com/gjsify/gjsify/issues/2480)
+
 ## [0.64.13](https://github.com/gjsify/gjsify/compare/v0.64.12...v0.64.13) (2026-10-30)
 
 ### Features
