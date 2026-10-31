@@ -271,104 +271,289 @@ function makeSharedBuffer(native) {
   };
 }
 
-// Cross-process MessagePort support (child side).
+// Child-side MessagePort — ONE class for every port this child owns.
 //
-// When a parent's Worker.postMessage(value, [port2]) transfers a
-// MessagePort, the parent encodes the port as a placeholder
-// { __gjsifyTransferredPort: true, portId: <id> } and ships the rest of
-// the value as JSON. On this side, materialise() walks the parsed JSON
-// and substitutes each placeholder for a fresh "child-side port" — an
-// inline EventEmitter-shaped object that mirrors the worker_threads
-// MessagePort surface enough for user code (postMessage / on('message') /
-// on('close') / close()). Outbound traffic via this port travels over
-// stdout as { __msgport, op: 'send', data } JSON lines, which the parent's
-// stdout-reader routes back to the kept end via the parent-side registry.
+// A port is either linked to a peer in this process (made by the inline
+// MessageChannel below) or routed over the wire (_wireId set): a port the
+// parent transferred in, or the kept end of a channel this child sent to the
+// parent. It offers both surfaces Node's worker_threads MessagePort has — the
+// EventEmitter one (on/once/off/emit) and the DOM one (addEventListener,
+// onmessage, start/close, MessageEvent-shaped {data}). Like Node, attaching a
+// 'message' listener through either surface (or assigning onmessage) starts
+// the port; messages that arrive earlier are queued, not dropped.
 //
-// transferList chaining (port-in-port) is intentionally not supported
-// on the cross-process path in v1 — see status/open-todos/README.md.
+// Outbound wire traffic travels over stdout as { __msgport, op, data } lines,
+// which the parent's stdout reader routes back by the same id. Ids are even
+// here (2, 4, …) and odd on the parent, so the two namespaces never collide.
+//
+// Not supported: transferring a port THROUGH a port (port-in-port). It would
+// need a per-message port table on both ends of the wire; throwing a
+// DataCloneError says so loudly instead. See the step 4 notes in
+// docs/reports/2026-10-30-web-worker-and-comlink-on-gjs.md.
 const childPortRegistry = new Map();
+let nextChildPortId = 2;
+const PORT_TOKEN = {};
 
-function makeChildSidePort(portId) {
-  const listeners = new Map();
-  let closed = false;
+class MessagePort {
+  constructor(token) {
+    if (token !== PORT_TOKEN) throw new TypeError('Illegal constructor');
+    this._ee = new Map();
+    this._dom = new Map();
+    this._onmessage = null;
+    this._started = false;
+    this._closed = false;
+    this._detached = false;
+    this._queue = [];
+    this._partner = null;
+    this._wireId = 0;
+  }
 
-  function emit(ev /* , ...args */) {
-    const args = Array.prototype.slice.call(arguments, 1);
-    const fns = (listeners.get(ev) || []).slice();
+  // --- delivery -------------------------------------------------------------
+
+  /** @internal An already-decoded value arrives; queued until start(). */
+  _deliver(value) {
+    if (this._closed) return;
+    if (!this._started) { this._queue.push(value); return; }
+    this._schedule(value);
+  }
+
+  _schedule(value) {
+    Promise.resolve().then(() => {
+      if (this._closed) return;
+      this._emitEE('message', [value]);
+      this._emitDom('message', value);
+    });
+  }
+
+  /** @internal Wire delivery: the stdin dispatcher hands over the encoded payload. */
+  _receive(data) {
+    if (this._closed) return;
+    // A payload this end cannot decode becomes 'messageerror' on the port.
+    // Letting decodeWire throw here would reject a microtask, and GJS has no
+    // unhandled-rejection surface — the message would vanish.
+    let decoded;
+    try { decoded = decodeWire(data); }
+    catch (err) {
+      Promise.resolve().then(() => {
+        if (!this._closed) this._emitEE('messageerror', [err instanceof Error ? err : new Error(String(err))]);
+      });
+      return;
+    }
+    this._deliver(decoded);
+  }
+
+  /** @internal The other end closed — no echo back. */
+  _internalClose() { this._shutdown(false); }
+
+  _emitEE(ev, args) {
+    const fns = (this._ee.get(ev) || []).slice();
     for (const fn of fns) {
-      try { fn.apply(null, args); } catch (_) { /* swallow */ }
+      try { fn.apply(this, args); } catch (_) { /* swallow */ }
     }
   }
 
-  const port = {
-    _portId: portId,
-    /** @internal Wire-side delivery — called by the bootstrap stdin
-     *  dispatcher when it receives a {__msgport: portId, op: 'send'}
-     *  line. Schedules dispatch on a microtask so listeners fire after
-     *  the current call stack unwinds — matches in-process MessagePort
-     *  semantics. */
-    _receive(data) {
-      if (closed) return;
-      Promise.resolve().then(() => {
-        if (closed) return;
-        // A payload this end cannot decode becomes 'messageerror' on the port.
-        // Letting decodeWire throw here would reject this microtask, and GJS
-        // has no unhandled-rejection surface — the message would vanish.
-        let decoded;
-        try { decoded = decodeWire(data); }
-        catch (err) { emit('messageerror', err instanceof Error ? err : new Error(String(err))); return; }
-        emit('message', decoded);
-      });
-    },
-    /** @internal Called by the dispatcher when the parent sends
-     *  {__msgport: portId, op: 'close'}. Fires the local 'close' event
-     *  and stops accepting further messages. */
-    _internalClose() {
-      if (closed) return;
-      closed = true;
-      childPortRegistry.delete(portId);
-      Promise.resolve().then(() => emit('close'));
-    },
-    on(ev, fn) {
-      if (!listeners.has(ev)) listeners.set(ev, []);
-      listeners.get(ev).push(fn);
-      return port;
-    },
-    once(ev, fn) {
-      const w = function () { port.off(ev, w); fn.apply(null, arguments); };
-      return port.on(ev, w);
-    },
-    off(ev, fn) {
-      const arr = listeners.get(ev);
-      if (arr) listeners.set(ev, arr.filter(function (f) { return f !== fn; }));
-      return port;
-    },
-    addListener(ev, fn) { return port.on(ev, fn); },
-    removeListener(ev, fn) { return port.off(ev, fn); },
-    emit(ev /* , ...args */) {
-      emit.apply(null, Array.prototype.slice.call(arguments));
-      return port;
-    },
-    postMessage(data) {
-      if (closed) return;
-      send({ __msgport: portId, op: 'send', data: encodeWire(data) });
-    },
-    close() {
-      if (closed) return;
-      closed = true;
-      try { send({ __msgport: portId, op: 'close' }); } catch (_) {}
-      childPortRegistry.delete(portId);
-      Promise.resolve().then(() => emit('close'));
-    },
-    start() { /* no-op — child-side port dispatches on receive */ },
-    ref() { return port; },
-    unref() { return port; },
-    get _isCrossProcess() { return true; },
-    get constructor() { return { name: 'MessagePort' }; },
-  };
+  _emitDom(type, data) {
+    const event = { type: type, data: data, target: this, currentTarget: this, ports: [], origin: '', lastEventId: '', source: null };
+    const fns = (this._dom.get(type) || []).slice();
+    for (const fn of fns) {
+      try { if (typeof fn === 'function') fn.call(this, event); else fn.handleEvent(event); } catch (_) { /* swallow */ }
+    }
+    if (type === 'message' && typeof this._onmessage === 'function') {
+      try { this._onmessage.call(this, event); } catch (_) { /* swallow */ }
+    }
+  }
 
+  _shutdown(notifyPeer) {
+    if (this._closed) return;
+    this._closed = true;
+    const peer = this._partner;
+    this._partner = null;
+    if (this._wireId) {
+      if (notifyPeer) {
+        try { send({ __msgport: this._wireId, op: 'close' }); } catch (_) { /* parent's stdout is gone */ }
+      }
+      childPortRegistry.delete(this._wireId);
+    }
+    // A local pair closes together, each end firing its own 'close'.
+    if (peer) { peer._partner = null; peer._shutdown(false); }
+    Promise.resolve().then(() => {
+      this._emitEE('close', []);
+      this._emitDom('close', undefined);
+      this._ee.clear();
+      this._dom.clear();
+      maybeExit();
+    });
+  }
+
+  // --- the port surface -----------------------------------------------------
+
+  postMessage(data, transferList) {
+    if (this._closed) return;
+    if (transferList) {
+      for (const item of transferList) {
+        if (item instanceof MessagePort) {
+          throw __dataCloneError('Transferring a MessagePort through a MessagePort is not supported in a worker child; send it with parentPort.postMessage(value, [port]).');
+        }
+      }
+    }
+    const encoded = encodeWire(data);
+    if (this._wireId) {
+      send({ __msgport: this._wireId, op: 'send', data: encoded });
+      return;
+    }
+    const peer = this._partner;
+    if (peer) peer._deliver(decodeWire(encoded));
+  }
+
+  start() {
+    if (this._started || this._closed) return;
+    this._started = true;
+    for (const value of this._queue.splice(0)) this._schedule(value);
+  }
+
+  close() { this._shutdown(true); }
+  ref() { return this; }
+  unref() { return this; }
+
+  // --- EventEmitter surface -------------------------------------------------
+
+  on(ev, fn) {
+    if (!this._ee.has(ev)) this._ee.set(ev, []);
+    this._ee.get(ev).push(fn);
+    if (ev === 'message') this.start();
+    return this;
+  }
+  addListener(ev, fn) { return this.on(ev, fn); }
+  once(ev, fn) {
+    const self = this;
+    const wrapper = function () { self.off(ev, wrapper); return fn.apply(self, arguments); };
+    wrapper.listener = fn;
+    return this.on(ev, wrapper);
+  }
+  off(ev, fn) {
+    const arr = this._ee.get(ev);
+    if (arr) this._ee.set(ev, arr.filter(function (f) { return f !== fn && f.listener !== fn; }));
+    return this;
+  }
+  removeListener(ev, fn) { return this.off(ev, fn); }
+  removeAllListeners(ev) {
+    if (ev === undefined) this._ee.clear(); else this._ee.delete(ev);
+    return this;
+  }
+  listenerCount(ev) { return (this._ee.get(ev) || []).length; }
+  emit(ev /* , ...args */) {
+    const had = (this._ee.get(ev) || []).length > 0;
+    this._emitEE(ev, Array.prototype.slice.call(arguments, 1));
+    return had;
+  }
+
+  // --- DOM surface ----------------------------------------------------------
+
+  addEventListener(type, fn) {
+    if (!fn) return;
+    if (!this._dom.has(type)) this._dom.set(type, []);
+    const arr = this._dom.get(type);
+    if (arr.indexOf(fn) === -1) arr.push(fn);
+    if (type === 'message') this.start();
+  }
+  removeEventListener(type, fn) {
+    const arr = this._dom.get(type);
+    if (arr) this._dom.set(type, arr.filter(function (f) { return f !== fn; }));
+  }
+  get onmessage() { return this._onmessage; }
+  set onmessage(fn) {
+    this._onmessage = typeof fn === 'function' ? fn : null;
+    if (this._onmessage) this.start();
+  }
+}
+
+/** A port whose peer lives in the parent, routed by portId. */
+function makeChildSidePort(portId) {
+  const port = new MessagePort(PORT_TOKEN);
+  port._wireId = portId;
   childPortRegistry.set(portId, port);
   return port;
+}
+
+class MessageChannel {
+  constructor() {
+    const a = new MessagePort(PORT_TOKEN);
+    const b = new MessagePort(PORT_TOKEN);
+    a._partner = b;
+    b._partner = a;
+    this.port1 = a;
+    this.port2 = b;
+  }
+}
+
+// Bare gjs has neither; a bundled child's globals register only fills what is
+// still undefined, so these win there too and every child port is one class.
+if (typeof globalThis.MessageChannel === 'undefined') globalThis.MessageChannel = MessageChannel;
+if (typeof globalThis.MessagePort === 'undefined') globalThis.MessagePort = MessagePort;
+
+// parentPort.postMessage(value, [port]): turn each listed child port into a
+// wire port. The kept end (the peer) is rebound to a fresh even id and
+// registered; the transferred end is detached. Returns the value with each
+// port replaced by a placeholder plus a commit() that performs the side
+// effects — run it only after the value encoded, so a DataCloneError leaves
+// every port untouched.
+function planPortTransfer(value, transferList) {
+  const ports = [];
+  for (const item of transferList) {
+    if (!(item instanceof MessagePort)) continue;
+    if (ports.indexOf(item) !== -1) throw __dataCloneError('Transfer list contains duplicate entries');
+    if (item._closed || item._detached) throw __dataCloneError('MessagePort in transfer list is already detached');
+    if (item._wireId) throw __dataCloneError('A MessagePort that already crosses the worker boundary cannot be transferred again.');
+    ports.push(item);
+  }
+  if (ports.length === 0) return { value: value, commit: function () { return []; } };
+  const placeholders = new Map();
+  for (const port of ports) {
+    placeholders.set(port, { __gjsifyTransferredPort: true, portId: nextChildPortId });
+    nextChildPortId += 2;
+  }
+  function walk(v, seen) {
+    if (v === null || typeof v !== 'object') return v;
+    if (v instanceof MessagePort) return placeholders.has(v) ? placeholders.get(v) : v;
+    if (seen.has(v)) return seen.get(v);
+    if (Array.isArray(v)) {
+      const out = [];
+      seen.set(v, out);
+      for (let i = 0; i < v.length; i++) if (i in v) out[i] = walk(v[i], seen);
+      return out;
+    }
+    if (Object.prototype.toString.call(v) === '[object Object]') {
+      const out = {};
+      seen.set(v, out);
+      for (const k of Object.keys(v)) out[k] = walk(v[k], seen);
+      return out;
+    }
+    return v;
+  }
+  return {
+    value: walk(value, new Map()),
+    commit() {
+      const lines = [];
+      for (const port of ports) {
+        const portId = placeholders.get(port).portId;
+        const peer = port._partner;
+        port._partner = null;
+        port._detached = true;
+        port._closed = true;
+        if (peer) {
+          peer._partner = null;
+          peer._wireId = portId;
+          childPortRegistry.set(portId, peer);
+          // What the peer posted before the transfer waits in the detached
+          // port's queue; it travels right behind the carrying message.
+          for (const queued of port._queue.splice(0)) {
+            lines.push({ __msgport: portId, op: 'send', data: encodeWire(queued) });
+          }
+        }
+      }
+      return lines;
+    },
+  };
 }
 
 function isPortPlaceholder(value) {
@@ -407,7 +592,15 @@ const parentPort = {
     return this;
   },
   emit(ev, ...a) { (_listeners.get(ev) || []).forEach(fn => fn(...a)); },
-  postMessage(data) { send({ type: 'message', data: encodeWire(data) }); },
+  postMessage(data, transferList) {
+    let plan = null;
+    if (transferList && transferList.length > 0) {
+      plan = planPortTransfer(data, transferList);
+      data = plan.value;
+    }
+    send({ type: 'message', data: encodeWire(data) });
+    if (plan) for (const line of plan.commit()) send(line);
+  },
   close() { send({ type: 'exit', code: 0 }); requestShutdown(); },
   removeAllListeners(ev) {
     if (ev) _listeners.delete(ev); else _listeners.clear();
@@ -464,6 +657,13 @@ globalThis.__gjsify_worker_context = {
   // Only ever referenced inside a worker child — the main thread has no
   // worker context, so its stderr-only reporting stays untouched.
   crash,
+  // A deliberate exit code, the way \`process.exit(n)\` ends a Node worker:
+  // no \`error\`, just \`exit\` n. \`System.exit\` alone is deferred while the
+  // main loop runs, so the loop has to be asked to quit first.
+  exit(code) {
+    requestShutdown();
+    System.exit(code);
+  },
 };
 
 // Child-local timers for every spawned child.

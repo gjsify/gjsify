@@ -11,6 +11,8 @@ import orphanSuite from './worker-orphan.gjs.spec.js';
 import wireSuite from './structured-clone-wire.spec.js';
 import messageErrorsSuite from './message-errors.spec.js';
 import messageErrorsGjsSuite from './message-errors.gjs.spec.js';
+import workerPortsSuite from './worker-ports.spec.js';
+import workerPortsGjsSuite from './worker-ports.gjs.spec.js';
 run({
     testSuite,
     sabSuite,
@@ -19,4 +21,6 @@ run({
     wireSuite,
     messageErrorsSuite,
     messageErrorsGjsSuite,
+    workerPortsSuite,
+    workerPortsGjsSuite,
 });
