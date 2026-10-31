@@ -56,6 +56,7 @@ import { AdwSharedTreesNsTest } from './shared-trees.spec.js';
 import { AdwValueListsNsTest } from './value-lists.spec.js';
 import { AdwViewSwitcherStackNsTest } from './view-switcher-stack.spec.js';
 import { AdwWidgetBaseNsTest } from './widget-base.spec.js';
+import nameSelectorTestSuite from './name-selector.spec.js';
 import { AdwWidgetMapNsTest } from './widget-map.spec.js';
 import { AdwWindowRootsNsTest } from './window-roots.spec.js';
 import { AdwWindowShellNsTest } from './window-shell.spec.js';
@@ -96,6 +97,7 @@ run({
     GtkControlsNsTest,
     GtkStackNsTest,
     AdwWidgetBaseNsTest,
+    nameSelectorTestSuite,
     AdwWidgetMapNsTest,
     AdwWindowRootsNsTest,
     GtkWindowMembersNsTest,

@@ -33,6 +33,9 @@
 // limit.
 
 declare module '@nativescript/core' {
+    /** The selector helpers; only `createSelector` is read (`css-selector-source.ts`). */
+    export const CSSHelper: { createSelector(selector: string): object };
+
     /** Payload shape for NativeScript's `Observable.notify` / event listeners. */
     export interface EventData {
         eventName: string;
