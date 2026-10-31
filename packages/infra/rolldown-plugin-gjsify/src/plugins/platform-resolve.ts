@@ -41,14 +41,14 @@ import type { Plugin } from 'rolldown';
 
 export type NativescriptPlatform = 'android' | 'ios' | 'visionos';
 
-const PLATFORMS: readonly NativescriptPlatform[] = ['android', 'ios', 'visionos'];
+export const NATIVESCRIPT_PLATFORMS: readonly NativescriptPlatform[] = ['android', 'ios', 'visionos'];
 
 // JS/TS extensions a source specifier may carry. Stripped so the platform
 // suffix lands BEFORE the extension (`./foo.js` → `./foo.android`).
 const KNOWN_EXT_RE = /\.(tsx?|jsx?|mts|cts|mjs|cjs)$/;
 
 function isPlatform(value: string): value is NativescriptPlatform {
-    return (PLATFORMS as readonly string[]).includes(value);
+    return (NATIVESCRIPT_PLATFORMS as readonly string[]).includes(value);
 }
 
 /**

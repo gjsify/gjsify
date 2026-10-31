@@ -708,14 +708,23 @@ describe('gjsifyNativescript engine-first E2E', () => {
         for (const d of tmp) rmSync(d, { recursive: true, force: true });
     });
 
-    function run(files) {
+    function run(files, platform) {
         const root = mkdtempSync(join(tmpdir(), 'gjsify-engine-first-'));
         tmp.push(root);
         for (const [rel, src] of Object.entries(files)) {
             mkdirSync(join(root, rel, '..'), { recursive: true });
             writeFileSync(join(root, rel), src);
         }
-        const plugins = gjsifyNativescript();
+        const savedPlatform = process.env.NATIVESCRIPT_PLATFORM;
+        if (platform) process.env.NATIVESCRIPT_PLATFORM = platform;
+        else delete process.env.NATIVESCRIPT_PLATFORM;
+        let plugins;
+        try {
+            plugins = gjsifyNativescript();
+        } finally {
+            if (savedPlatform === undefined) delete process.env.NATIVESCRIPT_PLATFORM;
+            else process.env.NATIVESCRIPT_PLATFORM = savedPlatform;
+        }
         let code = UPSTREAM_CODE;
         for (const name of ['gjsify-nativescript-xmlns-barrels', 'gjsify-nativescript-engine-first']) {
             const plugin = plugins.find((p) => p && p.name === name);
@@ -751,6 +760,28 @@ describe('gjsifyNativescript engine-first E2E', () => {
 
     it('is a no-op for an app without an opt-in', () => {
         assert.equal(run({ 'app/app.ts': 'export {};\n' }), UPSTREAM_CODE);
+    });
+
+    // Learn6502 on iOS: the hoisted absolute import bypassed platform resolution, so the
+    // Android engine (node-gi) ran on iOS beside the `engine.ios.ts` meant to replace it.
+    const ANDROID_ENGINE =
+        "import { useRealGObjectEngine } from '@gjsify/adwaita-gobject-native';\nuseRealGObjectEngine(r);\n";
+
+    it("hoists the platform's variant of the opt-in, not the base file", () => {
+        const files = { 'app/engine.ts': ANDROID_ENGINE, 'app/engine.ios.ts': 'export {};\n' };
+        const ios = run(files, 'ios');
+        assert.ok(ios.startsWith('import "/app/engine.ios.ts";\n'), ios);
+        assert.ok(!ios.includes('"/app/engine.ts"'), `the base opt-in must not reach iOS:\n${ios}`);
+        assert.ok(run(files, 'android').startsWith('import "/app/engine.ts";\n'), 'android keeps the base');
+    });
+
+    it("drops another platform's opt-in and prefers .native over the base", () => {
+        assert.equal(run({ 'app/engine.android.ts': ANDROID_ENGINE }, 'ios'), UPSTREAM_CODE);
+        const files = { 'app/engine.ts': ANDROID_ENGINE, 'app/engine.native.ts': 'export {};\n' };
+        assert.ok(run(files, 'ios').startsWith('import "/app/engine.native.ts";\n'));
+        const android = run({ ...files, 'app/engine.android.ts': ANDROID_ENGINE }, 'android');
+        assert.ok(android.startsWith('import "/app/engine.android.ts";\n'), android);
+        assert.ok(!android.includes('engine.native.ts') && !android.includes('"/app/engine.ts"'), android);
     });
 });
 

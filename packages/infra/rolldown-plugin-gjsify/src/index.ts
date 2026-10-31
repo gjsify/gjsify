@@ -114,6 +114,7 @@ export { nodeNativeExternalPlugin, isNodeAddonPackage, packageNameOf } from './p
 export {
     platformResolvePlugin,
     nativescriptSuffixChain,
+    NATIVESCRIPT_PLATFORMS,
     desktopSuffixChain,
     browserSuffixChain,
     desktopOsSuffix,
