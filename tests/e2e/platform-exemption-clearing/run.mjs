@@ -446,7 +446,15 @@ describe('a floor declared on an `uncommitted` target', () => {
         });
         try {
             declare(f, ['glibc'], '9.99');
-            assert.equal(wanted(f).gjsify.glibcRequires['linux-x64'], '2.28');
+            // The committed manifest's floor is the oracle: manifest-conformance holds it to the committed
+            // bytes, so a rebuild moves it (the spiel rebuild that dropped `fcntl64@GLIBC_2.28` took it from
+            // 2.28 to 2.4) and this assertion follows instead of pinning a number that went stale on `main`.
+            const committed = JSON.parse(
+                readFileSync(join(MONOREPO_ROOT, 'packages', 'web', 'spiel-native-linux-x64', 'package.json'), 'utf-8'),
+            );
+            const measured = committed.gjsify.glibcRequires['linux-x64'];
+            assert.match(measured, /^\d+\.\d+$/);
+            assert.equal(wanted(f).gjsify.glibcRequires['linux-x64'], measured);
             // The wrong declaration is a generator diff, not a silent pass.
             assert.notEqual(
                 auditPlatformPackages(generatorContext(f.root)).failures.length,
