@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/site-highlight",
-    "version": "0.64.15",
+    "version": "0.64.16",
     "description": "Build-time syntax highlighting for the code blocks of a @gjsify/site blog: Shiki on the JavaScript regex engine, light and dark from CSS variables, no client JavaScript.",
     "type": "module",
     "main": "lib/index.js",

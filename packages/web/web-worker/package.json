@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/web-worker",
-    "version": "0.64.14",
+    "version": "0.64.16",
     "description": "WHATWG Worker for GJS (and Node) over worker_threads — new Worker(url), postMessage, terminate, onmessage/onerror, with a DedicatedWorkerGlobalScope-shaped scope inside the worker. Works with Comlink unmodified.",
     "type": "module",
     "module": "lib/esm/index.js",

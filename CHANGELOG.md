@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.64.16](https://github.com/gjsify/gjsify/compare/v0.64.15...v0.64.16) (2026-11-01)
+
+### Features
+
+* **bundler:** ship Worker URL targets beside the bundle ([#2508](https://github.com/gjsify/gjsify/issues/2508)) ([602c33c](https://github.com/gjsify/gjsify/commit/602c33c2457c3d244f06e64eb099544067f8a97a)), closes [#2338](https://github.com/gjsify/gjsify/issues/2338)
+* **cli:** ship several executables per package ([#2512](https://github.com/gjsify/gjsify/issues/2512)) ([58a9929](https://github.com/gjsify/gjsify/commit/58a99292b1ed65ba289afa13055beb202eee9c31))
+* **web-worker:** `WHATWG` Worker over worker_threads ([#2504](https://github.com/gjsify/gjsify/issues/2504)) ([b4d7276](https://github.com/gjsify/gjsify/commit/b4d727675ea691ea06a7acd6c4b0a59fff2b42e0)), closes [#2338](https://github.com/gjsify/gjsify/issues/2338)
+
+### Bug Fixes
+
+* **prebuilds:** commit spiel + sherpa prebuilds ([#2509](https://github.com/gjsify/gjsify/issues/2509)) ([6c95edb](https://github.com/gjsify/gjsify/commit/6c95edb2cc2d8308a052437bf8db4147af3e00f6)), closes [#2506](https://github.com/gjsify/gjsify/issues/2506) [#2507](https://github.com/gjsify/gjsify/issues/2507) [#2494](https://github.com/gjsify/gjsify/issues/2494)
+* **sherpa-native:** declare glibc floor before bytes ([#2507](https://github.com/gjsify/gjsify/issues/2507)) ([be57ffe](https://github.com/gjsify/gjsify/commit/be57ffecad009bd120d4577d80d0133f71d32637))
+* **worker_threads:** spawn the parent's own gjs ([#2510](https://github.com/gjsify/gjsify/issues/2510)) ([075c7b3](https://github.com/gjsify/gjsify/commit/075c7b36e0acba8f56b53c33b6925e842586d5a2)), closes [#2338](https://github.com/gjsify/gjsify/issues/2338)
+
+### Maintenance
+
+* clear sherpa/vad from bootstrap ledger ([#2511](https://github.com/gjsify/gjsify/issues/2511)) ([b246f64](https://github.com/gjsify/gjsify/commit/b246f64f72f3d8a48f3264638756887b889247b2))
+* update native prebuilds [skip ci] ([0b78312](https://github.com/gjsify/gjsify/commit/0b783124c42f98513aa0a0e37d267170e2399127))
+* update native prebuilds [skip ci] ([3641716](https://github.com/gjsify/gjsify/commit/3641716f21b1afefad8280cb5355cf0ac47b2fc6))
+
+### Tests
+
+* **e2e:** read the spiel glibc floor from its manifest ([#2513](https://github.com/gjsify/gjsify/issues/2513)) ([dd4f18c](https://github.com/gjsify/gjsify/commit/dd4f18c51665e8a5cb64c486b2a086347b5554a4))
+
 ## [0.64.15](https://github.com/gjsify/gjsify/compare/v0.64.14...v0.64.15) (2026-10-31)
 
 ### Features

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/vad",
-    "version": "0.64.15",
+    "version": "0.64.16",
     "description": "Voice activity detection for GJS: Silero on sherpa-onnx, reporting when speech starts and when a stretch of speech has ended after 300 ms of silence. Takes PCM from @gjsify/media-capture or any async iterable of chunks, and downloads its model on first use instead of bundling one.",
     "type": "module",
     "module": "lib/esm/index.js",

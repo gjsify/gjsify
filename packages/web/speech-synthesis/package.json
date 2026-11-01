@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/speech-synthesis",
-    "version": "0.64.15",
+    "version": "0.64.16",
     "description": "Web Speech synthesis API (speechSynthesis, SpeechSynthesisUtterance) for GJS, backed by libspiel",
     "type": "module",
     "module": "lib/esm/index.js",
