@@ -51,6 +51,11 @@ export interface LayoutIdentity {
     binaryName: string;
     /** Human-readable display name — the `<App>.app` directory a user sees in Finder. */
     name: string;
+    /**
+     * The package's further executables (`gjsify.ship.executables`), absent or empty for one.
+     * `bin/<name>` is each one's planned launcher; the layout decides where it lands.
+     */
+    executables?: readonly { name: string; gui: boolean }[];
 }
 
 /**
@@ -830,6 +835,20 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
                         }),
                     },
                 },
+                // A further executable that asked for a GUI subsystem gets the same stub
+                // under its own name, so its `.exe` finds its own `.cmd` and logs to its
+                // own leaf. The application's icon, since it is one application.
+                ...guiExecutables(input).map((executable) => ({
+                    path: windowsGuiLauncherPath({ ...input, binaryName: executable.name }),
+                    mode: 0o755,
+                    source: {
+                        kind: 'bytes' as const,
+                        data: buildGuiLauncher({
+                            logLeaf: windowsLaunchLogLeaf({ ...input, binaryName: executable.name }),
+                            ...(icon === undefined ? {} : { icon: iconResources(icon) }),
+                        }),
+                    },
+                })),
             ];
         },
         // TWO now. `wingtk/gvsbuild` still hardcodes `self.platform = "x64"` and
@@ -899,7 +918,18 @@ export function windowsGuiLauncherPath(identity: LayoutIdentity): string {
  * for an OS with no such file.
  */
 export function payloadArchExemptions(os: HostOs, identity: LayoutIdentity): ReadonlySet<string> | undefined {
-    return os === 'win32' ? new Set([windowsGuiLauncherPath(identity)]) : undefined;
+    if (os !== 'win32') return undefined;
+    return new Set([
+        windowsGuiLauncherPath(identity),
+        ...guiExecutables(identity).map((executable) =>
+            windowsGuiLauncherPath({ ...identity, binaryName: executable.name }),
+        ),
+    ]);
+}
+
+/** The further executables that want a GUI-subsystem stub. */
+function guiExecutables(identity: LayoutIdentity): readonly { name: string; gui: boolean }[] {
+    return (identity.executables ?? []).filter((executable) => executable.gui);
 }
 
 /**
@@ -1015,6 +1045,11 @@ export function assertLayoutSupportsArch(layout: Layout, arch: string): void {
 export function place(layout: Layout, identity: LayoutIdentity, rel: string): string {
     const dirs = layout.dirs(identity);
     if (rel === `bin/${identity.binaryName}`) return launcherPath(layout, identity);
+    // A further executable's launcher is placed exactly like the primary one — in the
+    // launcher directory, with the layout's extension — and not by the generic `bin/*` rule
+    // below, which has no extension: a windows `<name>` without `.cmd` is not runnable.
+    const further = identity.executables?.find((executable) => rel === `bin/${executable.name}`);
+    if (further !== undefined) return launcherPath(layout, { ...identity, binaryName: further.name });
 
     const libPrefix = `lib/${identity.binaryName}/`;
     const giPrefix = `${libPrefix}gi/`;

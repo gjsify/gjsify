@@ -389,6 +389,35 @@ on the signing host (ADR 0024 § A12 records what is measured about that and wha
 documented behaviour). That is what lets an external developer ship under their own Developer ID
 with no fork and no fixture.
 
+## More than one executable per package (`gjsify.ship.executables`)
+
+```json
+{ "gjsify": { "main": "dist/app.mjs",
+    "ship": { "executables": [{ "name": "hello-bridge", "entry": "dist/bridge.mjs", "gui": false }] } } }
+```
+
+Each entry is a further LAUNCHER over the ONE bundle directory `gjsify.main` lives in: `entry` must be
+inside that directory (only it is staged), `name` is lower-case (`[a-z0-9][a-z0-9._+-]*`), unique and
+not the `binaryName`, unknown keys are refused. No key = one executable, as before. The stage
+manifest records `{name, gui}` per entry (optional on read, no schema bump).
+
+|linux (deb, rpm, AppImage) |`bin/<name>` beside the primary one; the packers already carry all of `bin/`
+|flatpak |no manifest change: `/app/bin/<name>`, reached with `flatpak run --command=<name> <app-id>`
+|macOS |`Contents/MacOS/<name>`; the primary stays `CFBundleExecutable`. **UNVERIFIED on a Mac**: that
+`codesign` seals the second script launcher; the macOS CI job is the cover
+|windows (dir, zip, msi) |`<name>.cmd` in the program directory. With `gui: true` also a GUI-subsystem
+`<name>.exe` stub (own `<name>.launch.log`, arch-exempt like the primary's). A non-gui entry gets the
+`.cmd` ONLY: there is no console-subsystem stub, so a double-click needs `gui: true`
+
+## MSI: "add to PATH" is an opt-in feature
+
+The `.msi` carries a second feature, `AddToPath`, that appends the install directory to the MACHINE
+`PATH` (`Environment`, `Permanent="no"`, so uninstall removes it). It is OFF by default (feature level
+2 against install level 1). Silent opt-in: `msiexec /i app.msi ADDTOPATH=1` or
+`ADDLOCAL=Main,AddToPath`. There is NO interactive checkbox: the MSI has no UI sequence, and `wixl`
+ships no feature-selection dialog. Verified with `wixl` + `msiinfo` (Environment, Condition and Feature
+tables); NOT verified: a WiX v3 compile, and a run of `msiexec` on Windows.
+
 ## The layout axis: a format wraps ONE OS's tree
 
 `gjsify ship <os>` (ADR 0024 § A2) chooses which operating system's LAYOUT to assemble;
@@ -994,6 +1023,15 @@ for ad-hoc, which has no team for the loader to match
 a ticket — `canCarryTicket` in `formats.ts`. The `.dmg` can; the `.zip` cannot, and Apple's own
 remedy (staple the items that went into the archive, then re-create it) is printed instead of a
 claim
+|**the `.app` is notarised and stapled BEFORE the image is built from it** (#162). A ticket stapled
+only to the `.dmg` stays behind when the user drags the `.app` out, which then asks Gatekeeper over
+the network on every first launch. The order is `stapler(1)`'s: sign bundle → notarise a zip of it →
+`stapler staple` the `.app` on disk → `hdiutil` → sign image → notarise image → staple image.
+Stapling does not invalidate the bundle's signature and nothing signs the bundle afterwards.
+`stapleBundleBeforeImage` (`dmg.ts`) owns the middle three as injected steps, so the ORDER is
+unit-tested off macOS. Only `macos-app-dmg` changes; `macos-app` (a directory, never notarised) and
+`macos-app-zip` (cannot carry a ticket) are as before. **UNVERIFIED on a Mac**: the real
+`notarytool` / `stapler` run; the macOS CI job is the only cover
 |the `.dmg` CONTAINER is signed with `codesign --force --sign <id>` (`--timestamp` on a named
 identity), after `hdiutil` and before `notarytool`, because a stapled ticket does not survive a
 later `codesign`. Without it the image is notarised and stapled and `spctl -a -t open` still rejects

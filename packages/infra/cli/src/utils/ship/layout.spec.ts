@@ -21,6 +21,7 @@ import {
     layoutForOs,
     nameFormBelowRoot,
     place,
+    payloadArchExemptions,
     placeStage,
     resolveLayout,
     HICOLOR_RASTER_SIZES,
@@ -351,6 +352,34 @@ export default async () => {
             expect(layoutForOs('win32')).toBe(LAYOUTS.windows);
             expect(() => layoutForOs('windows')).toThrow('process.platform');
             expect(() => layoutForOs('darwin')).not.toThrow();
+        });
+    });
+    await describe('further executables', async () => {
+        const ID = {
+            ...IDENTITY,
+            executables: [
+                { name: 'hello-bridge', gui: false },
+                { name: 'hello-ui', gui: true },
+            ],
+        };
+
+        await it('places bin/<name> like the primary launcher on every OS', () => {
+            expect(place(LAYOUTS.linux, ID, 'bin/hello-bridge')).toBe('bin/hello-bridge');
+            expect(place(LAYOUTS.windows, ID, 'bin/hello-bridge')).toBe('hello-bridge.cmd');
+            expect(place(LAYOUTS.darwin, ID, 'bin/hello-bridge')).toBe(
+                `${ID.name}.app/Contents/MacOS/hello-bridge`,
+            );
+        });
+
+        await it('windows: a GUI executable gets its own .exe stub, exempt from the arch check', () => {
+            const staged = placeStage(LAYOUTS.windows, ID, []);
+            const paths = staged.map((f) => f.path);
+            expect(paths.includes('hello-ui.exe')).toBe(true);
+            // Non-gui: .cmd only, there is no console-subsystem stub.
+            expect(paths.includes('hello-bridge.exe')).toBe(false);
+            const exempt = payloadArchExemptions('win32', ID) ?? new Set<string>();
+            expect(exempt.has('hello-ui.exe')).toBe(true);
+            expect(exempt.has('hello.exe')).toBe(true);
         });
     });
 };

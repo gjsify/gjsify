@@ -436,6 +436,26 @@ export interface PackSettings {
     minNodeVersion: string;
     /** The Flatpak manifest's non-payload half, fully defaulted at stage time. */
     flatpak: ShipFlatpakSettings;
+    /**
+     * The package's FURTHER executables (`gjsify.ship.executables`); `[]` for a single-executable
+     * package. Name and subsystem only: the entry each one runs is already inside its staged
+     * launcher, and the packing host needs the names for the Windows arch exemption.
+     */
+    executables: ShipExecutableFacts[];
+}
+
+/** What the packing host needs to know about one further executable. */
+export interface ShipExecutableFacts {
+    /** The command name — `bin/<name>`, `Contents/MacOS/<name>`, `<name>.cmd`. */
+    name: string;
+    /** Whether the windows layout stages a GUI-subsystem `<name>.exe` for it. */
+    gui: boolean;
+}
+
+/** One further executable, as resolved from `gjsify.ship.executables`. */
+export interface ShipExecutable extends ShipExecutableFacts {
+    /** Its entry inside {@link ShipSettings.bundleDir}, POSIX-separated. */
+    entry: string;
 }
 
 /**
@@ -531,6 +551,8 @@ export interface ShipSettings extends PackSettings {
     extraFiles: Record<string, string>;
     /** Arguments appended to the launcher's `exec` line. */
     execArgs: string[];
+    /** The further executables with their entries; narrows {@link PackSettings.executables}. */
+    executables: ShipExecutable[];
     /** Output root; `stage/`, `overlay/` and `out/` hang under it. */
     outDir: string;
     /** Target architecture in `process.arch` spelling. */
