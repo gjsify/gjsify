@@ -203,7 +203,9 @@ describe('CLI ship Windows installer E2E', { timeout: 10 * 60 * 1000 }, () => {
         const components = table(msi, 'Component');
         const onDisk = listFiles(programDir);
         assert.equal(files.length, onDisk.length);
-        assert.equal(components.length, onDisk.length);
+        // The opt-in "add to PATH" component carries an Environment row, not a file.
+        const fileComponents = components.filter((row) => row[0] !== 'AddToPathComponent');
+        assert.equal(fileComponents.length, onDisk.length);
         // Reference counting keys on the component id, so a shared GUID makes one
         // uninstall strand another product's files.
         const guids = new Set(components.map((row) => row[1]));
