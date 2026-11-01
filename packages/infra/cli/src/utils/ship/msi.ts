@@ -465,6 +465,12 @@ export function renderWxs(input: WxsInput): string {
         // behind empty by an uninstall.
         `                <Directory Id="INSTALLDIR" Name="${xmlEscape(programDirName)}">`,
         ...lines,
+        `                    <Component Id="AddToPathComponent" Guid="${msiComponentGuid(settings, ':path')}" ` +
+            `Win64="${win64 ? 'yes' : 'no'}">`,
+        '                        <CreateFolder />',
+        '                        <Environment Id="GjsifyPath" Name="PATH" Action="set" Part="last" System="yes" ' +
+            'Permanent="no" Value="[INSTALLDIR]" />',
+        '                    </Component>',
         '                </Directory>',
         '            </Directory>',
         // Declared and left empty: the shortcut reaches it by `Directory=`, so this
@@ -474,6 +480,15 @@ export function renderWxs(input: WxsInput): string {
         '        </Directory>',
         `        <Feature Id="Main" Title="${xmlEscape(settings.name)}" Level="1">`,
         ...componentIds.map((id) => `            <ComponentRef Id="${id}" />`),
+        '        </Feature>',
+        // OPTIONAL and OFF by default (Level 2 is above the default install level of 1):
+        // appending the install directory to the MACHINE `PATH` changes every
+        // program on the box, so a user asks for it. Silent opt-in:
+        // `msiexec /i app.msi ADDTOPATH=1` or `ADDLOCAL=Main,AddToPath`. The
+        // `Environment` row is removed again on uninstall (`Permanent="no"`).
+        `        <Feature Id="AddToPath" Title="Add ${xmlEscape(settings.name)} to PATH" Level="2">`,
+        '            <ComponentRef Id="AddToPathComponent" />',
+        '            <Condition Level="1">ADDTOPATH=1</Condition>',
         '        </Feature>',
         '    </Product>',
         '</Wix>',

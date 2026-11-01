@@ -686,6 +686,15 @@ export interface ConfigDataShip extends AppMetadata {
     /** Arguments the launcher appends before the user's own. */
     execArgs?: string[];
     /**
+     * Further executables of the SAME package, beside the primary one `gjsify.main` names.
+     *
+     * Each is one more launcher over the one shared bundle directory: the primary stays
+     * `bin/<binaryName>` (and `CFBundleExecutable` on macOS), these are `bin/<name>`.
+     * Absent means one executable, which is what every package shipped before this key.
+     * See `docs/ship-formats.md` for what each format does with them.
+     */
+    executables?: ShipExecutableOptions[];
+    /**
      * How `--target flatpak` builds the app: the runtime it links against and
      * what the finished app is allowed to do.
      *
@@ -701,6 +710,23 @@ export interface ConfigDataShip extends AppMetadata {
      * is the default path and a legitimate output (ADR 0024 § A13).
      */
     sign?: ShipSignOptions;
+}
+
+/** One entry of `gjsify.ship.executables`. */
+export interface ShipExecutableOptions {
+    /**
+     * The command name — `bin/<name>`, `Contents/MacOS/<name>`, `<name>.cmd`. Lower-case
+     * `[a-z0-9][a-z0-9._+-]*`, unique, and not the package's own `binaryName`.
+     */
+    name: string;
+    /** The built entry, project-relative, inside the directory `gjsify.main` lives in. */
+    entry: string;
+    /**
+     * Windows only: also stage a GUI-subsystem `<name>.exe` beside the `<name>.cmd`, so a
+     * double-click or shortcut opens no console window. Default `false` — a command-line
+     * tool wants the console.
+     */
+    gui?: boolean;
 }
 
 /**

@@ -289,3 +289,32 @@ export async function signDmgImage(input: DmgSignInput & { verbose: boolean; wor
         throw new Error(`gjsify ship: ${DMG_SIGN_TOOL} failed on the image with ${describeExit(result)}.`);
     }
 }
+
+export interface BundleTicketSteps {
+    /** Write the archive `notarytool` submits (it takes no directory). */
+    writeArchive: () => void;
+    /** Submit the archive and wait for the verdict. */
+    notarize: () => Promise<void>;
+    /** Attach the ticket to the bundle ON DISK, the one the image is built from. */
+    staple: () => Promise<void>;
+}
+
+/**
+ * Notarise and staple the `.app` BEFORE the image is built from it (#162).
+ *
+ * Notarising only the `.dmg` clears the image and, online, the app inside it —
+ * but the ticket is stapled to the container, so an `.app` dragged out of the
+ * volume carries none and asks Gatekeeper over the network on every first launch.
+ * Apple's rule for the order (`stapler(1)`): staple after signing and notarising,
+ * and never `codesign` afterwards — stapling does not invalidate the signature,
+ * re-signing does invalidate the ticket. So the sequence is fixed:
+ * sign bundle → notarise bundle → staple bundle → build image → sign image →
+ * notarise image → staple image. This function owns the middle three and is a
+ * sequence of injected steps so the ORDER is unit-testable off macOS, where none
+ * of the tools run.
+ */
+export async function stapleBundleBeforeImage(steps: BundleTicketSteps): Promise<void> {
+    steps.writeArchive();
+    await steps.notarize();
+    await steps.staple();
+}

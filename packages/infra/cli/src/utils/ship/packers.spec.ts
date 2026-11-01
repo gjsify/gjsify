@@ -66,6 +66,7 @@ function settings(overrides: Partial<ShipSettings> = {}): ShipSettings {
         fontFiles: [],
         extraFiles: {},
         execArgs: [],
+        executables: [],
         outDir: 'ship',
         arch: 'x64',
         app: 'gjs' as const,
