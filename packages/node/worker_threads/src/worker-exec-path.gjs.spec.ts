@@ -11,6 +11,8 @@ import GLib from "@girs/glib-2.0";
 
 export default async () => {
   await on("Gjs", async () => {
+    // The probe is procfs; macOS (also in CI) has none.
+    if (!GLib.file_test("/proc/self/exe", GLib.FileTest.EXISTS)) return;
     await describe("Worker — spawns the parent’s own gjs", async () => {
       await it("runs under the same executable as the parent", async () => {
         const parentExe = GLib.file_read_link("/proc/self/exe");
