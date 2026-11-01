@@ -366,9 +366,7 @@ export default async () => {
         await it('places bin/<name> like the primary launcher on every OS', () => {
             expect(place(LAYOUTS.linux, ID, 'bin/hello-bridge')).toBe('bin/hello-bridge');
             expect(place(LAYOUTS.windows, ID, 'bin/hello-bridge')).toBe('hello-bridge.cmd');
-            expect(place(LAYOUTS.darwin, ID, 'bin/hello-bridge')).toBe(
-                `${ID.name}.app/Contents/MacOS/hello-bridge`,
-            );
+            expect(place(LAYOUTS.darwin, ID, 'bin/hello-bridge')).toBe(`${ID.name}.app/Contents/MacOS/hello-bridge`);
         });
 
         await it('windows: a GUI executable gets its own .exe stub, exempt from the arch check', () => {

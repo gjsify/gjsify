@@ -99,7 +99,10 @@ export default async () => {
             const exes = [{ name: 'hello-bridge', entry: 'bridge.mjs', gui: false }];
             const files = planStage(
                 settings({ executables: exes }),
-                inputs({ bundleFiles: ['gjs.js', 'bridge.mjs'], executableLaunchers: { 'hello-bridge': '#!/bin/sh\nB\n' } }),
+                inputs({
+                    bundleFiles: ['gjs.js', 'bridge.mjs'],
+                    executableLaunchers: { 'hello-bridge': '#!/bin/sh\nB\n' },
+                }),
             );
             const bridge = files.find((file) => file.path === 'bin/hello-bridge');
             expect(bridge?.mode).toBe(0o755);

@@ -418,7 +418,7 @@ export default async () => {
             return '';
         };
 
-        await it('is empty without a declaration (today\'s behaviour)', () => {
+        await it("is empty without a declaration (today's behaviour)", () => {
             expect(resolveShipExecutables({ ...base, declared: undefined })).toStrictEqual([]);
         });
 
