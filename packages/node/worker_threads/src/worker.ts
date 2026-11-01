@@ -33,6 +33,7 @@ import { fdChannel } from '@gjsify/sab-native';
 // The SUBPATH import, not the `@gjsify/utils` barrel: the barrel is gjs-only
 // by declaration (ADR 0014) and @gjsify/unit shows the established precedent —
 // its own import of this pair runs the same single-file, Node-safe surface.
+import { hostExecPath } from '@gjsify/utils/core';
 import { acquireMainLoop, releaseMainLoop } from '@gjsify/utils/main-loop';
 import { extractSharedBuffers } from './sab-transfer.js';
 import { createErrorByName, encode as encodeWire, decode as decodeWire } from './structured-clone-wire.js';
@@ -148,14 +149,10 @@ export class Worker extends EventEmitter {
 
         // Spawn the SAME gjs binary as the parent (issue #2338.3): never
         // rely on PATH, which may resolve a different GJS (or none, e.g.
-        // inside an AppImage/Flatpak).
-        let gjsBin = 'gjs';
-        try {
-            const exe = GLib.file_read_link('/proc/self/exe');
-            if (exe) gjsBin = exe;
-        } catch {
-            /* fall back to PATH lookup */
-        }
+        // inside an AppImage/Flatpak). `hostExecPath()` is `/proc/self/exe`
+        // first, then a PATH lookup of the program name where procfs is absent
+        // (macOS); plain `gjs` is only the last resort.
+        const gjsBin = hostExecPath() ?? 'gjs';
         try {
             this._subprocess = launcher.spawnv([gjsBin, '-m', bootstrapPath]);
         } catch (err) {
