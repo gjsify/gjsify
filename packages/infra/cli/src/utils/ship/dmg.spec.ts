@@ -46,6 +46,7 @@ import {
     dmgVolumeDir,
     dmgVolumeName,
     hdiutilCreateArgs,
+    stapleBundleBeforeImage,
 } from './dmg.js';
 import { LAYOUTS } from './layout.js';
 import { SCHEMA_COMPILER } from './schemas.js';
@@ -400,6 +401,35 @@ export default async () => {
 
         await it('passes when hdiutil is present', async () => {
             assertToolsInstalled(FORMATS['macos-app-dmg'], (cmd) => cmd === DMG_TOOL);
+        });
+    });
+    await describe('stapleBundleBeforeImage', async () => {
+        await it('writes the archive, notarises, then staples — in that order', async () => {
+            const calls: string[] = [];
+            await stapleBundleBeforeImage({
+                writeArchive: () => void calls.push('archive'),
+                notarize: async () => void calls.push('notarize'),
+                staple: async () => void calls.push('staple'),
+            });
+            expect(calls).toStrictEqual(['archive', 'notarize', 'staple']);
+        });
+
+        await it('does not staple a bundle whose notarisation failed', async () => {
+            const calls: string[] = [];
+            let message = '';
+            try {
+                await stapleBundleBeforeImage({
+                    writeArchive: () => void calls.push('archive'),
+                    notarize: async () => {
+                        throw new Error('rejected');
+                    },
+                    staple: async () => void calls.push('staple'),
+                });
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message).toBe('rejected');
+            expect(calls).toStrictEqual(['archive']);
         });
     });
 };
