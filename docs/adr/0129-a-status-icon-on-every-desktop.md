@@ -1,6 +1,6 @@
 # 129. A status icon on every desktop; running in the background stays with GIO and the portal
 
-- Status: **Proposed** (draft, 2026-11-02); the consumer and its need are named in Context
+- Status: **Accepted** (2026-11-02); the consumer and its need are named in Context
 - Date: 2026-11-02
 - Deciders: Pascal Garber
 - Depends on: [ADR 0101 (portals are the platform seam below the GTK API)](0101-portals-are-the-platform-seam-below-the-gtk-api.md)
