@@ -10,10 +10,10 @@
 
 /**
  * Default GNOME-Platform runtime version. Bumped per release window.
- * GNOME 50 = April 2026 stable; tracked in
+ * GNOME 51 = September 2026 stable (on Freedesktop 26.08); tracked in
  * https://docs.flathub.org/docs/for-app-authors/requirements.
  */
-export const DEFAULT_GNOME_RUNTIME_VERSION = '50';
+export const DEFAULT_GNOME_RUNTIME_VERSION = '51';
 
 /** Default Freedesktop-Platform runtime version (LTS-ish). */
 export const DEFAULT_FREEDESKTOP_RUNTIME_VERSION = '24.08';

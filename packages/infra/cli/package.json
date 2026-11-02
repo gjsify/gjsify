@@ -18,7 +18,7 @@
             "kind": "cli",
             "name": "gjsify",
             "runtime": "gnome",
-            "runtimeVersion": "50",
+            "runtimeVersion": "51",
             "sdkExtensions": [
                 "org.freedesktop.Sdk.Extension.node24"
             ],
