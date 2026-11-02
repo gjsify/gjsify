@@ -564,17 +564,27 @@ export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plu
     // `@gjsify/<X>` target. Generated from `ALIASES_NODE_FOR_NATIVESCRIPT` so
     // the single source-of-truth in `@gjsify/resolve-npm` drives every build,
     // matching the Rolldown-side `app/nativescript.ts` composition.
+    // Target platform from the env NS' CLI sets when it spawns the bundler
+    // (else `undefined` → `.native`-only resolution + neutral defines).
+    const platform = detectNativescriptPlatform();
+
     const nodePrefixAliases: Record<string, string> = {};
     for (const [bare, target] of Object.entries(ALIASES_NODE_FOR_NATIVESCRIPT)) {
         nodePrefixAliases[bare] = target;
         nodePrefixAliases[`node:${bare}`] = target;
     }
+    // `gettext` is curated for Android (`@gjsify/node-gi/gettext`, real GLib gettext via
+    // node-gi), but node-gi has no iOS/visionOS payload and its index.js loads
+    // `libnode_gi.so` at MODULE EVAL — before any call, so merely bundling the real
+    // answer crashes every non-Android NS app at import time. Same override + same reason
+    // as the Rolldown-side `app/nativescript.ts` composition; an undetected platform gets
+    // the safe default too.
+    if (platform !== 'android') {
+        nodePrefixAliases.gettext = '@gjsify/native-platform/gettext-fallback';
+        nodePrefixAliases['node:gettext'] = '@gjsify/native-platform/gettext-fallback';
+    }
 
     const optimizeDepsExclude = ['@gjsify/unit', ...(options.optimizeDepsExclude ?? [])];
-
-    // Target platform from the env NS' CLI sets when it spawns the bundler
-    // (else `undefined` → `.native`-only resolution + neutral defines).
-    const platform = detectNativescriptPlatform();
 
     const configPlugin: Plugin = {
         name: 'gjsify-nativescript-config',
