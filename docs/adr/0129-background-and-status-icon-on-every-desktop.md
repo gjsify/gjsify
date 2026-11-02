@@ -132,8 +132,26 @@ The driver reads that property, watches the signals, and drives `available` from
 session where support arrives only via the AppIndicator extension (which describes itself as
 adding "AppIndicator, KStatusNotifierItem and legacy Tray icons support to the Shell",
 <https://extensions.gnome.org/extension/615/appindicator-support/>) is not a special case in our
-code at all: the host is there or it is not, and `available` says which. Background status on such
-a session still works, through `SetStatus` and the Monitor above.
+code at all: the host is there or it is not, and `available` says which.
+
+**GNOME's "Background Apps" list is a Flatpak feature.** The list in the quick settings (what a
+user sees for Errands) is the Monitor above: `instance` is a Flatpak instance, and the portal
+maintainers state that unsandboxed apps are not listed, because outside a sandbox there is no
+"application" to map a process to
+([xdg-desktop-portal#899](https://github.com/flatpak/xdg-desktop-portal/issues/899)). So the
+sessions are not equal, and the API says so instead of hiding it:
+
+| Distribution | Listed in GNOME's Background Apps | Status icon on GNOME |
+|---|---|---|
+| Flatpak | yes, with the `SetStatus` line, while it runs without a window | only with the AppIndicator extension |
+| deb / rpm | no | only with the AppIndicator extension |
+
+For a Flatpak, `request()` plus `setStatus()` IS the native GNOME answer and needs no icon at all;
+`StatusIcon` is the answer for KDE, XFCE and everything with a host, and for unsandboxed GNOME
+users with the extension. An app on GNOME therefore reads `StatusIcon.available` AND whether it
+runs in a sandbox before deciding where its "show window" affordance lives. How the entry is
+dismissed from the shell (the ✕ in the list) is not covered here and is UNVERIFIED; the app must
+treat it as a quit request.
 
 **Fit with ADR 0101.** Background is a portal, so it goes behind the `@gjsify/xdp` seam ADR 0101
 describes, and `@gjsify/background` is a consumer of it. StatusNotifierItem is NOT a portal — it
@@ -322,8 +340,9 @@ the native work then implements a proven interface instead of defining one.
 - A hand-written `com.canonical.dbusmenu` exporter becomes ours to maintain, because GLib's menu
   exporter speaks a private protocol no SNI host reads.
 - On GNOME without the AppIndicator extension there is no icon, and the ADR does not pretend
-  otherwise: the background session still works and the user manages it where GNOME already puts
-  background apps.
+  otherwise. A Flatpak is still managed where GNOME already puts background apps; a deb/rpm
+  install is not listed there and has no shell-side presence at all, so its window must stay
+  reachable some other way (relaunching the app, the activation path).
 
 ## Open questions
 
