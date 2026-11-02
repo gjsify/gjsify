@@ -1,7 +1,6 @@
 # 129. A status icon on every desktop; running in the background stays with GIO and the portal
 
-- Status: **Proposed** (draft, 2026-11-02) — not to be accepted before an app needs it (see
-  Context)
+- Status: **Proposed** (draft, 2026-11-02); the consumer and its need are named in Context
 - Date: 2026-11-02
 - Deciders: Pascal Garber
 - Depends on: [ADR 0101 (portals are the platform seam below the GTK API)](0101-portals-are-the-platform-seam-below-the-gtk-api.md)
@@ -44,13 +43,15 @@ An earlier draft of this ADR invented a `BackgroundSession` for (1). That contra
 has a portal and a libportal API, so app code calls `Xdp`, and other platforms get a driver below
 it. This version keeps (1) where ADR 0101 puts it and decides only (2).
 
-**The need is not established yet.** The triggering app, Beifahrer
-(<https://github.com/JumpLink/beifahrer>), has a window for setup and a bridge that its coding
-agent starts as a subprocess; nothing in it has to outlive its window today. ADR 0101 adds a portal
-row "when a GTK/GIO API an app already calls needs it, not before", and the same discipline applies
-to a new package with two native build axes. This ADR therefore records the design and the
-measured facts so the work starts from them, and stays Proposed until an app has a concrete
-reason to run windowless.
+**The consumer.** Beifahrer (<https://github.com/JumpLink/beifahrer>) has a window for
+beginners and a bridge that the coding agent starts as a subprocess over stdio. Its owner decided
+on 2026-11-02 that the window stays in the background and shows whether agent and browser are
+connected; the bridge stays with the agent, the window hosts nothing
+([Beifahrer ADR 0024](https://github.com/JumpLink/beifahrer/blob/main/docs/adr/0024-the-window-stays-in-the-background.md)).
+It needs `hold()` and `Xdp.Portal.request_background` first (no gjsify code on GJS/Linux), then a
+status icon with a two-entry menu and a tooltip that changes with the state. ADR 0101 adds a
+portal row "when a GTK/GIO API an app already calls needs it, not before"; the Background row is
+added when Beifahrer's first call lands.
 
 ## Decision
 
@@ -240,7 +241,7 @@ succeeds and the resources are released**; anything beyond is a manual check on 
 Privacy: the package opens no socket other than the session bus, sends nothing anywhere, and a
 review that finds otherwise treats it as a defect.
 
-### 8. Order, once an app needs it
+### 8. Order
 
 Linux first: it needs no native code, so it validates the API against real desktops at the lowest
 build cost, and the native drivers then implement a proven interface.
@@ -280,4 +281,4 @@ build cost, and the native drivers then implement a proven interface.
    It decides whether a left click can do anything but open the menu on GNOME.
 4. **Whether node-gi can host a thread-owning addon** (§ 5).
 5. **Whether ADR 0022's CFRunLoop bridge is reusable as code** (§ 4).
-6. **Which app needs this, and for what.** Until that is answered, the ADR stays Proposed.
+6. **A second consumer.** ADR 0003's promotion gate needs one; Beifahrer is the first.
