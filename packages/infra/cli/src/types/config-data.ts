@@ -931,8 +931,8 @@ export interface ConfigDataFlatpak extends AppMetadata {
     lockfile?: string;
     /**
      * GitHub-Actions container image override for `gjsify flatpak ci`. Default is
-     * derived from runtime + runtimeVersion, e.g. gnome+50 →
-     * `ghcr.io/flathub-infra/flatpak-github-actions:gnome-50`.
+     * derived from runtime + runtimeVersion, e.g. gnome+51 →
+     * `ghcr.io/flathub-infra/flatpak-github-actions:gnome-51`.
      */
     ciContainer?: string;
     /** Branches the generated workflow triggers on. Default `['main']`. */

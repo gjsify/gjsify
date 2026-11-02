@@ -90,7 +90,7 @@ export type FormatId =
  * instead of being rediscovered per call site. A `.deb` says
  * `Depends: gir1.2-gtk-4.0`, an `.rpm` says `Requires: gtk4`, and both are
  * package names in a distribution's namespace. A Flatpak has no such field: it
- * declares ONE dependency, its runtime (`org.gnome.Platform//50`), in the
+ * declares ONE dependency, its runtime (`org.gnome.Platform//51`), in the
  * manifest — and inside that runtime a typelib is either present or nothing on
  * the system provides it, so there is no package to name and no gap a name
  * could close.
