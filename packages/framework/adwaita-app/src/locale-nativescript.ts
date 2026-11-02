@@ -1,4 +1,6 @@
-// `initLocale` on NativeScript / Android — the `nativescript` condition of `./locale`.
+// `initLocale` on NativeScript — the `nativescript` condition of `./locale`. One condition
+// serves both platforms (ADR 0032 § 9's umbrella has no NS-platform split), so this file must
+// not assume Android even though its catalogue-staging story (below) is Android's.
 //
 // The GNOME `locale.ts` cannot run here: it reads GLib's environment, adopts the process locale
 // with `setlocale`, and resolves a `gjsify ship` directory that does not exist inside an APK.
@@ -25,8 +27,13 @@ interface AndroidApplication {
     getFilesDir(): { getPath(): string } | null;
 }
 
+// `typeof` first: `com` is an Android-only global (Java's package namespace), absent — not
+// merely `undefined` — on iOS, and `com?.tns` still READS the undeclared identifier before its
+// `?.` ever runs, throwing `ReferenceError: com is not defined` at the first lookup instead of
+// returning `null` as every other platform-less caller here expects. Measured on Learn6502's
+// iOS build, 2026-11-02 (crashed on `initLocale`, the app's own first call after `setTranslator`).
 function application(): AndroidApplication | null {
-    return com?.tns?.NativeScriptApplication?.getInstance() ?? null;
+    return typeof com === 'undefined' ? null : (com?.tns?.NativeScriptApplication?.getInstance() ?? null);
 }
 
 /** Where the build stages the catalogues: `<filesDir>/app/locale`, or `undefined` before the Application exists. */
