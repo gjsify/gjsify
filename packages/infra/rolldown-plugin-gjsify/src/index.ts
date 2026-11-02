@@ -48,6 +48,7 @@ export {
     findWorkerUrls,
     rewriteWorkerUrls,
     WorkerEntries,
+    bundleSuffix,
     WORKER_URL_PLUGIN,
 } from './plugins/worker-url.js';
 export type { WorkerUrlSite } from './plugins/worker-url.js';
