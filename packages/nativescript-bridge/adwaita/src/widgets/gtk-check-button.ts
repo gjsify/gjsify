@@ -6,9 +6,25 @@
 // a `Gtk.ToggleButton` — it is a widget of its own that happens to toggle — so this extends
 // `AdwStyledLayoutBase` and owns `active`, `inconsistent`, `toggled` and `notify::active`.
 //
-// A TAP TOGGLES AND CLEARS `inconsistent`, as `gtk_check_button_real_clicked` does, then
-// emits `toggled` and `activate`. THE LOOK IS STATE CLASSES (`checked`, `inconsistent`)
-// the style list never reports, as `Gtk.ToggleButton`'s `checked` is.
+// DECLARED ON THE SEAM (route D, ADR 0122): `active`, `inconsistent`, `label` and `use-underline`
+// are `withProperties` declarations over `AdwStyledLayoutBase`, which is meta-less — the
+// "meta-less door" case #2488 made borrow its gi verbs — and `toggled` / `activate` are declared
+// signals. `child` and the write-only `group` stay hand-written: neither has a scalar GType.
+//
+// MEASURED ON GJS (GTK 4.22, every line below) — the pspecs are all `explicit-notify`, read-write:
+//   - `active = true` emits [notify::active, toggled]; an equal write is silent. null → false,
+//     'x' and 1 → true (JS truthiness, which `normalize` reproduces for the pure-JS leg).
+//   - `activate()` toggles and emits [notify::active, toggled, activate]. A tap is NOT that:
+//     `click_released_cb` is `set_active (!active)` and emits no `activate`, so a tap here calls
+//     `_toggle` directly. Nothing clears `inconsistent` — the docs say "this has to be done
+//     manually" — so a tap no longer does either.
+//   - `label` notifies on EVERY write, equal, null → null and '' included; '' reads back null.
+//   - `inconsistent` and `use-underline` notify on change only.
+//   - Grouped: `set_group` emits nothing and keeps the active states. `active = true` first
+//     deactivates the other members (their notify + toggled) and only then notifies itself, with
+//     `self.active` still false. `activate()` on the ACTIVE member of a group emits `activate`
+//     alone: `real_activate` does not flip it.
+// `_toggle` is the `activate` handler, as `AdwSplitButton` connects its own.
 //
 // `group` (write-only, as in GTK) joins another check button's group over the core's
 // `check-group.ts`: activating one member deactivates the others, the active member cannot be
@@ -35,7 +51,7 @@ import { resolveIdReference, type ViewId } from './id-reference.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { AdwStyledLayoutBase } from './styled-layout-base.js';
 import { classNameWith } from './style-classes.js';
-import { xmlBoolean } from './xml-values.js';
+import { readDeclaredValue, withProperties, type GObjectNotify } from './signals.js';
 
 /** Event name emitted when `active` changes. Mirrors `Gtk.CheckButton::toggled`. */
 export const GTK_CHECK_BUTTON_TOGGLED = 'toggled';
@@ -46,19 +62,89 @@ export const GTK_CHECK_BUTTON_ACTIVATE = 'activate';
 /** Event name emitted when `active` changes. Mirrors GObject `notify::active`. */
 export const NOTIFY_CHECK_ACTIVE = 'notify::active';
 
+/** Event name emitted when `inconsistent` changes. Mirrors GObject `notify::inconsistent`. */
+export const NOTIFY_CHECK_INCONSISTENT = 'notify::inconsistent';
+
+/** Event name emitted when `label` is written. Mirrors GObject `notify::label`. */
+export const NOTIFY_CHECK_LABEL = 'notify::label';
+
+/** Event name emitted when `use-underline` changes. Mirrors GObject `notify::use-underline`. */
+export const NOTIFY_CHECK_USE_UNDERLINE = 'notify::use-underline';
+
 /** The state classes the button wears, which the theme turns into the filled indicator. */
 export const GTK_CHECK_BUTTON_CHECKED_CLASS = 'checked';
 export const GTK_CHECK_BUTTON_INCONSISTENT_CLASS = 'inconsistent';
 
-export class GtkCheckButton extends AdwStyledLayoutBase {
-    static readonly GTypeName: string = 'GtkCheckButton';
+/** The check button a declared property's hooks read their siblings off; structural, as in `gtk-entry.ts`. */
+interface CheckValues {
+    readonly active: boolean;
+}
 
-    /** The GTK signals this widget emits through `connect` — read by the shared-tree builder (ADR 0093). */
-    static readonly emittedSignals: readonly string[] = [
-        GTK_CHECK_BUTTON_TOGGLED,
-        GTK_CHECK_BUTTON_ACTIVATE,
-        NOTIFY_CHECK_ACTIVE,
-    ];
+export class GtkCheckButton extends withProperties(AdwStyledLayoutBase, {
+    GTypeName: 'GtkCheckButton',
+    Properties: {
+        active: {
+            kind: 'boolean',
+            default: false,
+            explicitNotify: true,
+            blurb: 'If the check button is active',
+            // `set_active (TRUE)` deactivates every other member BEFORE this one notifies, while
+            // this one still reads false (gtkcheckbutton.c:955-968).
+            normalize: (value, self) => {
+                const next = !!readDeclaredValue('active', 'boolean', value);
+                if (next && !(self as CheckValues).active) {
+                    for (const other of checkGroupNeighbours<GtkCheckButton>(self as GtkCheckButton))
+                        other.active = false;
+                }
+                return next;
+            },
+            // Explicit notify: the property owes its own `notify::active`, and `toggled` follows it.
+            afterNotify: (self) => {
+                const button = self as GtkCheckButton;
+                button._restyle();
+                button.notify('active');
+                button.emit(GTK_CHECK_BUTTON_TOGGLED);
+            },
+        },
+        inconsistent: {
+            kind: 'boolean',
+            default: false,
+            explicitNotify: true,
+            blurb: 'If the check button is in an "in between" state',
+            afterNotify: (self) => {
+                const button = self as GtkCheckButton;
+                button._restyle();
+                button.notify('inconsistent');
+            },
+        },
+        label: {
+            kind: 'string',
+            default: null,
+            explicitNotify: true,
+            blurb: 'Text of the label inside the check button',
+            normalize: (value) => (value === null || value === undefined || value === '' ? null : String(value)),
+            changed: () => true,
+            afterNotify: (self) => {
+                const button = self as GtkCheckButton;
+                button._paintLabel();
+                button.notify('label');
+            },
+        },
+        'use-underline': {
+            kind: 'boolean',
+            default: false,
+            explicitNotify: true,
+            blurb: 'If set, an underline in the text indicates a mnemonic',
+            afterNotify: (self) => {
+                const button = self as GtkCheckButton;
+                button._paintLabel();
+                button.notify('use-underline');
+            },
+        },
+    },
+    Signals: { toggled: {}, activate: {} },
+}) {
+    static readonly GTypeName: string = 'GtkCheckButton';
 
     static readonly builderSlots: readonly string[] = builderSlotsOf(['child'], 'child');
 
@@ -68,10 +154,22 @@ export class GtkCheckButton extends AdwStyledLayoutBase {
     private readonly _indicator: GridLayout;
     private readonly _mark: GtkImage;
     private readonly _text: Label;
-    private _active = false;
-    private _inconsistent = false;
-    private _label: string | null = null;
-    private _useUnderline = false;
+
+    /** `Gtk.CheckButton:active` — whether the box is ticked. Defaults to `false`. */
+    declare active: boolean;
+
+    /** `Gtk.CheckButton:inconsistent` — the "partly on" dash. Defaults to `false`. */
+    declare inconsistent: boolean;
+
+    /** `Gtk.CheckButton:label` — the text beside the box, `null` for none. */
+    declare label: string | null;
+
+    /** `Gtk.CheckButton:use-underline` — an `_` in the label marks a mnemonic, which is not drawn. */
+    declare useUnderline: boolean;
+
+    /** GJS's `notify('<prop>')` beside NativeScript's `notify({ eventName })`; see the seam. */
+    declare notify: GObjectNotify;
+
     private _child: View | null = null;
     /** A `group` written as an id before the button was in a loaded tree. */
     private _groupId: string | null = null;
@@ -116,33 +214,19 @@ export class GtkCheckButton extends AdwStyledLayoutBase {
 
         this.addEventListener('loaded', () => this._resolveGroupId());
         attachRowPressFeedback(this);
-        this.addEventListener('tap', () => {
-            // The active member of a group cannot be tapped off (gtkcheckbutton.c:395-396).
-            if (!checkActivationFlips(this, this._active)) return;
-            this._inconsistent = false;
-            this.active = !this._active;
-            this._restyle();
-            this.notify({ eventName: GTK_CHECK_BUTTON_ACTIVATE, object: this });
-        });
+        // A tap is `set_active (!active)` and no more (gtkcheckbutton.c `click_released_cb`).
+        this.addEventListener('tap', () => this._toggle());
+        // `emit('activate')` is `real_activate`, which toggles the same way.
+        this.connect('activate', (self) => self._toggle());
 
         this._restyle();
         applyConstructProps(this, props);
     }
 
-    /** `Gtk.CheckButton:active` — whether the box is ticked. Defaults to `false`. */
-    get active(): boolean {
-        return this._active;
-    }
-
-    set active(raw: boolean | string) {
-        const next = xmlBoolean(raw, this._active);
-        if (next === this._active) return;
-        // `set_active (TRUE)` deactivates every member of the group first (gtkcheckbutton.c:955-968).
-        if (next) for (const other of checkGroupNeighbours<GtkCheckButton>(this)) other.active = false;
-        this._active = next;
-        this._restyle();
-        this.notify({ eventName: GTK_CHECK_BUTTON_TOGGLED, object: this });
-        this.notify({ eventName: NOTIFY_CHECK_ACTIVE, object: this });
+    /** The active member of a group cannot be toggled off (gtkcheckbutton.c:395-396). */
+    private _toggle(): void {
+        if (!checkActivationFlips(this, this.active)) return;
+        this.active = !this.active;
     }
 
     /** `Gtk.CheckButton:group` — WRITE-ONLY, as in GTK (`G_PARAM_WRITABLE`). */
@@ -171,41 +255,8 @@ export class GtkCheckButton extends AdwStyledLayoutBase {
         this.set_group(resolveIdReference(this, 'group', id, GtkCheckButton));
     }
 
-    /** `Gtk.CheckButton:inconsistent` — the "partly on" dash. Defaults to `false`. */
-    get inconsistent(): boolean {
-        return this._inconsistent;
-    }
-
-    set inconsistent(raw: boolean | string) {
-        const next = xmlBoolean(raw, this._inconsistent);
-        if (next === this._inconsistent) return;
-        this._inconsistent = next;
-        this._restyle();
-        this.notify({ eventName: 'notify::inconsistent', object: this });
-    }
-
-    /** `Gtk.CheckButton:label` — the text beside the box, `null` for none. */
-    get label(): string | null {
-        return this._label;
-    }
-
-    set label(value: string | null) {
-        this._label = value ?? null;
-        this._paintLabel();
-    }
-
-    /** `Gtk.CheckButton:use-underline` — an `_` in the label marks a mnemonic, which is not drawn. */
-    get useUnderline(): boolean {
-        return this._useUnderline;
-    }
-
-    set useUnderline(raw: boolean | string) {
-        this._useUnderline = !!xmlBoolean(raw, this._useUnderline);
-        this._paintLabel();
-    }
-
     private _paintLabel(): void {
-        this._text.text = labelDisplayText(this._label ?? '', false, this._useUnderline);
+        this._text.text = labelDisplayText(this.label ?? '', false, this.useUnderline);
         this._syncContent();
     }
 
@@ -237,7 +288,7 @@ export class GtkCheckButton extends AdwStyledLayoutBase {
 
     /** `gtk_check_button_get_active`. */
     get_active(): boolean {
-        return this._active;
+        return this.active;
     }
 
     /** `gtk_check_button_set_active`. */
@@ -258,8 +309,8 @@ export class GtkCheckButton extends AdwStyledLayoutBase {
      * Learn6502's colour selectors stacked one per line.
      */
     private _syncContent(): void {
-        const hasContent = !!this._child || !!this._label;
-        this._text.visibility = !this._child && this._label ? 'visible' : 'collapse';
+        const hasContent = !!this._child || !!this.label;
+        this._text.visibility = !this._child && this.label ? 'visible' : 'collapse';
         const unit = hasContent ? 'star' : 'auto';
         if (unit === this._contentUnit) return;
         this._contentUnit = unit;
@@ -274,13 +325,13 @@ export class GtkCheckButton extends AdwStyledLayoutBase {
 
     protected _restyle(): void {
         const state: string[] = [];
-        if (this._active) state.push(GTK_CHECK_BUTTON_CHECKED_CLASS);
-        if (this._inconsistent) state.push(GTK_CHECK_BUTTON_INCONSISTENT_CLASS);
+        if (this.active) state.push(GTK_CHECK_BUTTON_CHECKED_CLASS);
+        if (this.inconsistent) state.push(GTK_CHECK_BUTTON_INCONSISTENT_CLASS);
         this.className = classNameWith(this._ownClass, [...this.styleClasses, ...state]);
         this._indicator.className = classNameWith(
             'adw-check-indicator',
             isRadioCheck(this) ? [...state, 'radio'] : state,
         );
-        this._mark.visibility = this._active || this._inconsistent ? 'visible' : 'collapse';
+        this._mark.visibility = this.active || this.inconsistent ? 'visible' : 'collapse';
     }
 }
