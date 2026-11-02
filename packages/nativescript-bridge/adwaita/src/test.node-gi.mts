@@ -49,7 +49,9 @@ if (GObjectGi.$foreignParentClasses !== true) {
 useRealGObjectEngine(requireGi);
 
 const { MenuModelRouteDNodeGiTest } = await import('./menu-model-route-d.node-gi.spec.js');
+const { CheckButtonRouteDNodeGiTest } = await import('./check-button-route-d.node-gi.spec.js');
 
 run({
     MenuModelRouteDNodeGiTest,
+    CheckButtonRouteDNodeGiTest,
 });
