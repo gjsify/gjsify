@@ -12,6 +12,7 @@ import {
     scanGiNamespaces,
     planGiSelection,
     WorkerEntries,
+    bundleSuffix,
 } from '@gjsify/rolldown-plugin-gjsify';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { resolveUserPlugins } from '../utils/resolve-plugin-by-name.js';
@@ -895,7 +896,7 @@ export class BuildAction {
         const workers =
             opts.workers ??
             (app !== 'nativescript' && !opts.watch && (outfile || outdir)
-                ? new WorkerEntries(outfile ? extname(outfile) || '.js' : '.js')
+                ? new WorkerEntries(outfile ? bundleSuffix(outfile) : '.js')
                 : undefined);
         if (workers) pluginOpts.workers = workers;
 

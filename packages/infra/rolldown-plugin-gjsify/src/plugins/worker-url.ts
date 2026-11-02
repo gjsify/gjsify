@@ -161,7 +161,10 @@ export class WorkerEntries {
     readonly #taken = new Set<string>();
     readonly #built = new Set<string>();
 
-    /** @param extension the main bundle's extension (`.js`, `.mjs`), mirrored so a worker loads like its parent. */
+    /**
+     * @param extension the main bundle's whole suffix (`.js`, `.mjs`, `.gjs.mjs`, see {@link bundleSuffix}),
+     * mirrored so a worker loads like its parent and a per-target build into one dir keeps its own file.
+     */
     constructor(readonly extension: string = '.js') {}
 
     /** The file name (no directory) the worker built from `source` gets beside the bundle. */
@@ -187,6 +190,17 @@ export class WorkerEntries {
         }
         return pending;
     }
+}
+
+/**
+ * Everything after the first dot of the main outfile's name: `app.gjs.mjs` → `.gjs.mjs`. An app
+ * that builds per target into one dir (`app.gjs.mjs`, `app.node.mjs`) would otherwise get one
+ * `w.worker.mjs` from both builds, the second overwriting the first.
+ */
+export function bundleSuffix(outfile: string): string {
+    const name = basename(outfile).replace(/^\.+/, '');
+    const dot = name.indexOf('.');
+    return dot === -1 ? '.js' : name.slice(dot);
 }
 
 /** FNV-1a over the path, base 36 — stable across builds and engines, no crypto dependency. */

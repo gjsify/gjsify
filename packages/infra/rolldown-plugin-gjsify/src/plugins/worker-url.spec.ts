@@ -9,7 +9,14 @@ import { describe, expect, it } from '@gjsify/unit';
 import { setupForBrowser } from '../app/browser.js';
 import { setupForGjs } from '../app/gjs.js';
 import { setupForNode } from '../app/node.js';
-import { findWorkerUrls, rewriteWorkerUrls, workerUrlPlugin, WorkerEntries, WORKER_URL_PLUGIN } from './worker-url.js';
+import {
+    findWorkerUrls,
+    rewriteWorkerUrls,
+    workerUrlPlugin,
+    WorkerEntries,
+    bundleSuffix,
+    WORKER_URL_PLUGIN,
+} from './worker-url.js';
 
 const specifiers = (code: string) => findWorkerUrls(code, '/src/main.ts').map((s) => s.specifier);
 
@@ -64,6 +71,22 @@ export default async () => {
             expect(a).toBe('w.worker.js');
             expect(b === a).toBe(false);
             expect(b.endsWith('.worker.js')).toBe(true);
+        });
+        await it('takes the whole suffix of the main outfile', async () => {
+            expect(bundleSuffix('dist/app.gjs.mjs')).toBe('.gjs.mjs');
+            expect(bundleSuffix('dist/main.mjs')).toBe('.mjs');
+            expect(bundleSuffix('dist/main')).toBe('.js');
+        });
+        await it('keeps two targets built into one dir apart', async () => {
+            const gjs = new WorkerEntries(bundleSuffix('dist/app.gjs.mjs'));
+            const node = new WorkerEntries(bundleSuffix('dist/app.node.mjs'));
+            const code = `new Worker(new URL('./q.ts', import.meta.url));`;
+            const a = await rewriteWorkerUrls(code, '/src/main.ts', async () => '/src/q.ts', gjs);
+            const b = await rewriteWorkerUrls(code, '/src/main.ts', async () => '/src/q.ts', node);
+            expect(a).toBe(`new Worker(new URL("./q.worker.gjs.mjs", import.meta.url));`);
+            expect(b).toBe(`new Worker(new URL("./q.worker.node.mjs", import.meta.url));`);
+            expect(gjs.takePending()[0].fileName).toBe('q.worker.gjs.mjs');
+            expect(node.takePending()[0].fileName).toBe('q.worker.node.mjs');
         });
         await it('hands each source out once', async () => {
             const entries = new WorkerEntries();

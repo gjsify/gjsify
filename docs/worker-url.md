@@ -9,8 +9,10 @@ entry and rewrite the URL; gjsify now does the same.
 
 - **The plugin** (`packages/infra/rolldown-plugin-gjsify/src/plugins/worker-url.ts`) is composed by
   `--app gjs|node|browser` only when `PluginOptions.workers` (a `WorkerEntries` registry) is set.
-  It rewrites the literal to `./<stem>.worker<ext>` (the main bundle's extension) and registers the
-  resolved source.
+  It rewrites the literal to `./<stem>.worker<suffix>` and registers the resolved source. The
+  suffix is everything after the first dot of the main outfile's name (`bundleSuffix`):
+  `app.gjs.mjs` → `w.worker.gjs.mjs`, `main.mjs` → `w.worker.mjs`. So `--outfile dist/app.gjs.mjs` and
+  `--outfile dist/app.node.mjs` into one dir keep their own worker each.
 - **The CLI** (`buildWorkers` in `packages/infra/cli/src/actions/build.ts`) then builds every
   registered source as its own app build beside the output, with the main build's config. The
   native rolldown engine has no `emitFile`, which is why this half lives in the CLI and not in the
