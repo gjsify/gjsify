@@ -63,9 +63,8 @@
 //     have nowhere to listen — `text-length` notifies here, exactly as the vendored
 //     `Adw.EntryRow` does (measured: `changed`, `notify::text`, `notify::text-length`).
 //   - writing `null` to `text` leaves the value standing upstream (a `text != NULL`
-//     assertion, no change, no emission) and `''` is what `AdwEntryRow` resolves it to.
-//     This class follows the measurement rather than its sibling, so a `null` is refused
-//     in `normalize` and changes nothing.
+//     assertion, no change, no emission); `AdwEntryRow` refuses it the same way, so a
+//     `null` is refused in `normalize` and changes nothing.
 //
 // STRUCTURE: a box around a `TextField`, not a `TextField` subclass, because the two
 // halves of the appearance are set in different places. Android's Material `EditText`

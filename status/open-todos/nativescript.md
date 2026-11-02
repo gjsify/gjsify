@@ -415,10 +415,9 @@ new notifies fire; `text-length`, `max-length`, `placeholder-text` and `editable
 collide with the row's); and `clampEntryMaxLength` from the core replaces the ceiling this class
 used to arrive at by hand. Specs: `entry-properties.spec.ts` (pure-JS), `specs/entry.ts` (device).
 
-FOLLOW-UP, not taken here: `AdwEntryRow:text` coerces a written `null` to `''` where
-`gtk_editable_set_text` refuses it and leaves the value standing. The bare entry follows the
-measurement; the row's spelling predates it and changing it is a consumer-visible break of its
-own, so it wants its own commit and its own line in the conformance table.
+DONE: `AdwEntryRow:text` now refuses a written `null`/`undefined` like `gtk_editable_set_text`
+(value stays, no notify), matching the bare entry. CONSUMER-VISIBLE: `row.text = null` used to
+clear to `''` and is now a no-op; write `''` to clear.
 
 MIGRATE NEXT: `widgets/gtk-check-button.ts`. It is the next cheapest: three hand-rolled members
 (`toggled`, `activate`, `notify::active`) in a `static emittedSignals` the seam would own, and
