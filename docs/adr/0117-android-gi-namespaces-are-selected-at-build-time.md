@@ -473,9 +473,10 @@ What 1b found about the REST of its own list, scoping the startup check (the dec
   It belongs in the same change as `@gjsify/gi-runtime-android-gtk`, which is where the mixed set
   first becomes possible.
 
-Both are why 1b stops after the Vite path: the add-on needs `cairo-1.0`, `freetype2-2.0` and
-`fontconfig-2.0` typelibs that the pinned sysroot (`gjsify/android-sysroot` tag `2026.10.13`) does
-not carry, and § 4 reserves the release to the owner.
+Both are why 1b stopped after the Vite path the first time: the add-on needs `cairo-1.0`,
+`freetype2-2.0` and `fontconfig-2.0` typelibs that sysroot `2026.10.13` did not carry, and § 4
+reserves the release to the owner. The sysroot bump to `2026.11.03` removed the first blocker; the
+second one (the first publish) is the owner's and is listed in the PR that landed the rest of 1b.
 
 ## Amendment 2026-10-16: the sysroot has a CI path
 
@@ -494,3 +495,34 @@ The workflow uploads a workflow artifact and never creates or edits a release. R
 manual by choice: the owner's OK per release still applies. Open items live in
 android-sysroot: the pango/freetype2 wraps still float, and a GIR race is worked around. The
 decision above is unchanged; the status was still Proposed at that point.
+
+## Amendment 2026-11-03: stage 1b landed, with four corrections to the text above
+
+`@gjsify/gi-runtime-android-gtk` exists, `release.yml`'s `publish-gi-runtime-android` job builds
+and publishes it after the core, the sysroot pin is `2026.11.03`, the startup check refuses a mixed
+pair, and the planner names the add-on a selection needs. Not yet done: a device run of the pair
+(required before the first publish), the first manual npm publish, and stage 2 (soup, json, tls).
+
+1. **The core must NOT list its add-ons in `optionalDependencies` (§ 1 was wrong).** npm installs
+   optional dependencies by default, so NativeScript would add every add-on's AAR to every APK and
+   break "an app without the add-on gets today's APK". The desktop `gtk-runtime-*` packages have no
+   such edge either. The app declares the add-on; the add-on depends on the core at the exact
+   lockstep version. Rule `gi-runtime-addon` (`scripts/manifest-conformance/rules/`) fails a core
+   that lists an add-on.
+2. **The exact core pin is a literal.** `workspace:*` does not work: `gjsify pack` rewrites it
+   only for root-workspace members and `packages/node-gi/*` are not members. The add-on carries
+   `"@gjsify/gi-runtime-android": "<version>"`; `scripts/bump-release-train-ranges.mjs` moves it in
+   the release hook, and the same rule fails any other value.
+3. **The sysroot identity is an AAR asset, and the core gets one too.** Each AAR carries
+   `assets/app/gi-runtime/<package>.json` (sysroot tag, sha256 per ABI, libraries, typelibs, no
+   timestamp). Stage 1a's claim that the core's payload is byte-identical to today's is therefore
+   off by this one tiny file. `host.nativescript.js` reads the directory through `java.io` and
+   throws a sentence naming both packages and both pins; with no `java` global (Node, iOS) it does
+   nothing, and when `java.io` is not exposed to the bundle it warns that the check did NOT run.
+   The device run has to confirm `java.io` is reachable in a Vite-built app.
+4. **The new sysroot grows the core by three typelibs.** `2026.11.03` ships `cairo-1.0`,
+   `fontconfig-2.0` and `freetype2-2.0`; their backing libraries were already in the core's
+   closure, so the default plan now includes them (15 libraries and 10 typelibs per ABI instead of
+   7). `payload-baseline.json` records them as `addedSinceMeasured`. The add-on is the closure of
+   its namespaces minus the core's closure, so no library ships twice and no `libnode_gi.so` is
+   repeated.
