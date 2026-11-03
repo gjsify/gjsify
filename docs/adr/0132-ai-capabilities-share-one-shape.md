@@ -59,7 +59,8 @@ every capability.
 
 For the network side, the de-facto standard is the OpenAI-compatible HTTP surface
 (`/v1/audio/transcriptions`, `/v1/audio/speech`, `/v1/embeddings`, `/v1/images/generations`).
-Ollama, LocalAI, vLLM, llama.cpp's server and a LAN box running any of them speak it, so one
+Ollama, LocalAI, vLLM, llama.cpp's server and a LAN box running any of them speak it, and so
+do hosted providers such as OpenAI, OpenRouter and Scaleway, so one
 client covers "my laptop is too weak, but the desktop next door is not" as well as a cloud
 vendor.
 
@@ -91,8 +92,12 @@ writes its GPU guard marker before the attempt.
      `ImageEngine`, with `close()` becoming `destroy()`.
 3. **Every capability has one engine interface, exported from an `/engine` subpath**, which the
    gjsify engines implement and an app may implement too. That is the whole extension story: a
-   vendor API gjsify does not ship (Mistral's Voxtral, a TTS server) is an app-side engine behind
-   the same interface, not a fork of the package. The instance reports which engine it runs on
+   vendor API gjsify does not ship is an app-side engine behind the same interface, not a fork of
+   the package. That covers every provider with its own protocol or login: Anthropic's API,
+   a subscription such as Claude Code reached through its agent, Mistral's Voxtral, a TTS server.
+   Which providers an app offers, and how a person signs in to them, is the app's decision.
+   gjsify ships the interface and the OpenAI-compatible client of decision 4, and no
+   provider-specific code. The instance reports which engine it runs on
    (`engine`: name plus `local` / `remote`), so a surface can say "the cloud is listening"
    (Lotse ADR 0010 § 6) without knowing engine internals.
 4. **gjsify still contacts no service on its own, but it now ships the remote engine.** This
@@ -100,7 +105,9 @@ writes its GPU guard marker before the attempt.
    sends the request to a server someone else runs (Ollama on the desktop next door, a LocalAI
    box, a cloud vendor) and gets the result back. No app becomes a server through this ADR;
    offering an API is out of scope. `@gjsify/openai-compatible` provides client engines for the
-   four OpenAI-compatible endpoints above. They exist only when an app **registers** one with a
+   four OpenAI-compatible endpoints above, and for `/v1/chat/completions` once a consumer needs
+   `LanguageModel` (decision 1). One base URL and a key reach a self-hosted server and the
+   compatible hosted providers alike; gjsify keeps no list of them. They exist only when an app **registers** one with a
    base URL and a credential; nothing is registered by default, and gjsify stores no key (the app
    passes it, e.g. from libsecret as Lotse ADR 0009 § 6 does). Selection follows the Web Speech
    rule everywhere: `processLocally: true` forbids every remote engine; otherwise a registered
