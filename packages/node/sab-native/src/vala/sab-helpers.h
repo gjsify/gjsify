@@ -134,6 +134,9 @@ gint    gjsify_sab_region_futex_wake (GjsifySabRegion *region, gsize offset, gin
  * map the received fd back to the JSON placeholder {__sab: <tag>, size: N}.
  */
 gboolean gjsify_sab_socketpair (gint *parent_fd, gint *child_fd);
+/* Plain AF_UNIX/SOCK_STREAM pair, both ends close-on-exec: the channel
+ * `child_process.fork` hands its child on NODE_CHANNEL_FD. */
+gboolean gjsify_sab_stream_socketpair (gint *parent_fd, gint *child_fd);
 gboolean gjsify_sab_send_fd    (gint socket_fd, gint fd_to_send, guint32 tag);
 
 /* recv_fd: returns received fd, or -1 on error (errno preserved).

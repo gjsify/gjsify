@@ -50,6 +50,8 @@ export interface NativeSharedBufferClass {
 
 export interface NativeFdChannelClass {
     make_pair(): [boolean, number, number];
+    /** Absent from prebuilds older than ADR 0133. */
+    make_stream_pair?(): [boolean, number, number];
     send_fd(socket_fd: number, fd_to_send: number, tag: number): boolean;
     recv_fd(socket_fd: number): [number, number]; // [fd, tag]
     close_fd(fd: number): boolean;
@@ -416,6 +418,17 @@ export const fdChannel = _mod
     ? {
           makePair(): { parentFd: number; childFd: number } {
               const [ok, parent_fd, child_fd] = _mod!.FdChannel.make_pair();
+              if (!ok) throw new Error('socketpair() failed');
+              return { parentFd: parent_fd, childFd: child_fd };
+          },
+          /**
+           * A plain `SOCK_STREAM` pair, both ends close-on-exec — the channel
+           * `child_process.fork` hands its child on `NODE_CHANNEL_FD`. Not for
+           * `sendFd`/`recvFd`. `null` when the installed prebuild predates it.
+           */
+          makeStreamPair(): { parentFd: number; childFd: number } | null {
+              if (typeof _mod!.FdChannel.make_stream_pair !== 'function') return null;
+              const [ok, parent_fd, child_fd] = _mod!.FdChannel.make_stream_pair();
               if (!ok) throw new Error('socketpair() failed');
               return { parentFd: parent_fd, childFd: child_fd };
           },

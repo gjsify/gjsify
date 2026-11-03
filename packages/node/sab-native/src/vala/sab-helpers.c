@@ -544,23 +544,17 @@ gjsify_sab_region_futex_wake (GjsifySabRegion *region,
  * IPC side-channel: socketpair + SCM_RIGHTS
  * ────────────────────────────────────────────────────────────────────── */
 
-gboolean
-gjsify_sab_socketpair (gint *parent_fd, gint *child_fd)
+/* A connected AF_UNIX/SOCK_STREAM pair, close-on-exec on both ends. */
+static gboolean
+gjsify_stream_pair (int sv[2])
 {
-  int sv[2];
 #if defined(__APPLE__)
-  /* Measured on macOS 27: socketpair(AF_UNIX, SOCK_SEQPACKET) fails with
-   * EPROTONOSUPPORT, and SOCK_CLOEXEC does not exist. SOCK_DGRAM keeps
-   * message boundaries but reports a closed peer as ECONNRESET once and then
-   * blocks forever, losing recv_fd's "0 = orderly EOF". SOCK_STREAM keeps the
-   * EOF, and the boundaries come back by framing: every message is exactly
-   * one 4-byte tag carrying one SCM_RIGHTS fd, and recv reads exactly 4. */
   if (socketpair (AF_UNIX, SOCK_STREAM, 0, sv) < 0) {
     return FALSE;
   }
   /* Not atomic with creation as SOCK_CLOEXEC is: a fork() on another thread
    * in between would leak the pair into that child. Nothing forks
-   * concurrently with FdChannel.make_pair in a GJS process. */
+   * concurrently with FdChannel.make_pair / make_stream_pair in a GJS process. */
   for (int i = 0; i < 2; i++) {
     int one = 1;
     if (!gjsify_set_cloexec (sv[i])
@@ -572,11 +566,46 @@ gjsify_sab_socketpair (gint *parent_fd, gint *child_fd)
       return FALSE;
     }
   }
+  return TRUE;
+#else
+  return socketpair (AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sv) == 0;
+#endif
+}
+
+gboolean
+gjsify_sab_socketpair (gint *parent_fd, gint *child_fd)
+{
+  int sv[2];
+#if defined(__APPLE__)
+  /* Measured on macOS 27: socketpair(AF_UNIX, SOCK_SEQPACKET) fails with
+   * EPROTONOSUPPORT, and SOCK_CLOEXEC does not exist. SOCK_DGRAM keeps
+   * message boundaries but reports a closed peer as ECONNRESET once and then
+   * blocks forever, losing recv_fd's "0 = orderly EOF". SOCK_STREAM keeps the
+   * EOF, and the boundaries come back by framing: every message is exactly
+   * one 4-byte tag carrying one SCM_RIGHTS fd, and recv reads exactly 4. */
+  if (!gjsify_stream_pair (sv)) {
+    return FALSE;
+  }
 #else
   if (socketpair (AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, sv) < 0) {
     return FALSE;
   }
 #endif
+  *parent_fd = sv[0];
+  *child_fd  = sv[1];
+  return TRUE;
+}
+
+/* Node's IPC channel (NODE_CHANNEL_FD) is a byte stream that libuv opens with
+ * uv_pipe_open; a SEQPACKET end would hand it message boundaries it does not
+ * expect. The stream pair is what `child_process.fork` gives its child. */
+gboolean
+gjsify_sab_stream_socketpair (gint *parent_fd, gint *child_fd)
+{
+  int sv[2];
+  if (!gjsify_stream_pair (sv)) {
+    return FALSE;
+  }
   *parent_fd = sv[0];
   *child_fd  = sv[1];
   return TRUE;
