@@ -657,11 +657,22 @@ Page.adw-window {
  * NOT MERGED WITH `.adw-button-content-label`: that class is `Adw.ButtonContent`'s and
  * comes with the icon's 6 right-margin and the content's own padding rule; a plain
  * text button has neither, and one selector for both would give every text button
- * `image-text-button` spacing. */
+ * `image-text-button` spacing.
+ *
+ * `horizontal-align`/`text-align`/`vertical-align: center` restate what `GtkButton._adopt`
+ * already sets in JS (`horizontalAlignment: 'center', verticalAlignment: 'middle'`) — a
+ * regular button's padding (5 16 5 16) kept a mis-measured label inside the visible fill, so
+ * the gap was invisible until `.circular` (padding: 0) met a `height-request`/`width-request`
+ * bigger than its own 34 floor (Learn6502's gamepad A/B, 55×55): there the label's own box
+ * filled the whole cell and its TEXT drew top-left inside it, off-centre in a circle with no
+ * padding to hide the offset. */
 .adw-button-label {
     font-size: 15;
     font-weight: 700;
     color: rgba(0, 0, 0, 0.8);
+    horizontal-align: center;
+    vertical-align: center;
+    text-align: center;
 }
 
 /* On a suggested/destructive button the label takes the button's intent colour — the
