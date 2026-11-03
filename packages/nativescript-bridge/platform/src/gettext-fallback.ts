@@ -45,4 +45,3 @@ export function dpgettext(_domain: string | null, _context: string, msgid: strin
 // `import Gettext from 'gettext'` takes the DEFAULT export, as `@gjsify/node-gi/gettext` ships
 // one (its `locale-nativescript.js` caller reads `Gettext.bindtextdomain`, never a named import).
 export default { bindtextdomain, textdomain, dgettext, dngettext, dpgettext };
-
