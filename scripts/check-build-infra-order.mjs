@@ -568,34 +568,58 @@ for (const p of orderProblems) console.error(`  ✗ ${p}`);
 //   · it is in the importing package's own production closure (built first); or
 //   · some `build:infra` clause emitted it, which runs to completion before; or
 //   · its declarations are tracked in git.
+//
+// The same holds for a `-d` clause INSIDE `build:infra`, with one difference: it
+// runs mid-chain, so only a clause BEFORE it counts. #2528 made `@gjsify/process`
+// depend on `@gjsify/ipc-channel`, and the `@gjsify/process build -d` clause began
+// sweeping in `@gjsify/dom-exception`, whose spec imports `@gjsify/unit`, built
+// later in the chain. Rule 2 reads only the clause's NAMED package, so it never saw the spec.
 
 /** Roots of the cold `--with-dependencies` sweeps run after `build:infra` (see verify-committed-bundles.mjs). */
 const SWEEP_ROOTS = ['@gjsify/cli'];
 
+/** Every sweep to check: the post-`build:infra` roots, then each `-d` clause, with the clause it runs at. */
+const sweeps = SWEEP_ROOTS.map((root) => ({
+    root,
+    at: clauses.length,
+    script: 'build',
+    label: `\`${root} build --with-dependencies\``,
+}));
+for (const [i, clause] of clauses.entries()) {
+    const m = /^gjsify workspace (\S+) (build(?::types)?)\b/.exec(clause);
+    if (!m || !/\s(?:-d|--with-dependencies)(?:\s|$)/.test(clause)) continue;
+    sweeps.push({ root: m[1], at: i, script: m[2], label: `clause ${i + 1} (\`${m[1]} ${m[2]} -d\`)` });
+}
+
 const sweepProblems = [];
 let sweepScanned = 0;
 let sweepInputs = 0;
-for (const root of SWEEP_ROOTS) {
+for (const { root, at, script, label } of sweeps) {
     if (!byName.has(root)) continue; // a synthetic root without the CLI has no sweep to order
     for (const name of productionClosure(root, byName)) {
+        // A member some earlier clause already built is not rebuilt cold by this sweep.
+        if (at < clauses.length && typedAt.get(name) !== at) continue;
         const entry = byName.get(name);
-        const inputs = typeCheckInputsOf(entry, 'build');
+        const inputs = typeCheckInputsOf(entry, script);
         if (inputs === null) continue;
         sweepScanned++;
         sweepInputs += inputs.length;
         const ownClosure = productionClosure(name, byName);
         for (const [dep, { file, spec }] of typeCheckedImports(inputs)) {
-            if (ownClosure.has(dep) || typedAt.has(dep)) continue;
+            if (ownClosure.has(dep)) continue;
+            const typed = typedAt.get(dep);
+            if (typed !== undefined && typed < at) continue;
             const depEntry = byName.get(dep);
             if (!depEntry) continue;
             const target = uncommittedTypesTarget(depEntry, spec, dep);
             if (!target) continue;
             sweepProblems.push(
-                `\`${root} build --with-dependencies\` builds ${name}, whose tsc compiles ` +
+                `${label} builds ${name}, whose tsc compiles ` +
                     `${relative(ROOT, file).split(sep).join('/')} — it imports '${spec}', but ${dep} is not ` +
-                    `in ${name}'s production closure and no \`build:infra\` clause emits it, so the sweep may ` +
+                    `in ${name}'s production closure and no earlier \`build:infra\` clause emits it, so the sweep may ` +
                     'build it later (#1775: TS2307 on a cold tree). Make it a `dependencies` entry, emit it in ' +
-                    '`build:infra`, or drop the import (a spec can reach GLib/Gio through `gi://`).',
+                    '`build:infra`, exclude specs from the tsconfig, or drop the import (a spec can reach ' +
+                    'GLib/Gio through `gi://`).',
             );
         }
     }
@@ -603,10 +627,10 @@ for (const root of SWEEP_ROOTS) {
 // Blind only in rule 2's shape: configs that resolve to no files. A synthetic root
 // without configs has nothing to order; the e2e suite asserts the real count.
 if (sweepScanned && !sweepInputs) {
-    console.error('::error::the sweep rule resolved tsconfigs in the CLI closure but expanded them to zero files.');
+    console.error('::error::the sweep rule resolved tsconfigs in the swept closures but expanded them to zero files.');
     process.exit(1);
 }
-console.log(`build-infra-order: sweep rule read ${sweepScanned} package(s) in the CLI's production closure.`);
+console.log(`build-infra-order: sweep rule read ${sweepScanned} package(s) across ${sweeps.length} sweep(s).`);
 for (const p of sweepProblems) console.error(`  ✗ ${p}`);
 
 // ---------------------------------------------------------------------------

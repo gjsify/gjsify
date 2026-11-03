@@ -1088,6 +1088,30 @@ describe('check-build-infra-order: the cold CLI sweep', () => {
         assert.equal(result.status, 0, result.output);
     });
 
+    // #2528: a `-d` clause inside `build:infra` sweeps in dependencies whose specs
+    // import a package a LATER clause builds.
+    const PROCESS = { dependencies: { '@gjsify/webaudio': 'workspace:^' }, files: CLI.files };
+    const SWEPT = { '@gjsify/webaudio': SPEC_IMPORTER, '@gjsify/child_process': LEAF };
+
+    it('rejects a spec swept in by a build:infra -d clause, against a later clause', () => {
+        const result = runSweepGuard(
+            'gjsify workspace @gjsify/process build -d && gjsify workspace @gjsify/child_process build && ' +
+                `gjsify workspace @gjsify/cli build && ${FACADE}`,
+            { '@gjsify/cli': { files: CLI.files }, '@gjsify/process': PROCESS, ...SWEPT },
+        );
+        assert.equal(result.status, 1, result.output);
+        assert.match(result.stderr, /clause 1 \(`@gjsify\/process build -d`\) builds @gjsify\/webaudio/);
+    });
+
+    it('accepts the same -d clause once an earlier clause emits the import', () => {
+        const result = runSweepGuard(
+            'gjsify workspace @gjsify/child_process build && gjsify workspace @gjsify/process build -d && ' +
+                `gjsify workspace @gjsify/cli build && ${FACADE}`,
+            { '@gjsify/cli': { files: CLI.files }, '@gjsify/process': PROCESS, ...SWEPT },
+        );
+        assert.equal(result.status, 0, result.output);
+    });
+
     it('reads the real CLI closure', () => {
         const result = spawnSync(process.execPath, [ORDER_GUARD], { cwd: MONOREPO_ROOT, encoding: 'utf8' });
         const read = /sweep rule read (\d+) package\(s\)/.exec(result.stdout);
