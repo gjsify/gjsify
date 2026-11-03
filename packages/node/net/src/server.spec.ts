@@ -346,12 +346,15 @@ export default async () => {
             expect(err.code).toBe('EADDRINUSE');
             expect(err.message.includes('[::]')).toBe(false);
             // A wildcard bind would have claimed this port on every address, 127.0.0.2 included.
-            const other = createServer();
-            await new Promise<void>((resolve, reject) => {
-                other.once('error', reject);
-                other.listen(port, '127.0.0.2', () => resolve());
-            });
-            await new Promise<void>((resolve) => other.close(() => resolve()));
+            // Only Linux routes all of 127.0.0.0/8 to loopback; macOS answers EADDRNOTAVAIL.
+            if (process.platform === 'linux') {
+                const other = createServer();
+                await new Promise<void>((resolve, reject) => {
+                    other.once('error', reject);
+                    other.listen(port, '127.0.0.2', () => resolve());
+                });
+                await new Promise<void>((resolve) => other.close(() => resolve()));
+            }
             await new Promise<void>((resolve) => first.close(() => resolve()));
         });
 
