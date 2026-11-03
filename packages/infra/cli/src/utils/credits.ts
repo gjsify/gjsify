@@ -32,6 +32,11 @@ export interface CreditsOverrides {
     supporters?: string[];
     /** Patterns (see {@link isIgnored}) matched against names; removes a person from every list. */
     exclude?: string[];
+    /**
+     * Per language, patterns that remove a person from that language's translators only; `*` means
+     * every language. Applied to what the history yields, before the `translators` additions above.
+     */
+    excludeTranslators?: Record<string, string[]>;
 }
 
 /**
@@ -120,7 +125,7 @@ export function buildCredits(
     const developers = new Map<string, number>();
     const translators = new Map<string, Map<string, number>>();
 
-    for (const commit of commits) {
+    const classified = commits.map((commit) => {
         const names = new Set<string>();
         for (const person of [commit.author, ...commit.coAuthors]) {
             if (person.name && !isIgnored(person, ignore) && !excluded(person.name)) names.add(person.name);
@@ -132,9 +137,30 @@ export function buildCredits(
             const language = poLanguage(file);
             if (language) languages.add(language);
         }
+        return { names, languages, touchesCode };
+    });
+
+    // A Weblate squash merge lists every translator of the batch in one trailer block and touches
+    // all their languages, so it cannot say who translated what. Only a commit with one person and
+    // one language can; an ambiguous commit credits a person to the languages such commits pin
+    // them to, and falls back to all its languages only for someone nothing else pins.
+    const pinned = new Map<string, Set<string>>();
+    for (const { names, languages } of classified) {
+        if (names.size !== 1 || languages.size !== 1) continue;
+        const [name] = names;
+        const [language] = languages;
+        let set = pinned.get(name!);
+        if (!set) pinned.set(name!, (set = new Set()));
+        set.add(language!);
+    }
+
+    for (const { names, languages, touchesCode } of classified) {
+        const ambiguous = names.size > 1 || languages.size > 1;
         for (const name of names) {
             if (touchesCode) bump(developers, name);
+            const own = pinned.get(name);
             for (const language of languages) {
+                if (ambiguous && own && !own.has(language)) continue;
                 let perLanguage = translators.get(language);
                 if (!perLanguage) translators.set(language, (perLanguage = new Map()));
                 bump(perLanguage, name);
@@ -143,8 +169,11 @@ export function buildCredits(
     }
 
     const credits: Credits = { developers: rank(developers), translators: {}, supporters: [] };
+    const excludeTranslators = overrides.excludeTranslators ?? {};
     for (const language of [...translators.keys()].sort()) {
-        credits.translators[language] = rank(translators.get(language)!);
+        const patterns = [...(excludeTranslators['*'] ?? []), ...(excludeTranslators[language] ?? [])];
+        const list = rank(translators.get(language)!).filter((name) => !isIgnored({ name, email: '' }, patterns));
+        if (list.length) credits.translators[language] = list;
     }
 
     appendUnseen(credits.developers, overrides.developers, excluded);
@@ -229,6 +258,7 @@ export function readCommits(cwd: string): CreditsCommit[] {
 }
 
 const STRING_LIST_KEYS = ['developers', 'supporters', 'exclude'] as const;
+const LANGUAGE_MAP_KEYS = ['translators', 'excludeTranslators'] as const;
 
 function asStringList(value: unknown, where: string): string[] {
     if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
@@ -248,7 +278,7 @@ export function parseOverrides(text: string, where = 'overrides'): CreditsOverri
         throw new Error(`${where} must be a JSON object`);
     }
     const record = data as Record<string, unknown>;
-    const known = new Set<string>([...STRING_LIST_KEYS, 'translators']);
+    const known = new Set<string>([...STRING_LIST_KEYS, ...LANGUAGE_MAP_KEYS]);
     for (const key of Object.keys(record)) {
         if (!known.has(key)) throw new Error(`${where} has an unknown key "${key}" (known: ${[...known].join(', ')})`);
     }
@@ -256,15 +286,17 @@ export function parseOverrides(text: string, where = 'overrides'): CreditsOverri
     for (const key of STRING_LIST_KEYS) {
         if (record[key] !== undefined) overrides[key] = asStringList(record[key], `${where}.${key}`);
     }
-    if (record.translators !== undefined) {
-        const raw = record.translators;
+    for (const key of LANGUAGE_MAP_KEYS) {
+        const raw = record[key];
+        if (raw === undefined) continue;
         if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-            throw new Error(`${where}.translators must map a language to an array of names`);
+            throw new Error(`${where}.${key} must map a language to an array of names`);
         }
-        overrides.translators = {};
+        const map: Record<string, string[]> = {};
         for (const [language, names] of Object.entries(raw)) {
-            overrides.translators[language] = asStringList(names, `${where}.translators.${language}`);
+            map[language] = asStringList(names, `${where}.${key}.${language}`);
         }
+        overrides[key] = map;
     }
     return overrides;
 }

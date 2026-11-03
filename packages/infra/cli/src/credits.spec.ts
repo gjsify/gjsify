@@ -25,10 +25,10 @@ interface FixtureCommit {
     trailers?: string[];
 }
 
-const ISOLATED_GIT = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
-
-function git(cwd: string, args: string[], env: Record<string, string | undefined> = {}): string {
-    return execFileSync('git', args, { cwd, encoding: 'utf8', env: { ...ISOLATED_GIT, ...env } });
+// Identity through `-c` and `--author`, never an `env` option: a spread `process.env` makes the
+// `git` lookup fail with ENOENT on the win32 runner.
+function git(cwd: string, args: string[]): string {
+    return execFileSync('git', ['-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' });
 }
 
 function commit(cwd: string, { author, email, files, trailers = [] }: FixtureCommit): void {
@@ -39,12 +39,16 @@ function commit(cwd: string, { author, email, files, trailers = [] }: FixtureCom
     git(cwd, ['add', '-A']);
     const message = ['-m', 'change'];
     if (trailers.length) message.push('-m', trailers.join('\n'));
-    git(cwd, ['commit', '--quiet', ...message], {
-        GIT_AUTHOR_NAME: author,
-        GIT_AUTHOR_EMAIL: email,
-        GIT_COMMITTER_NAME: author,
-        GIT_COMMITTER_EMAIL: email,
-    });
+    git(cwd, [
+        '-c',
+        `user.name=${author}`,
+        '-c',
+        `user.email=${email}`,
+        'commit',
+        '--quiet',
+        `--author=${author} <${email}>`,
+        ...message,
+    ]);
 }
 
 let serial = 0;
@@ -177,8 +181,32 @@ export default async () => {
                 const credits = buildCredits(readCommits(dir));
                 expect(credits.developers.join()).toBe('Dev');
                 expect(Object.keys(credits.translators).join()).toBe('de,pt_BR');
-                expect(credits.translators.de!.join()).toBe('Dev,Hans,Maria');
+                expect(credits.translators.de!.join()).toBe('Dev,Hans');
                 expect(credits.translators.pt_BR!.join()).toBe('Maria,Hans');
+            });
+        });
+
+        await it('credits a squash commit to each person by their own single-language commits', async () => {
+            withRepo((dir) => {
+                const weblate = { author: 'Weblate (bot)', email: 'hosted@weblate.org' };
+                commit(dir, { ...weblate, files: po('id'), trailers: ['Co-authored-by: Arif <arif@x.org>'] });
+                commit(dir, { author: 'Menachem', email: 'm@x.org', files: po('he') });
+                // A squash that touched only he.po but names everyone of the batch.
+                commit(dir, {
+                    ...weblate,
+                    files: po('he'),
+                    trailers: ['Co-authored-by: Arif <arif@x.org>', 'Co-authored-by: Menachem <m@x.org>'],
+                });
+                // Nothing pins Emilio, so he keeps every language of his only commit.
+                commit(dir, {
+                    ...weblate,
+                    files: { ...po('es'), ...po('ia'), ...po('he') },
+                    trailers: ['Co-authored-by: Emilio <e@x.org>', 'Co-authored-by: Menachem <m@x.org>'],
+                });
+                const credits = buildCredits(readCommits(dir));
+                expect(JSON.stringify(credits.translators)).toBe(
+                    '{"es":["Emilio"],"he":["Menachem","Emilio"],"ia":["Emilio"],"id":["Arif"]}',
+                );
             });
         });
 
@@ -224,6 +252,21 @@ export default async () => {
             });
         });
 
+        await it('drops a person from some languages only, while explicit additions still win', async () => {
+            withRepo((dir) => {
+                commit(dir, { author: 'Lead', email: 'l@x.org', files: { ...code(), ...po('de') } });
+                commit(dir, { author: 'Lead', email: 'l@x.org', files: po('ja') });
+                commit(dir, { author: 'Lead', email: 'l@x.org', files: po('uk') });
+                commit(dir, { author: 'Yuki', email: 'y@x.org', files: po('ja') });
+                const overrides = parseOverrides(
+                    JSON.stringify({ excludeTranslators: { '*': ['Lead'] }, translators: { de: ['Lead'] } }),
+                );
+                const credits = buildCredits(readCommits(dir), { overrides });
+                expect(credits.developers.join()).toBe('Lead');
+                expect(JSON.stringify(credits.translators)).toBe('{"de":["Lead"],"ja":["Yuki"]}');
+            });
+        });
+
         await it('refuses a malformed overrides file, naming the key', async () => {
             const message = (text: string) => {
                 try {
@@ -238,6 +281,7 @@ export default async () => {
             expect(message('{"develpers":[]}')).toContain('unknown key "develpers"');
             expect(message('{"developers":"Ada"}')).toContain('o.json.developers must be an array of strings');
             expect(message('{"translators":{"de":[1]}}')).toContain('o.json.translators.de');
+            expect(message('{"excludeTranslators":["Ada"]}')).toContain('o.json.excludeTranslators must map');
         });
 
         await it('--check: a missing, outdated or unparsable file is stale, a current one is not', async () => {

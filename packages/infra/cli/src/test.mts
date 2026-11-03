@@ -253,6 +253,22 @@ if (!hasGit()) {
         'no git on PATH — this row runs the command against a real scratch repository';
     skip['hides the override in a REAL `git worktree add` checkout'] =
         'no git on PATH — this row asks a real worktree what `git status` lists';
+    // `gjsify credits` reads the history through git; these rows build a scratch repository.
+    const credits = 'no git on PATH — this row reads the credits from a real scratch repository';
+    for (const row of [
+        'reads co-authors from a real commit, matching the trailer key case-insensitively',
+        'merges identities through .mailmap, for authors and for trailers',
+        'counts a commit once when someone is both author and co-author',
+        'assigns translators to the languages a commit touched, from the Weblate trailers',
+        'credits a squash commit to each person by their own single-language commits',
+        'never lets an e-mail address into the output',
+        'adds people without commits, excludes others, and fills supporters from the overrides only',
+        'drops a person from some languages only, while explicit additions still win',
+        '--check: a missing, outdated or unparsable file is stale, a current one is not',
+        'refuses a shallow clone instead of reporting a truncated history',
+    ]) {
+        skip[row] = credits;
+    }
 }
 
 if (!canCreateFileSymlink()) {
