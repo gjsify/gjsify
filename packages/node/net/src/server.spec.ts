@@ -334,6 +334,27 @@ export default async () => {
             });
         });
 
+        await it('should bind only the given host, not the [::] wildcard', async () => {
+            const first = createServer();
+            await new Promise<void>((resolve) => first.listen(0, '127.0.0.1', () => resolve()));
+            const { port } = first.address() as { port: number };
+            const second = createServer();
+            const err = await new Promise<NodeJS.ErrnoException>((resolve) => {
+                second.once('error', resolve);
+                second.listen(port, '127.0.0.1');
+            });
+            expect(err.code).toBe('EADDRINUSE');
+            expect(err.message.includes('[::]')).toBe(false);
+            // A wildcard bind would have claimed this port on every address, 127.0.0.2 included.
+            const other = createServer();
+            await new Promise<void>((resolve, reject) => {
+                other.once('error', reject);
+                other.listen(port, '127.0.0.2', () => resolve());
+            });
+            await new Promise<void>((resolve) => other.close(() => resolve()));
+            await new Promise<void>((resolve) => first.close(() => resolve()));
+        });
+
         await it('should allocate random port when 0 specified', async () => {
             const server = createServer();
             await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
