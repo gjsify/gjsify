@@ -276,6 +276,12 @@
       "status": "stub",
       "note": "Session.post(), open/close; empty. V8-specific, hard to port."
     },
+    "@gjsify/ipc-channel": {
+      "status": "partial",
+      "note": "The message channel between two GJS processes (ADR 0133), extracted from `@gjsify/worker_threads`: `LineChannel` (one JSON text per line over a Gio stream pair), the tagged structured-clone wire codec, SharedBuffer placeholder extraction for the SCM_RIGHTS side-channel, and `SubprocessPortTransport` for cross-process MessagePort routing. Knows nothing about workers or `fork`.",
+      "working": "`Worker` runs entirely on it: framing, codec, SharedBuffer transfer and port routing.",
+      "missing": "One consumer so far. `child_process.fork` over Node's `NODE_CHANNEL_FD` channel (`'json'`, then `'advanced'` serialization) is the second, ADR 0133 steps 2 and 3. No `sendHandle`."
+    },
     "@gjsify/lightningcss-native": {
       "status": "poc",
       "note": "Vala+Rust cdylib bridge to lightningcss for GJS. `Engine.transform()` (in-memory CSS\u2192CSS) + `Engine.bundle()` (entry file, resolves `@import` chains via lightningcss's FileProvider), browserslist queries accepted directly. Backs `cssAsStringPlugin` under `--app gjs` \u2014 `css-as-string` resolves + inlines bare-specifier `@import`s in JS first (its shared `cssBundleResolver`), then routes flattened CSS through `transform()` for the GTK4 lowering; npm `lightningcss` `bundleAsync` fallback when the prebuild is unavailable. One lazily-created stateless Engine reused across calls (pinned by its own GJS spec). POC scope: no source-map input, no css-modules, no analyze-dependencies."
@@ -645,7 +651,7 @@
     },
     "@gjsify/worker_threads": {
       "status": "partial",
-      "note": "MessageChannel/MessagePort/BroadcastChannel with structured clone; Worker via Gio.Subprocess; MessagePort W3C surface composed over `@gjsify/message-channel`.",
+      "note": "MessageChannel/MessagePort/BroadcastChannel with structured clone; Worker via Gio.Subprocess, its wire (framing, codec, SharedBuffer transfer, port routing) in `@gjsify/ipc-channel`; MessagePort W3C surface composed over `@gjsify/message-channel`.",
       "working": "MessageChannel, MessagePort (deep clone: Date, RegExp, Map, Set, Error, TypedArrays), BroadcastChannel, receiveMessageOnPort, environmentData, Worker (Gio.Subprocess with stdin/stdout IPC, file-based resolution with relative paths, stderr capture, orphan shutdown on parent EOF), addEventListener/removeEventListener, structured-clone edge cases (-0, NaN, BigInt, Int32Array), `postMessage(value, transferList)` for `ArrayBuffer` (zero-copy via SM140 `transfer()`; rejects detached/duplicate/non-transferable/SAB entries with `DataCloneError`) and for `MessagePort` (in-process channel hand-off + cross-process subprocess IPC via `SubprocessPortTransport`), `SharedArrayBuffer` pass-through in same-process MessageChannel (Node), cross-process `SharedBuffer` in `Worker.postMessage` and `workerData` via `@gjsify/sab-native` (SCM_RIGHTS fd side-channel on inherited fd 3, count-and-drain placeholder protocol).",
       "missing": "`SharedArrayBuffer` constructor unavailable in stock GJS (Mozilla disables it; use `SharedBuffer` instead); `worker.postMessage` IPC-side `ArrayBuffer` transferList (JSON protocol \u2014 no binary frames yet for non-SharedBuffer transfers). Browser slot `partial` (no synchronous `receiveMessageOnPort`; `workerData` lands on the first macrotask)."
     },

@@ -124,14 +124,14 @@ function drainSabFds(count) {
 
 // --- GJSIFY_WIRE_CODEC_BEGIN ---
 // Tagged JSON codec for structured-clone types — the child-side MIRROR of
-// structured-clone-wire.ts. Everything between the BEGIN/END markers is
+// @gjsify/ipc-channel's structured-clone-wire.ts. Everything between the BEGIN/END markers is
 // sliced out of this string by structured-clone-wire.spec.ts and run through
 // the same case matrix as the TS copy, so the two cannot drift unnoticed.
 // The spec citations live in the TS file; keep the behaviour identical.
 const __TYPED_ARRAYS = ['Int8Array','Uint8Array','Uint8ClampedArray','Int16Array','Uint16Array','Int32Array','Uint32Array','Float32Array','Float64Array','BigInt64Array','BigUint64Array'];
 const __ERROR_CTORS = {Error:Error,EvalError:EvalError,RangeError:RangeError,ReferenceError:ReferenceError,SyntaxError:SyntaxError,TypeError:TypeError,URIError:URIError};
 // No btoa/atob here: this code is evaluated by a bare gjs. See the comment on
-// toBase64 in structured-clone-wire.ts for what depending on them cost.
+// toBase64 in @gjsify/ipc-channel's structured-clone-wire.ts for what depending on them cost.
 const __B64C='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 const __B64D=new Uint8Array(128);for(let i=0;i<64;i++)__B64D[__B64C.charCodeAt(i)]=i;
 function __toB64(buf){const b=new Uint8Array(buf);let s='';for(let i=0;i<b.length;i+=3){const h1=i+1<b.length,h2=i+2<b.length;const n=(b[i]<<16)|((h1?b[i+1]:0)<<8)|(h2?b[i+2]:0);s+=__B64C[(n>>18)&63]+__B64C[(n>>12)&63]+(h1?__B64C[(n>>6)&63]:'=')+(h2?__B64C[n&63]:'=');}return s;}
@@ -220,7 +220,7 @@ function decodeWire(value, refs){
 // referencing workerData recurses until the child dies) and sparse arrays
 // (hence \`i in value\`, or every hole becomes an own \`undefined\` property and
 // the array stops being sparse). The parent-side equivalents in
-// sab-transfer.ts guard both already.
+// @gjsify/ipc-channel's sab-transfer.ts guard both already.
 function materialise(value, seen) {
   if (seen === undefined) seen = new Set();
   if (value === null || typeof value !== 'object') return value;
