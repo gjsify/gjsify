@@ -45,7 +45,6 @@
             "core": "@gjsify/gi-runtime-android",
             "namespaces": [
                 "Adw",
-                "cairo",
                 "Gdk",
                 "GdkPixbuf",
                 "Graphene",

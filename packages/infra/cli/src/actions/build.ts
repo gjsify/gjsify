@@ -11,6 +11,7 @@ import {
     globToEntryPoints,
     scanGiNamespaces,
     planGiSelection,
+    planGiAddons,
     WorkerEntries,
     bundleSuffix,
 } from '@gjsify/rolldown-plugin-gjsify';
@@ -512,7 +513,17 @@ export class BuildAction {
      * its typelibs can still be fixed by installing a package; an APK carries its
      * whole GI stack or does without it.
      */
-    private assertNativescriptGiSelected(
+    /** The app's `dependencies` + `devDependencies` names; `[]` without a readable manifest. */
+    private async appDependencyNames(): Promise<string[]> {
+        try {
+            const manifest = JSON.parse(await readFile(join(process.cwd(), 'package.json'), 'utf-8'));
+            return [...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.devDependencies ?? {})];
+        } catch {
+            return [];
+        }
+    }
+
+    private async assertNativescriptGiSelected(
         result: RolldownOutput,
         outfile: string | undefined,
         outdir: string | undefined,
@@ -534,6 +545,11 @@ export class BuildAction {
         } catch (error) {
             // Re-thrown with the artifact in it: `planGiSelection` is pure and knows
             // the namespaces but not which file they were read from.
+            throw new Error(`gjsify build: ${label}: ${(error as Error).message}`);
+        }
+        try {
+            planGiAddons({ selected: selection.selected, installed: await this.appDependencyNames() });
+        } catch (error) {
             throw new Error(`gjsify build: ${label}: ${(error as Error).message}`);
         }
         for (const namespace of selection.unscanned) {
@@ -1133,7 +1149,7 @@ export class BuildAction {
         // package-build time (ADR 0117), so there is no host to fall back on: the
         // alternative to this gate is an APK that installs and throws at the import.
         if (app === 'nativescript') {
-            this.assertNativescriptGiSelected(writeResult, outfile, outdir);
+            await this.assertNativescriptGiSelected(writeResult, outfile, outdir);
         }
 
         // Browser HTML entry: emit the processed `index.html` beside the bundle

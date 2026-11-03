@@ -249,6 +249,8 @@ console.log(
         }
         manifest.dependencies[core] = nextVersion;
         writeFileSync(path, `${JSON.stringify(manifest, null, detectIndent(raw))}\n`);
-        console.log(`[bump-release-train-ranges] packages/node-gi/${entry.name}: ${core} ${latestVersion} -> ${nextVersion}`);
+        console.log(
+            `[bump-release-train-ranges] packages/node-gi/${entry.name}: ${core} ${latestVersion} -> ${nextVersion}`,
+        );
     }
 }

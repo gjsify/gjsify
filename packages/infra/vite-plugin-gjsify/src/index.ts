@@ -603,9 +603,24 @@ export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plu
         // ADR 0117 § 2's gate, on this path too: the NS CLI drives Vite, so without this
         // `giNamespaces` is a key the config loader accepts and nothing acts on.
         ...(options.giNamespaces
-            ? [nativescriptGiSelectionPlugin({ declared: options.giNamespaces }) as unknown as Plugin]
+            ? [
+                  nativescriptGiSelectionPlugin({
+                      declared: options.giNamespaces,
+                      installed: appDependencyNames(process.cwd()),
+                  }) as unknown as Plugin,
+              ]
             : []),
         deepkitPlugin({ reflection: options.reflection }) as unknown as Plugin,
         configPlugin,
     ];
+}
+
+/** The app's `dependencies` + `devDependencies` names, or `[]` when there is no readable manifest. */
+function appDependencyNames(root: string): string[] {
+    try {
+        const manifest = JSON.parse(readFileSync(nodePath.join(root, 'package.json'), 'utf8'));
+        return [...Object.keys(manifest.dependencies ?? {}), ...Object.keys(manifest.devDependencies ?? {})];
+    } catch {
+        return [];
+    }
 }

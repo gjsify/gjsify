@@ -885,7 +885,7 @@ describe('runtime manifest: the sysroot pin each AAR carries (ADR 0117 § 5)', (
     const sysroot = {
         repository: 'gjsify/android-sysroot',
         tag: '2026.11.03',
-        assets: { 'x86_64': { sha256: 'bb' }, 'arm64-v8a': { sha256: 'aa' } },
+        assets: { x86_64: { sha256: 'bb' }, 'arm64-v8a': { sha256: 'aa' } },
     };
     const spec = {
         name: '@gjsify/gi-runtime-android-gtk',
@@ -918,7 +918,11 @@ describe('runtime manifest: the sysroot pin each AAR carries (ADR 0117 § 5)', (
         });
         const asset = entries.find((e) => e.path === 'assets/app/gi-runtime/gi-runtime-android-gtk.json');
         assert.equal(asset.data.toString('utf8'), text);
-        assert.equal(entries.some((e) => e.path.endsWith('libnode_gi.so')), false, 'an add-on carries no addon');
+        assert.equal(
+            entries.some((e) => e.path.endsWith('libnode_gi.so')),
+            false,
+            'an add-on carries no addon',
+        );
         assert.match(entries[0].data.toString('utf8'), /studio\.artandcode\.gjsify\.gi_runtime_gtk/);
     });
 
@@ -939,7 +943,10 @@ describe('describePinMismatch: refuses a mixed sysroot', () => {
     });
 
     it('names both packages and both tags when the tags differ', () => {
-        const msg = describePinMismatch([m('@gjsify/gi-runtime-android-gtk', 'T2'), m('@gjsify/gi-runtime-android', 'T1')]);
+        const msg = describePinMismatch([
+            m('@gjsify/gi-runtime-android-gtk', 'T2'),
+            m('@gjsify/gi-runtime-android', 'T1'),
+        ]);
         assert.match(msg, /@gjsify\/gi-runtime-android \(sysroot T1\)/);
         assert.match(msg, /@gjsify\/gi-runtime-android-gtk \(sysroot T2\)/);
     });
@@ -956,16 +963,36 @@ describe('checkSysrootPins: the device side', () => {
     function fakeJava(files) {
         const names = Object.keys(files);
         class File {
-            constructor(p) { this.p = p; }
-            exists() { return true; }
-            listFiles() { return names.map((n) => new File(`${this.p}/${n}`)); }
-            getName() { return this.p.split('/').pop(); }
+            constructor(p) {
+                this.p = p;
+            }
+            exists() {
+                return true;
+            }
+            listFiles() {
+                return names.map((n) => new File(`${this.p}/${n}`));
+            }
+            getName() {
+                return this.p.split('/').pop();
+            }
         }
-        class FileInputStream { constructor(f) { this.f = f; } }
-        class InputStreamReader { constructor(s) { this.s = s; } }
+        class FileInputStream {
+            constructor(f) {
+                this.f = f;
+            }
+        }
+        class InputStreamReader {
+            constructor(s) {
+                this.s = s;
+            }
+        }
         class BufferedReader {
-            constructor(r) { this.lines = files[r.s.f.getName()].split('\n'); }
-            readLine() { return this.lines.length ? this.lines.shift() : null; }
+            constructor(r) {
+                this.lines = files[r.s.f.getName()].split('\n');
+            }
+            readLine() {
+                return this.lines.length ? this.lines.shift() : null;
+            }
             close() {}
         }
         return { io: { File, FileInputStream, InputStreamReader, BufferedReader } };
@@ -1019,5 +1046,21 @@ describe('gi-runtime-addon rule: the pair stays in lockstep', () => {
         assert.match(auditGiAddons([core, addon({ version: '1.0.1' })]).failures[0], /lockstep/);
         const bad = { ...core, manifest: { ...core.manifest, optionalDependencies: { gtk: '1.0.0' } } };
         assert.match(auditGiAddons([bad, addon()]).failures[0], /must not depend on its add-ons/);
+    });
+});
+
+describe('GI_ADDONS: the build-time catalogue matches the add-on manifest', () => {
+    it('lists exactly the namespaces gjsify.giRuntime declares', () => {
+        const src = readFileSync(
+            fileURLToPath(new URL('../../../infra/rolldown-plugin-gjsify/src/utils/gi-selection.ts', import.meta.url)),
+            'utf8',
+        );
+        const block = /package: '@gjsify\/gi-runtime-android-gtk',\s*namespaces: \[([^\]]*)\]/.exec(src);
+        assert.ok(block, 'catalogue entry for the add-on');
+        const listed = [...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
+        const addon = JSON.parse(
+            readFileSync(fileURLToPath(new URL('../../gi-runtime-android-gtk/package.json', import.meta.url)), 'utf8'),
+        );
+        assert.deepEqual(listed, [...addon.gjsify.giRuntime.namespaces].sort());
     });
 });

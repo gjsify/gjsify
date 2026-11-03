@@ -31,13 +31,18 @@
 import type { Plugin } from 'rolldown';
 
 import { scanGiNamespaces } from '../utils/gi-namespaces.js';
-import { assertGiNamespaceEntries, planGiSelection } from '../utils/gi-selection.js';
+import { assertGiNamespaceEntries, planGiAddons, planGiSelection } from '../utils/gi-selection.js';
 
 export const NATIVESCRIPT_GI_SELECTION_PLUGIN = 'gjsify-nativescript-gi-selection';
 
 export interface NativescriptGiSelectionOptions {
     /** `giNamespaces` as the app declares it, `Ns` or `Ns-Version`. */
     declared: readonly string[];
+    /**
+     * The app's dependency names. When given, a selection that needs an add-on package
+     * (ADR 0117 § 1) fails naming it; left out, only the namespace check runs.
+     */
+    installed?: readonly string[];
 }
 
 /**
@@ -73,6 +78,13 @@ export function nativescriptGiSelectionPlugin(options: NativescriptGiSelectionOp
                 throw new Error(
                     `${NATIVESCRIPT_GI_SELECTION_PLUGIN}: ${(error as Error).message} (read from ${files})`,
                 );
+            }
+            if (options.installed) {
+                try {
+                    planGiAddons({ selected: selection.selected, installed: options.installed });
+                } catch (error) {
+                    throw new Error(`${NATIVESCRIPT_GI_SELECTION_PLUGIN}: ${(error as Error).message}`);
+                }
             }
             for (const namespace of selection.unscanned) {
                 this.warn(

@@ -505,7 +505,15 @@ export function planTypelibs({ perAbi, declared }) {
  * named with its upstream, and the notice says plainly that the text is not embedded unless
  * `--license-corpus` supplied one.
  */
-export function renderNotice({ bundled, system, table, corpus, abis, packageName = '@gjsify/gi-runtime-android', addOn = false }) {
+export function renderNotice({
+    bundled,
+    system,
+    table,
+    corpus,
+    abis,
+    packageName = '@gjsify/gi-runtime-android',
+    addOn = false,
+}) {
     const unattributed = bundled.filter((soname) => !(soname in table.libraries)).sort();
     if (unattributed.length > 0) {
         throw new Error(
@@ -1026,10 +1034,7 @@ export function run({ pkgDir: ownDir = pkgDir, addOn = null } = {}) {
         sysroot: inputs.sysroot,
         abis: opts.abis,
         libraries: Object.fromEntries(
-            opts.abis.map((abi) => [
-                abi,
-                [...(addOn ? [] : ['libnode_gi.so']), ...perAbiPayload[abi].libs.keys()],
-            ]),
+            opts.abis.map((abi) => [abi, [...(addOn ? [] : ['libnode_gi.so']), ...perAbiPayload[abi].libs.keys()]]),
         ),
         typelibs: [...typelibs.keys()],
     });
@@ -1061,13 +1066,11 @@ export function run({ pkgDir: ownDir = pkgDir, addOn = null } = {}) {
                         [
                             ...(addOn ? [] : [['libnode_gi.so', perAbiPayload[abi].nodeGi]]),
                             ...perAbiPayload[abi].libs,
-                        ].map(
-                            ([name, bytes]) => ({
-                                name,
-                                bytes: bytes.length,
-                                sha256: sha256(bytes),
-                            }),
-                        ),
+                        ].map(([name, bytes]) => ({
+                            name,
+                            bytes: bytes.length,
+                            sha256: sha256(bytes),
+                        })),
                     ]),
                 ),
                 systemProvided: report[opts.abis[0]].system,
