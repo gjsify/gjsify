@@ -834,7 +834,10 @@ describe('payload-baseline.json: selecting nothing ships what ADR 0110 measured'
         it(`${abi}: the baseline is the entry set ADR 0110 counted`, () => {
             const measured = baseline.measured[abi];
             assert.equal(baseline.planned[abi].libraries.length, measured.libraries);
-            assert.equal(baseline.planned[abi].typelibs.length, measured.typelibs);
+            assert.equal(
+                baseline.planned[abi].typelibs.length,
+                measured.typelibs + baseline.addedSinceMeasured[abi].length,
+            );
             // The report split the payload total the same way; if these stop agreeing, the
             // numbers quoted above came from two different builds.
             assert.equal(measured.libraryBytes + baseline.measured.typelibBytes, measured.payloadBytes);
@@ -850,7 +853,7 @@ describe('payload-baseline.json: selecting nothing ships what ADR 0110 measured'
         it(`${abi}: selecting Graphene only ADDS to the baseline`, () => {
             // The positive half: the mechanism does change the payload, and never by
             // dropping something the default carried. Graphene is the cheapest namespace
-            // the pinned prefix can actually resolve (GTK's needs a cairo typelib the
+            // the pinned prefix can actually resolve (GTK is an add-on namespace now; the
             // prefix has no introspection data for — ADR 0117's Implementation note).
             const selected = replay(abi, ['Graphene']);
             for (const soname of baseline.planned[abi].libraries) {
