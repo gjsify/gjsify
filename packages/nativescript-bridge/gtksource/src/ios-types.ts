@@ -118,6 +118,25 @@ export interface UITextViewNative extends UIViewNative {
     /** Reading it pins the view to TextKit 1 — the reason `native-editor.ios.ts` reads it early. */
     readonly layoutManager: NSLayoutManagerInstance;
     delegate: unknown;
+    /** `UIScrollViewKeyboardDismissMode`: a `UITextView` IS a `UIScrollView`. */
+    keyboardDismissMode: number;
+    /** The bar shown above the keyboard; this is how a `UITextView` gets a "Done" button. */
+    inputAccessoryView: UIViewNative | null;
+    resignFirstResponder(): boolean;
+}
+
+/** Opaque: this driver only ever puts these into a `UIToolbar.items` array. */
+export interface UIBarButtonItemInstance {}
+
+export interface UIButtonInstance extends UIViewNative {
+    setTitleForState(title: string, state: number): void;
+    addActionForControlEvents(action: unknown, events: number): void;
+}
+
+export interface UIToolbarInstance extends UIViewNative {
+    items: UIBarButtonItemInstance[] | null;
+    sizeToFit(): void;
+    setItemsAnimated(items: UIBarButtonItemInstance[], animated: boolean): void;
 }
 
 export interface NSStringInstance {

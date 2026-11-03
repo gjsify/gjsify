@@ -31,10 +31,13 @@ import type {
     NSStringInstance,
     ObjCClass,
     TextAttributes,
+    UIBarButtonItemInstance,
+    UIButtonInstance,
     UIColorInstance,
     UIFontDescriptorInstance,
     UIFontInstance,
     UITextViewNative,
+    UIToolbarInstance,
 } from './ios-types.js';
 import type { EditorHost, EditorLayout } from '@gjsify/gtksource-core';
 import type { EditorPalette, GutterMetrics, RunStyle, StyledRun } from '@gjsify/gtksource-core';
@@ -69,6 +72,42 @@ declare const UIFont: {
 declare const UIRectFillUsingBlendMode: (rect: CGRect, blendMode: number) => void;
 /** `CGBlendMode.normal` — the NativeScript ObjC bridge exposes the C enum as a numeric global. */
 declare const kCGBlendModeNormal: number;
+declare const UIToolbar: ObjCClass<UIToolbarInstance>;
+declare const UIBarButtonItem: {
+    alloc(): {
+        initWithBarButtonSystemItemTargetAction(
+            systemItem: number,
+            target: object | null,
+            action: string | null,
+        ): UIBarButtonItemInstance;
+        initWithCustomView(view: UIButtonInstance): UIBarButtonItemInstance;
+    };
+};
+/** `UIBarButtonSystemItem.flexibleSpace` — flat ObjC enum-case name, as `kCGBlendModeNormal` above. */
+declare const UIBarButtonSystemItemFlexibleSpace: number;
+declare const UIButton: { buttonWithType(type: number): UIButtonInstance };
+/** `UIButtonType.system`. */
+declare const UIButtonTypeSystem: number;
+/** `UIControlState.normal`. */
+const UI_CONTROL_STATE_NORMAL = 0;
+/** `UIControlEvents.touchUpInside`. */
+declare const UIControlEventTouchUpInside: number;
+/**
+ * `+[UIAction actionWithTitle:image:identifier:handler:]`. A plain JS closure works as the block
+ * argument (the ObjC bridge wraps it), which is what makes this route work at all: a brand-new
+ * selector given to `-addTarget:action:forControlEvents:` has no metadata to resolve against and
+ * crashes with `doesNotRecognizeSelector:` — measured, this is NOT the same failure as the
+ * `UIBarButtonSystemItem`-based button being silently invisible above; that one never even reached
+ * a tap. `UIAction` sidesteps the selector question entirely.
+ */
+declare const UIAction: {
+    actionWithTitleImageIdentifierHandler(
+        title: string,
+        image: unknown,
+        identifier: unknown,
+        handler: (action: unknown) => void,
+    ): unknown;
+};
 declare const NSFontAttributeName: string;
 declare const NSForegroundColorAttributeName: string;
 declare const NSBackgroundColorAttributeName: string;
@@ -87,6 +126,14 @@ const FONT_WEIGHT_REGULAR = 0;
 const DEFAULT_FONT_SIZE = 14;
 /** The container width that refuses to wrap; `CGFLOAT_MAX` makes TextKit's own arithmetic overflow. */
 const UNBOUNDED = 1e7;
+/**
+ * `UIScrollViewKeyboardDismissMode.onDrag`: a drag that starts on the text view (not just a drag
+ * that reaches its edge, as `interactive` would need) dismisses the keyboard. Without this, or
+ * the "Done" button this file also installs, nothing on iOS closes the keyboard at all — it has
+ * no back button and the editor has no tap-outside target, so it stayed open over the hammer
+ * button and the tab bar for the whole session.
+ */
+const KEYBOARD_DISMISS_ON_DRAG = 1;
 
 interface DrawingDriver {
     drawBehind(view: UITextViewNative): void;
@@ -105,6 +152,41 @@ type ExtendedTextView = UITextViewNative & { super: { drawRect(rect: CGRect): vo
 
 /** The delegate object, which carries the driver the way the view does. */
 type EditDelegate = { driver?: object };
+
+/** Standard iOS toolbar height; a brand-new `UIToolbar` has no superview to size itself against. */
+const ACCESSORY_BAR_HEIGHT = 44;
+
+/**
+ * A toolbar carrying a single "Done" button, right-aligned, that resigns `view`'s first-responder
+ * status — the only way to close the keyboard on iOS, which has no back button for it and whose
+ * software keyboard otherwise covers the hammer button and the tab bar for the rest of the session.
+ */
+function accessoryBar(view: UITextViewNative): UIToolbarInstance {
+    const toolbar = UIToolbar.new();
+    // UIKit stretches the accessory view's WIDTH to the keyboard's own when it installs it, but
+    // only the HEIGHT this frame carries — `sizeToFit()` on a detached, still-zero-rect toolbar
+    // has nothing to measure against and leaves it zero, so the bar was being installed with no
+    // height at all and never appeared.
+    toolbar.frame = { origin: { x: 0, y: 0 }, size: { width: 320, height: ACCESSORY_BAR_HEIGHT } };
+    const flex = UIBarButtonItem.alloc().initWithBarButtonSystemItemTargetAction(
+        UIBarButtonSystemItemFlexibleSpace,
+        null,
+        null,
+    );
+    // NOT `UIBarButtonSystemItemDone`: a `UIBarButtonItem` built from a system item never drew
+    // anything at all here (confirmed on-device — present, zero-size, no exception), so the
+    // visible button is a plain `UIButton` wrapped as the item's `customView`.
+    const doneButton = UIButton.buttonWithType(UIButtonTypeSystem);
+    doneButton.frame = { origin: { x: 0, y: 0 }, size: { width: 70, height: ACCESSORY_BAR_HEIGHT } };
+    doneButton.setTitleForState('Done', UI_CONTROL_STATE_NORMAL);
+    const dismiss = UIAction.actionWithTitleImageIdentifierHandler('', null, null, () => {
+        view.resignFirstResponder();
+    });
+    doneButton.addActionForControlEvents(dismiss, UIControlEventTouchUpInside);
+    const done = UIBarButtonItem.alloc().initWithCustomView(doneButton);
+    toolbar.items = [flex, done];
+    return toolbar;
+}
 
 let textViewClass: ObjCClass<UITextViewNative> | undefined;
 
@@ -226,6 +308,8 @@ class IosEditorDriver implements NativeEditorDriver, DrawingDriver, EditReporter
         this.delegate = editDelegate().new();
         this.delegate.driver = this;
         view.delegate = this.delegate;
+        view.keyboardDismissMode = KEYBOARD_DISMISS_ON_DRAG;
+        view.inputAccessoryView = accessoryBar(view);
         this.applyLayout();
         this.applyPalette();
         this.applying = true;
