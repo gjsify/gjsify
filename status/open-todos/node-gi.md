@@ -486,13 +486,15 @@ its lockstep publish from the core's `release.yml` job, sysroot `2026.11.03`, th
 Vite app and that Gtk loads), the owner's first manual npm publish of the new name
 (`status/pending-npm-bootstrap.json`), and a Trusted Publisher entry for it.
 
-Two things need Pascal before stage 2 can start: the TLS backend (OpenSSL or GnuTLS — the Android
-argument is that p11-kit's trust module sits behind a compiled-in path with no env override and
-Android has no system p11-kit) and the CA store route (`/system/etc/security/cacerts`, plus the
-user store or not, our own bundle, or JNI `X509TrustManagerExtensions`). A new sysroot release
-also needs his explicit OK before upload. CI can rebuild the sysroot under qemu-user
-([android-sysroot build.yml](https://github.com/gjsify/android-sysroot/blob/main/.github/workflows/build.yml)), so the OK is a choice, not a constraint (ADR 0117
-§ Amendment). Leftovers (pango/freetype2 wraps still float, GIR race worked around) are tracked
+Both of stage 2's owner questions are answered (2026-11-03). The TLS backend is **OpenSSL**: p11-kit's
+trust module sits behind a compiled-in path with no env override, and Android has no system p11-kit.
+The CA store follows [ADR 0134](../../docs/adr/0134-https-trusts-the-os-store-through-one-package.md)
+(**Proposed**). A new `@gjsify/tls-trust` reads `/system/etc/security/cacerts`, minus the user's
+disabled set, and installs it as Gio's default database. It does not read the user store unless the
+app opts in, and a Mozilla bundle is opt-in too. JNI `X509TrustManagerExtensions` comes later. A new
+sysroot release still needs his explicit OK before upload. CI can rebuild the sysroot under qemu-user
+([android-sysroot build.yml](https://github.com/gjsify/android-sysroot/blob/main/.github/workflows/build.yml)),
+so the OK is a choice, not a constraint (ADR 0117 § Amendment). Leftovers (pango/freetype2 wraps still float, GIR race worked around) are tracked
 in gjsify/android-sysroot.
 
 ### Track C′ (real GTK on a NativeScript worker): lifecycle, pump ownership, composition

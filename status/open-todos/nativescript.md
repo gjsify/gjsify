@@ -588,6 +588,24 @@ the shared helper gives it the value edge the matrix asks for — flipping its r
 because it became true, not because a marker said so.
 
 
+### F-Droid needs every Android binary built from source, and the NativeScript runtime is the blocker
+
+F-Droid builds an app from source and rejects prebuilt binaries it did not build. Today a gjsify
+NativeScript APK carries three kinds of native code:
+
+- **`@nativescript/android`** (9.1.1) ships its runtime as prebuilt AARs
+  (`framework/app/libs/runtime-libs/nativescript-{regular,optimized,optimized-with-inspector}.aar`:
+  V8 plus `libNativeScript.so`). This is **the blocker.** It needs a from-source recipe, which means
+  building NativeScript/android-runtime, V8 included, from a pinned tag. Then it needs either an
+  F-Droid `srclibs` entry or a gjsify-owned build that F-Droid can reproduce.
+- **`@gjsify/gi-runtime-android` / `-gtk`**: the AAR is built from `gjsify/android-sysroot` (whose CI
+  can rebuild it, ADR 0117 § Amendment) plus `libnode_gi.so`. It can be built from source, but there
+  is no F-Droid recipe yet.
+- Any sherpa or other prebuild a given app pulls in. Check this per app.
+
+Done means that an F-Droid metadata file for one sample app builds an APK with no prebuilt `.so`
+or `.aar` left, as F-Droid's `scanner` reports it.
+
 ### Upstream PRs in flight (NativeScript) — track until merged
 
 Two fixes contributed upstream so NS apps work without gjsify-side workarounds. **Both OPEN as of 2026-06-04.** Revisit when either merges + ships in a NativeScript release: drop the corresponding workaround, then bump the version floor / re-validate.
