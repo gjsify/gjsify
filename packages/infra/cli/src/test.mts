@@ -19,6 +19,7 @@ import shipPayloadSuite from './utils/ship/payload.spec.js';
 import shipLauncherSuite from './utils/ship/launcher.spec.js';
 import shipPeLauncherSuite from './utils/ship/pe-launcher.spec.js';
 import shipIconsSuite from './utils/ship/icons.spec.js';
+import androidIconsSuite from './utils/ship/android-icons.spec.js';
 import shipIcoSuite from './utils/ship/ico.spec.js';
 import shipIcnsSuite from './utils/ship/icns.spec.js';
 import shipSettingsSuite from './utils/ship/settings.spec.js';
@@ -315,6 +316,7 @@ run(
         shipLauncherSuite,
         shipPeLauncherSuite,
         shipIconsSuite,
+        androidIconsSuite,
         shipIcoSuite,
         shipIcnsSuite,
         shipSettingsSuite,

@@ -216,6 +216,8 @@ export interface ConfigData {
     site?: { metainfo?: string };
     /** Config for `gjsify credits`. CLI flags override these. */
     credits?: ConfigDataCredits;
+    /** Config for `gjsify android-icons`. CLI flags override these. */
+    androidIcons?: ConfigDataAndroidIcons;
     /**
      * Config for `gjsify format` / `lint` / `fix`. A thin shell: oxc's own
      * `.oxfmtrc.json` / `.oxlintrc.json` are the real configuration files.
@@ -225,6 +227,16 @@ export interface ConfigData {
     test?: ConfigDataTest;
     /** Config for the `nativescript` target — what the APK carries (ADR 0117). */
     nativescript?: ConfigDataNativescript;
+}
+
+/** `gjsify.androidIcons` — where the NativeScript App_Resources live and what the icon is drawn from. */
+export interface ConfigDataAndroidIcons {
+    /** The App_Resources directory. Default: `appResourcesPath` of nativescript.config.ts, else `App_Resources`. */
+    resources?: string;
+    /** The scalable app icon SVG. Default: the hicolor icon under `data/icons`. */
+    icon?: string;
+    /** Adaptive-icon background, `#rrggbb`. Default: the metainfo light branding colour, else white. */
+    background?: string;
 }
 
 /** `gjsify.credits` — where `gjsify credits` writes and what it leaves out. */
