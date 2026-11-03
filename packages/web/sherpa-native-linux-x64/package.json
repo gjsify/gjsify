@@ -1,0 +1,43 @@
+{
+    "name": "@gjsify/sherpa-native-linux-x64",
+    "version": "0.64.16",
+    "description": "linux-x64 prebuilt native library + GObject-Introspection typelib for @gjsify/sherpa-native. Installed automatically on linux/x64 as an optionalDependency of that package (ADR 0017) and skipped everywhere else. Contains no JavaScript.",
+    "license": "MIT AND Apache-2.0",
+    "os": [
+        "linux"
+    ],
+    "cpu": [
+        "x64"
+    ],
+    "libc": [
+        "glibc"
+    ],
+    "files": [
+        "prebuilds"
+    ],
+    "gjsify": {
+        "glibcRequires": {
+            "linux-x64": "2.38"
+        },
+        "platforms": [
+            "linux-x64"
+        ],
+        "prebuilds": "prebuilds",
+        "tier": 3
+    },
+    "scripts": {
+        "clear": "echo 'nothing to do'",
+        "check": "echo 'nothing to do'",
+        "build": "echo 'nothing to do'",
+        "test": "echo 'nothing to do'"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/web/sherpa-native-linux-x64"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/web/sherpa-native-linux-x64#readme"
+}

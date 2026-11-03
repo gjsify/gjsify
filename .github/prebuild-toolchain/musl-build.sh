@@ -356,29 +356,14 @@ while IFS='|' read -r dir ns class; do
     fi
 done < "$BRIDGES"
 
-# ── the COMMITTED glibc artifacts must resolve here too ─────────────────────
-# The step above proves the artifacts THIS LEG BUILT are sound. It says nothing
-# about the ones users actually get, and answering that is now its own script:
-# `musl-committed-check.sh`, which carries the reasoning, the accepted-gap ledger
-# and the incident behind them.
-#
-# It left this file because this leg cannot be the only caller. It WAS
-# `workflow_dispatch`-only and `continue-on-error: true` back then, so nothing it
-# asserted could colour a PR — both of those are gone now, but the split stands on
-# what made it worth doing: the committed-artifact question needs no build, so it
-# also runs where a build leg has no business being. Two more places today (a
-# `check-committed-musl` job, and a step inside `commit-prebuilds` before the
-# binaries are committed), and one body is what keeps the self-retiring ledger
-# from drifting between them.
-#
-# `TARGET` is this leg's token without the libc suffix: the committed directory
-# holding the glibc artifacts users actually get. Called under `if`, not bare —
-# it exits non-zero on a real gap and `set -e` would abort before the combined
-# verdict below.
-cd "$WORKSPACE"
-echo "--- handing over to the committed-artifact check"
-if TARGET="${PREBUILD%-musl}" sh .github/prebuild-toolchain/musl-committed-check.sh; then :; else
-    rc=1
-fi
+# ── the COMMITTED glibc artifacts are checked ELSEWHERE, on purpose ─────────
+# This leg must NOT run `musl-committed-check.sh`. `commit-prebuilds` needs this
+# job, so a committed artifact that fails that check here would block the only
+# job that can replace it: any regression fixed at the SOURCE could never
+# self-heal. That is the deadlock measured on 2026-10-25 with #2494's `fcntl64`
+# — the red leg was judging the OLD `.so` while holding the rebuild hostage.
+# `check-committed-musl` (PRs) and the staged-tree step in `commit-prebuilds`
+# (before anything is committed) ask the committed-artifact question, and the
+# staged check is the one that still prevents a bad binary from landing.
 
 exit $rc

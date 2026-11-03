@@ -3272,8 +3272,9 @@ never reports.
   `transition-duration` and render neither: the CSS subset has no transform or animation, so a
   swap is instant, as for `Adw.ViewStack`. A word that is not a member of the GIR enum is
   refused, not swallowed; Blueprint's `slide_up` and the nick `slide-up` are one member.
-- `Gtk.ScrolledWindow` folds its two policies onto the ONE axis a `ScrollView` scrolls on
-  (`widgets/scrolled-window-policy.ts`): a window that scrolls both ways scrolls vertically.
+- `Gtk.ScrolledWindow` maps a window that scrolls on one axis to one `ScrollView`
+  (`widgets/scrolled-window-policy.ts`) and one that scrolls on both to a horizontal
+  `ScrollView` nested in the vertical one, so a non-wrapping child scrolls sideways.
   `has-frame` is held and draws nothing; the nine properties that need a size-negotiation
   protocol or a scrollbar the port does not draw are in `KNOWN_GAPS`.
 - `Gtk.Overlay` stacks in one grid cell and lets each overlay's own `halign` / `valign` place

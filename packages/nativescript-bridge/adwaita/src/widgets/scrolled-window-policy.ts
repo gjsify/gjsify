@@ -1,10 +1,9 @@
 // `Gtk.PolicyType` for `Gtk.ScrolledWindow`, reduced to what an NS `ScrollView` can do.
 //
 // A `GtkScrolledWindow` scrolls on BOTH axes, each under its own policy. A NativeScript
-// `ScrollView` scrolls on ONE (`orientation`), so the two policies have to be folded into the
-// one axis the view can honour. The fold is lossy in exactly one case, and it is declared in
-// `check-nativescript-widget-coverage.mjs` rather than hidden: a window that scrolls on both
-// axes scrolls vertically only.
+// `ScrollView` scrolls on ONE (`orientation`), so a window that scrolls on only one axis maps
+// to one view, and a window that scrolls on both nests a horizontal view in the vertical one
+// (`gtk-scrolled-window.ts`, "TWO AXES").
 //
 //   · `never` on an axis means the child is held to the viewport on that axis (a wrapping
 //     label wraps instead of growing a scrollbar) — which is what a `ScrollView` already does
@@ -48,8 +47,8 @@ export function policyScrolls(policy: GtkPolicyNick): boolean {
 /**
  * The one axis the `ScrollView` scrolls on, for a pair of policies.
  *
- * Vertical wins a tie, because that is the axis a page of content grows on; a window that
- * scrolls ONLY horizontally is the one case that flips it. Neither axis scrolling still
+ * Vertical wins a tie, because that is the axis a page of content grows on and the outer view
+ * of a two-axis window; a window that scrolls ONLY horizontally is the one case that flips it. Neither axis scrolling still
  * answers `vertical` — a `ScrollView` cannot refuse to scroll, so the child is simply held
  * at its natural size by the surrounding layout.
  */
@@ -58,4 +57,9 @@ export function scrollOrientationFor(
     vscrollbarPolicy: GtkPolicyNick,
 ): 'horizontal' | 'vertical' {
     return policyScrolls(hscrollbarPolicy) && !policyScrolls(vscrollbarPolicy) ? 'horizontal' : 'vertical';
+}
+
+/** Whether both axes scroll, which is when the window needs the second, nested `ScrollView`. */
+export function scrollsBothAxes(hscrollbarPolicy: GtkPolicyNick, vscrollbarPolicy: GtkPolicyNick): boolean {
+    return policyScrolls(hscrollbarPolicy) && policyScrolls(vscrollbarPolicy);
 }

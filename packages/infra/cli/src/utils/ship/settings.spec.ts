@@ -14,6 +14,7 @@ import {
     deriveBinaryName,
     resolveShipApp,
     resolveShipBundle,
+    resolveShipExecutables,
     resolveShipSettings,
     type SettingsInput,
 } from './settings.js';
@@ -404,6 +405,55 @@ export default async () => {
             // Empty strings contribute nothing rather than an empty paragraph, which deb renders
             // as a stray ` .` line.
             expect(descriptionParagraphs(['', '   ', 'Kept.'])).toStrictEqual(['Kept.']);
+        });
+    });
+    await describe('resolveShipExecutables', async () => {
+        const base = { binaryName: 'hello', projectDir: '/p', bundleDir: '/p/dist' };
+        const refusal = (declared: unknown): string => {
+            try {
+                resolveShipExecutables({ ...base, declared });
+            } catch (error) {
+                return (error as Error).message;
+            }
+            return '';
+        };
+
+        await it("is empty without a declaration (today's behaviour)", () => {
+            expect(resolveShipExecutables({ ...base, declared: undefined })).toStrictEqual([]);
+        });
+
+        await it('resolves the entry relative to the bundle directory and defaults gui to false', () => {
+            expect(
+                resolveShipExecutables({
+                    ...base,
+                    declared: [
+                        { name: 'hello-bridge', entry: 'dist/bridge.mjs' },
+                        { name: 'hello-ui', entry: 'dist/sub/ui.mjs', gui: true },
+                    ],
+                }),
+            ).toStrictEqual([
+                { name: 'hello-bridge', entry: 'bridge.mjs', gui: false },
+                { name: 'hello-ui', entry: 'sub/ui.mjs', gui: true },
+            ]);
+        });
+
+        await it('refuses a name that is taken, malformed or a path', () => {
+            expect(refusal([{ name: 'hello', entry: 'dist/a.mjs' }])).toContain('already taken');
+            expect(
+                refusal([
+                    { name: 'x', entry: 'dist/a.mjs' },
+                    { name: 'x', entry: 'dist/b.mjs' },
+                ]),
+            ).toContain('already taken');
+            expect(refusal([{ name: '../x', entry: 'dist/a.mjs' }])).toContain('.name');
+            expect(refusal([{ name: 'Has Space', entry: 'dist/a.mjs' }])).toContain('.name');
+        });
+
+        await it('refuses an entry outside the bundle directory, unknown keys and a non-list', () => {
+            expect(refusal([{ name: 'x', entry: 'other/a.mjs' }])).toContain('outside');
+            expect(refusal([{ name: 'x', entry: 'dist/a.mjs', icon: 'i' }])).toContain('unknown key');
+            expect(refusal([{ name: 'x', entry: 'dist/a.mjs', gui: 'yes' }])).toContain('.gui');
+            expect(refusal({ name: 'x' })).toContain('must be a list');
         });
     });
 };

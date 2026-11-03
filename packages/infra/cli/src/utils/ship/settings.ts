@@ -11,7 +11,7 @@
 // indistinguishable from a value the user typed and would clobber the config.
 
 import { validateMimeTypes } from './mime.js';
-import { basename } from 'node:path';
+import { basename, isAbsolute, posix, relative, resolve, sep } from 'node:path';
 
 import type {
     AppMetadata,
@@ -24,7 +24,7 @@ import type {
 import { DEFAULT_GJS_FLOOR, DEFAULT_NODE_FLOOR } from './depends.js';
 import { resolveShipFlatpakSettings } from './flatpak-config.js';
 import { assertRelease, normaliseVersion } from './version.js';
-import type { HostOs, ShipSettings } from './types.js';
+import type { HostOs, ShipExecutable, ShipSettings } from './types.js';
 
 /** The subset of `package.json` the resolver reads. */
 export interface ShipPackageManifest {
@@ -343,6 +343,12 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
         fontFiles: discovered.fontFiles,
         extraFiles: ship.extraFiles ?? {},
         execArgs: ship.execArgs ?? [],
+        executables: resolveShipExecutables({
+            declared: ship.executables,
+            binaryName,
+            projectDir: input.projectDir,
+            bundleDir: discovered.bundleDir,
+        }),
         outDir: input.cli.outDir ?? ship.outDir ?? 'ship',
         arch: input.cli.arch ?? process.arch,
         app,
@@ -353,6 +359,75 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
     };
 
     return { settings, metadata, warnings };
+}
+
+/** A command name is a file name on every layout and a command a person types. */
+const EXECUTABLE_NAME = /^[a-z0-9][a-z0-9._+-]*$/;
+
+/**
+ * `gjsify.ship.executables` → the further launchers of one package.
+ *
+ * REFUSED rather than normalised, for each rule: a name collision between two entries
+ * is one launcher silently replacing the other (`placeStage` would catch the Linux
+ * case and miss a Windows `Foo.cmd`/`foo.cmd` pair on a case-insensitive disk), an
+ * entry outside the bundle directory is a file the stage does not carry, and a name
+ * with a path separator or a space escapes `bin/`. All three install cleanly and
+ * start nothing, which is the class this command is built against.
+ */
+export function resolveShipExecutables(input: {
+    declared: unknown;
+    binaryName: string;
+    projectDir: string;
+    bundleDir: string;
+}): ShipExecutable[] {
+    const { declared } = input;
+    if (declared === undefined) return [];
+    if (!Array.isArray(declared)) {
+        throw new Error(
+            'gjsify ship: `gjsify.ship.executables` must be a list of `{ "name", "entry", "gui"? }` objects.',
+        );
+    }
+    const seen = new Set<string>([input.binaryName]);
+    return declared.map((row: unknown, index): ShipExecutable => {
+        const at = `gjsify.ship.executables[${index}]`;
+        if (typeof row !== 'object' || row === null || Array.isArray(row)) {
+            throw new Error(`gjsify ship: \`${at}\` must be an object with \`name\` and \`entry\`.`);
+        }
+        const { name, entry, gui, ...unknown } = row as Record<string, unknown>;
+        const stray = Object.keys(unknown);
+        if (stray.length > 0) {
+            throw new Error(`gjsify ship: \`${at}\` has unknown key(s) ${stray.join(', ')}; known: name, entry, gui.`);
+        }
+        if (typeof name !== 'string' || !EXECUTABLE_NAME.test(name)) {
+            throw new Error(
+                `gjsify ship: \`${at}.name\` must match ${EXECUTABLE_NAME} — it becomes \`bin/<name>\`, ` +
+                    `\`Contents/MacOS/<name>\` and \`<name>.cmd\`, so it is lower-case with no path separator or space.`,
+            );
+        }
+        if (seen.has(name)) {
+            throw new Error(
+                `gjsify ship: \`${at}.name\` "${name}" is already taken — by the package's own \`binaryName\` ` +
+                    'or by an earlier entry. Two launchers cannot share one file name.',
+            );
+        }
+        seen.add(name);
+        if (typeof entry !== 'string' || entry === '') {
+            throw new Error(`gjsify ship: \`${at}.entry\` must be the project-relative path of a built bundle.`);
+        }
+        if (gui !== undefined && typeof gui !== 'boolean') {
+            throw new Error(`gjsify ship: \`${at}.gui\` must be a boolean.`);
+        }
+        const abs = isAbsolute(entry) ? entry : resolve(input.projectDir, entry);
+        const rel = relative(input.bundleDir, abs);
+        if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) {
+            throw new Error(
+                `gjsify ship: \`${at}.entry\` ${entry} is outside ${input.bundleDir}, the directory \`gjsify.main\` ` +
+                    'lives in — only that directory is staged, so the launcher would point at a file the package ' +
+                    'does not carry. Build the entries into one directory.',
+            );
+        }
+        return { name, entry: rel.split(sep).join(posix.sep), gui: gui === true };
+    });
 }
 
 /** The entry one ship target installs, which key named it, and what it must NOT carry. */

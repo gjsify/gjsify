@@ -35,6 +35,7 @@ import { consoleAssignPlugin } from '../plugins/console-assign.js';
 import { gschemaPlugin } from '../plugins/gschema.js';
 import { gresourcePlugin } from '../plugins/gresource.js';
 import { implicitGlobalAssignPlugin } from '../plugins/implicit-global-assign.js';
+import { workerUrlPlugin } from '../plugins/worker-url.js';
 import { shebangPlugin, resolveShebangLine, inputShebangStripPlugin } from '../plugins/shebang.js';
 import { wrapInputWithSideEffects } from '../utils/entry-wrapper.js';
 
@@ -267,6 +268,8 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         gschemaPlugin({ mode: 'ignore' }),
         gresourcePlugin({ compressed: 'keep' }),
         implicitGlobalAssignPlugin(),
+        // `new Worker(new URL('./x', import.meta.url))` → the file the CLI builds beside the bundle.
+        ...(input.pluginOptions.workers ? [workerUrlPlugin(input.pluginOptions.workers)] : []),
         // `gi://Ns?version=X&optional` → a guarded import (ADR 0087), claimed `pre`
         // so the externals policy never sees the flagged specifier.
         giOptionalPlugin('gjs'),

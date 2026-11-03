@@ -162,6 +162,9 @@ export {
     GTK_CHECK_BUTTON_INCONSISTENT_CLASS,
     GTK_CHECK_BUTTON_TOGGLED,
     NOTIFY_CHECK_ACTIVE,
+    NOTIFY_CHECK_INCONSISTENT,
+    NOTIFY_CHECK_LABEL,
+    NOTIFY_CHECK_USE_UNDERLINE,
 } from './gtk-check-button.js';
 export { GtkDrawingArea, DRAWING_AREA_REFUSAL } from './gtk-drawing-area.js';
 export { GtkFrame } from './gtk-frame.js';

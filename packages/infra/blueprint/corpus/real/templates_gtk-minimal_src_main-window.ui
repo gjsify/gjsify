@@ -29,6 +29,9 @@ corresponding .blp file and regenerate this file with blueprint-compiler.
         <child>
           <object class="GtkLabel" id="hint">
             <property name="xalign">0.5</property>
+            <style>
+              <class name="demo-status"/>
+            </style>
           </object>
         </child>
       </object>

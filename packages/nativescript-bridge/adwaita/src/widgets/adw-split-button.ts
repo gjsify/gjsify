@@ -22,7 +22,7 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout, ItemSpec, Label, StackLayout, type EventData } from '@nativescript/core';
-import { SPLIT_BUTTON_DISABLED_OPACITY, SplitButtonState } from '@gjsify/adwaita-core';
+import { GioMenuModel, SPLIT_BUTTON_DISABLED_OPACITY, SplitButtonState } from '@gjsify/adwaita-core';
 import type { AdwMenuActions, AdwMenuModel, SplitButtonDirection } from '@gjsify/adwaita-core';
 import { GtkImage } from './gtk-image.js';
 import { attachRowPressFeedback } from './row-press.js';
@@ -66,6 +66,16 @@ interface SplitButtonContent {
     _contentGate: boolean;
     label: string | null;
     iconName: string | null;
+}
+
+/**
+ * What the `menu-model` declaration reads off the button — the same structural cast, for the
+ * same reason: both hooks are handed a bare `object`, and both fields are private to the class.
+ */
+interface SplitButtonMenu {
+    readonly _slot: MenuSlot;
+    readonly menuModel: AdwMenuModel | null;
+    _applyMenuModel(): void;
 }
 
 /**
@@ -135,6 +145,35 @@ export class AdwSplitButton extends withSignals(GridLayout, {
             blurb: 'Whether the button can be smaller than the natural size of its contents',
         },
         'dropdown-tooltip': { kind: 'string', default: '', blurb: 'The tooltip of the dropdown button' },
+        // `adw_split_button_set_menu_model` (:836-860) — a real `Gio.MenuModel` since ADR 0128,
+        // so the declaration is OBJECT-KIND over `GMenuModel`: measured on GJS 1.88 / GTK 4.22,
+        // `Adw.SplitButton.find_property('menu-model')` answers `value_type=GMenuModel`.
+        //
+        // THE GUARD IS THE SEAM'S DEFAULT, which is identity — and identity is the C guard here
+        // (`menu_model == priv->menu_model`). Measured counts, reproduced: a new model 1, the
+        // same model again 0, `null` over a held model 1, `null` again 0, `null` on a FRESH
+        // button 0, and mutating a held model 0. No `changed` hook, like `gtk-drop-down.ts`'s
+        // `model`.
+        //
+        // `explicitNotify` BECAUSE C NOTIFIES LAST. The pspec carries
+        // `G_PARAM_EXPLICIT_NOTIFY` upstream (measured, `flags=1073742051`), and the order that
+        // flag buys is observable: the C setter swaps the model, rebuilds the dropdown and only
+        // then calls `g_object_notify_by_pspec`, so a `notify::menu-model` handler sees a button
+        // that is already repainted. Left to the seam the emission would come FIRST and such a
+        // handler would read the previous `tree` and the previous dropdown opacity. So the
+        // emission is owed here, at the end of the side effects — the shape `GtkDropDown:model`
+        // has, where the state relay emits once the state has moved.
+        'menu-model': {
+            kind: 'object',
+            valueType: GioMenuModel.$gtype,
+            explicitNotify: true,
+            blurb: 'The menu model from which the popup will be created',
+            normalize: (value, self) => (self as SplitButtonMenu)._slot.read(value),
+            afterNotify: (self) => {
+                (self as SplitButtonMenu)._applyMenuModel();
+                (self as AdwSplitButton).notify('menu-model');
+            },
+        },
     },
 }) {
     static readonly GTypeName: string = 'AdwSplitButton';
@@ -165,6 +204,38 @@ export class AdwSplitButton extends withSignals(GridLayout, {
      * for what should be shown; a PopupMenu has no tooltip surface, so this is carried for parity.
      */
     declare dropdownTooltip: string;
+
+    /**
+     * The dropdown menu — a real `Gio.MenuModel` (ADR 0128), opened as a `PopupMenu` on an
+     * arrow tap.
+     *
+     * Accepts everything the portable model does, INCLUDING the bare `string[]` this
+     * widget used to be alone in taking: that shorthand is now one of the model's own
+     * input forms rather than a NativeScript-only shape, so the same value works on
+     * every surface.
+     *
+     * IT DOES NOT TAKE A JSON STRING, which the browser element's `menu-model`
+     * ATTRIBUTE does. Not an oversight: NativeScript's Builder writes an XML attribute
+     * straight onto the property, so accepting one here would open the XML door — and
+     * the gallery probe that would have to prove it compares a read-back by IDENTITY
+     * (`gallery-page.ts`), which no structured value can satisfy. An input form nothing
+     * can run is a claim, not a feature.
+     *
+     * AND IT SAYS SO. Left to the core's door a string would be PARSED, because that door
+     * is also the browser's `menu-model` attribute (ADR 0128 § 4) — so an XML author writing
+     * `menuModel="[…]"` would get a menu this port never promised to build from markup. A
+     * shut door that is silent is worse than one that is open, so the refusal names itself,
+     * from `normalize` and so on both legs alike.
+     *
+     * `null` IS THE ONE SPELLING OF "NO MENU" since ADR 0128: an empty `Gio.Menu` is a menu
+     * that happens to have no rows, and it keeps the dropdown live exactly as it does on
+     * GTK (measured, `MENU_MODEL_DOOR_VECTORS`).
+     *
+     * A CHANGE IS `notify::menu-model` through {@link connect}, not the NativeScript
+     * `menuModelChange` this property emitted while it was hand-rolled: the declaration
+     * moved it onto the seam, where every declared property has one GObject channel.
+     */
+    declare menuModel: AdwMenuModel | null;
 
     /** The main action part (column 0). */
     protected readonly _actionPart: StackLayout;
@@ -273,6 +344,19 @@ export class AdwSplitButton extends withSignals(GridLayout, {
     }
 
     /**
+     * Move the slot and the state onto the model the seam has just stored — the one hop every
+     * `menu-model` write takes, called from the declaration's `afterNotify` before it notifies.
+     *
+     * The slot snapshots and re-watches; the STATE is what drives `dropdownEnabled` and so the
+     * dropdown's dimming. `setMenuModel`'s own return value is ignored: the seam has already
+     * decided this write is a change, and the two guards are the same identity guard.
+     */
+    private _applyMenuModel(): void {
+        this._slot.adopt(this.menuModel);
+        this._state.setMenuModel(this.menuModel);
+    }
+
+    /**
      * Show the dropdown menu at the arrow half and dispatch the choice BY POSITION.
      *
      * Nothing happens without a menu: "if the menu model is `NULL`, the dropdown
@@ -342,46 +426,6 @@ export class AdwSplitButton extends withSignals(GridLayout, {
         // GtkMenuButton.
         this._dropdownPart.opacity = dropdownEnabled ? 1 : SPLIT_BUTTON_DISABLED_OPACITY;
         this.opacity = this._sensitive ? 1 : SPLIT_BUTTON_DISABLED_OPACITY;
-    }
-
-    /**
-     * The dropdown menu, normalised (ADR 0042) — opened as a `PopupMenu` on an
-     * arrow tap.
-     *
-     * Accepts everything the portable model does, INCLUDING the bare `string[]` this
-     * widget used to be alone in taking: that shorthand is now one of the model's own
-     * input forms rather than a NativeScript-only shape, so the same value works on
-     * every surface.
-     *
-     * IT DOES NOT TAKE A JSON STRING, which the browser element's `menu-model`
-     * ATTRIBUTE does. Not an oversight: NativeScript's Builder writes an XML attribute
-     * straight onto the property, so accepting one here would open the XML door — and
-     * the gallery probe that would have to prove it compares a read-back by IDENTITY
-     * (`gallery-page.ts`), which no structured value can satisfy. An input form nothing
-     * can run is a claim, not a feature.
-     *
-     * AND IT SAYS SO. Left to the core's door a string would be PARSED, because that door
-     * is also the browser's `menu-model` attribute (ADR 0128 § 4) — so an XML author writing
-     * `menuModel="[…]"` would get a menu this port never promised to build from markup. A
-     * shut door that is silent is worse than one that is open, so the refusal names itself.
-     *
-     * `null` IS THE ONE SPELLING OF "NO MENU" since ADR 0128: an empty `Gio.Menu` is a menu
-     * that happens to have no rows, and it keeps the dropdown live exactly as it does on
-     * GTK (measured, `MENU_MODEL_DOOR_VECTORS`).
-     */
-    get menuModel(): AdwMenuModel | null {
-        return this._slot.model;
-    }
-
-    set menuModel(value: AdwMenuModel | null) {
-        const before = this._slot.model;
-        this._slot.write(value);
-        // The IDENTITY guard is the state's, and it is the one `Adw.SplitButton` has:
-        // writing the same model twice notifies once (`MENU_MODEL_NOTIFY_VECTORS`), which
-        // is why the notify below hangs off the return value rather than off the write.
-        if (this._state.setMenuModel(this._slot.model)) {
-            this.notifyPropertyChange('menuModel', this._slot.model, before);
-        }
     }
 
     /**

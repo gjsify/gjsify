@@ -6,6 +6,7 @@
 
 import type { DescriptionBlock } from '../types/config-data.js';
 import { stringToBlocks } from './app-metadata.js';
+import { parseMetainfoReleases } from './metainfo-releases.js';
 
 export interface ReleaseEntry {
     version: string;
@@ -34,8 +35,34 @@ export function stripVersionPrefix(version: string): string {
     return version.trim().replace(/^v/i, '');
 }
 
+export interface ReleasesSource {
+    /** `--metainfo <path>`: wins over everything. */
+    metainfo?: string;
+    /** `ship.releases ?? flatpak.releases` from the config. */
+    configReleases?: readonly ReleaseEntry[];
+    /** `site.metainfo` from the config: read only when nothing above names releases. */
+    siteMetainfo?: string;
+    /** Reads a metainfo file; throws when it does not exist. */
+    readMetainfo: (path: string) => string;
+}
+
+export interface ResolvedReleases {
+    releases: readonly ReleaseEntry[] | undefined;
+    /** Names the origin in error messages; unset for the config. */
+    source?: string;
+}
+
+/** Lookup order: `--metainfo`, config `releases`, the metainfo the config names. */
+export function resolveReleases(input: ReleasesSource): ResolvedReleases {
+    const path = input.metainfo ?? (input.configReleases ? undefined : input.siteMetainfo);
+    if (path === undefined) return { releases: input.configReleases };
+    return { releases: parseMetainfoReleases(input.readMetainfo(path)), source: path };
+}
+
 export interface ReleaseNotesInput {
     releases: readonly ReleaseEntry[] | undefined;
+    /** Where `releases` came from, for the error text. Default: the gjsify config. */
+    source?: string;
     /** Requested version, with or without a leading `v`. */
     version: string;
     /** Append the compare link when set and a previous release exists. */
@@ -43,14 +70,15 @@ export interface ReleaseNotesInput {
 }
 
 /** Throws an `Error` whose message is meant to be printed as-is. */
-export function renderReleaseNotes({ releases, version, repoUrl }: ReleaseNotesInput): string {
+export function renderReleaseNotes({ releases, source, version, repoUrl }: ReleaseNotesInput): string {
     const wanted = stripVersionPrefix(version);
     const list = releases ?? [];
     const index = list.findIndex((r) => stripVersionPrefix(r.version) === wanted);
     if (index < 0) {
+        const none = source === undefined ? 'no `releases` configured' : 'no `<release>` entries';
         throw new Error(
-            `no \`releases\` entry for version ${wanted} in the gjsify config` +
-                (list.length ? ` (found: ${list.map((r) => r.version).join(', ')})` : ' (no `releases` configured)'),
+            `no \`releases\` entry for version ${wanted} in ${source ?? 'the gjsify config'}` +
+                (list.length ? ` (found: ${list.map((r) => r.version).join(', ')})` : ` (${none})`),
         );
     }
     const entry = list[index]!;

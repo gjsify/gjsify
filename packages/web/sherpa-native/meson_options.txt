@@ -1,0 +1,2 @@
+option('require_static_libstdcxx', type: 'boolean', value: false,
+       description: 'Fail configuration when libstdc++.a is missing instead of warning (prebuild legs only)')

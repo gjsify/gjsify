@@ -26,8 +26,14 @@ template $MainWindow: Gtk.ApplicationWindow {
 
     // Named, and left empty: the platform and PID are runtime FACTS, so TypeScript fills
     // them in. Declaring the container here and populating it there is the intended split.
+    // `demo-status` comes from `src/style.css`, registered on `activate` — the class name is
+    // the whole contract between the two files.
     Gtk.Label hint {
       xalign: 0.5;
+
+      styles [
+        "demo-status",
+      ]
     }
   };
 }

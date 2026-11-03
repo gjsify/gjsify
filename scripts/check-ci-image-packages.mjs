@@ -65,10 +65,21 @@ const IMAGE_WORKFLOW = 'build-ci-image.yml';
 const BAKED_IMAGE = 'ghcr.io/gjsify/ci-fedora';
 
 // job id -> why a job that COULD run on the baked image deliberately does not.
-// Empty today, and two failure modes keep it honest: an entry for a job that is no
-// longer bare fails, and so does one the arch derivation already excuses — a
-// derivable reason written down twice is the copy that drifts.
-const BARE_IMAGE_LEDGER = {};
+// Two failure modes keep it honest: an entry for a job that is no longer bare
+// fails, and so does one the arch derivation already excuses — a derivable reason
+// written down twice is the copy that drifts. The first of those two is graded
+// against the real workflows only; see the stale-entry loop at the bottom for why.
+const BARE_IMAGE_LEDGER = {
+    'prebuilds.yml/sherpa-native-prebuild':
+        'Waiting for a PUSHED image, not for a decision. `cmake` and `libstdc++-static` are in ' +
+        '`.docker/ci-fedora.Dockerfile` as of the change that added this job, but ' +
+        "`build-ci-image.yml`'s pull-request leg builds the image and never pushes it, so the " +
+        '`ghcr.io/gjsify/ci-fedora:43` tag this job would pull is still the previous one and ' +
+        '`meson setup` would die on cmake. RETIREMENT: once the push leg has published the tag ' +
+        'carrying both packages, switch `container.image` to `ghcr.io/gjsify/ci-fedora:43`, drop ' +
+        "cmake/libstdc++-static/nodejs from the job's `dnf install` (an actions/setup-node step " +
+        'replaces the last one — this image bakes no node, on purpose) and delete this entry.',
+};
 
 /** Packages a `dnf install` line asks for, with line continuations joined. */
 function packagesIn(run) {
@@ -381,8 +392,27 @@ for (const file of ciFiles(CI_DIR)) {
     }
 }
 
-for (const id of Object.keys(BARE_IMAGE_LEDGER)) {
-    if (!bare.includes(id)) {
+// THE ONE CHECK THAT IS ABOUT THIS REPOSITORY AND NOT ABOUT A TREE SHAPE.
+//
+// Questions (1)-(4) above are structural: hand them any `.github/` and they say
+// something true about it, which is what makes `--root` a fixture mechanism and
+// `tests/e2e/release-bundle-gate` able to exercise the failure paths on jobs it
+// builds by hand. `BARE_IMAGE_LEDGER` is not structural — it is a list of job ids
+// in THIS repository's workflows — so against a fixture root every entry in it is
+// trivially "a job that does not run on a bare fedora image", and the check fires
+// on the fixture's behalf about jobs the fixture never claimed to have.
+//
+// That was latent for exactly as long as the ledger was empty. Its first entry
+// (`prebuilds.yml/sherpa-native-prebuild`) reddened seven of that suite's tests at
+// once, none of them about the ledger, and two of them survived scoping the check
+// by workflow FILENAME — the fixtures name their file `prebuilds.yml` too.
+//
+// So it is skipped under `--root`, and only there. Against the real workflows it
+// keeps both teeth: an entry whose job was deleted and an entry whose job moved to
+// the baked image both still fail.
+if (rootIndex === -1) {
+    for (const id of Object.keys(BARE_IMAGE_LEDGER)) {
+        if (bare.includes(id)) continue;
         problems.push(
             `BARE_IMAGE_LEDGER lists ${id}, but no such job runs on a bare fedora image. ` +
                 `Delete the entry — it now documents a decision nobody is making.`,

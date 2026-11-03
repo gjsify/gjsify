@@ -38,6 +38,7 @@ import {
     type DeveloperView,
 } from './render/developer.js';
 import { ogCardSvg, type OgCardInput } from './render/og-card.js';
+import type { MarkdownOptions } from './render/markdown.js';
 import {
     absolute,
     appShell,
@@ -119,6 +120,12 @@ export interface SiteBuildOptions extends SiteTarget {
     githubToken?: string;
     log?: (message: string) => void;
     warn?: (message: string) => void;
+    /**
+     * How a blog post's Markdown body is rendered. `resolveUrl` is supplied by the build; the
+     * useful field here is `highlight`, which lets a consumer colour code blocks without adding
+     * client JavaScript to the page. `undefined` keeps the plain `<pre><code>` output.
+     */
+    markdown?: MarkdownOptions;
     /** This package's install, for a caller whose module URL does not reveal it — a bundle. */
     packageDir?: string;
 }
@@ -258,7 +265,12 @@ interface BlogBuild {
 }
 
 /** Reads the posts and copies the files next to them to `<out>/blog/`, where the post URLs point. */
-async function loadBlog(config: SiteCommonConfig, target: SiteTarget, drafts: boolean): Promise<BlogBuild | undefined> {
+async function loadBlog(
+    config: SiteCommonConfig,
+    target: SiteTarget,
+    drafts: boolean,
+    markdown: MarkdownOptions | undefined,
+): Promise<BlogBuild | undefined> {
     if (!config.blog) return undefined;
     const dir = resolve(target.root, config.blog.posts);
     const posts = await loadBlogPosts({ dir, languages: config.languages, drafts });
@@ -266,7 +278,7 @@ async function loadBlog(config: SiteCommonConfig, target: SiteTarget, drafts: bo
         await mkdir(dirname(join(target.out, 'blog', file)), { recursive: true });
         await copyFile(join(dir, file), join(target.out, 'blog', file));
     }
-    const html = new Map(posts.map((post) => [postKey(post), renderPostBody(config, post, dir, posts)]));
+    const html = new Map(posts.map((post) => [postKey(post), renderPostBody(config, post, dir, posts, markdown)]));
     return { posts, html };
 }
 
@@ -367,7 +379,7 @@ export async function buildSite(options: SiteBuildOptions): Promise<SiteBuildRes
     const assets = await stageClientAssets(config.base, target.out, self);
     const catalogs = await loadPageCatalogs(config, target.root, self, options.warn);
     const displayFontUrl = await publishDisplayFont(config, target);
-    const blog = await loadBlog(config, target, options.drafts ?? false);
+    const blog = await loadBlog(config, target, options.drafts ?? false, options.markdown);
     const build = { options, target, cacheDir, assets, catalogs, displayFontUrl, blog };
     return config.kind === 'app' ? buildAppSite(build) : buildDeveloperSite(config, build);
 }

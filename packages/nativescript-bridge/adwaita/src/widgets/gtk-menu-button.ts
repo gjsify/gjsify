@@ -22,10 +22,12 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss (menubutton)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
+import { GioMenuModel } from '@gjsify/adwaita-core';
 import type { AdwMenuActions, AdwMenuModel } from '@gjsify/adwaita-core';
 import type { EventData } from '@nativescript/core';
 import { AdwImageButton } from './adw-image-button.js';
 import { MenuSlot } from './menu-slot.js';
+import { withProperties } from './signals.js';
 import { showMenuPopup } from './popup-menu-view.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
@@ -49,15 +51,69 @@ export interface MenuItemActivatedEventData extends EventData {
     action?: string;
 }
 
-export class GtkMenuButton extends AdwImageButton {
+/**
+ * What the `menu-model` declaration reads off the button. Structural, because the hooks are
+ * handed a bare `object` and `_slot` is private — the `SplitButtonMenu` precedent next door.
+ */
+interface MenuButtonMenu {
+    readonly _slot: MenuSlot;
+    readonly menuModel: AdwMenuModel | null;
+}
+
+// `withProperties` and not a second `withSignals`: {@link AdwImageButton} is already
+// `withSignals(GridLayout)`, so `connect`, `emit` and `notify` come down the chain and answer
+// this leaf's declaration too (route D keys on the instance's GType). This is the first declared
+// property in that chain.
+export class GtkMenuButton extends withProperties(AdwImageButton, {
+    GTypeName: 'GtkMenuButton',
+    // `gtk_menu_button_set_menu_model` (gtkmenubutton.c) — a real `Gio.MenuModel` since
+    // ADR 0128, so object-kind over `GMenuModel`, measured as `value_type=GMenuModel` on
+    // GJS 1.88 / GTK 4.22.
+    //
+    // `changed: () => true` BECAUSE THERE IS NO GUARD. The pspec carries no
+    // `G_PARAM_EXPLICIT_NOTIFY` (measured, `flags=227`), so GObject notifies for the write
+    // itself and does it unconditionally: measured, every write emits once — a new model, the
+    // SAME model again, `null` over a held model, `null` over `null`, and `null` on a FRESH
+    // button. That is the opposite of `Adw.SplitButton` next door, where identity guards, and
+    // without this hook the seam's default identity check would silence four of those five.
+    //
+    // No `explicitNotify`, for the same reason it is not on the pspec: nothing on this widget
+    // repaints from the model — the `PopupMenu` is built from the snapshot when it OPENS — so
+    // there is no side effect a `notify::menu-model` handler could catch half-done, and the
+    // seam's own emission is in the right place.
+    Properties: {
+        'menu-model': {
+            kind: 'object',
+            valueType: GioMenuModel.$gtype,
+            blurb: 'The model from which the popup is created',
+            normalize: (value, self) => (self as MenuButtonMenu)._slot.read(value),
+            changed: () => true,
+            afterNotify: (self) => {
+                const button = self as MenuButtonMenu;
+                button._slot.adopt(button.menuModel);
+            },
+        },
+    },
+}) {
     static readonly GTypeName: string = 'GtkMenuButton';
 
     /**
-     * `Gtk.MenuButton` has NO identity guard on `menu-model` — measured: every write
-     * notifies, including the same model twice and `null` over `null`
-     * (`MENU_MODEL_NOTIFY_VECTORS`), which is the opposite of what `Adw.SplitButton` next
-     * door does. So the notify below is unconditional, and the slot does not gate it.
+     * The menu — a real `Gio.MenuModel` since ADR 0128 — opened as an Android `PopupMenu`
+     * on tap. `null` is the one spelling of "no menu".
+     *
+     * IT TAKES A MODEL AND NOTHING ELSE: `Gio.Menu` from this package's `Gio` namespace, or
+     * `buildMenu([…])` for the authored shorthands (a bare `string[]` included). An array
+     * written straight here is refused by the GObject value check, word for word as GJS
+     * refuses it. A JSON STRING is refused too, with its own message — see
+     * `AdwSplitButton.menuModel` for why the XML door stays shut until a probe can prove
+     * it, and why being shut is not the same as being silent.
+     *
+     * A CHANGE IS `notify::menu-model` through {@link connect}, not the NativeScript
+     * `menuModelChange` this property emitted while it was hand-rolled.
      */
+    declare menuModel: AdwMenuModel | null;
+
+    /** The menu this button holds, with its `items-changed` watcher and the tree the popup reads. */
     private readonly _slot = new MenuSlot('GtkMenuButton', () => undefined);
     private _actions: AdwMenuActions | null = null;
     private _menuTitle = '';
@@ -74,36 +130,6 @@ export class GtkMenuButton extends AdwImageButton {
         this.addEventListener('tap', () => this._openMenu());
 
         applyConstructProps(this, props);
-    }
-
-    /**
-     * The menu — a real `Gio.MenuModel` since ADR 0128 — opened as an Android `PopupMenu`
-     * on tap. `null` is the one spelling of "no menu".
-     *
-     * IT TAKES A MODEL AND NOTHING ELSE: `Gio.Menu` from this package's `Gio` namespace, or
-     * `buildMenu([…])` for the authored shorthands (a bare `string[]` included). An array
-     * written straight here is refused by the GObject value check, word for word as GJS
-     * refuses it. A JSON STRING is refused too, with its own message — see
-     * `AdwSplitButton.menuModel` for why the XML door stays shut until a probe can prove
-     * it, and why being shut is not the same as being silent.
-     */
-    get menuModel(): AdwMenuModel | null {
-        return this._slot.model;
-    }
-
-    set menuModel(value: AdwMenuModel | null) {
-        const before = this._slot.model;
-        this._slot.write(value);
-        this.notifyPropertyChange('menuModel', this._slot.model, before);
-    }
-
-    /** `Gtk.MenuButton:menu-model` — the GIR spelling of {@link menuModel}. */
-    get menu_model(): AdwMenuModel | null {
-        return this.menuModel;
-    }
-
-    set menu_model(value: AdwMenuModel | null) {
-        this.menuModel = value;
     }
 
     get_menu_model(): AdwMenuModel | null {

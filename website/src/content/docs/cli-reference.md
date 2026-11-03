@@ -41,7 +41,7 @@ Keep the `@latest` tag. All three runners reuse a cached copy of an unpinned bin
 | Debug a running app | [`storybook`](#gjsify-storybook) · [`debug`](#gjsify-debug) · [`browse`](#gjsify-browse) |
 | Browser extensions | [`webext`](#gjsify-webext) |
 | Ship it | [`ship`](#gjsify-ship) · [`flatpak`](#gjsify-flatpak) · [`site`](#gjsify-site) |
-| Publish to npm | [`pack`](#gjsify-pack) · [`publish`](#gjsify-publish) · [`whoami`](#gjsify-whoami) · [`release-notes`](#gjsify-release-notes) · [`login`](#gjsify-login) · [`logout`](#gjsify-logout) · [`trust`](#gjsify-trust) · [`onboard`](#gjsify-onboard) |
+| Publish to npm | [`pack`](#gjsify-pack) · [`publish`](#gjsify-publish) · [`whoami`](#gjsify-whoami) · [`release-notes`](#gjsify-release-notes) · [`credits`](#gjsify-credits) · [`login`](#gjsify-login) · [`logout`](#gjsify-logout) · [`trust`](#gjsify-trust) · [`onboard`](#gjsify-onboard) |
 
 ## Start a project
 
@@ -247,6 +247,7 @@ GJS provides `setTimeout` and `setInterval` natively, but their return value is 
 |---|---|
 | `AbortController`, `AbortSignal` | `abort-controller/register` |
 | `MessageChannel`, `MessagePort` | `message-channel/register` |
+| `Worker` | `web-worker/register` |
 | `Event`, `EventTarget` | `dom-events/register/event-target` |
 | `CustomEvent`, `MessageEvent`, `ErrorEvent`, `CloseEvent`, `ProgressEvent` | `dom-events/register/custom-events` |
 | `UIEvent`, `MouseEvent`, `PointerEvent`, `KeyboardEvent`, `WheelEvent`, `FocusEvent` | `dom-events/register/ui-events` |
@@ -553,6 +554,7 @@ Anything you would pass repeatedly on the command line can live in the `gjsify` 
 | `browse`, `devtools` | Defaults for [`gjsify browse`](#gjsify-browse), [`gjsify debug`](#gjsify-debug) and [`gjsify devtools`](#gjsify-devtools). |
 | `flatpak` | Config for the [`gjsify flatpak`](#gjsify-flatpak) commands. |
 | `ship` | Config for [`gjsify ship`](#gjsify-ship). Metadata falls back to `flatpak`. |
+| `credits` | `output`, `overrides` and `ignore` (patterns that replace the default bot and AI list) for [`gjsify credits`](#gjsify-credits). |
 
 ### Where `define` goes
 
@@ -1630,6 +1632,7 @@ Packing the same build twice gives byte-identical files. [How It Works](/gjsify/
 | `minNodeVersion` | `24` | Minimum Node the emitted dependency asks for. Only used when the payload is an `--app node` bundle on Linux. |
 | `depends` | `{}` | Extra runtime dependencies per format, appended to the derived set. For things that are not typelibs. |
 | `typelibPackages` | `{}` | GI namespace to the package shipping its typelib. This is what unblocks an unknown namespace. |
+| `executables` | `[]` | Further launchers over the same bundle: `[{ "name", "entry", "gui"? }]`, `entry` inside the `gjsify.main` directory. Staged as `bin/<name>` (`Contents/MacOS/<name>` on macOS, `<name>.cmd` plus a `<name>.exe` stub when `gui` on Windows). See `docs/ship-formats.md`. |
 | `bundledTypelibs` | `[]` | Directories whose `*.typelib` and `*.so` the package carries itself, for GI libraries that arrive as npm prebuilds rather than distro packages. Staged into `lib/<name>/gi/`, with the launcher pointing `GI_TYPELIB_PATH` and `LD_LIBRARY_PATH` there. |
 | `localeDir` | none | Directory of COMPILED gettext catalogues in `<lang>/LC_MESSAGES/<domain>.mo` layout. Staged into `share/locale/`; the launcher exports `GJSIFY_LOCALE_DIR`. `.po` sources are refused, because `bindtextdomain` reads `.mo` only. |
 | `nodeModules` | none | npm package NAMES an `--app node` bundle imports but cannot contain (a Node-API addon package stays external), e.g. `["node-llama-cpp"]`. Staged into the bundle's `node_modules/` with their `dependencies` and `optionalDependencies` at the paths they are installed at; an optional dependency that is not installed is skipped (run `gjsify install --os <os> --cpu <cpu>` before `ship` to pick the per-platform addon), a missing required one is an error. Ignored for a GJS payload. A dependency installed for another `os`/`cpu` than the target is left out too. |
@@ -2001,6 +2004,8 @@ gjsify site i18n --check                # fail instead of writing
 
 This is a subcommand rather than a `gjsify-site` bin on purpose: a bin's shebang would pick the runtime for you, while the CLI already runs on whichever runtime you installed it with. The screenshot renditions go through GdkPixbuf — natively under GJS, through the [`@gjsify/node-gi`](#gjsify-install) reverse bridge otherwise — so the page is built the same way on all four. `GITHUB_TOKEN` is optional and only raises the API rate limit; a failed lookup warns rather than failing the build.
 
+Blog code blocks are rendered plain — no highlighter is compiled into the generator, and the page has to keep working without JavaScript. A project that wants colours drives the build through [`buildSite`](https://github.com/gjsify/gjsify/tree/main/packages/infra/site#code-blocks) instead of the CLI and passes a `markdown.highlight` hook; [`@gjsify/site-highlight`](https://www.npmjs.com/package/@gjsify/site-highlight) is the ready-made one (Shiki, light and dark from CSS variables, Blueprint included).
+
 ## Publish to npm
 
 ### `gjsify pack`
@@ -2109,6 +2114,7 @@ Print the `releases` entry for one version as GitHub Markdown, the same entry th
 ```bash
 gjsify release-notes                      # version from package.json
 gjsify release-notes v0.1.7 --compare
+gjsify release-notes --metainfo data/eu.example.App.metainfo.xml
 gh release create v0.1.7 --notes "$(gjsify release-notes v0.1.7 --compare)"
 ```
 
@@ -2116,8 +2122,40 @@ gh release create v0.1.7 --notes "$(gjsify release-notes v0.1.7 --compare)"
 |---|---|---|
 | `[release]` | `version` in `package.json` | Version or tag; a leading `v` is accepted. |
 | `--compare` | `false` | Append `**Full changelog:** <vcsBrowserUrl>/compare/v<prev>...v<version>` using the next-older `releases` entry. Skipped without a previous entry or `vcsBrowserUrl`. |
+| `--metainfo <path>` | none | Read the `<release>` entries from this AppStream metainfo file instead of the config. |
 
-The entry is read from `gjsify.ship.releases`, falling back to `gjsify.flatpak.releases`.
+Lookup order: `--metainfo`, then `gjsify.ship.releases`, then `gjsify.flatpak.releases`, then the file named by `gjsify.site.metainfo`. The metainfo reader takes the untagged `<description>` of each `<release>` (`xml:lang` translations are skipped): `<p>` becomes a paragraph, `<ul>`/`<ol>` with `<li>` become `- ` items, `<em>`/`<code>`/`<strong>` become `*…*`/`` `…` ``/`**…**`, and entities are decoded. Newest entry first, as in the file, so `--compare` uses the next entry down.
+
+### `gjsify credits`
+
+Derive contributor credits from the git history and write them as `credits.json`, for an About dialog or a README. Authors and `Co-authored-by:` trailers are read from the log with `.mailmap` applied. The output holds names only, never e-mail addresses.
+
+```bash
+gjsify credits                  # write credits.json
+gjsify credits --stdout         # print instead of writing
+gjsify credits --check          # exit 1 when credits.json is stale
+```
+
+A commit that touches any file other than `.po` / `.pot` credits its people as `developers`. A commit that touches `.po` files credits them as `translators` for each language, the language being the `.po` basename (`de`, `pt_BR`). A Weblate co-author trailer counts as a translator for the languages the commit touched. Merge commits are skipped. Each list is sorted by commit count, then name.
+
+```json
+{
+  "developers": ["Ada Example"],
+  "translators": { "de": ["Max Beispiel"] },
+  "supporters": ["Example Foundation"]
+}
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `-o, --output <path>` | `credits.json` | Where to write the file. |
+| `--overrides <path>` | `credits.overrides.json` | Manual additions and exclusions. Missing is fine at the default path and an error when you name it. |
+| `--check` | `false` | Compare with the file on disk, ignoring formatting. Exits 1 when it is stale. |
+| `--stdout` | `false` | Print the JSON instead of writing. |
+
+Bots and AI co-authors are dropped by name or e-mail. Set `gjsify.credits.ignore` in `package.json` to a list of patterns (`*` is the only wildcard, matched against the whole name or e-mail, case-insensitive) to replace the default list.
+
+`credits.overrides.json` takes `developers`, `translators` (language to names), `supporters` and `exclude` (patterns). Unknown keys are an error. `supporters` comes only from this file. A shallow clone is an error, because the history would be incomplete.
 
 ### `gjsify login`
 

@@ -26,6 +26,10 @@ const tag = (v) => {
     if (v instanceof RegExp) return 'RegExp';
     if (v instanceof Error) return `Error:${v.name}`;
     if (v instanceof ArrayBuffer) return `ArrayBuffer(${v.byteLength})`;
+    // Before the typed-array branch: a DataView is a view too, but it has no
+    // `.length`, so `isView` alone reported a perfectly good DataView as
+    // `DataView(undefined)` and the 01 case looked like a codec failure.
+    if (v instanceof DataView) return `DataView(${v.byteLength})`;
     if (ArrayBuffer.isView(v)) return `${v.constructor.name}(${v.length})`;
     if (Array.isArray(v)) return `Array(${v.length})`;
     return 'object';

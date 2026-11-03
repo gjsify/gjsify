@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, cpSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, cpSync, renameSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { discoverTemplates, findTemplate, type TemplateInfo } from './discover-templates.js';
 import {
@@ -96,7 +96,21 @@ const TEXT_FILE_EXT = new Set([
     '.xml',
     '.ui',
     '.txt',
+    // An icon is an XML document like `.ui` is, and the application-id sentinel
+    // is its FILENAME as well as its `inkscape:label` — so the bytes need the
+    // same substitution the name gets.
+    '.svg',
 ]);
+
+/**
+ * Extensionless files that are still text, by exact basename.
+ *
+ * `LICENSE` is the case that forced this: it is the file every package format
+ * and every forge looks for, it carries the project name in its copyright line,
+ * and it has no extension to recognise it by. A suffix test cannot see it, so
+ * the walk skipped exactly the one file `gjsify ship` requires.
+ */
+const TEXT_BASENAMES = new Set(['LICENSE', 'LICENCE', 'COPYING', 'NOTICE']);
 
 /** npm package names: lowercase, digits, -, _, .; no leading . or _. */
 export function sanitizeProjectName(raw: string): string {
@@ -208,18 +222,49 @@ export async function createProject(options: CreateProjectOptions): Promise<void
 /**
  * Walk the scaffolded tree and replace every template sentinel in every text file.
  * Skips node_modules / dist / lib and non-text files by extension.
+ *
+ * NAMES as well as contents: `data/icons/…/org.gjsify.example.svg` is a path a
+ * scaffolded project has to be able to keep, and leaving the sentinel in the
+ * filename put an icon named after the template in a project that `gjsify ship`
+ * then packages under its own id.
  */
 function substituteTemplateSentinels(rootDir: string, projectName: string): void {
     const sentinels: Array<[string, string]> = [
         [PROJECT_NAME_SENTINEL, projectName],
         [APPLICATION_ID_SENTINEL, applicationIdFor(projectName)],
     ];
+    // Paths first: the content pass below reads `full` from the same walk, so a
+    // file renamed afterwards would be read under a name that no longer exists.
+    renameSentinelPaths(rootDir, sentinels);
+    substituteSentinelContents(rootDir, sentinels);
+}
+
+/**
+ * Rename every file and directory whose NAME holds a sentinel.
+ *
+ * A directory is renamed before it is walked, so its children are visited at
+ * their new location; the recursion therefore carries the renamed path rather
+ * than the one the entry was read under.
+ */
+function renameSentinelPaths(dir: string, sentinels: Array<[string, string]>): void {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        let name = entry.name;
+        for (const [sentinel, value] of sentinels) name = name.replaceAll(sentinel, value);
+        const before = join(dir, entry.name);
+        const after = join(dir, name);
+        if (after !== before) renameSync(before, after);
+        if (entry.isDirectory()) renameSentinelPaths(after, sentinels);
+    }
+}
+
+/** The content half of {@link substituteTemplateSentinels}. */
+function substituteSentinelContents(dir: string, sentinels: Array<[string, string]>): void {
     const skipDirs = new Set(['node_modules', 'dist', 'lib']);
-    const stack: string[] = [rootDir];
+    const stack: string[] = [dir];
     while (stack.length > 0) {
-        const dir = stack.pop() as string;
-        for (const entry of readdirSync(dir, { withFileTypes: true })) {
-            const full = join(dir, entry.name);
+        const current = stack.pop() as string;
+        for (const entry of readdirSync(current, { withFileTypes: true })) {
+            const full = join(current, entry.name);
             if (entry.isDirectory()) {
                 if (!skipDirs.has(entry.name)) stack.push(full);
                 continue;
@@ -227,7 +272,7 @@ function substituteTemplateSentinels(rootDir: string, projectName: string): void
             if (!entry.isFile()) continue;
             const dot = entry.name.lastIndexOf('.');
             const ext = dot >= 0 ? entry.name.slice(dot) : '';
-            if (!TEXT_FILE_EXT.has(ext)) continue;
+            if (!TEXT_FILE_EXT.has(ext) && !TEXT_BASENAMES.has(entry.name)) continue;
             const content = readFileSync(full, 'utf-8');
             let replaced = content;
             for (const [sentinel, value] of sentinels) replaced = replaced.replaceAll(sentinel, value);
@@ -272,6 +317,14 @@ function printNextSteps(
     if (alternatives.length > 0) {
         console.log(`Also runs on ${alternatives.join(', ')}:`);
         for (const rt of alternatives) console.log(`  ${run} ${startScriptFor(rt)}`);
+        console.log('');
+    }
+    // Only for a template that actually ships a `ship` script: printing the
+    // command for one that does not sends the reader to a script that is not
+    // there, which is worse than not mentioning packaging at all.
+    if (scripts['ship']) {
+        console.log('Package it for a machine without gjsify:');
+        console.log(`  ${run} ship -- darwin`);
         console.log('');
     }
 }

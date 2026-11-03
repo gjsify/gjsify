@@ -124,7 +124,12 @@ export class AdwEntryRow extends withProperties(AdwActionRow, {
             // Truncation belongs HERE and not in a `notify::text` handler: a handler runs
             // after the store already took the over-long value, and a refusal or a rewrite
             // from one cannot be seen at all (see `signals.ts` on logged handler exceptions).
-            normalize: (value, self) => clampEntryText(String(value ?? ''), (self as EntryRowValues).maxLength),
+            // A `null` resolves to the text already held: upstream refuses it (a `text != NULL`
+            // assertion, no change, no emission) and the equal-write rule drops the write.
+            normalize: (value, self) =>
+                value === null || value === undefined
+                    ? (self as EntryRowValues).text
+                    : clampEntryText(String(value), (self as EntryRowValues).maxLength),
         },
         'text-length': {
             kind: 'uint',

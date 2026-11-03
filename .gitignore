@@ -35,6 +35,18 @@ packages/infra/*/src/rust/target/
 # hand at all.
 packages/napi/napi/prebuilds/
 
+# Same backstop, same reason, for the one bridge whose staged directory is 25 MB:
+# `scripts/stage-prebuild.mjs . --scratch` writes
+# `packages/web/sherpa-native/prebuilds/linux-x64/`, both in CI (where the upload
+# reads it and `commit-prebuilds` downloads it into the per-target package) and on
+# anyone's machine who runs the meson build. Untracked and unignored is the
+# combination the note above names: one `git add -A` and 25 MB of binary is in the
+# bridge, which declares no `gjsify.prebuilds` and so has no conformance rule
+# looking at it. The committed copy belongs in
+# `packages/web/sherpa-native-linux-x64/prebuilds/`, written by `commit-prebuilds`
+# and by nothing else.
+packages/web/sherpa-native/prebuilds/
+
 # Vala-generated C + GIR handed from a valac host to a host that has no valac
 # (today: the win32 webgl experiment in prebuilds.yml, via the package's
 # `prebuilt_vala_c` meson option). Generation and consumption happen in the SAME

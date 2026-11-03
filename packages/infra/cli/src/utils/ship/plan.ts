@@ -19,6 +19,8 @@ export interface StageInputs {
     bundleFiles: readonly string[];
     /** The rendered launcher script. */
     launcher: string;
+    /** One rendered launcher per `settings.executables` entry, by name. Absent means none. */
+    executableLaunchers?: Readonly<Record<string, string>>;
     /** The rendered AppStream MetaInfo XML. */
     metainfo: string;
     /** The rendered desktop entry — required for `kind: 'app'`, unused for `'cli'`. */
@@ -50,6 +52,17 @@ export function planStage(settings: ShipSettings, inputs: StageInputs): StagedFi
     const libDir = `lib/${settings.binaryName}`;
 
     files.push({ path: `bin/${settings.binaryName}`, mode: 0o755, source: { kind: 'text', text: inputs.launcher } });
+
+    for (const executable of settings.executables) {
+        const text = inputs.executableLaunchers?.[executable.name];
+        if (text === undefined || !inputs.bundleFiles.includes(executable.entry)) {
+            throw new Error(
+                `gjsify ship: \`gjsify.ship.executables\` "${executable.name}" runs ${executable.entry}, which is ` +
+                    `not in ${settings.bundleDir} — build it before shipping, or the launcher would point at nothing.`,
+            );
+        }
+        files.push({ path: `bin/${executable.name}`, mode: 0o755, source: { kind: 'text', text } });
+    }
 
     for (const rel of inputs.bundleFiles) {
         files.push({

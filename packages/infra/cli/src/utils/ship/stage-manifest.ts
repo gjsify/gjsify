@@ -225,6 +225,7 @@ export function toPackSettings(settings: ShipSettings): PackSettings {
         minGjsVersion: settings.minGjsVersion,
         minNodeVersion: settings.minNodeVersion,
         flatpak: settings.flatpak,
+        executables: settings.executables.map(({ name, gui }) => ({ name, gui })),
     };
 }
 
@@ -635,6 +636,18 @@ function readPackSettings(data: Record<string, unknown>, at: string): PackSettin
         minGjsVersion: expectString(data.minGjsVersion, field('minGjsVersion')),
         minNodeVersion: expectString(data.minNodeVersion, field('minNodeVersion')),
         flatpak: readFlatpakSettings(record(data.flatpak, field('flatpak')), field('flatpak')),
+        // OPTIONAL on read and NOT a schema bump: a stage written before
+        // `gjsify.ship.executables` is a one-executable stage, `[]` is exactly
+        // right for it, and an older reader meeting a newer stage refuses the
+        // extra `.exe` stubs by name in its architecture check rather than
+        // dropping them silently.
+        executables: expectArray(data.executables ?? [], field('executables')).map((entry, index) => {
+            const row = record(entry, field(`executables[${index}]`));
+            if (typeof row.gui !== 'boolean') {
+                throw new Error(`gjsify ship: ${field(`executables[${index}].gui`)} must be a boolean.`);
+            }
+            return { name: expectString(row.name, field(`executables[${index}].name`)), gui: row.gui };
+        }),
     };
 }
 

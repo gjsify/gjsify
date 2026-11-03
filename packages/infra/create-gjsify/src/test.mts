@@ -8,5 +8,6 @@ import { run } from '@gjsify/unit';
 
 import runtimesSuite from './runtimes.spec.js';
 import selectSuite from './select.spec.js';
+import createSuite from './create.spec.js';
 
-run({ runtimesSuite, selectSuite });
+run({ createSuite, runtimesSuite, selectSuite });

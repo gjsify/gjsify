@@ -41,6 +41,7 @@ const SETTINGS: PackSettings = {
     group: 'Applications/Productivity',
     extraDepends: { deb: [], rpm: [] },
     typelibPackages: {},
+    executables: [],
     app: 'node',
     minGjsVersion: '1.86',
     minNodeVersion: '24',
@@ -194,9 +195,20 @@ export default async () => {
             // Every file gets its own component, which is what makes a component
             // GUID stable per path and an uninstall able to remove exactly this.
             const components = wxs.match(/<Component /g) ?? [];
-            expect(components.length).toBe(FILES.length);
+            expect(components.length).toBe(FILES.length + 1); // + the opt-in PATH component
             const refs = wxs.match(/<ComponentRef /g) ?? [];
-            expect(refs.length).toBe(FILES.length);
+            expect(refs.length).toBe(FILES.length + 1);
+        });
+
+        await it('offers "add to PATH" as a feature that is OFF by default', async () => {
+            const wxs = render();
+            expect(wxs).toContain('<Feature Id="AddToPath"');
+            // Level 2 is above the default install level (1), so it stays off ...
+            expect(wxs).toMatch(/<Feature Id="AddToPath"[^>]*Level="2"/);
+            // ... until ADDTOPATH=1 lifts it, or ADDLOCAL names it.
+            expect(wxs).toContain('<Condition Level="1">ADDTOPATH=1</Condition>');
+            expect(wxs).toContain('Name="PATH" Action="set" Part="last" System="yes" Permanent="no"');
+            expect(wxs).toContain('Value="[INSTALLDIR]"');
         });
 
         await it('installs under ProgramFiles64Folder with no publisher level', async () => {

@@ -482,6 +482,19 @@ desktop cannot pick this up by accident and cannot behave differently under real
 GJS. The gate is the `FOREIGN_PARENT_CLASSES` flag in `host.nativescript.js` /
 `host.node.js`, the same `#host` mechanism as `LAZY_NATIVE`.
 
+**One more host flips that flag, and only for a test leg:
+`node --conditions=gjsify-foreign-parents` selects `host.node.foreign.js`, which
+re-exports `host.node.js` and overrides that single export.** It exists because a
+capability measurable on nothing but an Android device is a capability without a
+regression test: `@gjsify/adwaita-nativescript`'s route-D bug (a declared property
+registered over a NativeScript base whose `withSignals` door passed no meta)
+reached a phone with no off-device leg that could see it, and with the condition
+the same five cases fail on a laptop in 17 ms. The gate still holds for every
+program: a condition has to be passed on the process's own command line, so no
+dependency, bundle, env var or config file can select it, and nothing in node-gi
+reads it at runtime. The one consumer is that package's `test:gjs-on-node` script
+(CI job `gtk-host-node` in `.github/workflows/node-gi.yml`).
+
 Why the exception exists: on Android under NativeScript, node-gi is the ONLY
 engine that ever runs — GJS is not a target there — and `@nativescript/core`
 checks `instanceof ViewBase` hard before it will lay a child out. Either the

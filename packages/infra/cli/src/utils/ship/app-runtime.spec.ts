@@ -150,6 +150,7 @@ function planSettings(typelibFiles: string[]): ShipSettings {
         fontFiles: [],
         mimeTypes: [],
         extraFiles: {},
+        executables: [],
     } as unknown as ShipSettings;
 }
 

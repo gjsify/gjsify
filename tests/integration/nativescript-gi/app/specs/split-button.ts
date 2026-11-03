@@ -1,15 +1,20 @@
 // `Adw.SplitButton` ON A DEVICE (ADR 0105 § 2, route D): `clicked` and `activate` are declared
-// signals; `label`, `icon-name` (strings), `use-underline`, `can-shrink` (booleans) and
-// `dropdown-tooltip` (string) are declared properties. Both legs run the same vectors, so a
-// difference is a defect in whichever engine disagrees. See `specs/button.ts` and
-// `specs/button-content.ts` for the shapes this copies.
+// signals; `label`, `icon-name` (strings), `use-underline`, `can-shrink` (booleans),
+// `dropdown-tooltip` (string) and `menu-model` (object) are declared properties. Both legs run
+// the same vectors, so a difference is a defect in whichever engine disagrees. See
+// `specs/button.ts` and `specs/button-content.ts` for the shapes this copies, and
+// `specs/combo-row.ts` for what a device run can say about a seam-owned OBJECT property.
 import { Adw } from '@gjsify/adwaita-nativescript';
+import { buildMenu } from '@gjsify/adwaita-core';
 import { GestureTypes } from '@nativescript/core';
 
 import { describe, expect, info, it } from '../reporter.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
+
+/** How many rows the slot currently holds — the dropdown the model built. */
+const rowsOf = (button: Adw.SplitButton): number => (button as Any)._slot.tree.length;
 
 // A finger reaches the action half through the gesture observer `addEventListener('tap')` builds.
 const tapAction = (button: Adw.SplitButton): void => {
@@ -88,6 +93,71 @@ export const splitButtonSpec = (engine: 'real-gio' | 'pure-js') => async (): Pro
             (button as Any).canShrink = 'false';
             expect(button.useUnderline).toBe(true);
             expect(button.canShrink).toBe(false);
+        });
+
+        await it('holds the menu model BY IDENTITY, in all three spellings', () => {
+            // Seam-owned like `Adw.ComboRow:model`: the pspec over `GMenuModel` is real on this
+            // leg, but the value never enters the GObject, so the object that comes back is the
+            // one that went in rather than a copy node-gi marshalled.
+            const button = new Adw.SplitButton({ label: 'Save' });
+            expect(button.menuModel).toBe(null);
+            const model = buildMenu(['Save as…']);
+            button.menuModel = model;
+            expect((button as Any)['menu-model'] === model).toBe(true);
+            expect((button as Any).menu_model === model).toBe(true);
+            expect(button.menuModel === model).toBe(true);
+        });
+
+        await it('notifies menu-model on a CHANGE only — the measured C behaviour', () => {
+            // `Adw.SplitButton` guards by identity where `Gtk.MenuButton` does not (measured:
+            // 1,0,1,1,0 for A, A, B, null, null). The seam's own identity check is that guard,
+            // so this widget declares no `changed` hook.
+            const button = new Adw.SplitButton({ label: 'Save' });
+            const seen: string[] = [];
+            button.connect('notify::menu-model', () => seen.push('menu-model'));
+            const a = buildMenu(['Save as…']);
+            const b = buildMenu(['Export', 'Print']);
+            button.menuModel = a;
+            button.menuModel = a;
+            button.menuModel = b;
+            button.menuModel = null;
+            button.menuModel = null;
+            info(`seen=${seen.length}`);
+            expect(seen.length).toBe(3);
+        });
+
+        await it('notifies LAST, so a handler sees the dropdown already rebuilt', () => {
+            // What `explicitNotify: true` is for (pspec flags=1073742051, G_PARAM_EXPLICIT_NOTIFY):
+            // C swaps the model, rebuilds the popover and only then notifies. Left to the seam the
+            // emission would come first and the read below would be the PREVIOUS dropdown.
+            const button = new Adw.SplitButton({ label: 'Save' });
+            const rows: number[] = [];
+            button.connect('notify::menu-model', () => rows.push(rowsOf(button)));
+            button.menuModel = buildMenu(['Save as…', 'Export']);
+            button.menuModel = null;
+            info(`rows=[${rows.join(',')}]`);
+            expect(rows.join()).toBe('2,0');
+        });
+
+        await it('re-snapshots a mutation of the held model, without notifying', () => {
+            const button = new Adw.SplitButton({ label: 'Save' });
+            const model = buildMenu(['Save as…']);
+            button.menuModel = model;
+            let seen = 0;
+            button.connect('notify::menu-model', () => seen++);
+            model.append('Export');
+            expect(rowsOf(button)).toBe(2);
+            expect(seen).toBe(0);
+        });
+
+        await it('refuses a string and a non-model, and shuts the NativeScript door', () => {
+            // The XML door stays closed: `menuModel="app-menu"` in a template would otherwise
+            // install a string where a `GMenuModel` belongs.
+            const button = new Adw.SplitButton();
+            expect(() => ((button as Any).menuModel = 'app-menu')).toThrow();
+            expect(() => ((button as Any)['menu-model'] = {})).toThrow();
+            expect(button.menuModel).toBe(null);
+            expect(() => (button as Any).notify({ eventName: 'notify::menu-model', object: button })).toThrow();
         });
     });
 };

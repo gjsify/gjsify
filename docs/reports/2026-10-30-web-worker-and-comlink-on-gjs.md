@@ -18,7 +18,7 @@ consumer: [JumpLink/steuererklaerung#193](https://github.com/JumpLink/steuererkl
 
 Build `@gjsify/web-worker` as a thin DOM-shaped adapter over `@gjsify/worker_threads`, and fix
 everything below the adapter in `worker_threads` itself. The transport is sound — spawn to ready
-is ~41 ms, 10 000 rows round-trip in 55 ms, Comlink's core already works over it on GJS — and
+is ~40 ms, 10 000 rows round-trip in 49 ms, Comlink's core already works over it on GJS — and
 every gap that was measured is a gap in the shared transport, not in the web surface. Putting the
 fixes in the adapter would leave `node:worker_threads` consumers (stamped, among others) broken in
 exactly the same way.
@@ -29,7 +29,7 @@ silent today.
 
 ## What already works
 
-- **Spawn and transport.** Spawn → ready is 43/41/41 ms; a `Worker` from
+- **Spawn and transport.** Spawn → ready is 40/40/38 ms; a `Worker` from
   `new URL('./x.mjs', import.meta.url)` loads on both runtimes. `#2338.3` is done — the child is
   spawned with the parent's own binary via `/proc/self/exe`, not from PATH.
 - **#2476 (messages before ready) is already fixed on main.** 4 of 4 cases pass: a same-tick post
@@ -44,51 +44,112 @@ silent today.
 
 ## #2337 — structured clone across the boundary
 
-### What the fix in this PR changed
+### What the fix in #2479 changed
 
 The tagged-JSON codec's base64 used `btoa`/`atob`. The parent has them (a `--globals auto` build
 injects them); the child is a bare `gjs`, which has neither and no module resolution to reach a
 polyfill. So **every typed array, `ArrayBuffer` and typed-array view sent to a file-based worker
 died in the child** as `bootstrap message error: atob is not defined` — and the child exited 0, so
-the parent saw nothing but a timeout. This PR replaces both copies of the base64 helpers with an
+the parent saw nothing but a timeout. #2479 replaces both copies of the base64 helpers with an
 inline implementation and adds the tests.
 
 | | before | after |
 |---|---|---|
-| `docs/poc/web-worker/src/01-wire-roundtrip.mts` | 8 pass / 13 fail of 21 | **13 pass / 8 fail of 21** |
-| `@gjsify/worker_threads` suite, GJS | 164 tests, 299 assertions | **174 tests, 340 assertions** |
-| 1 MiB `Uint8Array` round trip | blocked | **95 ms** (encode 33 ms, decode 4 ms) |
+| `docs/poc/web-worker/src/01-wire-roundtrip.mts` | 8 pass / 13 fail of 21 | 13 pass / 8 fail of 21 |
+| `@gjsify/worker_threads` suite, GJS | 164 tests, 299 assertions | 174 tests, 340 assertions |
+| 1 MiB `Uint8Array` round trip | blocked | 95 ms (encode 33 ms, decode 4 ms) |
+
+### What the fix in #2485 changed
+
+The codec's `seen` map threw on any second visit to an object, so a shared reference was
+indistinguishable from a cycle, and both died in the child. #2485 replaces it with a **reference
+table** — implicit ids by pre-order traversal, so nothing extra goes on the wire — and adds tags
+for `undefined`, `-0`, array holes and `DataView`, reconstructs the seven interned `Error` names,
+and raises `DataCloneError` at the sender for functions, symbols and other non-cloneables.
+
+| | before | after |
+|---|---|---|
+| `docs/poc/web-worker/src/01-wire-roundtrip.mts` | 13 pass / 8 fail of 21 | **20 pass / 1 fail of 21** |
+| `@gjsify/worker_threads` suite, GJS | 174 tests, 340 assertions | **215 tests, 546 assertions** |
+| `@gjsify/worker_threads` suite, Node | not recorded | **210 tests, 535 assertions** |
+
+Both copies of the codec move in lockstep, and a **drift guard** keeps them that way: the
+`BOOTSTRAP_CODE` mirror is fenced by `GJSIFY_WIRE_CODEC_BEGIN/END` markers, and
+`structured-clone-wire.spec.ts` slices that text out, evaluates it with `new Function`, and runs
+the same 20-case matrix against both the TS module and the raw-JS mirror.
+
+One number above moved because the *instrument* was wrong, not the codec: the PoC's echo worker
+tagged a `DataView` as `object`, because its `tag()` tested `ArrayBuffer.isView` before it tested
+`DataView`. With a working `DataView` branch in the codec the case would have passed on the value
+and failed on the tag, so `echo.worker.mjs` got a `DataView` branch and `01-wire-roundtrip.mts`
+now expects `DataView(4)`.
+
+### What the fix in this PR changed
+
+The codec was already raising `DataCloneError` correctly; every caller around it threw the result
+away. This PR makes a failure to serialise or deserialise observable at the end that can act on it.
+
+| | before | after |
+|---|---|---|
+| `docs/poc/web-worker/src/01-wire-roundtrip.mts` | 20 pass / 1 fail of 21 | **21 pass / 0 fail of 21** |
+| `@gjsify/worker_threads` suite, GJS | 215 tests, 546 assertions | **222 tests, 561 assertions** |
+| `@gjsify/worker_threads` suite, Node | 210 tests, 535 assertions | **215 tests, 547 assertions** |
+
+**Sender.** `postMessage` now throws `DataCloneError` synchronously and sends nothing, on `Worker`,
+`parentPort` and `MessagePort` alike. `Worker.postMessage` had its whole body inside a
+`try { … } catch { /* Worker stdin closed */ }` meant for a closed pipe, so it swallowed the clone
+error too — and the fd-send failure that `_serializeWithSabTransfer`'s own comment says should
+surface. Only the `write_all` is inside the `try` now. The in-process `MessagePort` emitted
+`messageerror` on the **sender**, which is both the wrong end and uncatchable by a caller; it
+throws instead, matching Node's `DOMException [DataCloneError]: () => {} could not be cloned.`
+
+**Receiver.** A message that arrives but cannot be decoded now emits `messageerror` and the
+channel keeps working. `Worker._readMessages` had read, parse and dispatch under one `catch {}`,
+so a decode failure silently **ended the read loop** — no event, and every later message lost too;
+read and parse stay stream-level (end the loop), everything after is per-message. In the child,
+the same failure threw out of `dispatchLine` into `readNext`'s catch, which reported a *bootstrap
+message error* to the parent and shut the worker down: one undecodable message killed it.
+
+The sender-side expectations run on both runtimes, so the Node leg measures them against real
+`node:worker_threads` rather than asserting them from the docs. The receiver side needs a line on
+the wire that the encoder would never produce, which has no portable Node equivalent — those two
+cases are GJS-only (`message-errors.gjs.spec.ts`) and reach for the private `_stdinPipe` in one
+direction and a raw fd-1 write from inside the child in the other.
+
+`messageerror` stays on the `worker_threads` EventEmitter surface here. The W3C mapping —
+`onmessageerror` and a `MessageEvent` — belongs with the rest of the web surface in step 5.
 
 ### What still does not survive
 
-| Value | What happens | Where it is |
-|---|---|---|
-| cyclic object | child never answers, stays alive — parent sees a timeout | `encode`'s `seen` map throws; `worker.ts` swallows it |
-| shared reference (same object twice) | same silent timeout | `seen` has no ref table, so a repeat visit looks like a cycle |
-| `DataView` | same silent timeout | no `DataView` branch in `encode` |
-| a function | silently dropped; must raise `DataCloneError` | `typeof value !== 'object'` returns it unencoded |
-| `undefined` inside an object | key disappears entirely | `JSON.stringify` drops it; no tag for it |
-| `-0` | comes back `+0` | no tag for it |
-| sparse array holes | filled with `null` | `Array.prototype.map` + JSON |
-| `Error` subclasses | `RangeError` arrives as `Error` with `.name === 'RangeError'` | `decode` always builds a plain `Error` |
+All 21 wire cases pass. Two deliberate deviations remain, both documented in-code:
 
-Three of these are worse than a wrong value: **the parent cannot tell they happened.**
-`worker.ts:237-265` wraps `postMessage` in `try { … } catch { /* Worker stdin closed */ }`, which
-swallows every `DataCloneError` `encodeWire` raises, and on the child side a decode failure prints
-to the child's stderr and leaves the parent waiting. A spec `postMessage` throws synchronously.
+- **A typed-array view carries its window, not its backing buffer.** Two views onto one
+  `ArrayBuffer` arrive as two independent buffers. [§2.7.3](https://html.spec.whatwg.org/multipage/structured-data.html#structuredserializeinternal)
+  would preserve the sharing; doing so needs buffer identity on the wire, which is the same
+  machinery `transferList` wants and belongs with it.
+- **`Error.cause` is not serialized**, and `AggregateError.errors` is not special-cased.
 
 ### What the wire costs
 
+Measured with the reference table in place:
+
 | rows | → worker | ← worker | parent encode | plain `JSON.stringify`+`parse` | wire |
 |---|---|---|---|---|---|
-| 100 | 2 ms | 1 ms | 1 ms (decode 0 ms) | 0 ms | 11 KiB |
-| 1 000 | 7 ms | 3 ms | 2 ms (decode 1 ms) | 1 ms | 111 KiB |
-| 10 000 | 55 ms | 25 ms | 10 ms (decode 10 ms) | 6 ms | 1 125 KiB |
+| 100 | 3 ms | 1 ms | 0 ms (decode 1 ms) | 0 ms | 11 KiB |
+| 1 000 | 7 ms | 2 ms | 1 ms (decode 2 ms) | 1 ms | 111 KiB |
+| 10 000 | 49 ms | 22 ms | 8 ms (decode 6 ms) | 6 ms | 1 125 KiB |
 
-Binary: 64 KiB round-trips in 7 ms, 1 MiB in 95 ms, both at 1.33× the payload on the wire (base64).
+Binary: 64 KiB round-trips in 7 ms, 1 MiB in 82 ms, both at 1.33× the payload on the wire (base64).
+
+**The reference table costs nothing measurable.** The worry was that registering every object in a
+`Map` would show up on large payloads; on 10 000 rows encode went 10 ms → 8 ms and decode 10 ms →
+6 ms against the #2479 baseline, and the wire bytes are identical (11 / 111 / 1 125 KiB, unchanged).
+Both directions are within run-to-run noise of the old numbers — the ids are implicit in traversal
+order, so no bytes were added, and the `Map`/array operations are cheaper than the `Array.isArray`
+re-walks they replaced.
 
 Read against stamped's measurement of ~190 ms for 10 000 rows with hand-rolled JSON, the tagged
-codec is not the bottleneck: it costs ~1.7× a bare `JSON.stringify`/`parse` pair (10 ms vs 6 ms on
+codec is not the bottleneck: it costs ~1.3× a bare `JSON.stringify`/`parse` pair (8 ms vs 6 ms on
 10 000 rows) and the rest is the pipe. **Nothing here argues for a second, faster wire format.**
 The 1.33× base64 overhead is the one place a binary framing would pay, and only for payloads that
 are mostly bytes.
@@ -134,12 +195,12 @@ Comlink's own `comlink/dist/umd/node-adapter`.
 | a throw comes back as a rejection | pass | pass |
 | structured-clone-hard return value | **pass** (was failing before the codec fix) | pass |
 | 1 000 rows | pass | pass |
-| `Comlink.proxy()` callback — parent→worker port transfer | **fail**, times out | pass |
-| `createEndpoint()` — worker→parent port transfer | **fail**, `MessageChannel is not defined` | pass |
+| `Comlink.proxy()` callback — parent→worker port transfer | **pass** (was failing before step 4) | pass |
+| `createEndpoint()` — worker→parent port transfer | **pass** (was failing before step 4) | pass |
 | latency, 200 sequential calls | 0.17 ms/call | 0.04 ms/call |
 | 10 000 rows | 21 ms | 11 ms |
 
-Both failures are MessagePort transfer, and both are transport gaps rather than Comlink problems:
+Both failures were MessagePort transfer (closed in step 4, below), and both were transport gaps rather than Comlink problems:
 
 - A transferred port arrives in the child **EventEmitter-shaped** (`on`), not DOM-shaped
   (`addEventListener` + an `{data}` event), so Comlink's `expose` on the far end never hears it.
@@ -163,6 +224,33 @@ port transfer, at 0.17 ms per call; a JSON-RPC layer would be a second hand-roll
 the same transport underneath and none of the proxy ergonomics. The honest fallback for a consumer
 that needs callbacks *before* step 5 lands is what stamped already has: a serial request/reply
 queue with ids. Recommend Comlink, document the port-transfer gap, and close it in the transport.
+
+### What the fix in step 4 changed
+
+- **Child ports are DOM-shaped.** One child `MessagePort` class serves local pairs and wire ports:
+  `addEventListener`/`removeEventListener`, `onmessage`, `start`, `close`, a `MessageEvent`-like
+  `{data}` next to the EventEmitter surface. Ids are even in the child, odd in the parent.
+- **`MessageChannel` exists in the child**, inline in `BOOTSTRAP_CODE`, so `createEndpoint` runs under
+  bare `gjs`.
+- **Child→parent transfer** goes through the same placeholder as parent→child; the transfer is
+  committed only after the send succeeds. The parent also accepts a raw shared W3C port
+  (`@gjsify/message-channel`) as the transferred or kept end, since `./register` makes that the
+  global `MessageChannel` on GJS.
+- **Port-in-port** raises a clear `DataCloneError` on the cross-process paths; chaining is not
+  supported and is documented in `message-port.ts`.
+- **Exit codes.** Measured on Node 24.19: `process.exit(3)` in a worker gives `exit: 3` with **no**
+  `error`; a throw or import failure gives `error` then `exit: 1`. The plan's "`error` on every
+  non-zero exit" contradicts Node, so tests pin the Node behaviour instead. The worker context
+  gained `exit(code)` (shutdown, then `System.exit`) because a bare `System.exit` is deferred
+  while the child's loop runs and hangs.
+
+### Left for step 5
+
+- ~~`onmessageerror`/`messageerror` bridge for the raw shared port and for child ports.~~ Closed in step 5 (`fix(worker_threads): bridge messageerror, keep error names`).
+- ~~A SyntaxError thrown in a worker arrives on GJS as a generic `Error` (class lost).~~ Closed in step 5 (same commit).
+- Bundled children that send `worker_threads.MessageChannel` wrapper ports via `parentPort.postMessage`
+  are not recognised; the bootstrap's own global `MessageChannel` wins.
+- A user script calling bare `System.exit` in a worker child hangs; use the context's `exit`.
 
 ## #2338 — the bundler
 
@@ -224,21 +312,28 @@ It depends on `@gjsify/dom-events` and `@gjsify/message-channel`, both tier 1.
    `BOOTSTRAP_CODE`; tests in a new `structured-clone-wire.spec.ts` (padding lengths, all 256 byte
    values, a wire-format assertion against known base64, and a case that deletes the globals) plus
    three subprocess cases in `file-based-worker.spec.ts` that exercise the child's copy.
-   **Landed in this PR.**
-2. **The remaining clone gaps.** A ref table instead of the throw-on-revisit `seen` map (shared
-   references work, real cycles still raise), tags for `undefined`, `-0`, array holes and
-   `DataView`, `Error` subclasses reconstructed by name, and `DataCloneError` for functions and
-   symbols. Both copies, in lockstep. Extends `structured-clone-wire.spec.ts`.
+   **Landed in #2479.**
+2. **The remaining clone gaps.** A ref table instead of the throw-on-revisit `seen` map — shared
+   references *and* real cycles round-trip, as [§2.7.3](https://html.spec.whatwg.org/multipage/structured-data.html#structuredserializeinternal)
+   requires (the sketch here said cycles would still raise; a memo keyed by object identity gives
+   both for free, so they do not). Tags for `undefined`, `-0`, array holes and `DataView`, `Error`
+   subclasses reconstructed by name, and `DataCloneError` for functions and symbols. Both copies,
+   in lockstep, with a drift guard that runs the same matrix against the `BOOTSTRAP_CODE` mirror.
+   **Landed in #2485.**
 3. **Stop swallowing the error.** `worker.ts:237-265` must let a `DataCloneError` from `encodeWire`
    reach the caller and keep catching only a closed stdin; a decode failure in the child must come
    back as `messageerror` rather than silence. Test: `postMessage` of a function throws
-   synchronously on both runtimes.
+   synchronously on both runtimes. **Landed in #2490.**
 4. **MessagePort transfer and death reporting.** DOM-shaped child-side ports, a child→parent port
    placeholder path, and `error` on a non-zero exit that had no prior `error`. Tests: the two
    Comlink cases that fail today, promoted from the spike into the package's suite.
+   **Landed in this PR.** Item 5 is pinned, not changed: see below.
 5. **`@gjsify/web-worker`.** `EventTarget`-based `Worker` over `worker_threads`, the routing above,
    `type: 'module'` and a URL from `import.meta.url`, `terminate()`, and the three event handler
    properties. Its own suite on GJS, Node and browser.
+   **Landed in this PR**, with the Comlink cases of step 6 folded into its suite (`comlink.spec.ts`).
+   The adapter needs no bootstrap change: it starts the child in `eval` mode and lays the worker-side
+   scope over `parentPort` from a generated source.
 6. **Comlink as a consumer test.** The eight cases from `05`/`06` as an e2e against the new
    package, so the port-transfer fixes stay fixed.
 7. **#2338 in the bundler.** The recognition pass and the post-bundle entry emission described

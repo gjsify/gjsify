@@ -142,11 +142,39 @@ mkdir -p "$SCRATCH/export"
 # `Icon` ("the installer names no icon") and `Shortcut` ("the user has nothing to
 # start"). Everywhere else a zero-ROW export of a table § 1 has just seen listed
 # is the reader, or whatever last wrote the file, losing that table's stream.
-idt() {
-    local out
-    if ! out=$(cd "$SCRATCH/export" && msiinfo export "$MSI" "$1" | tr -d '\r'); then
+#
+# EVERY TABLE IS READ UNTIL TWO READS AGREE, because one read is not evidence.
+# Measured 2026-10-31 on `E2E 4/4` (PR #2488, a branch that touches no ship
+# code): an export of `Directory` came back with rows but WITHOUT the INSTALLDIR
+# row, on the original installer — no mutation anywhere near it — while the case
+# just after it read that row out of the same file. Rows present, so neither
+# floor below could see it. The bytes do not change between two reads, so a
+# correct reader answers the same twice; an answer the next read contradicts is
+# the reader's, and is discarded with a warning naming both row counts. A table
+# that is truly missing a row reads the same every time and still fails below.
+idt_once() {
+    (cd "$SCRATCH/export" && msiinfo export "$MSI" "$1" | tr -d '\r') ||
         fail "msiinfo export $1 exited non-zero on $MSI. That is the reader failing, not a finding about the installer."
-    fi
+}
+
+idt() {
+    local out prev attempt counts
+    prev=$(idt_once "$1")
+    counts=$(grep -c . <<<"$prev" || true)
+    out=
+    for attempt in 2 3 4; do
+        out=$(idt_once "$1")
+        [ "$out" = "$prev" ] && break
+        counts="$counts, $(grep -c . <<<"$out" || true)"
+        prev=$out
+        out=
+    done
+    [ -n "$out" ] || [ -z "$prev" ] ||
+        fail "msiinfo export $1 did not answer the same twice in a row in four reads of $MSI (line counts $counts). The file did not change between the reads, so this is the reader, not a finding about the installer."
+    out=$prev
+    case "$counts" in
+    *,*) echo "::warning title=Ship msi::msiinfo export $1 disagreed with itself on $MSI (line counts $counts); kept the answer two reads in a row agreed on" >&2 ;;
+    esac
     local lines
     lines=$(grep -c . <<<"$out" || true)
     if [ "$lines" -lt 3 ]; then
@@ -254,8 +282,13 @@ COMPONENT_COUNT=$(grep -c . <<<"${COMPONENT_ROWS:-}" || true)
 [ "$COMPONENT_COUNT" -gt 0 ] ||
     fail "the installer has no component rows at all (\`msiinfo tables\` lists Component, but nothing in its export matched the expected row shape) — an installer with no components installs nothing"
 FEATURE_ROWS=$(idt FeatureComponents | awk -F'\t' 'NR > 3 && NF >= 2 { print $2 }' | sort)
-[ "$COMPONENT_COUNT" = "$ROWS" ] ||
-    fail "the installer has $COMPONENT_COUNT component(s) for $ROWS file(s) — one component per file is what makes an uninstall able to remove exactly what was installed"
+# `AddToPathComponent` (the opt-in "add to PATH" feature) is the ONE component without a file: it carries
+# an Environment row and nothing else, so it is counted apart. It must exist exactly when the feature does.
+PATH_COMPONENTS=$(grep -c '^AddToPathComponent$' <<<"${COMPONENT_ROWS:-}" || true)
+FILE_COMPONENTS=$((COMPONENT_COUNT - PATH_COMPONENTS))
+[ "$PATH_COMPONENTS" -le 1 ] || fail "the installer has $PATH_COMPONENTS AddToPathComponent rows, expected at most one"
+[ "$FILE_COMPONENTS" = "$ROWS" ] ||
+    fail "the installer has $FILE_COMPONENTS file component(s) for $ROWS file(s) — one component per file is what makes an uninstall able to remove exactly what was installed"
 diff <(printf '%s\n' "$COMPONENT_ROWS") <(printf '%s\n' "$FEATURE_ROWS") >/dev/null ||
     fail "a component is not in the feature, or the feature names a component that does not exist. A component outside every feature is never installed, and the package still installs at exit 0."
 
@@ -264,8 +297,8 @@ diff <(printf '%s\n' "$COMPONENT_ROWS") <(printf '%s\n' "$FEATURE_ROWS") >/dev/n
 # files behind.
 GUIDS=$(awk -F'\t' 'NR > 3 && NF >= 6 { print $2 }' <<<"$COMPONENTS")
 UNIQUE=$(sort -u <<<"${GUIDS:-}" | grep -c . || true)
-[ "$UNIQUE" = "$ROWS" ] ||
-    fail "$ROWS component(s) carry only $UNIQUE distinct GUID(s). Windows Installer reference-counts on the component id, so a shared GUID makes one uninstall strand another product's files."
+[ "$UNIQUE" = "$COMPONENT_COUNT" ] ||
+    fail "$COMPONENT_COUNT component(s) carry only $UNIQUE distinct GUID(s). Windows Installer reference-counts on the component id, so a shared GUID makes one uninstall strand another product's files."
 
 # ── 4. WHERE IT LANDS ────────────────────────────────────────────────────────
 DIRECTORY=$(idt Directory)

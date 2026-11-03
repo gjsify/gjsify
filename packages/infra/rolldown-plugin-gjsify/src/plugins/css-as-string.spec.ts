@@ -131,4 +131,32 @@ export default async () => {
             }
         });
     });
+
+    // A stylesheet that parses to nothing used to reach the app as `""` at exit 0.
+    // Measured on gtk-minimal: a `//` header (Sass syntax, not CSS) made lightningcss
+    // drop the rule below it, so the window rendered unstyled while every check passed.
+    await describe('css-as-string — a stylesheet that parses to nothing', async () => {
+        await it('fails the build, naming the file, instead of shipping an empty stylesheet', async () => {
+            const root = fixture({ 'src/slash.css': '// not CSS\n.demo { color: red; }\n' });
+            const entry = join(root, 'src', 'slash.css');
+            try {
+                const hook = cssAsStringPlugin().load as {
+                    handler: (this: unknown, id: string) => Promise<{ code: string }>;
+                };
+                await expect(hook.handler.call(watchContext(), entry)).toReject(/slash\.css.*bundled to nothing/);
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+
+        await it('leaves an empty or comment-only stylesheet alone', async () => {
+            const root = fixture({ 'src/empty.css': '/* nothing to style yet */\n' });
+            try {
+                const { code } = await loadEntry(cssAsStringPlugin(), join(root, 'src', 'empty.css'));
+                expect(code).toContain('export default');
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+    });
 };

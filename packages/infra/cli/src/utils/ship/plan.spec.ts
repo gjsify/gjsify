@@ -49,6 +49,7 @@ function settings(overrides: Partial<ShipSettings> = {}): ShipSettings {
         fontFiles: [],
         extraFiles: {},
         execArgs: [],
+        executables: [],
         outDir: 'ship',
         arch: 'x64',
         app: 'gjs' as const,
@@ -92,6 +93,31 @@ export default async () => {
                 'share/applications/org.example.Hello.desktop',
                 'share/metainfo/org.example.Hello.metainfo.xml',
             ]);
+        });
+
+        await it('stages a further executable as bin/<name>, sharing the one bundle', async () => {
+            const exes = [{ name: 'hello-bridge', entry: 'bridge.mjs', gui: false }];
+            const files = planStage(
+                settings({ executables: exes }),
+                inputs({
+                    bundleFiles: ['gjs.js', 'bridge.mjs'],
+                    executableLaunchers: { 'hello-bridge': '#!/bin/sh\nB\n' },
+                }),
+            );
+            const bridge = files.find((file) => file.path === 'bin/hello-bridge');
+            expect(bridge?.mode).toBe(0o755);
+            expect(files.filter((file) => file.path.startsWith('lib/hello/')).length).toBe(2);
+        });
+
+        await it('refuses a further executable whose entry is not in the bundle', async () => {
+            const exes = [{ name: 'hello-bridge', entry: 'missing.mjs', gui: false }];
+            let message = '';
+            try {
+                planStage(settings({ executables: exes }), inputs({ executableLaunchers: { 'hello-bridge': 'x' } }));
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message).toContain('missing.mjs');
         });
 
         await it('makes the launcher executable and the data not', async () => {

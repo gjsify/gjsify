@@ -15,6 +15,7 @@ import { run } from '@gjsify/unit';
 
 import { Canvas2DBridgeNsTest } from './canvas2d/canvas2d-bridge.spec.js';
 import { AdwApplicationNsTest } from './application.spec.js';
+import cssLengthNsTestSuite from './css-length.spec.js';
 import { GioResourceNsTest } from './gio-resource.spec.js';
 import { AdwBlueprintTreesNsTest } from './blueprint-trees.spec.js';
 import { AdwBlueprintMarkupNsTest } from './blueprint-markup.spec.js';
@@ -30,6 +31,7 @@ import { AdwContainersNsTest } from './containers.spec.js';
 import { AdwGalleryBlueprintsNsTest } from './gallery-blueprints.spec.js';
 import { GtkButtonActionsNsTest } from './gtk-button-actions.spec.js';
 import { GtkButtonClickedNsTest } from './gtk-button-clicked.spec.js';
+import { GtkButtonBinNsTest } from './button-bin.spec.js';
 import gtkPlatformNsTest from './gtk-platform.spec.js';
 import gioNsTest from './gio.spec.js';
 import { GtkMenuTreeNsTest } from './gtk-menu-tree.spec.js';
@@ -38,6 +40,7 @@ import { MenuModelDoorNsTest } from './menu-model-door.spec.js';
 import { GtkBoxNsTest } from './gtk-box.spec.js';
 import { AdwGObjectDoorNsTest } from './gobject-door.spec.js';
 import { AdwGTypeNameNsTest } from './gtype-name.spec.js';
+import { AdwCssNamesNsTest } from './css-names.spec.js';
 import { AdwGridLayoutNsTest } from './grid-layout.spec.js';
 import { GtkGridNsTest } from './gtk-grid.spec.js';
 import { GtkLabelMarkupNsTest } from './label-markup.spec.js';
@@ -55,6 +58,7 @@ import { AdwSharedTreesNsTest } from './shared-trees.spec.js';
 import { AdwValueListsNsTest } from './value-lists.spec.js';
 import { AdwViewSwitcherStackNsTest } from './view-switcher-stack.spec.js';
 import { AdwWidgetBaseNsTest } from './widget-base.spec.js';
+import nameSelectorTestSuite from './name-selector.spec.js';
 import { AdwWidgetMapNsTest } from './widget-map.spec.js';
 import { AdwWindowRootsNsTest } from './window-roots.spec.js';
 import { AdwWindowShellNsTest } from './window-shell.spec.js';
@@ -67,12 +71,15 @@ import { AdwEntryRowPropertiesNsTest } from './entry-row-properties.spec.js';
 import { AdwExpanderRowPropertiesNsTest } from './expander-row-properties.spec.js';
 import { AdwButtonContentPropertiesNsTest } from './button-content-properties.spec.js';
 import { AdwSplitButtonPropertiesNsTest } from './split-button-properties.spec.js';
+import { GtkMenuButtonPropertiesNsTest } from './menu-button-properties.spec.js';
 import { AdwComboRowPropertiesNsTest } from './combo-row-properties.spec.js';
 import { GtkDropDownPropertiesNsTest } from './drop-down-properties.spec.js';
+import { GtkCheckButtonPropertiesNsTest } from './check-button-properties.spec.js';
 import { GtkEntryPropertiesNsTest } from './entry-properties.spec.js';
 
 run({
     AdwApplicationNsTest,
+    cssLengthNsTestSuite,
     GioResourceNsTest,
     AdwSharedTreesNsTest,
     AdwRegisterBarrelNsTest,
@@ -86,6 +93,7 @@ run({
     AdwConstructVectorsNsTest,
     AdwGObjectDoorNsTest,
     AdwGTypeNameNsTest,
+    AdwCssNamesNsTest,
     AdwContainersNsTest,
     GtkBoxNsTest,
     GtkGridNsTest,
@@ -95,6 +103,7 @@ run({
     GtkControlsNsTest,
     GtkStackNsTest,
     AdwWidgetBaseNsTest,
+    nameSelectorTestSuite,
     AdwWidgetMapNsTest,
     AdwWindowRootsNsTest,
     GtkWindowMembersNsTest,
@@ -108,13 +117,16 @@ run({
     AdwExpanderRowPropertiesNsTest,
     AdwButtonContentPropertiesNsTest,
     AdwSplitButtonPropertiesNsTest,
+    GtkMenuButtonPropertiesNsTest,
     AdwComboRowPropertiesNsTest,
     GtkDropDownPropertiesNsTest,
+    GtkCheckButtonPropertiesNsTest,
     GtkEntryPropertiesNsTest,
     GtkToggleButtonNsTest,
     GtkWidgetTreeNsTest,
     GtkButtonActionsNsTest,
     GtkButtonClickedNsTest,
+    GtkButtonBinNsTest,
     GtkMenuTreeNsTest,
     gtkPlatformNsTest,
     gioNsTest,

@@ -9,13 +9,19 @@
 //
 // The content vectors are the SHARED ones (`SPLIT_BUTTON_CONTENT_VECTORS`), driven against the
 // widget. `child` is not a property of this port, so each sequence stops at its first `child` step
-// and `child` is filtered out of the expected notifications. `direction` and the object-typed
-// properties are not declared (open-todos/nativescript.md), so nothing here claims them.
+// and `child` is filtered out of the expected notifications. `direction` is not declared
+// (open-todos/nativescript.md), so nothing here claims it.
+//
+// `menu-model` IS declared, object-kind over `GMenuModel`. Its measured notify counts are the
+// conformance table's and run in `./menu-model-door.spec.ts` against both menu-bearing widgets;
+// what is left here is what belongs to THIS declaration — the three spellings, the emission list,
+// the refusal of the NativeScript verbs, and the ORDER `explicitNotify` buys.
 //
 // This lives on the TREES entry (`src/test.trees.mts`): `extends GridLayout` evaluates
 // `@nativescript/core` at module scope, reachable only under that entry's `--alias`.
 
 import { describe, expect, it } from '@gjsify/unit';
+import { SPLIT_BUTTON_DISABLED_OPACITY, buildMenu } from '@gjsify/adwaita-core';
 import { SPLIT_BUTTON_CONTENT_VECTORS } from '@gjsify/adwaita-core/conformance';
 
 import * as Adw from './namespace/adw.js';
@@ -25,6 +31,8 @@ interface SplitParts {
     _actionPart: { notify(data: { eventName: string; object: unknown }): void };
     _actionLabel: { text: string; className: string };
     _actionIcon: { iconName: string };
+    _dropdownPart: { opacity: number };
+    _slot: { tree: readonly unknown[] };
 }
 
 const partsOf = (button: Adw.SplitButton): SplitParts => button as unknown as SplitParts;
@@ -211,6 +219,85 @@ export const AdwSplitButtonPropertiesNsTest = async () => {
                 loose(button).useUnderline = 'maybe';
             }).toThrow();
             expect(button.useUnderline).toBe(true);
+        });
+    });
+
+    await describe('Adw.SplitButton:menu-model is a declared object property', async () => {
+        await it('starts null and answers all three GObject spellings', () => {
+            const button = new Adw.SplitButton({ label: 'Save' });
+            expect(button.menuModel).toBe(null);
+            const model = buildMenu(['Save as…']);
+            button.menuModel = model;
+            const props = loose(button);
+            expect(props['menu-model']).toBe(model);
+            expect(props.menu_model).toBe(model);
+            expect(props.menuModel).toBe(model);
+        });
+
+        await it('declares notify::menu-model among what the widget emits', () => {
+            // The builder can connect it because the seam publishes it; the hand-rolled
+            // property offered `menuModelChange` and nothing on this list.
+            expect(emittedSignalsOf(Adw.SplitButton).includes('notify::menu-model')).toBe(true);
+        });
+
+        await it('is GObject-only: menuModelChange is a dead event name now', () => {
+            // CONSUMER-VISIBLE: `addEventListener('menuModelChange')` was the way to hear this
+            // property change. The seam no longer calls `notifyPropertyChange`, so such a
+            // listener is silent — `refuseDeclaredEvent` cannot name it, because it refuses
+            // only the spellings GObject owns (`notify::menu-model` and friends).
+            const button = new Adw.SplitButton();
+            const dead: unknown[] = [];
+            button.addEventListener('menuModelChange', (data) => dead.push(data));
+            const live: unknown[] = [];
+            button.connect('notify::menu-model', () => live.push('menu-model'));
+
+            button.menuModel = buildMenu(['Save as…']);
+            expect(dead.length).toBe(0);
+            expect(live.length).toBe(1);
+
+            // And the GObject spellings ARE refused, on both verbs.
+            expect(() => button.addEventListener('notify::menuModel', () => {})).toThrow();
+            expect(() => button.notify({ eventName: 'notify::menu_model', object: button as never })).toThrow();
+        });
+
+        await it('notifies LAST, so a handler sees the dropdown already live', () => {
+            // What `explicitNotify: true` is for. The C setter swaps the model, rebuilds the
+            // dropdown and only then calls `g_object_notify_by_pspec` (measured:
+            // `G_PARAM_EXPLICIT_NOTIFY`, flags=1073742051). Left to the seam the emission would
+            // come FIRST and the two reads below would be the PREVIOUS dropdown.
+            const button = new Adw.SplitButton({ label: 'Save' });
+            const parts = partsOf(button);
+            expect(parts._dropdownPart.opacity).toBe(SPLIT_BUTTON_DISABLED_OPACITY);
+
+            const seen: { opacity: number; rows: number; model: unknown }[] = [];
+            button.connect('notify::menu-model', (self) => {
+                seen.push({
+                    opacity: parts._dropdownPart.opacity,
+                    rows: parts._slot.tree.length,
+                    model: self.menuModel,
+                });
+            });
+
+            const model = buildMenu(['Save as…']);
+            button.menuModel = model;
+            expect(seen).toStrictEqual([{ opacity: 1, rows: 1, model }]);
+
+            // And the way back: `null` dims it again before the handler runs.
+            button.menuModel = null;
+            expect(seen[1]).toStrictEqual({ opacity: SPLIT_BUTTON_DISABLED_OPACITY, rows: 0, model: null });
+        });
+
+        await it('re-snapshots on a mutation of the held model, without notifying', () => {
+            const button = new Adw.SplitButton({ label: 'Save' });
+            const parts = partsOf(button);
+            const model = buildMenu(['Save as…']);
+            button.menuModel = model;
+            const seen = watch(button);
+            button.connect('notify::menu-model', () => seen.push('menu-model'));
+
+            model.append('Export');
+            expect(parts._slot.tree.length).toBe(2);
+            expect(seen.length).toBe(0);
         });
     });
 };

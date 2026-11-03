@@ -118,7 +118,8 @@ class MockEntryRow {
         return this._field.text ?? '';
     }
     set text(value: string) {
-        const next = value ?? '';
+        if (value === null || value === undefined) return;
+        const next = value;
         if (this._field.text !== next) this._field.text = next;
     }
     get secure(): boolean {
@@ -492,12 +493,12 @@ export default async () => {
             expect(row.text).toBe('hello');
         });
 
-        await it('coerces null/undefined to an empty string', () => {
+        await it('refuses null/undefined, leaving the text standing', () => {
             const row = new MockEntryRow();
-            // Cast through unknown to feed a non-string and exercise the `?? ''`
-            // coercion the real setter performs.
+            row.text = 'Ada';
             row.text = null as unknown as string;
-            expect(row.text).toBe('');
+            row.text = undefined as unknown as string;
+            expect(row.text).toBe('Ada');
         });
 
         await it('password variant marks the field secure', () => {

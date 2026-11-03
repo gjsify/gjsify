@@ -16,6 +16,11 @@ app carries it too. The three `adw-*` templates work the same way.
 The parser holds a subset of the language, and a construct outside it fails the build naming the
 construct, the file and the line rather than emitting something plausible and wrong.
 
+`src/style.css` is the app's stylesheet: it is imported as a **string** and handed to a
+`Gtk.CssProvider` in the `activate` handler, the first point at which a display exists, while
+`main-window.blp` names its class. `@gjsify/rolldown-plugin-gjsify/types` in `tsconfig.json` is
+what types that import — no hand-written `css.d.ts` needed.
+
 ## Install
 
 ```bash
@@ -41,6 +46,7 @@ npm run start:bun   # run on Bun
 npm run start:deno  # run on Deno
 npm run check       # type-check
 npm run clear       # remove build output
+npm run ship -- <os>  # package it (see Ship below)
 ```
 
 ## Runtimes
@@ -68,6 +74,31 @@ no web API — only `gi://` and `process`, which `auto` shims on GJS and which i
 native on the other three. Templates that draw through a Canvas or WebGL request
 that surface explicitly (`--globals auto,dom`); asking for it here would inject
 registers nothing ever calls.
+
+## Ship
+
+`gjsify ship` wraps the built app into something a stranger can install — a
+`.app` on macOS, an `.exe`/`.msi` on Windows, a `.deb`/`.rpm` on Linux:
+
+```bash
+npm run ship -- darwin    # → ship/*.app, ship/*.zip
+npm run ship -- windows   # → ship/*/ (directory) + .zip
+npm run ship -- windows --target msi
+npm run ship -- linux     # → .deb + .rpm (needs gjs on the target)
+```
+
+`gjsify.ship` in `package.json` is the whole configuration: the application id,
+the icon in `data/icons`, and — for macOS and Windows, which have no system GJS —
+the `--app node` bundle plus the `@gjsify/node-runtime-*` package for that
+platform. Those three packages sit in `optionalDependencies`, so `npm install`
+takes the one matching your machine and skips the others instead of refusing the
+install; a project shipping for a platform therefore builds it on that platform's
+runner, or hands `gjsify` the interpreter through `GJSIFY_NODE_RUNTIME`. The
+cross target itself wants GTK for its own architecture, which `gjsify` fetches
+into its cache on first use.
+
+Replace the placeholder icon and put your own name and email in `author` before
+publishing anything.
 
 ## Operating systems
 

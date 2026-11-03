@@ -231,6 +231,37 @@ export function auditShip(ctx) {
             }
         }
 
+        // `executables`: extra launchers beside the primary one. The entry is a build output (like
+        // `bundle`), so only the shape is judged here; `gjsify ship` checks it against the bundle.
+        const executables = block.executables;
+        if (executables !== undefined) {
+            if (!Array.isArray(executables)) {
+                failures.push(`${pkg.rel}/package.json: \`gjsify.ship.executables\` must be a list of objects.`);
+            } else {
+                for (const [index, exe] of executables.entries()) {
+                    const at = `${pkg.rel}/package.json: \`gjsify.ship.executables[${index}]\``;
+                    if (exe === null || typeof exe !== 'object' || Array.isArray(exe)) {
+                        failures.push(`${at} must be an object with \`name\` and \`entry\`.`);
+                        continue;
+                    }
+                    if (typeof exe.name !== 'string' || !/^[a-z0-9][a-z0-9._+-]*$/.test(exe.name)) {
+                        failures.push(`${at}.name must match /^[a-z0-9][a-z0-9._+-]*$/.`);
+                    }
+                    if (typeof exe.entry !== 'string' || exe.entry.length === 0) {
+                        failures.push(`${at}.entry must be a project-relative path to the built entry.`);
+                    }
+                    if (exe.gui !== undefined && typeof exe.gui !== 'boolean') {
+                        failures.push(`${at}.gui must be a boolean.`);
+                    }
+                    for (const key of Object.keys(exe)) {
+                        if (!['name', 'entry', 'gui'].includes(key)) {
+                            failures.push(`${at}.${key} is not a known key. Known: name, entry, gui.`);
+                        }
+                    }
+                }
+            }
+        }
+
         // `bundledTypelibs` as a TABLE: same silent-key failure as `bundle`, and here the cost is a
         // target that ships without the typelib it needs.
         const typelibs = block.bundledTypelibs;

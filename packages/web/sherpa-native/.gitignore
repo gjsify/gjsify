@@ -1,0 +1,7 @@
+# meson's wrap checkout — upstream sherpa-onnx, fetched by `meson setup` from the
+# revision pinned in subprojects/sherpa-onnx.wrap. Never committed: it is 53 MB of
+# somebody else's tree, and the wrap file is the reproducible statement of which
+# commit this prebuild is built from.
+/subprojects/sherpa-onnx/
+/subprojects/packagecache/
+/subprojects/.wraplock

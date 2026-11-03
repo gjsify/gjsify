@@ -56,7 +56,14 @@ import {
     findPinnedRuntime,
     stampAppDirTimes,
 } from '../utils/ship/appimage.js';
-import { addApplicationsLink, buildDmgImage, dmgVolumeDir, dmgVolumeName, signDmgImage } from '../utils/ship/dmg.js';
+import {
+    addApplicationsLink,
+    buildDmgImage,
+    dmgVolumeDir,
+    dmgVolumeName,
+    signDmgImage,
+    stapleBundleBeforeImage,
+} from '../utils/ship/dmg.js';
 import { assertNoDroppedFlatpakModules } from '../utils/ship/flatpak-config.js';
 import { buildFlatpakBundle } from '../utils/ship/flatpak.js';
 import { iconSizes, resolveAppIcon } from '../utils/ship/icons.js';
@@ -541,6 +548,12 @@ async function assemble(args: ShipOptions): Promise<void> {
     const stageInputs: StageInputs = {
         bundleFiles: discovered.bundleFiles,
         launcher: renderLauncher(settings, basename(settings.bundlePath), layout, runtime.launcher),
+        executableLaunchers: Object.fromEntries(
+            settings.executables.map((executable) => [
+                executable.name,
+                renderLauncher(settings, executable.entry, layout, runtime.launcher),
+            ]),
+        ),
         metainfo: translated.metainfo,
         desktopEntry: translated.desktopEntry,
         licenseText: settings.licenseFile === undefined ? undefined : readFileSync(settings.licenseFile, 'utf-8'),
@@ -1476,6 +1489,31 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
             // mounts showing `Contents/` — a window with no application in it.
             const volumeDir = dmgVolumeDir(outRoot);
             writePayload(volumeDir, payload, '');
+            // THE BUNDLE'S OWN TICKET, before the image exists (#162): a `.app` dragged
+            // out of a volume carries only what was stapled to IT. Nothing signs after
+            // this point except the image, which is a different object.
+            if (input.notarize.kind === 'notarize') {
+                const notarizePlan = input.notarize;
+                const bundleDir = join(volumeDir, `${settings.name}.app`);
+                const archive = join(dirname(volumeDir), 'bundle-notarize.zip');
+                await stapleBundleBeforeImage({
+                    writeArchive: () => writeFileSync(archive, buildZip(zipEntriesFromPayload(payload), mtime)),
+                    notarize: () =>
+                        notarizeArtifact({
+                            plan: notarizePlan,
+                            artifact: archive,
+                            verbose: input.verbose,
+                            log: (line) => console.log(`${LOG} ${line}`),
+                        }),
+                    staple: () =>
+                        stapleArtifact({
+                            notary: notarizePlan.notary,
+                            artifact: bundleDir,
+                            verbose: input.verbose,
+                            log: (line) => console.log(`${LOG} ${line}`),
+                        }),
+                });
+            }
             addApplicationsLink(volumeDir);
             await buildDmgImage({
                 volumeName: dmgVolumeName(settings),

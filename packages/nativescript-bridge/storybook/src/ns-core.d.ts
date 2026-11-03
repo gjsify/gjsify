@@ -16,6 +16,9 @@
 // surface, we don't reimplement it.
 
 declare module '@nativescript/core' {
+    /** The selector helpers; only `createSelector` is read (`css-selector-source.ts`). */
+    export const CSSHelper: { createSelector(selector: string): object };
+
     /** Payload shape for NativeScript's `Observable.notify` / event listeners. */
     export interface EventData {
         eventName: string;
@@ -47,6 +50,8 @@ declare module '@nativescript/core' {
     export class View extends Observable {
         /** CSS class list applied to this view (space-separated). */
         className: string;
+        get cssType(): string | undefined;
+        set cssType(value: string | undefined);
         /** Inline width in DIPs or a percentage string. */
         width: number | string;
         /** Inline height in DIPs or a percentage string. */
@@ -95,6 +100,15 @@ declare module '@nativescript/core' {
      */
     export class WrapLayout extends LayoutBase {
         orientation: 'horizontal' | 'vertical';
+    }
+
+    /**
+     * Children docked to the four edges, the last one taking what is left — `<DockLayout>`.
+     * `@gjsify/adwaita-nativescript`'s buttons extend it; without this declaration they
+     * resolve to `any` here and stop being a `View` (no `className`, not packable).
+     */
+    export class DockLayout extends LayoutBase {
+        stretchLastChild: boolean;
     }
 
     export class GridLayout extends LayoutBase {

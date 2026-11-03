@@ -61,6 +61,8 @@ export class Server extends EventEmitter {
     listen(...args: unknown[]): this {
         let port = 0;
         let host = '0.0.0.0';
+        // Without a host Node binds the dual-stack wildcard; an explicit one binds only that address.
+        let hostGiven = false;
         let backlog = 511;
         let callback: (() => void) | undefined;
 
@@ -69,13 +71,16 @@ export class Server extends EventEmitter {
             const opts = args[0] as ListenOptions;
             port = opts.port ?? 0;
             host = opts.host ?? '0.0.0.0';
+            hostGiven = opts.host !== undefined;
             backlog = opts.backlog ?? 511;
             callback = args[1] as (() => void) | undefined;
         } else {
             if (typeof args[0] === 'number') port = args[0];
             for (let i = 1; i < args.length; i++) {
-                if (typeof args[i] === 'string') host = args[i] as string;
-                else if (typeof args[i] === 'number') backlog = args[i] as number;
+                if (typeof args[i] === 'string') {
+                    host = args[i] as string;
+                    hostGiven = true;
+                } else if (typeof args[i] === 'number') backlog = args[i] as number;
                 else if (typeof args[i] === 'function') callback = args[i] as () => void;
             }
         }
@@ -90,7 +95,24 @@ export class Server extends EventEmitter {
             this._service.set_backlog(backlog);
 
             let actualPort: number;
-            if (port === 0) {
+            if (hostGiven) {
+                // `add_inet_port` binds the wildcard `[::]` whatever the caller asked for.
+                const bindHost = host === 'localhost' ? '127.0.0.1' : host;
+                const addr = Gio.InetSocketAddress.new_from_string(bindHost, port);
+                if (!addr)
+                    throw createNodeError(
+                        { code: Gio.IOErrorEnum.INVALID_ARGUMENT, message: `invalid address ${host}` },
+                        'listen',
+                        { address: host, port },
+                    );
+                const [, effective] = this._service.add_address(
+                    addr,
+                    Gio.SocketType.STREAM,
+                    Gio.SocketProtocol.DEFAULT,
+                    null,
+                );
+                actualPort = (effective as Gio.InetSocketAddress).get_port();
+            } else if (port === 0) {
                 actualPort = this._service.add_any_inet_port(null);
             } else {
                 this._service.add_inet_port(port, null);

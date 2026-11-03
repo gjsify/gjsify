@@ -80,7 +80,9 @@
 import type { Observable } from '@nativescript/core';
 
 import { GTK_ALIGN, NS_HORIZONTAL_ALIGNMENT, NS_VERTICAL_ALIGNMENT } from './gtk-align.js';
+import { cssTypeOf } from './css-names.js';
 import { gtypeNameOfInstance } from './gtype-name.js';
+import { installProvidedNameSelector } from '../name-selector.js';
 import { nsAlignment } from './construct-props.js';
 import { lengthValue, type NsLength } from './ns-length.js';
 import { gtkBuilderInteger, xmlBoolean } from './xml-values.js';
@@ -333,6 +335,8 @@ export interface GtkWidgetLayout {
  * The accessors keep their wider setter types (TS 5.1 unrelated accessor types).
  */
 export declare abstract class GtkWidgetLayoutMembers {
+    get cssType(): string | undefined;
+    set cssType(value: string | undefined);
     get halign(): string;
     set halign(value: string | number);
     get valign(): string;
@@ -408,6 +412,16 @@ export function withGtkWidgetLayout<TBase extends ObservableConstructor>(
     // oxlint-disable-next-line typescript/no-explicit-any -- TS2545 admits no other spelling for a mixin base
 ): (abstract new (...args: any[]) => GtkWidgetLayoutMembers) & TBase {
     abstract class WithGtkWidgetLayout extends Base implements GtkWidgetLayout {
+        /**
+         * The type selector this widget answers to: its GTK css-name (`button`, `revealer`), so a
+         * stylesheet written for GTK matches. A class outside the table keeps what the base says.
+         */
+        get cssType(): string | undefined {
+            return cssTypeOf(this.constructor) ?? (Reflect.get(Base.prototype, 'cssType', this) as string | undefined);
+        }
+
+        set cssType(_value: string | undefined) {}
+
         get halign(): string {
             const view = viewOf(this);
             if (view === null) return 'fill';
@@ -507,6 +521,7 @@ export function withGtkWidgetLayout<TBase extends ObservableConstructor>(
 
         set name(value: string | null) {
             const view = laidOut(this, 'name');
+            installProvidedNameSelector();
             const previous = NAMES.get(this);
             const next = value ?? '';
             if (next === '') NAMES.delete(this);

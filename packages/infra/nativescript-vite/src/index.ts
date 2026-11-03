@@ -46,14 +46,17 @@
 // optional `@nativescript/canvas*` plugins and `vite` are all OPTIONAL peer
 // dependencies — installed by the consumer only when targeting NativeScript.
 
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import module, { createRequire } from 'node:module';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { mergeConfig } from 'vite';
 import type { ConfigEnv, UserConfig, Plugin, AliasOptions, Alias } from 'vite';
 import { gjsifyNativescript as gjsifyNativescriptTransforms } from '@gjsify/vite-plugin-gjsify';
 import type { GjsifyNativescriptOptions } from '@gjsify/vite-plugin-gjsify';
+import { nativescriptCssNesting } from './css-nesting.js';
+
+export { nativescriptCssNesting } from './css-nesting.js';
 
 export type GjsifyNativescriptViteOptions = GjsifyNativescriptOptions;
 
@@ -102,7 +105,7 @@ export function defineNativescriptConfig(
         // node-builtin aliases) — the same composition proven to produce a
         // working Vite 8 bundle.
         const withTransforms = mergeConfig(fixed, {
-            plugins: [...gjsifyNativescriptTransforms(options)] satisfies Plugin[],
+            plugins: [...gjsifyNativescriptTransforms(options), nativescriptDedupeSymlinks()] satisfies Plugin[],
         });
         // Stabilise the build output so repeated `ns prepare`/`ns build` runs do
         // not accumulate stale, hashed chunk files the Android SBG then sees as a
@@ -114,9 +117,16 @@ export function defineNativescriptConfig(
         // Keep the strings and decorators NativeScript's static binding generator reads
         // (see {@link nativescriptReleaseMinify}); a consumer's own `build.minify` wins below.
         const withMinify = mergeConfig(withSbgFix, nativescriptReleaseMinify(withSbgFix));
-        if (userConfig === undefined) return withMinify;
-        const resolved = typeof userConfig === 'function' ? await userConfig(env) : userConfig;
-        return mergeConfig(withMinify, resolved);
+        const resolved =
+            userConfig === undefined
+                ? undefined
+                : typeof userConfig === 'function'
+                  ? await userConfig(env)
+                  : userConfig;
+        const merged = resolved === undefined ? withMinify : mergeConfig(withMinify, resolved);
+        // GTK-style nested stylesheets (`#id { child { … } }`) reach NativeScript's parser flat
+        // (see {@link nativescriptCssNesting}); last, so the user's own `css.postcss` is included.
+        return nativescriptCssNesting(merged, undefined, env.mode);
     };
 }
 
@@ -188,6 +198,59 @@ export function nativescriptSingleChunk(): UserConfig {
                     manualChunks: (): undefined => undefined,
                 },
             },
+        },
+    };
+}
+
+/**
+ * One module instance per file, however many symlink paths lead to it.
+ *
+ * `@nativescript/vite` sets `resolve.preserveSymlinks: true` (upstream gives no reason; the
+ * visible cases are `file:`-linked `@nativescript/core` dists and aliases that compare
+ * unresolved paths, so flipping it off would change what the upstream aliases match). In a
+ * workspace monorepo that makes every symlink path its own module id: a package reachable as
+ * `packages/a/node_modules/@scope/x` AND `packages/b/node_modules/@scope/x` is bundled twice, and
+ * its module-level state (an engine registry, a singleton) splits — `useRealGObjectEngine()`
+ * registers in one copy while `@gjsify/adwaita-nativescript` reads the empty slot of another and
+ * dies at launch with "No GObject engine was registered".
+ *
+ * So resolve as upstream does, then pin each REAL file to the first id it was reached by. This
+ * covers every package (no list to rot) and leaves upstream's symlink-path resolution intact.
+ */
+export function nativescriptDedupeSymlinks(): Plugin {
+    const realToId = new Map<string, string>();
+    const realOf = new Map<string, string>();
+    const realpath = (file: string): string => {
+        let real = realOf.get(file);
+        if (real === undefined) {
+            try {
+                real = realpathSync(file);
+            } catch {
+                real = file;
+            }
+            realOf.set(file, real);
+        }
+        return real;
+    };
+    return {
+        name: 'gjsify:nativescript-dedupe-symlinks',
+        enforce: 'pre',
+        async resolveId(source, importer, options) {
+            if (source.startsWith('\0') || options.isEntry) return null;
+            const resolved = await this.resolve(source, importer, { ...options, skipSelf: true });
+            if (!resolved || resolved.external || resolved.id.startsWith('\0') || !isAbsolute(resolved.id)) {
+                return resolved;
+            }
+            const query = resolved.id.search(/[?#]/);
+            const file = query === -1 ? resolved.id : resolved.id.slice(0, query);
+            const real = realpath(file);
+            const first = realToId.get(real);
+            if (first === undefined) {
+                realToId.set(real, file);
+                return resolved;
+            }
+            if (first === file) return resolved;
+            return { ...resolved, id: query === -1 ? first : first + resolved.id.slice(query) };
         },
     };
 }

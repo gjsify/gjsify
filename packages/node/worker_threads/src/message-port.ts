@@ -52,12 +52,16 @@
 // object whose `postMessage` writes back over stdout. Both sides use
 // the same `portId` as a registry key for inbound routing. See
 // `subprocess-port-transport.ts` for the adapter + nextParentPortId
-// counter. transferList-within-transferList chains (port-in-port) are
-// not supported on the cross-process path.
+// counter. The child can send ports back the same way
+// (`parentPort.postMessage(value, [port])`); `Worker` adopts the placeholders
+// it finds in the message. transferList-within-transferList chains
+// (port-in-port) are not supported on the cross-process path and throw a
+// DataCloneError.
 
 import { EventEmitter } from 'node:events';
 import { MessagePort as SharedMessagePort } from '@gjsify/message-channel';
 import { isSharedBuffer } from './sab-transfer.js';
+import { createDataCloneError } from './structured-clone-wire.js';
 
 /**
  * Internal placeholder used while serializing a transferred MessagePort.
@@ -118,12 +122,16 @@ export class MessagePort extends EventEmitter {
         // SubprocessPortTransport is attached to `_inner._transport`. The
         // surviving end routes outbound messages over the worker IPC wire
         // (parent ↔ child stdin/stdout) instead of an in-process partner.
-        // transferList is intentionally restricted on the cross-process path
-        // in v1 — port-in-port-in-port chains and ArrayBuffer-over-wire are
-        // separate workstreams (see status/open-todos/README.md).
+        // Nothing can be transferred through such a port: a port-in-port would
+        // need a per-message port table on both ends of the wire, so it throws
+        // a DataCloneError rather than guess. Ports travel only on
+        // `Worker.postMessage` / `parentPort.postMessage`.
         if (!target && this._inner._transport !== null) {
             if (transferList && transferList.length > 0) {
-                throw createDataCloneError('transferList is not supported on cross-process MessagePort yet');
+                throw createDataCloneError(
+                    'Transferring objects through a MessagePort that crosses a worker boundary is not supported; ' +
+                        'send the port with Worker.postMessage or parentPort.postMessage instead',
+                );
             }
             this._inner.postMessage(value);
             return;
@@ -206,8 +214,12 @@ export class MessagePort extends EventEmitter {
                 transfer: arrayBufferTransfers.length > 0 ? arrayBufferTransfers : undefined,
             });
         } catch (err) {
-            this.emit('messageerror', err instanceof Error ? err : new Error('Could not clone message'));
-            return;
+            // Sender-side failure, so it is the SENDER that must hear about it:
+            // Node throws DOMException [DataCloneError] synchronously out of
+            // postMessage and sends nothing. 'messageerror' is the receiver's
+            // event — emitting it here told the wrong end, and told it in a way
+            // a caller cannot catch.
+            throw err instanceof Error ? err : createDataCloneError('Could not clone message');
         }
 
         // For each transferred port: detach the source MessagePort locally, then
@@ -250,6 +262,25 @@ export class MessagePort extends EventEmitter {
         // unstarted ports buffer; `receiveMessageOnPort` can pull from the buffer
         // without dispatching).
         if (this._inner._started) this._dispatchEmit(message);
+    }
+
+    /**
+     * @internal An incoming message arrived but could not be deserialised, so
+     * there is no `message` to deliver. Node surfaces exactly this as
+     * `'messageerror'` on the receiving port and stays usable afterwards, which
+     * is the alternative to the message vanishing without a trace.
+     *
+     * Both surfaces: the EventEmitter `'messageerror'` and, through the inner
+     * W3C port, `addEventListener('messageerror')` / `onmessageerror`.
+     */
+    _receiveMessageError(err: unknown): void {
+        if (this._closed) return;
+        const error = err instanceof Error ? err : new Error(String(err));
+        Promise.resolve().then(() => {
+            if (this._closed) return;
+            this.emit('messageerror', error);
+            this._inner._receiveMessageError();
+        });
     }
 
     get _hasQueuedMessages(): boolean {
@@ -361,28 +392,6 @@ export class MessagePort extends EventEmitter {
         if (event === 'message') this.start();
         return this;
     }
-}
-
-function createDataCloneError(message: string): Error {
-    const DOMExceptionCtor = (globalThis as Record<string, unknown>).DOMException as
-        | (new (message: string, name: string) => Error)
-        | undefined;
-    if (typeof DOMExceptionCtor === 'function') {
-        const err = new DOMExceptionCtor(message, 'DataCloneError');
-        // Ensure the `code` property matches Node/W3C (25 = DATA_CLONE_ERR).
-        if ((err as { code?: number }).code === undefined) {
-            try {
-                Object.defineProperty(err, 'code', { value: 25, configurable: true });
-            } catch {
-                /* ignore */
-            }
-        }
-        return err;
-    }
-    const err = new Error(message);
-    err.name = 'DataCloneError';
-    (err as { code?: number }).code = 25;
-    return err;
 }
 
 /**

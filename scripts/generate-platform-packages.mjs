@@ -450,6 +450,9 @@ export function rewriteParentPrebuildPaths(manifest, parentDirName, targets) {
  * @property {string} range the `optionalDependencies` range the parent must carry
  * @property {'plan'|'uncommitted'|'missing-artifact'} state
  * @property {string} [why] why a non-`plan` target is not generated
+ * @property {{libc: string[]|null, glibcRequires: string|null}} [declared] the floor the
+ *   child's committed manifest already declares; only read for an `uncommitted` target,
+ *   see {@link expectedFiles}
  */
 
 /**
@@ -557,7 +560,19 @@ export function planPlatformPackages(ctx) {
             const state = exemption ? 'uncommitted' : 'plan';
             const why = exemption ? String(exemption[1]) : undefined;
             if (exemption) {
-                targets.push({ target, name, dir, rel, range, state, why });
+                const child = ctx.get(name)?.manifest;
+                const declaredLibc = Array.isArray(child?.libc) ? child.libc : null;
+                const declaredFloor = child?.gjsify?.glibcRequires?.[target] ?? null;
+                targets.push({
+                    target,
+                    name,
+                    dir,
+                    rel,
+                    range,
+                    state,
+                    why,
+                    declared: { libc: declaredLibc, glibcRequires: declaredFloor },
+                });
                 continue;
             }
             // Pre-split bridge with a declared target and no directory: a
@@ -659,9 +674,20 @@ function artifactDir(parent, planned) {
  */
 export function expectedFiles(parent, planned) {
     const dir = artifactDir(parent, planned);
+    // An `uncommitted` target has no bytes to measure, so its floor can only be
+    // CARRIED OVER from the committed manifest. Without that, `--check` wanted the
+    // floor ABSENT while the exemption was live, and `clear-committed-platform-
+    // exemptions.mjs` wanted it PRESENT once the bytes landed (it refuses to
+    // invent a measured number): no commit could satisfy both, and
+    // `commit-prebuilds` stayed red (run 41233580941, `sherpa-native-linux-x64`).
+    // A reviewed commit now declares the floor while the exemption is still live.
+    // Once the artifact is there the measurement wins, so a wrong declaration
+    // surfaces as a generator diff and as the clearer's refusal.
     const measured = dir
         ? measureLibcFields(dir, planned.target)
-        : { available: true, libc: null, glibcRequires: null };
+        : planned.state === 'uncommitted' && planned.declared
+          ? { available: true, ...planned.declared }
+          : { available: true, libc: null, glibcRequires: null };
     return {
         'package.json': stringifyManifest(
             platformManifest(

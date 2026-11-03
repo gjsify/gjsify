@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/node-gi",
-  "version": "0.64.13",
+  "version": "0.64.16",
   "description": "GObject-Introspection runtime for Node.js — load gi:// namespaces (GLib/GObject/Gio/…) with GJS-compatible semantics. Vendored + rewritten from node-gtk under MIT.",
   "type": "module",
   "license": "MIT",
@@ -11,6 +11,7 @@
     "#host": {
       "nativescript": "./host.nativescript.js",
       "wasm": "./host.wasm.js",
+      "gjsify-foreign-parents": "./host.node.foreign.js",
       "default": "./host.node.js"
     }
   },
@@ -48,6 +49,7 @@
   "files": [
     "index.js",
     "host.node.js",
+    "host.node.foreign.js",
     "host.nativescript.js",
     "nativescript.webpack.js",
     "index.d.ts",

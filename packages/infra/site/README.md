@@ -285,6 +285,30 @@ a typo) fails the build, since no Markdown is ever published. Posts are `BlogPos
 `article:*` meta, and the landing page shows the newest three of its language. On a site with
 `support` entries, every post ends with a note linking to the support page.
 
+### Code blocks
+
+A fenced block is rendered plain — `<pre><code class="language-…">` — because the generator
+carries no highlighter. Colours come from a hook the caller supplies, which is what keeps them in
+the HTML instead of in a script on the page:
+
+```typescript
+import { buildSite } from '@gjsify/site';
+import { createHighlighter } from '@gjsify/site-highlight';
+
+const highlighter = await createHighlighter();
+await buildSite({
+    root: process.cwd(),
+    out: 'dist',
+    markdown: { highlight: (code, lang) => highlighter.highlight(code, lang) },
+});
+```
+
+`highlight` receives the block's text and its info string verbatim, and answers either the HTML to
+insert or `undefined` to keep the plain block. The returned HTML is inserted as markup, so the hook
+owns escaping. [`@gjsify/site-highlight`](../site-highlight/README.md) is the ready-made one:
+Shiki on its JavaScript regex engine, the same HTML for light and dark, a Blueprint grammar Shiki
+does not bundle — and a stylesheet that has to be appended after the site's own.
+
 ## Theme
 
 | Key | Meaning |

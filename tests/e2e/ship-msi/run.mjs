@@ -203,7 +203,9 @@ describe('CLI ship Windows installer E2E', { timeout: 10 * 60 * 1000 }, () => {
         const components = table(msi, 'Component');
         const onDisk = listFiles(programDir);
         assert.equal(files.length, onDisk.length);
-        assert.equal(components.length, onDisk.length);
+        // The opt-in "add to PATH" component carries an Environment row, not a file.
+        const fileComponents = components.filter((row) => row[0] !== 'AddToPathComponent');
+        assert.equal(fileComponents.length, onDisk.length);
         // Reference counting keys on the component id, so a shared GUID makes one
         // uninstall strand another product's files.
         const guids = new Set(components.map((row) => row[1]));
@@ -584,6 +586,45 @@ describe('CLI ship Windows installer E2E', { timeout: 10 * 60 * 1000 }, () => {
             env: { ...process.env, PATH: `${stub}:${process.env.PATH}` },
         });
         assert.match(failure, /returned the three IDT header lines and no rows/);
+        assert.doesNotMatch(failure, /there is no INSTALLDIR row/);
+    });
+
+    /**
+     * A msiinfo that drops the INSTALLDIR row from the Directory exports `drop`
+     * selects by call number — the third shape of the same misread, `E2E 4/4`,
+     * 2026-10-31: rows present, the one row looked for missing, on a file the
+     * next case read it from.
+     */
+    function droppingReader(name, drop) {
+        const stub = join(tmpDir, name);
+        mkdirSync(stub, { recursive: true });
+        const realMsiinfo = execFileSync('bash', ['-c', 'command -v msiinfo'], { encoding: 'utf-8' }).trim();
+        writeFileSync(
+            join(stub, 'msiinfo'),
+            '#!/usr/bin/env bash\n' +
+                'if [ "$1" = export ] && [ "$3" = Directory ]; then\n' +
+                `    n=$(( $(cat ${JSON.stringify(join(stub, 'calls'))} 2>/dev/null || echo 0) + 1 ))\n` +
+                `    echo "$n" > ${JSON.stringify(join(stub, 'calls'))}\n` +
+                `    if ${drop}; then ${JSON.stringify(realMsiinfo)} "$@" | grep -v '^INSTALLDIR\t'; exit 0; fi\n` +
+                'fi\n' +
+                `exec ${JSON.stringify(realMsiinfo)} "$@"\n`,
+            { mode: 0o755 },
+        );
+        return { ...process.env, PATH: `${stub}:${process.env.PATH}` };
+    }
+
+    it('re-reads a table and keeps the answer two reads agree on', () => {
+        // The discriminator: with one read per table the oracle exits 1 here on
+        // "there is no INSTALLDIR row" — the accusation the incident made.
+        const env = droppingReader('reader-stub-once', '[ "$n" = 1 ]');
+        const out = oracle([msi, programDir, 'msitools'], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+        assert.match(out, /1 Start-Menu shortcut with icon/);
+    });
+
+    it('blames the READER when its reads of one table never agree', () => {
+        const env = droppingReader('reader-stub-flip', '[ $((n % 2)) = 1 ]');
+        const failure = oracleExpectingFailure([msi, programDir, 'msitools'], { env });
+        assert.match(failure, /msiinfo export Directory did not answer the same twice in a row/);
         assert.doesNotMatch(failure, /there is no INSTALLDIR row/);
     });
 

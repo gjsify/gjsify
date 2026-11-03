@@ -1,5 +1,82 @@
 # Changelog
 
+## [0.64.16](https://github.com/gjsify/gjsify/compare/v0.64.15...v0.64.16) (2026-11-01)
+
+### Features
+
+* **bundler:** ship Worker URL targets beside the bundle ([#2508](https://github.com/gjsify/gjsify/issues/2508)) ([602c33c](https://github.com/gjsify/gjsify/commit/602c33c2457c3d244f06e64eb099544067f8a97a)), closes [#2338](https://github.com/gjsify/gjsify/issues/2338)
+* **cli:** ship several executables per package ([#2512](https://github.com/gjsify/gjsify/issues/2512)) ([58a9929](https://github.com/gjsify/gjsify/commit/58a99292b1ed65ba289afa13055beb202eee9c31))
+* **web-worker:** `WHATWG` Worker over worker_threads ([#2504](https://github.com/gjsify/gjsify/issues/2504)) ([b4d7276](https://github.com/gjsify/gjsify/commit/b4d727675ea691ea06a7acd6c4b0a59fff2b42e0)), closes [#2338](https://github.com/gjsify/gjsify/issues/2338)
+
+### Bug Fixes
+
+* **prebuilds:** commit spiel + sherpa prebuilds ([#2509](https://github.com/gjsify/gjsify/issues/2509)) ([6c95edb](https://github.com/gjsify/gjsify/commit/6c95edb2cc2d8308a052437bf8db4147af3e00f6)), closes [#2506](https://github.com/gjsify/gjsify/issues/2506) [#2507](https://github.com/gjsify/gjsify/issues/2507) [#2494](https://github.com/gjsify/gjsify/issues/2494)
+* **sherpa-native:** declare glibc floor before bytes ([#2507](https://github.com/gjsify/gjsify/issues/2507)) ([be57ffe](https://github.com/gjsify/gjsify/commit/be57ffecad009bd120d4577d80d0133f71d32637))
+* **worker_threads:** spawn the parent's own gjs ([#2510](https://github.com/gjsify/gjsify/issues/2510)) ([075c7b3](https://github.com/gjsify/gjsify/commit/075c7b36e0acba8f56b53c33b6925e842586d5a2)), closes [#2338](https://github.com/gjsify/gjsify/issues/2338)
+
+### Maintenance
+
+* clear sherpa/vad from bootstrap ledger ([#2511](https://github.com/gjsify/gjsify/issues/2511)) ([b246f64](https://github.com/gjsify/gjsify/commit/b246f64f72f3d8a48f3264638756887b889247b2))
+* update native prebuilds [skip ci] ([0b78312](https://github.com/gjsify/gjsify/commit/0b783124c42f98513aa0a0e37d267170e2399127))
+* update native prebuilds [skip ci] ([3641716](https://github.com/gjsify/gjsify/commit/3641716f21b1afefad8280cb5355cf0ac47b2fc6))
+
+### Tests
+
+* **e2e:** read the spiel glibc floor from its manifest ([#2513](https://github.com/gjsify/gjsify/issues/2513)) ([dd4f18c](https://github.com/gjsify/gjsify/commit/dd4f18c51665e8a5cb64c486b2a086347b5554a4))
+
+## [0.64.15](https://github.com/gjsify/gjsify/compare/v0.64.14...v0.64.15) (2026-10-31)
+
+### Features
+
+* **adwaita:** declare menu-model at the seam on both holders ([#2488](https://github.com/gjsify/gjsify/issues/2488)) ([b4125c5](https://github.com/gjsify/gjsify/commit/b4125c5a344293b094eac678e9245d2fa1bb6d88))
+* **cli:** read release-notes from metainfo ([#2492](https://github.com/gjsify/gjsify/issues/2492)) ([5e20a23](https://github.com/gjsify/gjsify/commit/5e20a23e00e956e01c27eb7549f67c9c788f3287))
+* **create:** ship-ready, styled gtk-minimal template ([#2500](https://github.com/gjsify/gjsify/issues/2500)) ([93d8d0f](https://github.com/gjsify/gjsify/commit/93d8d0fceb7a7ef1ee2acc2d4e1583dc8d665f41))
+* **sherpa-native:** sherpa-onnx bridge and silero vad ([#2487](https://github.com/gjsify/gjsify/issues/2487)) ([4f89ae4](https://github.com/gjsify/gjsify/commit/4f89ae4f4060b9ee8ddb2df837e237481b4b8a76))
+* **site:** highlight code blocks at build time ([#2499](https://github.com/gjsify/gjsify/issues/2499)) ([5742b28](https://github.com/gjsify/gjsify/commit/5742b282a8a2bc8633dd8384ef436768447f6a83))
+* **worker_threads:** `DOM-shaped` worker ports ([#2495](https://github.com/gjsify/gjsify/issues/2495)) ([f42dc5c](https://github.com/gjsify/gjsify/commit/f42dc5c99b6bcd384f8595c9345557a192db6db6)), closes [#2337](https://github.com/gjsify/gjsify/issues/2337)
+
+### Bug Fixes
+
+* **adwaita-nativescript:** give widgets GTK css-names ([#2497](https://github.com/gjsify/gjsify/issues/2497)) ([7522752](https://github.com/gjsify/gjsify/commit/7522752a4042b81de13e6c76bf9347975489a51b))
+* **adwaita-nativescript:** keep ns-core.mts erasable ([#2505](https://github.com/gjsify/gjsify/issues/2505)) ([486d989](https://github.com/gjsify/gjsify/commit/486d989dd26e4aaaac537fda3b5981bc31e8e9b9)), closes [#2502](https://github.com/gjsify/gjsify/issues/2502) [#2487](https://github.com/gjsify/gjsify/issues/2487)
+* **adwaita-nativescript:** match #name by name ([#2502](https://github.com/gjsify/gjsify/issues/2502)) ([ba9a151](https://github.com/gjsify/gjsify/commit/ba9a151af0ec1d849eaef72831ad5c8d8d0c50e9))
+* **adwaita:** centre a button's child in its request ([#2491](https://github.com/gjsify/gjsify/issues/2491)) ([261f8e6](https://github.com/gjsify/gjsify/commit/261f8e60368a752238df21fa9023b9ed8b857622))
+* **adwaita:** scroll a ScrolledWindow on both axes ([#2503](https://github.com/gjsify/gjsify/issues/2503)) ([ccf34c0](https://github.com/gjsify/gjsify/commit/ccf34c097f18bae99c78456d205ee22dfdc0e8a8))
+* **ci:** re-read an msi table until two reads agree ([#2493](https://github.com/gjsify/gjsify/issues/2493)) ([e139d74](https://github.com/gjsify/gjsify/commit/e139d74f80245f470a845ae46aae7ed1d24b00fe)), closes [#2488](https://github.com/gjsify/gjsify/issues/2488)
+* **nativescript-vite:** flatten nesting, px to dip ([#2496](https://github.com/gjsify/gjsify/issues/2496)) ([05752b3](https://github.com/gjsify/gjsify/commit/05752b3563131072a4c02b7410ef7f93f1a1f6cf)), closes [#2498](https://github.com/gjsify/gjsify/issues/2498)
+* **spiel-native:** resolve on musl, unblock commit-prebuilds ([#2506](https://github.com/gjsify/gjsify/issues/2506)) ([54b99f6](https://github.com/gjsify/gjsify/commit/54b99f63b877787085e108bb948e724e32d625c3))
+* **worker_threads:** report message failures ([#2490](https://github.com/gjsify/gjsify/issues/2490)) ([4eea5df](https://github.com/gjsify/gjsify/commit/4eea5dfa71efcf7c95cbd78cb6cdce4725ba6f39)), closes [#2337](https://github.com/gjsify/gjsify/issues/2337)
+
+## [0.64.14](https://github.com/gjsify/gjsify/compare/v0.64.13...v0.64.14) (2026-10-31)
+
+### Features
+
+* **adwaita:** a real Gio.MenuModel at menu-model ([#2483](https://github.com/gjsify/gjsify/issues/2483)) ([faa1656](https://github.com/gjsify/gjsify/commit/faa1656ff167efab64a23d5481eecdddf6169b20))
+* **adwaita:** declare Gtk.Entry's text and length at the seam ([#2473](https://github.com/gjsify/gjsify/issues/2473)) ([7b03073](https://github.com/gjsify/gjsify/commit/7b0307380493fb1e2d1131c8610edc3741802ebc)), closes [#2469](https://github.com/gjsify/gjsify/issues/2469)
+* **cli:** add release-notes command ([#2482](https://github.com/gjsify/gjsify/issues/2482)) ([ae51b40](https://github.com/gjsify/gjsify/commit/ae51b40b44f13bf5cfeb934d037346c1ede0ce31))
+* **media-capture:** extract capture chain, add PCM source ([#2472](https://github.com/gjsify/gjsify/issues/2472)) ([1884261](https://github.com/gjsify/gjsify/commit/18842610e9cb2cd3a2cb2112b6778157d5fe7ec5))
+
+### Bug Fixes
+
+* **adwaita:** a one-child container's row, and button sizes as floors ([#2481](https://github.com/gjsify/gjsify/issues/2481)) ([eae7c08](https://github.com/gjsify/gjsify/commit/eae7c081fd3a4cf5392da0c52dd7f0dcd008ccae))
+* **adwaita:** draw Gtk.Label's 0.5 xalign default ([#2486](https://github.com/gjsify/gjsify/issues/2486)) ([c3bbd81](https://github.com/gjsify/gjsify/commit/c3bbd81ff98ef41166a2ee0065195bd95e2fc289))
+* **cli:** stage .app names as NFD for the HFS+ dmg ([#2480](https://github.com/gjsify/gjsify/issues/2480)) ([97eab19](https://github.com/gjsify/gjsify/commit/97eab19bdeaecdd879b181cfbbf89eef945a1ae6))
+* **napi:** resolve mozjs from the gjs host on darwin ([#2477](https://github.com/gjsify/gjsify/issues/2477)) ([0edd659](https://github.com/gjsify/gjsify/commit/0edd65971ab64a1d9a3a28646a3445a40b6079d9))
+* **utils:** count the nextTick drainer as pending ([#2478](https://github.com/gjsify/gjsify/issues/2478)) ([de36718](https://github.com/gjsify/gjsify/commit/de36718b1cf06bfdd747fda5cb6335e7199e832e))
+* **worker_threads:** close the structured clone gaps ([#2485](https://github.com/gjsify/gjsify/issues/2485)) ([5d567df](https://github.com/gjsify/gjsify/commit/5d567dff5ac3c8551dbf8f698995efcdc6d94578))
+
+### Performance Improvements
+
+* **adwaita:** incremental GtkBox tracks, native Android label markup ([#2474](https://github.com/gjsify/gjsify/issues/2474)) ([bdeb5e0](https://github.com/gjsify/gjsify/commit/bdeb5e01b296d24623ae82ac931739b9bdac28a6))
+
+### Documentation
+
+* spike a web Worker and Comlink on GJS ([#2479](https://github.com/gjsify/gjsify/issues/2479)) ([e0f3a2f](https://github.com/gjsify/gjsify/commit/e0f3a2f8cd4f98f7f2fa0667a2be5f5e0cb89971)), closes [#2337](https://github.com/gjsify/gjsify/issues/2337) [#2358](https://github.com/gjsify/gjsify/issues/2358) [#2338](https://github.com/gjsify/gjsify/issues/2338) [#2337](https://github.com/gjsify/gjsify/issues/2337) [#2338](https://github.com/gjsify/gjsify/issues/2338) [#2476](https://github.com/gjsify/gjsify/issues/2476) [#2358](https://github.com/gjsify/gjsify/issues/2358)
+
+### Tests
+
+* **cli:** pass real targets to the NFD seal cases ([#2484](https://github.com/gjsify/gjsify/issues/2484)) ([e1215df](https://github.com/gjsify/gjsify/commit/e1215df2e612ba5be6a4ad96ecd5916a2d7995b2)), closes [#2480](https://github.com/gjsify/gjsify/issues/2480)
+
 ## [0.64.13](https://github.com/gjsify/gjsify/compare/v0.64.12...v0.64.13) (2026-10-30)
 
 ### Features

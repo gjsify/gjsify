@@ -10,8 +10,9 @@
 //     kept that door shut. That is the `bySurface` field, and reading it is the whole reason
 //     the same table can be held against two surfaces at all.
 //   * `MENU_MODEL_NOTIFY_VECTORS` — the identity guard `Adw.SplitButton` has and
-//     `Gtk.MenuButton` does not. Measured in GJS as `notify::menu-model`; here it arrives as
-//     NativeScript's `menuModelChange`, which `notifyPropertyChange` emits. Both widgets run
+//     `Gtk.MenuButton` does not. Measured in GJS as `notify::menu-model`, and that is what it
+//     arrives as here too since the property moved onto the seam: one GObject channel, reached
+//     through `connect`, where it used to be NativeScript's `menuModelChange`. Both widgets run
 //     every row, because a guard measured on one and applied to the other is the exact
 //     mistake the table exists to catch.
 //
@@ -40,7 +41,7 @@ const SURFACE = 'nativescript';
 /** A `menuModel` holder — both widgets the table names, and both are measured. */
 interface MenuHolder {
     menuModel: AdwMenuModel | null;
-    addEventListener(eventName: string, callback: () => void): void;
+    connect(detailedSignal: string, callback: () => void): number;
 }
 
 const HOLDERS: Record<MenuModelHolder, () => MenuHolder> = {
@@ -103,7 +104,7 @@ export const MenuModelDoorNsTest = async () => {
         }
     });
 
-    await describe('menuModelChange and the identity guard (ADR 0128 conformance vectors)', async () => {
+    await describe('notify::menu-model and the identity guard (ADR 0128 conformance vectors)', async () => {
         for (const vector of MENU_MODEL_NOTIFY_VECTORS) {
             const label = `${vector.widget} [${vector.writes.map((w) => w ?? 'null').join(', ')}]`;
             await it(`${label}: ${vector.rule}`, () => {
@@ -117,7 +118,7 @@ export const MenuModelDoorNsTest = async () => {
                 };
 
                 let notifies = 0;
-                holder.addEventListener('menuModelChange', () => notifies++);
+                holder.connect('notify::menu-model', () => notifies++);
 
                 const counted: number[] = [];
                 const write = (name: MenuModelWrite) => {

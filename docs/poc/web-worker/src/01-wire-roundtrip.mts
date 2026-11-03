@@ -105,7 +105,7 @@ const cases: Case[] = [
     {
         name: 'DataView',
         make: () => new DataView(new Uint8Array([1, 2, 3, 4]).buffer),
-        expectTag: 'object',
+        expectTag: 'DataView(4)',
         same: (_a, b) => b instanceof DataView && b.byteLength === 4,
     },
     {

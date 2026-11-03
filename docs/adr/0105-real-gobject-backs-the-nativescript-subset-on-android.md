@@ -329,6 +329,10 @@ round-trips the same JS object; a removed widget finalizes and a live one does n
   other host still throws GJS's invalid-base error, so desktop stays GJS-identical and a desktop
   program cannot pick this up by accident. Recorded in `docs/node-gi-gjs-surface.md`,
   `packages/node-gi/AGENTS.md` and `packages/node-gi/node-gi/README.md`.
+  **Amended 2026-10-31:** one more host flips the flag, `host.node.foreign.js` under
+  `node --conditions=gjsify-foreign-parents`, so route D has a regression leg that needs no
+  phone — a command-line condition no consumer can select by accident. It was added because a
+  route-D bug reached a device with nothing off-device able to see it; ADR 0128 Amendment § A5.
 - **`vfunc_*` is not available** on a foreign-parent class (it would need the instance prototype
   re-linked). Properties, signals and bindings are.
 - The `this`-capturing handler leak from 2026-10-18 reached widgets too, and is now **fixed** in

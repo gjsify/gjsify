@@ -422,10 +422,17 @@ It now maps the subset's value type to a real GType and builds a real `g_param_s
 |---|---|
 | `TYPE_OBJECT` (`{ name: 'GObject' }`) | node-gi `GObject.Object` |
 | the `ListModel` interface token (`gtype.name === 'GListModel'`) | `requireGi('Gio', '2.0').ListModel` |
+| the `GMenuModel` class token (`gtype.name === 'GMenuModel'`) | `requireGi('Gio', '2.0').MenuModel` |
 | anything else | `TypeError` naming the type |
 
-The `Gio` import is lazy — taken only when a `GListModel`-typed property is actually declared —
-the same shape `list-store.ts` already uses in this package.
+The `Gio` import is lazy — taken only when a Gio-typed property is actually declared — the same
+shape `list-store.ts` already uses in this package.
+
+**The third row arrived with ADR 0128 § 7's `menu-model`** (2026-10-31) and is the first entry
+that is a CLASS rather than an interface or `GObject` itself. It needed no new token:
+`registerBaseClass(GioMenuModel, 'GMenuModel', …)` already calls `makeType('GMenuModel')` and
+installs `$gtype`, so the declaration names `GioMenuModel.$gtype` and `realValueTypeFor`'s
+`valueType.name` discriminant does the rest. A fourth answer is still a `TypeError`.
 
 Measured, on this tree's addon (GLib 2.86): `GObject.ParamSpec.object` accepts both
 `GObject.Object` and `Gio.ListModel`; a real `Gio.ListStore` round-trips by identity through such

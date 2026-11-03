@@ -8,6 +8,7 @@ import {
     renderBlogFeed,
     renderBlogIndex,
     renderBlogPost,
+    renderPostBody,
     tagsOf,
 } from './blog.js';
 import type { Shell } from './layout.js';
@@ -128,6 +129,16 @@ export default async () => {
             expect(xml).toMatch(/<id>https:\/\/example.org\/en\/blog\/feed.xml<\/id>/);
             expect(xml).toMatch(/https:\/\/example.org\/blog\/x.png/);
             expect(xml).toMatch(/https:\/\/example.org\/en\/blog\/a\//);
+        });
+
+        await it('renders a post body through the highlighter and still resolves its URLs', async () => {
+            const body = '![shot](shot.png)\n\n```ts\nconst x = 1;\n```';
+            const html = renderPostBody(config, post('a', 'en', { body }), '/repo/blog', [], {
+                highlight: (code, lang) => `<pre class="hl"><code data-lang="${lang}">${code}</code></pre>`,
+            });
+            expect(html).toContain('<img src="/blog/shot.png"');
+            expect(html).toContain('<pre class="hl"><code data-lang="ts">const x = 1;</code></pre>');
+            expect(html).not.toContain('<pre><code class="language-ts">');
         });
     });
 };

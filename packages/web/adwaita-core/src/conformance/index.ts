@@ -831,6 +831,8 @@ export type {
 } from './glib-variant.js';
 export { RGBA_ROWS, RGBA_VECTORS, driveRGBAVectors } from './rgba.js';
 export type { GdkRGBALike, RGBALike, RGBARow, RGBASubject, RGBAVector } from './rgba.js';
+export { CSS_LENGTH_ROWS, CSS_LENGTH_VECTORS, driveCssLengthVectors } from './css-length.js';
+export type { CssLengthRow, CssLengthSubject, CssLengthVector } from './css-length.js';
 export { GLIB_UNICHAR_ROWS, GLIB_UNICHAR_VECTORS, driveGLibUnicharVectors } from './glib-unichar.js';
 export type { GLibUnicharLike, GLibUnicharRow, GLibUnicharSubject, GLibUnicharVector } from './glib-unichar.js';
 export { GIO_APP_INFO_ROWS, GIO_APP_INFO_VECTORS, driveGioAppInfoVectors } from './gio-app-info.js';

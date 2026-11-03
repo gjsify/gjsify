@@ -8,5 +8,21 @@ import testSuite from './index.spec.js';
 import sabSuite from './worker-shared-buffer.gjs.spec.js';
 import fileBasedWorkerSuite from './file-based-worker.spec.js';
 import orphanSuite from './worker-orphan.gjs.spec.js';
+import execPathSuite from './worker-exec-path.gjs.spec.js';
 import wireSuite from './structured-clone-wire.spec.js';
-run({ testSuite, sabSuite, fileBasedWorkerSuite, orphanSuite, wireSuite });
+import messageErrorsSuite from './message-errors.spec.js';
+import messageErrorsGjsSuite from './message-errors.gjs.spec.js';
+import workerPortsSuite from './worker-ports.spec.js';
+import workerPortsGjsSuite from './worker-ports.gjs.spec.js';
+run({
+    testSuite,
+    sabSuite,
+    fileBasedWorkerSuite,
+    orphanSuite,
+    execPathSuite,
+    wireSuite,
+    messageErrorsSuite,
+    messageErrorsGjsSuite,
+    workerPortsSuite,
+    workerPortsGjsSuite,
+});

@@ -317,6 +317,29 @@ RUN dnf install -y \
     dbus-x11 \
     && dnf clean all
 
+# What `@gjsify/sherpa-native` adds to the native-bridge toolchain above, and
+# the only two packages in this file that no job on this image installs yet.
+#
+# `cmake` configures the pinned sherpa-onnx wrap, which meson consumes as a
+# CMake subproject (the `gamepad-native` sdl3.wrap pattern) — no other bridge
+# here needs it. `libstdc++-static` is a SEPARATE Fedora package that `gcc-c++`
+# does not pull, and the bridge links `-static-libstdc++` so it carries no
+# GLIBCXX_ floor of its own; without the archive meson's probe falls back to
+# the shared libstdc++ and the prebuild silently gains that floor, which is why
+# `prebuilds.yml` passes `-Drequire_static_libstdcxx=true`.
+#
+# They are here BEFORE the job that needs them moves over, because a pull
+# request cannot push this image (`build-ci-image.yml`'s PR leg builds and
+# never pushes, deliberately), so a job switched to the baked image in the same
+# change would configure against the previous tag and fail on cmake. The
+# sequence is: merge this, let the push leg publish `:43`/`:44`, then flip
+# `sherpa-native-prebuild`'s `container:` and delete its `BARE_IMAGE_LEDGER`
+# entry — which names exactly this as its retirement condition.
+RUN dnf install -y \
+    cmake \
+    libstdc++-static \
+    && dnf clean all
+
 # NOTE: no nodejs/npm baked in — the workflow uses actions/setup-node (Node
 # 26.x) which downloads its own copy + corepack, so Fedora's node would only
 # be dead weight in the pull. (Was here purely for interactive debugging.)
