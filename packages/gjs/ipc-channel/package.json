@@ -13,6 +13,10 @@
         "./wire": {
             "types": "./lib/types/wire.d.ts",
             "default": "./lib/esm/wire.js"
+        },
+        "./node-channel": {
+            "types": "./lib/types/node-channel.d.ts",
+            "default": "./lib/esm/node-channel.js"
         }
     },
     "files": [
@@ -45,7 +49,8 @@
         "@girs/gio-2.0": "5.4.0",
         "@girs/glib-2.0": "5.4.0",
         "@gjsify/message-channel": "workspace:^",
-        "@gjsify/sab-native": "workspace:^"
+        "@gjsify/sab-native": "workspace:^",
+        "@gjsify/utils": "workspace:^"
     },
     "gjsify": {
         "runtimes": {
@@ -60,6 +65,12 @@
                 "node": "polyfill",
                 "browser": "polyfill",
                 "nativescript": "polyfill"
+            },
+            "./node-channel": {
+                "gjs": "polyfill",
+                "node": "partial",
+                "browser": "partial",
+                "nativescript": "partial"
             }
         },
         "tier": 1

@@ -9,8 +9,8 @@
 // ends. A throw from the caller's handler is the handler's bug and must not end
 // the loop, so the next read is armed in a `finally`.
 
-import Gio from '@girs/gio-2.0';
-import GLib from '@girs/glib-2.0';
+import type Gio from '@girs/gio-2.0';
+import { gio, glib } from './gi.ts';
 
 const _encoder = new TextEncoder();
 
@@ -25,7 +25,7 @@ export class LineChannel {
      */
     constructor(output: Gio.OutputStream | null, input: Gio.InputStream | null = null) {
         this._output = output;
-        this._input = input ? Gio.DataInputStream.new(input) : null;
+        this._input = input ? gio().DataInputStream.new(input) : null;
     }
 
     /** Whether lines can still be written. */
@@ -57,7 +57,7 @@ export class LineChannel {
         const input = this._input;
         if (!input) throw new Error('LineChannel: no input stream');
         const readNext = (): void => {
-            input.read_line_async(GLib.PRIORITY_DEFAULT, null, (_source: unknown, result: Gio.AsyncResult) => {
+            input.read_line_async(glib().PRIORITY_DEFAULT, null, (_source: unknown, result: Gio.AsyncResult) => {
                 let message: unknown;
                 try {
                     const [line] = input.read_line_finish_utf8(result);
