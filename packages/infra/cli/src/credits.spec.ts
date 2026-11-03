@@ -25,10 +25,10 @@ interface FixtureCommit {
     trailers?: string[];
 }
 
-const ISOLATED_GIT = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
-
-function git(cwd: string, args: string[], env: Record<string, string | undefined> = {}): string {
-    return execFileSync('git', args, { cwd, encoding: 'utf8', env: { ...ISOLATED_GIT, ...env } });
+// Identity through `-c` and `--author`, never an `env` option: a spread `process.env` makes the
+// `git` lookup fail with ENOENT on the win32 runner.
+function git(cwd: string, args: string[]): string {
+    return execFileSync('git', ['-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' });
 }
 
 function commit(cwd: string, { author, email, files, trailers = [] }: FixtureCommit): void {
@@ -39,12 +39,7 @@ function commit(cwd: string, { author, email, files, trailers = [] }: FixtureCom
     git(cwd, ['add', '-A']);
     const message = ['-m', 'change'];
     if (trailers.length) message.push('-m', trailers.join('\n'));
-    git(cwd, ['commit', '--quiet', ...message], {
-        GIT_AUTHOR_NAME: author,
-        GIT_AUTHOR_EMAIL: email,
-        GIT_COMMITTER_NAME: author,
-        GIT_COMMITTER_EMAIL: email,
-    });
+    git(cwd, ['-c', `user.name=${author}`, '-c', `user.email=${email}`, 'commit', '--quiet', `--author=${author} <${email}>`, ...message]);
 }
 
 let serial = 0;
