@@ -176,6 +176,8 @@ tests/e2e/*/out/
 # the package root next to test.{gjs,node}.mjs by `prebuild:test:fixtures` so
 # `new URL('./fixtures/...', import.meta.url)` resolves from the test bundle).
 packages/node/worker_threads/fixtures/
+# The fork child, bundled per runtime by child_process's `build:test:fixtures`.
+packages/node/child_process/fixtures/
 
 # CI-only gjsify download cache (XDG_CACHE_HOME redirect target in
 # .github/workflows/main.yml — never committed, restored by actions/cache).

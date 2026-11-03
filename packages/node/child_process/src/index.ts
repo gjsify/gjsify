@@ -10,6 +10,9 @@ import { fileURLToPath } from 'node:url';
 import { gbytesToUint8Array, deferEmit } from '@gjsify/utils';
 // SUBPATH, not the barrel: same Node-safe single-file surface `worker_threads` holds the process with.
 import { acquireMainLoop, releaseMainLoop, trackedCallback } from '@gjsify/utils/main-loop';
+import { hostExecPath } from '@gjsify/utils/core';
+import { setupNodeChannel, type NodeChannelHandle, type SendCallback } from '@gjsify/ipc-channel/node-channel';
+import { fdChannel } from '@gjsify/sab-native';
 import { communicateWithTimeout } from './communicate.js';
 import { applyArgv0, detachedPrefix, killProcess, shellArgv } from './platform/index.js';
 
@@ -276,6 +279,16 @@ export interface SpawnOptions {
     /** On abort the child is killed with `killSignal` (default `SIGTERM`) and an
      *  `error` event with `name: 'AbortError'` is emitted. */
     signal?: AbortSignal;
+    /** Only `'json'`, Node's newline-framed wire, so the peer may be Node or GJS. */
+    serialization?: 'json' | 'advanced';
+}
+
+export interface ForkOptions extends SpawnOptions {
+    /** Defaults to the running GJS binary, which then gets `-m` to load an ES module. */
+    execPath?: string;
+    execArgv?: string[];
+    /** `stdio: 'pipe'` instead of the default `'inherit'`. */
+    silent?: boolean;
 }
 
 export interface SpawnSyncResult {
@@ -301,6 +314,11 @@ export class ChildProcess extends EventEmitter {
     stdin: Writable | null = null;
     stdout: Readable | null = null;
     stderr: Readable | null = null;
+
+    /** Present only on a child spawned with an `'ipc'` slot, as in Node. */
+    declare send?: (message: unknown, sendHandle?: unknown, options?: unknown, callback?: SendCallback) => boolean;
+    declare disconnect?: () => void;
+    declare channel?: NodeChannelHandle | null;
 
     /**
      * `[stdin, stdout, stderr]` only — extra fds from
@@ -434,6 +452,10 @@ interface _SpawnLowOptions {
     detached?: boolean;
     windowsHide?: boolean;
     windowsVerbatimArguments?: boolean;
+    /** Inherited by the child under `target`; the launcher takes ownership of `source`. */
+    takeFds?: ReadonlyArray<{ source: number; target: number }>;
+    /** Set after `env`, so it wins over both the caller's and the inherited value. */
+    extraEnv?: Record<string, string>;
 }
 
 /** `pid` is captured right after `spawnv()`, the last instant it is readable —
@@ -468,6 +490,8 @@ function _spawnSubprocess(argv: string[], flags: Gio.SubprocessFlags, options?: 
             launcher.setenv(key, value, true);
         }
     }
+    for (const [key, value] of Object.entries(options?.extraEnv ?? {})) launcher.setenv(key, value, true);
+    for (const { source, target } of options?.takeFds ?? []) launcher.take_fd(source, target);
     let realArgv = argv;
     if (options?.argv0 !== undefined && options.argv0 !== null) {
         if (typeof options.argv0 !== 'string') {
@@ -485,7 +509,15 @@ function _spawnSubprocess(argv: string[], flags: Gio.SubprocessFlags, options?: 
     }
     // The capture must be the VERY NEXT statement — any work in between widens
     // the window in which a fast child is reaped and the pid lost.
-    const proc = launcher.spawnv(realArgv);
+    let proc: Gio.Subprocess;
+    try {
+        proc = launcher.spawnv(realArgv);
+    } finally {
+        // Our copies of the taken fds. Left to the launcher's finalizer they stay
+        // open until a GC, and a channel whose child end is still open here
+        // never reads EOF when the child dies.
+        if (options?.takeFds?.length) queueMicrotask(() => launcher.close());
+    }
     const pid = _capturePidAtSpawn(proc);
     return { proc, pid };
 }
@@ -528,15 +560,16 @@ function _capturePidAtSpawn(proc: Gio.Subprocess): number {
  *
  * @returns the half to call from the process-exit callback.
  */
-function _watchStdioForClose(child: ChildProcess): (code: number | null, signal: string | null) => void {
+function _watchStdioForClose(child: ChildProcess, ipc = false): (code: number | null, signal: string | null) => void {
     const streams = [child.stdout, child.stderr].filter((s): s is Readable => s !== null);
-    if (streams.length === 0) {
+    if (streams.length === 0 && !ipc) {
         return (code, signal) => {
             child.emit('exit', code, signal);
             child.emit('close', code, signal);
         };
     }
-    let pending = streams.length;
+    // Node counts the IPC channel as one more thing `close` waits for.
+    let pending = streams.length + (ipc ? 1 : 0);
     let hasExited = false;
     let exitCode: number | null = null;
     let exitSignal: string | null = null;
@@ -554,6 +587,12 @@ function _watchStdioForClose(child: ChildProcess): (code: number | null, signal:
         };
         stream.once('end', settleOnce);
         stream.once('close', settleOnce);
+    }
+    if (ipc) {
+        child.once('disconnect', () => {
+            pending -= 1;
+            closeIfDone();
+        });
     }
     return (code, signal) => {
         exitCode = code;
@@ -1230,10 +1269,17 @@ export function spawn(
     if (stdioTriple[2] === 'pipe') flags |= Gio.SubprocessFlags.STDERR_PIPE;
     if (stdioTriple[2] === 'ignore') flags |= Gio.SubprocessFlags.STDERR_SILENCE;
 
+    const ipc = _openIpcSlot(stdioOpt, options?.serialization);
+
     try {
-        const { proc, pid } = _spawnSubprocess(argv, flags, options);
+        const { proc, pid } = _spawnSubprocess(argv, flags, {
+            ...options,
+            takeFds: ipc ? [{ source: ipc.childFd, target: ipc.slot }] : undefined,
+            extraEnv: ipc ? { NODE_CHANNEL_FD: String(ipc.slot), NODE_CHANNEL_SERIALIZATION_MODE: 'json' } : undefined,
+        });
         child._setSubprocess(proc, pid);
         _activeProcesses.add(child);
+        if (ipc) setupNodeChannel(child, ipc.parentFd);
 
         // `child.stdin` stays null for 'inherit'/'ignore', as in Node — the child
         // uses the parent's fd or had stdin silenced at spawn time.
@@ -1249,7 +1295,7 @@ export function spawn(
         if (stderrPipe) child.stderr = new GioInputStreamReadable(stderrPipe);
 
         // Armed once the piped streams exist, so no `close` can be missed.
-        const onProcessExit = _watchStdioForClose(child);
+        const onProcessExit = _watchStdioForClose(child, ipc !== null);
         child._holdProcess();
 
         // `{ once: true }` plus explicit removal on exit, so a late abort cannot
@@ -1321,6 +1367,9 @@ export function spawn(
         // Microtask rather than deferEmit's setTimeout(0) — see `_execImpl`.
         queueMicrotask(() => child.emit('spawn'));
     } catch (err: unknown) {
+        // Spawn failed, so the channel was never handed over; the child end
+        // went with the launcher.
+        if (ipc && !child.channel) fdChannel?.closeFd(ipc.parentFd);
         // Normalise the spawn-time error so consumers can match on
         // `err.code === 'ENOENT'` / `err.errno === -2` etc. The spawn-side
         // error MUST identify the real binary (`argv[0]` for non-shell,
@@ -1331,6 +1380,108 @@ export function spawn(
     }
 
     return child;
+}
+
+function _codedError(Ctor: ErrorConstructor, code: string, message: string): Error {
+    const err = new Ctor(message) as Error & { code: string };
+    err.code = code;
+    return err;
+}
+
+/**
+ * The `'ipc'` entry of `stdio`, if any: a stream socketpair whose child end the
+ * child inherits as fd `slot`, announced to it in `NODE_CHANNEL_FD`.
+ */
+function _openIpcSlot(
+    stdio: SpawnOptions['stdio'],
+    serialization: SpawnOptions['serialization'],
+): { slot: number; parentFd: number; childFd: number } | null {
+    if (!Array.isArray(stdio)) return null;
+    const slot = stdio.indexOf('ipc');
+    if (slot === -1) return null;
+    if (stdio.indexOf('ipc', slot + 1) !== -1) {
+        throw _codedError(Error, 'ERR_IPC_ONE_PIPE', 'Child process can have only one IPC pipe');
+    }
+    // Gio owns fds 0-2 through its stdio flags; a channel there would fight them.
+    if (slot < 3) {
+        throw _codedError(
+            Error,
+            'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM',
+            "An 'ipc' channel on stdin, stdout or stderr is not supported under GJS",
+        );
+    }
+    if (serialization !== undefined && serialization !== 'json') {
+        throw _codedError(
+            Error,
+            'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM',
+            `serialization: '${serialization}' is not supported under GJS yet; use 'json'`,
+        );
+    }
+    const pair = fdChannel?.makeStreamPair() ?? null;
+    if (!pair) {
+        throw _codedError(
+            Error,
+            'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM',
+            "An 'ipc' channel needs @gjsify/sab-native with make_stream_pair, which this install lacks",
+        );
+    }
+    return { slot, parentFd: pair.parentFd, childFd: pair.childFd };
+}
+
+/**
+ * Run a module in a new process with an IPC channel, as Node's `fork` does:
+ * `execPath`, then `execArgv`, the module and `args`, with `stdio` defaulting to
+ * `'inherit'` (or `'pipe'` with `silent`) plus `'ipc'` on fd 3.
+ *
+ * Without an `execPath` the child is the running GJS binary, and `-m` is put
+ * in front of the module, because GJS loads an ES module only with it.
+ */
+export function fork(
+    modulePath: string | URL,
+    argsOrOptions?: string[] | ForkOptions,
+    maybeOptions?: ForkOptions,
+): ChildProcess {
+    let args: string[] = [];
+    let options: ForkOptions | undefined = maybeOptions;
+    if (Array.isArray(argsOrOptions)) {
+        args = argsOrOptions;
+    } else if (argsOrOptions !== undefined && argsOrOptions !== null) {
+        if (typeof argsOrOptions !== 'object') {
+            throw new TypeError(
+                `The "args" argument must be an instance of Array. Received type ${typeof argsOrOptions}`,
+            );
+        }
+        options = argsOrOptions;
+    }
+    if (options !== undefined && options !== null && typeof options !== 'object') {
+        throw new TypeError(`The "options" argument must be of type object. Received type ${typeof options}`);
+    }
+    const modPath = typeof modulePath === 'string' ? modulePath : _normalizeCwd(modulePath);
+    if (typeof modPath !== 'string') {
+        throw new TypeError(`The "modulePath" argument must be of type string. Received type ${typeof modulePath}`);
+    }
+    const opts: ForkOptions = { ...options, shell: false };
+
+    const ownHost = !opts.execPath;
+    const execPath = opts.execPath || hostExecPath() || globalThis.process?.execPath || 'gjs';
+    // The parent's own flags only make sense for the parent's own binary.
+    const execArgv = [...(opts.execArgv ?? (ownHost ? (globalThis.process?.execArgv ?? []) : []))];
+    if (ownHost && !execArgv.includes('-m')) execArgv.push('-m');
+
+    let stdio = opts.stdio;
+    if (typeof stdio === 'string') {
+        stdio = [stdio, stdio, stdio, 'ipc'];
+    } else if (!Array.isArray(stdio)) {
+        const mode = opts.silent ? 'pipe' : 'inherit';
+        stdio = [mode, mode, mode, 'ipc'];
+    } else if (!stdio.includes('ipc')) {
+        throw _codedError(
+            Error,
+            'ERR_CHILD_PROCESS_IPC_REQUIRED',
+            "Forked processes must have an IPC channel, missing value 'ipc' in options.stdio",
+        );
+    }
+    return spawn(execPath, [...execArgv, modPath, ...args], { ...opts, stdio });
 }
 
 /** Spawn a new process (sync). Same overloads as `spawn`. */
@@ -1515,6 +1666,7 @@ export default {
     execSync,
     execFile,
     execFileSync,
+    fork,
     spawn,
     spawnSync,
 };

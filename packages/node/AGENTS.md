@@ -12,7 +12,7 @@ Status detail + test counts: `status/status.json` (`npm run status:generate` for
 | assert | — | Full | AssertionError, deepEqual, throws, strict |
 | async_hooks | — | Full | AsyncLocalStorage, AsyncResource, createHook |
 | buffer | — | Full | Buffer via Blob/File/atob/btoa |
-| child_process | Gio | Full | exec/execSync, spawn/spawnSync via Gio.Subprocess |
+| child_process | Gio | Full | exec/execSync, spawn/spawnSync via Gio.Subprocess; fork over `NODE_CHANNEL_FD` (`'json'` IPC) |
 | cluster | — | Stub | isPrimary, isWorker |
 | console | — | Full | Console with stream support |
 | constants | — | Full | flattened re-export of os/fs/legacy-crypto constants; deprecated Node alias |
@@ -64,7 +64,7 @@ Status detail + test counts: `status/status.json` (`npm run status:generate` for
 | assert | — | Full | AssertionError, deepEqual, throws, strict |
 | async_hooks | — | Full | AsyncLocalStorage, AsyncResource, createHook |
 | buffer | — | Full | Buffer via Blob/File/atob/btoa |
-| child_process | Gio | Full | exec/execSync, spawn/spawnSync via Gio.Subprocess |
+| child_process | Gio | Full | exec/execSync, spawn/spawnSync via Gio.Subprocess; fork over `NODE_CHANNEL_FD` (`'json'` IPC) |
 | cluster | — | Stub | isPrimary, isWorker |
 | console | — | Full | Console with stream support |
 | constants | — | Full | flattened re-export of os/fs/legacy-crypto constants; deprecated Node alias |
