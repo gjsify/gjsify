@@ -1,20 +1,20 @@
 // Who pays a window inset on iOS. Rationale for the split: `host-insets.ts`.
 //
-// UNVERIFIED ON DEVICE, and deliberately a no-op because of that. There is no iOS runner
-// and no Mac in this project (the wall `window-insets-source.ios.ts` and the symbolic
-// icon backend already sit behind, #1051), so the Android host's behaviour — measured
-// out of a disassembled `widgets-release.aar` — says nothing about this one. What this
-// file DOES claim is the weaker statement that the widget's behaviour here is UNCHANGED
-// from what shipped before the Android double-payment was measured: the toolbar view
-// pays both edges, exactly as it did.
+// VERIFIED ON THE IPHONE 17 SIMULATOR (2026-11-03): the earlier amendment here left the
+// widget paying both edges unconditionally, writing that as "unchanged from before", not
+// as "iOS is correct" — stating the opposite claim would have needed a device. It needed
+// one: Learn6502's Code tab showed ~70pt of dead space between the Dynamic Island (needs
+// ~59pt) and the header bar, and roughly double the home indicator's 34pt below the tab
+// bar — the Android double-payment's exact shape, on the platform the Android fix never
+// reached.
 //
-// The claim that would need a device is the opposite one — that a UIKit host applies no
-// safe-area padding of its own to a NativeScript `Page`, and that the widget therefore
-// SHOULD keep paying. It is plausible (NativeScript has no iOS counterpart of
-// `LayoutBase`'s `onApplyWindowInsets`; `ui/page/index.ios.ts` has no
-// `androidOverflowEdge` twin) but it has not been run. So it is written as "leave iOS
-// where it was", not as "iOS is correct" — and if a safe area does turn out to be paid
-// twice here, this is the one file that has to change.
+// READ OUT OF `@nativescript/core/ui/page/index.ios.js` rather than assumed: `Page`'s
+// `onLayout` ALWAYS lays its one child out inside `this.getSafeAreaInsets()` —
+// `View.layoutChild(this, this.layoutView, insets.left, insets.top, right - insets.right,
+// bottom - insets.bottom)`, unconditionally, with no iOS counterpart of Android's
+// `androidOverflowEdge` opt-out. So on iOS the Page pays BOTH edges, always — unlike
+// Android, where only the bottom edge is paid until this file hands the top one to the
+// toolbar view. The toolbar view must therefore not pay either edge again.
 //
 // The file exists rather than falling back to the base because `nativescript-platforms`
 // conformance fails the build when a declared platform loses its variant, and because a
@@ -22,9 +22,12 @@
 
 import type { View } from '@nativescript/core';
 
-import { type HostPaidEdges, NO_HOST_PAYMENT, type WindowInsets } from './window-insets.js';
+import { type HostPaidEdges, type WindowInsets } from './window-insets.js';
+
+/** The Page's `onLayout` pays both edges unconditionally — see the file comment. */
+const BOTH_EDGES_PAID: HostPaidEdges = { top: true, bottom: true };
 
 /** Settle which window-inset edges `view` still owes. See {@link resolveHostInsets}. */
 export function resolveHostInsets(_view: View, _insets: WindowInsets): HostPaidEdges {
-    return NO_HOST_PAYMENT;
+    return BOTH_EDGES_PAID;
 }

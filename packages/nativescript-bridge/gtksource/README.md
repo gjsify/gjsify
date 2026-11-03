@@ -1,23 +1,37 @@
 # @gjsify/gtksource-nativescript
 
-`GtkSource.View` for NativeScript on Android: an `EditText` whose `Editable` carries the syntax
-highlight as spans (set in place, re-tokenized per changed line range), a line-number gutter drawn
-from the text `Layout` in `onDraw`, and `GtkSource.Buffer` / `LanguageManager` /
-`StyleSchemeManager` over `@gjsify/gtksource-core`.
+`GtkSource.View` for NativeScript, with a driver per platform over the same editor logic, and
+`GtkSource.Buffer` / `LanguageManager` / `StyleSchemeManager` over `@gjsify/gtksource-core`:
+
+- **Android** — an `EditText` whose `Editable` carries the syntax highlight as spans (set in
+  place, re-tokenized per changed line range), with the line-number gutter drawn from the text
+  `Layout` in `onDraw`.
+- **iOS** — a `UITextView` whose `NSTextStorage` carries it as attributes on ranges, with the
+  gutter drawn in `drawRect:` from the `NSLayoutManager`'s line fragments. `NSTextStorage` has no
+  span object a repaint can remove, so a repaint NAMES the range it resets; that arithmetic is
+  UIKit-free in `text-ranges.ts` and is the half the specs measure.
+
+Shared behaviour and the gaps both halves carry:
 
 - No word wrap: every logical line is one layout line, the view scrolls horizontally.
 - GtkSourceView's `Adwaita` scheme and `def.lang` are LGPL and not bundled. A small own stand-in is
   registered under `Adwaita` / `Adwaita-dark`; add the real files with `addSchemeFromXml()`.
-- `indent-width` is held and read back, not applied: an `EditText` has no indent step. Its only
-  Tab is a hardware key that inserts `\t`, and `tab-width` would need a `TabStopSpan` per line that
-  GtkSourceView does not tie to `indent-width`. `auto-indent` copies the previous line's blanks.
+- `indent-width` is held and read back, not applied: neither an `EditText` nor a `UITextView` has
+  an indent step. Their only Tab is a hardware key that inserts `\t`, and `tab-width` would need a
+  per-line tab stop that GtkSourceView does not tie to `indent-width`. `auto-indent` copies the
+  previous line's blanks.
 - The caret line's number is emphasised only under `highlight-current-line` (default false).
 - Android API used (R8): the consuming app must keep `android.widget.EditText`, `android.text.*`
   spans, `android.graphics.Paint`/`Typeface` in its `native-api-usage.json` whitelist. Shared
   widget classes that come with `@gjsify/adwaita-nativescript` add `android.view.View`
   (`setTooltipText`, API 26; duck-typed, no `TooltipCompat`) to that list.
-- The platform half (`native-editor.android.ts`) ran on a device (API 24 and 36) for `extend-selection` and
-  `copy-clipboard`. A triple tap selects nothing natively below API 28; see ADR 0094, last amendment.
+- `native-editor.android.ts` ran on a device (API 24 and 36) for `extend-selection` and
+  `copy-clipboard`. A triple tap selects nothing natively below API 28; see ADR 0094.
+- `native-editor.ios.ts` has run on NO device and no simulator. It emits neither
+  `extend-selection` (the text view's own gesture recognisers offer no documented veto before they
+  select) nor `copy-clipboard` (UIKit's `-copy:` editing action collides with `NSObject.copy`), and
+  `selectionBackground` has no counterpart there: UIKit derives the selection fill from the
+  `tintColor` that also paints the caret. See ADR 0094, last amendment.
 
 ## Using it from XML
 

@@ -71,9 +71,10 @@ Each is declared in `status/status.json` rather than left to be found.
   through `addSchemeFromXml()`.
 - **Fallback schemes are our own.** `fallback-schemes.ts` holds colours this package chose; they
   exist because schemes name `Adwaita` as `parent-scheme`, not because they match it.
-- **Android only, and device-verified in part (see the last amendment).** `native-editor.android.ts` is held by type-checking
-  alone; the specs drive `EditorSession` through a fake driver, which is not a device.
-  There is no iOS driver.
+- **Device-verified in part on Android, not at all on iOS (see the amendments).**
+  `native-editor.android.ts` is held by type-checking plus the two device-verified signals;
+  `native-editor.ios.ts` by type-checking and the UIKit-free arithmetic alone. The specs drive
+  `EditorSession` through a fake driver, which is not a device.
 
 ## Shared widget classes: actions, tooltips, icons
 
@@ -216,3 +217,188 @@ ADR 0116 is accepted, so:
   answer when no path supplies `Adwaita`.
 
 Accepted with ADR 0116 on 2026-10-15.
+
+## Amendment (2026-10-31): an iOS driver, unverified on device
+
+`native-editor.ios.ts` is the second platform half: a `UITextView` whose `NSTextStorage` carries
+the highlight as attributes, with the gutter and the current-line band drawn in `drawRect:` from
+the `NSLayoutManager`'s line fragments. `gjsify.nativescriptPlatforms` is `['android', 'ios']`
+accordingly, so the `nativescript-platforms` rule now holds BOTH halves of every platform-resolved
+module in this package.
+
+Why it exists before anyone can run it: the base `native-editor.ts` refuses with
+`'Platform not supported'`, which on iOS is indistinguishable from a silently missing variant —
+the shape that shipped `icons.android.ts` without an iOS twin and rendered no icon at all for the
+life of the declaration (the incident the conformance rule carries).
+
+**What differs from Android, and is the reason for the two new modules.** `NSTextStorage` holds
+attributes on ranges, not span OBJECTS the platform moves through edits and a repaint removes by
+identity. So a repaint must NAME the range it overwrites: it resets the line's extent to the base
+attributes and adds the runs over it, and the extent is read off the LIVE text every pass
+(`lineExtent`), never remembered. `text-ranges.ts` holds that arithmetic UIKit-free — offsets,
+line starts, the ARGB split, the edit queue — so `text-ranges.spec.ts` measures it on Node and
+GJS; `ios-types.ts` names the UIKit/Foundation members called, as `android-types.ts` does.
+Two further asymmetries are paid for in the driver rather than hidden: setting `font` or
+`textColor` rewrites the whole storage's attributes, so a palette or layout change repaints every
+line that carries runs (a span survives the same call); and TextKit 1 is pinned by reading
+`layoutManager`, because TextKit 2 answers fragment geometry only through viewport layout, which
+a gutter drawn in `drawRect:` cannot ask.
+
+**Named gaps, not approximations.** `extend-selection` is not emitted on iOS: the text view's
+double/triple-tap selection comes from its internal gesture recognisers, which offer no documented
+veto before they select. `copy-clipboard` is not emitted either: UIKit's copy arrives as the
+`-copy:` editing action, whose override name collides with `NSObject`'s own `-copy`. Both keep
+UIKit's own behaviour. `selectionBackground` has no counterpart — UIKit derives the selection fill
+from the `tintColor` that also paints the caret, where GTK gives two colours.
+
+**NOT VERIFIED ON A DEVICE OR A SIMULATOR.** The arithmetic half is green on Node and GJS; the
+UIKit call sequence is written from the documented API and has been run by nothing. There is no
+iOS leg in `tests/integration/nativescript/` — it drives Android over `adb logcat` — and no NS CLI
+on this machine, so no simulator run was possible (#1051). The package stays `partial`.
+
+## Amendment (2026-11-03): verified on the iPhone 17 simulator, the current-line fill fixed, the gutter still open
+
+Build, type and syntax highlighting checked out on an iPhone 17 simulator (iOS, `D3BF03B2-…`,
+Learn6502's `app-android` target): typing in the Code tab reaches the buffer, `GtkSource`
+syntax highlight attributes land correctly, and the view scrolls. Two things did not:
+
+**The current-line band rendered solid black instead of a translucent tint — root-caused and
+fixed.** Measured directly: a `0x18000000` fill colour (≈9% black, `#00000018` in the style
+scheme) reads correctly as `argb=0x18000000, alpha≈0.094` on the JS side (`argbComponents` is
+correct), and the SAME colour through `UIColor.backgroundColor` (ordinary `CALayer` compositing,
+no `CGContext` draw call) renders as the expected light tint. But `UIRectFill` inside `drawRect:`
+does not alpha-blend it against the existing context content — it behaves as `kCGBlendModeCopy`,
+and the near-transparent result composites as solid black once the layer renders. Fixed in
+`native-editor.ios.ts`'s `fill()`: `UIRectFillUsingBlendMode(rect, kCGBlendModeNormal)` instead of
+plain `UIRectFill`, plus `view.opaque = false` so the `drawRect:` context is pre-cleared
+transparent each pass, per UIKit's own documented contract for opaque views ("may have
+non-zeroed pixels", `clearsContextBeforeDrawing` ignored).
+
+**The line-number gutter does not appear — the app-side cause is fixed, a core rendering gap
+remains open.** `editor.blp` now authors `line-numbers: true` on its `$SourceView` (matching
+`hexdump.blp`, `disassembled.blp`, `hex-monitor.blp`, `example-list-item.blp`, which always did).
+Confirmed by log instrumentation (since reverted) that this closes the first gap: the `lineNumbers`
+setter now fires, `SourceView.setupLineNumbers()` runs, `GutterRendererLineNumbers` is constructed
+with a non-zero `width_request` and `leftGutter.insert(renderer, 0)` succeeds. The GSettings key
+`show-line-numbers` is still dead — unused by any `*.ts` in `packages/ui/src`.
+
+Despite that, the gutter STILL does not render on the iPhone 17 simulator. Traced one level
+further than the previous pass reached: `@girs/gtksource-5`'s `GutterRendererText` is correctly
+build-time-aliased to `@gjsify/gtksource-nativescript`'s own class on `--app nativescript` (one
+class in the bundle, `instanceof` holds), so that is not it. `native-editor.ios.ts`'s
+`drawGutter`/`gutterColumns`/`queryGutter`/`applyLayout` chain reads structurally correct on paper
+— `gutterPoints()` should total 36pt (24 width + 6+6 margin) the first time `drawRect:` runs and
+schedule `applyLayout()` on the next tick — but a scroll/back-navigation gesture that forces
+several more `drawRect:` passes still shows no gutter column or widened text inset. Not
+instrumented further this pass (the `drawRect:`/`applyLayout()`/`textContainerInset` interaction
+itself, and whether `visibleLines()` ever returns non-null on the first passes, are the next
+things to log). Whether GNOME/Android render this correctly is still unconfirmed.
+
+## Amendment (2026-11-03, same day): the keyboard now dismisses; the gutter paint itself is the gap
+
+**The iOS code editor's keyboard could not be dismissed — fixed.** Nothing on iOS closed the
+software keyboard: a `UITextView` has no back button, and the editor had no tap-outside target, so
+the keyboard stayed open over the hammer button and the tab bar for the rest of the session. Fixed
+in `native-editor.ios.ts`: `keyboardDismissMode = onDrag` plus an `inputAccessoryView` carrying a
+"Done" button, verified end to end on the iPhone 17 simulator (type → Done → hammer and tab bar
+reachable → Assemble → Play → the game console draws → a D-pad tap changes the snake's direction).
+Two sub-findings worth keeping: a `UIBarButtonItem` built from `UIBarButtonSystemItemDone` renders
+nothing at all here — present, zero-size, no exception — so the visible button is a plain
+`UIButton` wrapped as the item's `customView`; and a target-action selector string a `.extend()`
+class does not LITERALLY implement (`'dismissKeyboard:'` when the class only has `dismissKeyboard`,
+or vice versa) does not fail quietly — `-sendAction:to:from:forEvent:` calls
+`doesNotRecognizeSelector:` and the app aborts (`SIGABRT`, visible on the simulator as an instant
+drop to the home screen) — so the tap handler goes through `UIAction`'s closure instead, which
+needs no selector at all.
+
+**The line-number gutter: traced to the actual paint call, not yet past it.** Continuing the
+previous amendment's trace with full instrumentation (since reverted): `gutterPoints()` genuinely
+computes 36pt on the very first `drawRect:` (confirmed non-zero `GutterRendererLineNumbers` column,
+width 24 + 6 + 6 margin) and `applyLayout()` has already run by then —
+`view.textContainerInset.left` reads **48** (12 own margin + 36 gutter) on that same first call, so
+the TEXT CONTAINER INSET genuinely reserves the gutter's space; this is not a width-computation
+bug. The gutter's columns carry real, non-empty cell text (`vfunc_query_data` runs; a separate,
+now-fixed easy6502 bug made it read `"0","1","2",…` instead of `"1","2","3",…`, see below). The
+palette colours are correct, opaque, non-degenerate (`lineNumberForeground` a legible grey
+`#8a8f92`, `lineNumberBackground` a near-white `#f6f5f4`, both measured, not assumed). And yet nothing
+paints: a forced, unconditional `UIRectFillUsingBlendMode` fill at `(0, 0, 40, 200)` in bright red,
+placed in the EXACT same `drawGutter()` call that has all the numbers above — reaches zero pixels
+on screen (checked by scanning the screenshot for the fill colour, not by eye). Ruled out this
+pass: draw order relative to `this.super.drawRect(rect)` (tried gutter-before-text and
+gutter-after-text — identical, still invisible); a clipped/partial dirty rect (`drawRect:`'s own
+`rect` argument is logged as the FULL view bounds, `(0, 0, 402, 13975)` — the view's `bounds` is
+the whole ~860-line document, not a viewport, because an ancestor scroll view scrolls it rather
+than the `UITextView` itself); and `visible` being `null` (it reads a real `{first, last}` range on
+every capture). The one thing this pass did NOT get to: whether a SECOND `UIRectFillUsingBlendMode`
+call within the same `drawRect:` invocation behaves differently from the first (the current-line
+band, `drawBehind()`'s identical call, DOES render — it is the only reason this is narrowed to
+"something about the gutter's specific call" rather than "CGContext fills never work here" at all).
+Next step: log immediately before/after each `UIRectFillUsingBlendMode` call whether
+`UIGraphicsGetCurrentContext()`-equivalent state looks sane, and try replacing it with a
+`UIBezierPath`/`CGContextFillRect` call to see whether the blend-mode function specifically is at
+fault for a second call in one pass.
+
+Also fixed, in easy6502 not gjsify (`packages/ui/src/source-view.ts`): `setupLineNumbers()` built
+`GutterRendererLineNumbers` with no `mode` in its constructor params, then set `.mode` right after
+construction — but the renderer's OWN constructor computes its default `startValue` from `mode`
+BEFORE that external assignment lands, so it always picked HEX's `startValue = 0`, off by one from
+NORMAL's `1`. Passing `mode` at construction fixes it; unrelated to the rendering gap above, and
+would have been invisible either way until the gap closes.
+
+## Amendment (2026-11-03, third pass): the gutter renders — a swallowed `TypeError`, not a fill
+
+**The gutter never painted because `drawGutter()` threw on its first measurement, and the
+NativeScript runtime discards a JS exception raised inside an ObjC method override.** The
+previous two passes narrowed this to "the fill reaches zero pixels"; that reading was wrong, and
+it was wrong because nothing reports the throw. An opaque red `UIRectFillUsingBlendMode` placed
+at the TOP of `drawGutter()` — ahead of every early return and every measurement — paints
+normally (screenshot-verified), so neither the blend mode, the draw order, the dirty rect nor the
+context was ever at fault. A `console.log` in a `try`/`catch` around the call in `drawRect:`
+printed the actual cause on the first run:
+
+```
+drawGutter THREW TypeError: asNSString(...).sizeWithAttributes is not a function
+```
+
+`-sizeWithAttributes:` and `-drawAtPoint:withAttributes:` are UIKit's `NSStringDrawing` CATEGORY
+on `NSString`. The runtime marshals a JS string to ObjC as a VALUE, and the object it hands back
+carries no category methods, so `asNSString(text)` — a cast, never a conversion — produced
+something that had neither verb. The throw happened in the first `measureText()` of the column
+loop, BEFORE the background fill and every number, which is exactly the "nothing paints, no
+error" the two earlier passes measured.
+
+Both verbs now go through `NSAttributedString`, a real bridged object:
+`NSAttributedString.alloc().initWithStringAttributes(text, attributes)`, then `-size` and
+`-drawAtPoint:`. **`size` is a METHOD, not a property** — the bridge exposes a JS accessor only
+for an ObjC `@property`, and `NSStringDrawing` declares `- (CGSize)size;`. Read as a property it
+answers the function object, `.width` on it is `undefined`, and the `NaN` travels silently into
+`textContainerInset.left`, which UIKit takes as zero: the first build of this fix drew the numbers
+and the code on top of each other at x=0, with no error anywhere. `size()` is the spelling.
+
+**Word wrap was on, and it broke the gutter's one invariant.** `attach()` sets
+`widthTracksTextView = false` and an unbounded container once; a `UITextView` puts BOTH back on
+its next layout pass — logged, `widthTracksTextView` read `true` on every `layoutSubviews` and a
+write of `1e7` read back as the view's own width on the spot. So every long line wrapped, a
+logical line had several fragments, and `fragmentRect` — which addresses a line by the ONE
+fragment this ADR's "No word wrap" gap promises it — put the numbers on the wrong rows, drifting
+further the further one scrolled. A `layoutSubviews` override re-asserts the flag AND the size
+every pass, guarded so the re-assertion does not re-enter layout. Re-asserting only the size is
+NOT enough; that was tried first and changed nothing.
+
+The draw order is now `drawBehind` → `drawGutter` → `super.drawRect`. The gutter occupies the
+strip the container inset reserves, where no glyph is laid out, so nothing of it is overdrawn,
+and painting it before the glyphs puts its background over the current-line band in that strip,
+which is the stacking GTK has.
+
+**Verified on the iPhone 17 simulator** with Learn6502's commented snake example: the line numbers
+render right-aligned in a `#f6f5f4` band 36pt wide against a 48pt text inset, one number per
+logical line with no wrapping, the numbering stays exact while scrolling (lines 37–50 checked
+mid-file), typing inserts and a line break renumbers the lines below it, and the current-line
+band follows the caret. The package stays `partial` — `extend-selection` and `copy-clipboard`
+remain the named iOS gaps.
+
+**The trap worth keeping:** a JS exception inside an `.extend()`ed ObjC method override is
+swallowed. A draw path that throws is indistinguishable from one that draws nothing, which is how
+this survived two diagnostic passes that both concluded the fill itself was broken. When a UIKit
+callback produces no output and no error, the first question is whether it RAN TO THE END, not
+what the drawing call did.
