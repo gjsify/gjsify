@@ -1,0 +1,125 @@
+// SPDX-License-Identifier: MIT
+// Applied by NativeScript into the app's gradle build, from this directory — the same
+// directory it scans for `**/*.aar` (see @nativescript/android's app/build.gradle, where
+// `$rootDir/${dep.directory}/platforms/android` supplies both the AAR list and this file).
+//
+// THE ONLY THING THIS DOES IS FAIL LOUDLY. The AAR beside it is the payload, it is
+// gitignored, and it is built by `scripts/build-gi-runtime-android-gtk.mjs` against an Android
+// GObject-Introspection prefix. In a fresh checkout — a locally linked worktree, a CI job
+// that did not run the bundle build — it is simply ABSENT, and NativeScript's `**/*.aar`
+// scan then finds nothing and says nothing: the app builds, installs, starts, and dies in
+// `dlopen` the first time anything calls `requireGi`, with a message about
+// `libnode_gi.so` and no hint that a build step was skipped hours earlier.
+//
+// So the absence is turned into a gradle failure that names the command to run. This file
+// is the one thing in `platforms/` that is COMMITTED, for exactly that reason — a guard
+// that ships with the payload is a guard that is missing whenever it is needed.
+//
+// A SECOND failure this turns into a gradle error is an @nativescript/android too old to
+// have Node-API: 9.1.0-alpha.6's libNativeScript.so exports ZERO `napi_*` symbols, 9.1.1
+// exports 145. libnode_gi.so links against them, so on the older runtime the APK builds,
+// installs and starts, and dies in `dlopen` with `cannot locate symbol
+// napi_create_type_error` — a message that names neither NativeScript nor a version, and
+// that cost a day's bisection in Learn6502. The floor is declared as this package's
+// peerDependency so npm warns at install time; the warning scrolls past, this does not.
+//
+// `buildscript.sourceFile` is this script's own path: `projectDir` here is the APP's, not
+// the plugin's, and hardcoding a `node_modules` path would break under `file:` links,
+// pnpm's store and a gjsify worktree alike.
+def gjsifyGiGtkDir = buildscript.sourceFile.parentFile
+def gjsifyGiGtkAar = new File(gjsifyGiGtkDir, 'gi-runtime-android-gtk.aar')
+def gjsifyGiGtkRoot = gjsifyGiGtkDir.parentFile.parentFile
+
+if (!gjsifyGiGtkAar.exists()) {
+    throw new GradleException("""
+@gjsify/gi-runtime-android-gtk has no payload: ${gjsifyGiGtkAar} does not exist.
+
+This package carries GTK 4, libadwaita, Pango, HarfBuzz and Graphene, with their typelibs, as
+ONE AAR on top of @gjsify/gi-runtime-android, and that AAR is built rather than committed.
+Without it the APK would hold the core but no GTK, and `gi://Gtk` would fail at runtime, so
+the build stops here instead.
+
+Build it in the gjsify checkout (the core's addon first, see the core's README):
+
+  node packages/node-gi/gi-runtime-android-gtk/scripts/build-gi-runtime-android-gtk.mjs \\
+      --ndk <ndk> --gi-sysroot <prefix> --node-gi-lib <libdir>
+
+The script prints its options with --help; packages/node-gi/gi-runtime-android/README.md
+has a worked invocation. An installed npm tarball always carries the AAR — this failure can
+only happen against a source checkout.
+""")
+}
+
+// The floor is READ from this package's own `peerDependencies`, not written here: package.json
+// is the only file that reaches an installed tarball AND carries the number (`files` ships
+// `index.js`, `index.d.ts` and `platforms/` — not `build-inputs.json`, which is where the
+// version is maintained and which a test holds equal to this range).
+def gjsifyOwnManifest = new File(gjsifyGiGtkRoot, 'package.json')
+def gjsifyNsFloor = null
+if (gjsifyOwnManifest.exists()) {
+    def declared = new groovy.json.JsonSlurper()
+        .parseText(gjsifyOwnManifest.getText('UTF-8'))
+        ?.peerDependencies?.get('@nativescript/android')
+    if (declared) gjsifyNsFloor = declared.replaceFirst(/^[^0-9]+/, '')
+}
+
+// `rootDir` is the GENERATED `platforms/android` project; two levels up is the app root that
+// holds `node_modules` (the same path `settings.gradle` calls USER_PROJECT_ROOT). The app's
+// resolution is the one that matters — the runtime AAR in `libs/runtime-libs` came from it —
+// so it is searched first, and a walk up from the plugin covers pnpm's nesting after that.
+def gjsifyFindNsManifest = { File from ->
+    for (File dir = from; dir != null; dir = dir.parentFile) {
+        def candidate = new File(dir, 'node_modules/@nativescript/android/package.json')
+        if (candidate.exists()) return candidate
+    }
+    return null
+}
+def gjsifyNsManifest = gjsifyFindNsManifest(new File(rootDir, '../..').canonicalFile)
+if (gjsifyNsManifest == null) gjsifyNsManifest = gjsifyFindNsManifest(gjsifyGiGtkRoot)
+
+// Prereleases sort BELOW their own release, which is the whole point: the runtime that broke
+// Learn6502 was 9.1.0-alpha.6, and a floor that reads it as "9.1.0, close enough" catches
+// nothing.
+def gjsifyVersionBelow = { String found, String floor ->
+    def parse = { String version ->
+        def halves = version.split('-', 2)
+        def numbers = halves[0].split(/\./).collect { it.isInteger() ? it.toInteger() : 0 }
+        while (numbers.size() < 3) numbers << 0
+        [numbers, halves.size() > 1]
+    }
+    def (foundNumbers, foundPre) = parse(found)
+    def (floorNumbers, floorPre) = parse(floor)
+    for (int i = 0; i < 3; i++) {
+        if (foundNumbers[i] != floorNumbers[i]) return foundNumbers[i] < floorNumbers[i]
+    }
+    return foundPre && !floorPre
+}
+
+// Saying "not checked" out loud is the point of the two quiet branches: a guard that fails to
+// run looks exactly like a guard that passed.
+if (gjsifyNsFloor == null) {
+    println("@gjsify/gi-runtime-android-gtk: no @nativescript/android floor in ${gjsifyOwnManifest} — NOT checked.")
+} else if (gjsifyNsManifest == null) {
+    println("@gjsify/gi-runtime-android-gtk: found no installed @nativescript/android, so its version was NOT checked against the required >= ${gjsifyNsFloor}.")
+} else {
+    def gjsifyNsVersion = new groovy.json.JsonSlurper()
+        .parseText(gjsifyNsManifest.getText('UTF-8'))?.version
+    if (gjsifyNsVersion == null) {
+        println("@gjsify/gi-runtime-android-gtk: ${gjsifyNsManifest} declares no version, so the required >= ${gjsifyNsFloor} was NOT checked.")
+    } else if (gjsifyVersionBelow(gjsifyNsVersion, gjsifyNsFloor)) {
+        throw new GradleException("""
+@nativescript/android ${gjsifyNsVersion} is too old for @gjsify/gi-runtime-android-gtk, which needs >= ${gjsifyNsFloor}.
+  resolved from: ${gjsifyNsManifest}
+
+libnode_gi.so calls Node-API, and NativeScript's libNativeScript.so is what provides it on
+Android. Runtimes before ${gjsifyNsFloor} export no `napi_*` symbols at all, so this APK would build,
+install and launch, and then abort in dlopen at the first requireGi with
+
+  cannot locate symbol "napi_create_type_error" referenced by "libnode_gi.so"
+
+— a message that names neither NativeScript nor a version. Raise the dependency in the app:
+
+  npm install --save-dev @nativescript/android@^${gjsifyNsFloor}
+""")
+    }
+}

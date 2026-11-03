@@ -109,3 +109,52 @@ export function planGiSelection({ declared, scanned }: { declared: string[]; sca
 
     return { selected: [...byNamespace.values()].sort(), unscanned };
 }
+
+/**
+ * The add-on packages that provide namespaces the core AAR does not carry (ADR 0117 § 1).
+ *
+ * A static table, not a read of installed manifests: the whole point is to name an add-on
+ * that is NOT installed. `packages/node-gi/node-gi/test/gi-runtime-android.test.mjs` holds
+ * it equal to each add-on's `gjsify.giRuntime.namespaces`, so it cannot drift.
+ */
+export const GI_ADDONS: readonly { package: string; namespaces: readonly string[] }[] = [
+    {
+        package: '@gjsify/gi-runtime-android-gtk',
+        namespaces: ['Adw', 'Gdk', 'GdkPixbuf', 'Graphene', 'Gsk', 'Gtk', 'HarfBuzz', 'Pango', 'PangoCairo'],
+    },
+];
+
+/**
+ * Refuse a selection whose namespaces an add-on provides, when that add-on is not a
+ * dependency of the app. Without it the APK carries no typelib for the namespace and the
+ * import throws on the device, naming a missing file rather than the package to install.
+ *
+ * A selection the core carries alone passes untouched, so today's apps change nothing.
+ *
+ * @param spec.selected {@link GiSelection.selected}
+ * @param spec.installed the app's dependency names
+ * @throws naming each missing add-on and the namespaces that need it
+ */
+export function planGiAddons({
+    selected,
+    installed,
+}: {
+    selected: readonly string[];
+    installed: readonly string[];
+}): void {
+    const have = new Set(installed);
+    const wanted = new Set(selected.map(namespaceOf));
+    const problems: string[] = [];
+    for (const addon of GI_ADDONS) {
+        if (have.has(addon.package)) continue;
+        const needed = addon.namespaces.filter((ns) => wanted.has(ns));
+        if (needed.length > 0) problems.push(`${needed.join(', ')} need ${addon.package}`);
+    }
+    if (problems.length > 0) {
+        throw new Error(
+            `nativescript.giNamespaces selects namespaces the core GI runtime does not carry: ${problems.join('; ')}. ` +
+                "Add the package to the app's dependencies (next to @gjsify/gi-runtime-android, same version), " +
+                'or drop the namespace.',
+        );
+    }
+}

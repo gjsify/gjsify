@@ -224,3 +224,33 @@ console.log(
         ? `[bump-release-train-ranges] every standalone app already names ${wanted}`
         : `[bump-release-train-ranges] updated ${changedRanges} range(s) across ${planned.length} app(s) to ${wanted}`,
 );
+
+// The Android GI add-ons pin their core by EXACT version, not `^` (rule `gi-runtime-addon`):
+// `packages/node-gi/*` are not root workspaces, so `gjsify pack` cannot rewrite
+// `workspace:*` for them, and the bumper moves only `version`. Without this the first cut
+// after a pin leaves the add-on depending on the previous core and the rule fails the hook.
+{
+    const nodeGi = join(repoRoot, 'packages', 'node-gi');
+    for (const entry of existsSync(nodeGi) ? readdirSync(nodeGi, { withFileTypes: true }) : []) {
+        const path = join(nodeGi, entry.name, 'package.json');
+        if (!entry.isDirectory() || !existsSync(path)) continue;
+        const raw = readFileSync(path, 'utf8');
+        const manifest = JSON.parse(raw);
+        const core = manifest.gjsify?.giRuntime?.core;
+        if (typeof core !== 'string') continue;
+        const current = manifest.dependencies?.[core];
+        if (current === nextVersion) continue;
+        if (current !== latestVersion) {
+            console.error(
+                `[bump-release-train-ranges] packages/node-gi/${entry.name}: \`dependencies.${core}\` is ` +
+                    `${JSON.stringify(current)}, neither ${latestVersion} nor ${nextVersion}. Fix it on main.`,
+            );
+            process.exit(1);
+        }
+        manifest.dependencies[core] = nextVersion;
+        writeFileSync(path, `${JSON.stringify(manifest, null, detectIndent(raw))}\n`);
+        console.log(
+            `[bump-release-train-ranges] packages/node-gi/${entry.name}: ${core} ${latestVersion} -> ${nextVersion}`,
+        );
+    }
+}

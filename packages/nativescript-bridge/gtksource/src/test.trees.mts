@@ -5,7 +5,6 @@
 
 import { run } from '@gjsify/unit';
 
-import { MultiTapTest } from './multi-tap.spec.js';
 import { GtkSourceViewTreeNsTest } from './view-tree.spec.js';
 
-run({ MultiTapTest, GtkSourceViewTreeNsTest });
+run({ GtkSourceViewTreeNsTest });

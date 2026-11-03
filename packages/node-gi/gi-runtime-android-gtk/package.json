@@ -1,0 +1,76 @@
+{
+    "name": "@gjsify/gi-runtime-android-gtk",
+    "version": "0.64.16",
+    "description": "Add-on to @gjsify/gi-runtime-android: GTK 4, libadwaita, Pango, HarfBuzz, Graphene and their typelibs for an Android NativeScript app, for arm64-v8a and x86_64. Install it next to the core only when the app imports gi://Gtk or gi://Adw; an app without it gets the same APK as before.",
+    "type": "module",
+    "license": "SEE LICENSE IN platforms/THIRD-PARTY-NOTICES.md",
+    "main": "./index.js",
+    "types": "./index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./index.d.ts",
+            "default": "./index.js"
+        },
+        "./platforms/android": "./platforms/android",
+        "./package.json": "./package.json"
+    },
+    "files": [
+        "index.js",
+        "index.d.ts",
+        "platforms"
+    ],
+    "nativescript": {
+        "platforms": {
+            "android": "9.1.1"
+        }
+    },
+    "dependencies": {
+        "@gjsify/gi-runtime-android": "0.64.16"
+    },
+    "peerDependencies": {
+        "@nativescript/android": ">=9.1.1"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "none",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "native"
+        },
+        "nativescriptPlatforms": [
+            "android"
+        ],
+        "tier": 3,
+        "giRuntime": {
+            "core": "@gjsify/gi-runtime-android",
+            "namespaces": [
+                "Adw",
+                "Gdk",
+                "GdkPixbuf",
+                "Graphene",
+                "Gsk",
+                "Gtk",
+                "HarfBuzz",
+                "Pango",
+                "PangoCairo"
+            ]
+        }
+    },
+    "scripts": {
+        "build:bundle": "node scripts/build-gi-runtime-android-gtk.mjs"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/node-gi/gi-runtime-android-gtk"
+    },
+    "keywords": [
+        "nativescript",
+        "android",
+        "gobject-introspection",
+        "glib",
+        "gjsify",
+        "gtk",
+        "adwaita"
+    ]
+}

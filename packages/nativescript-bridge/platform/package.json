@@ -9,6 +9,10 @@
         ".": {
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
+        },
+        "./gettext-fallback": {
+            "types": "./lib/types/gettext-fallback.d.ts",
+            "default": "./lib/esm/gettext-fallback.js"
         }
     },
     "files": [

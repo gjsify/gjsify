@@ -877,6 +877,9 @@ const NS_METHOD_ALIGNMENT = {
     'adw-inline-view-switcher.setPageVisible': { own: VIEW_PAGE_VISIBLE },
 
     // ── A NativeScript lifecycle hook. ────────────────────────────────────────────────
+    'gtk-button.onMeasure': {
+        own: "`View.onMeasure` is NativeScript's measure pass, which GTK has no method for — a GtkWidget measures through the `measure` vfunc its class table carries, not through a public method a consumer calls. The override measures twice, so the button's single `star` cell is as big as the button itself and the content's centre alignment has something to centre in (widgets/star-cell.ts).",
+    },
     'adw-bin.onLoaded': { own: ON_LOADED },
     'adw-bin.onUnloaded': { own: ON_UNLOADED_SINGLE_CHILD },
     'adw-dialog.onLoaded': { own: ON_LOADED },

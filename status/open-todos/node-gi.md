@@ -480,22 +480,21 @@ second parse. Two findings went back into ADR 0117: the suggested second input (
 marker) is not statically implementable on this path, and a `gi://` specifier is not a payload
 requirement under `giRenderer` — it resolves to the JS renderer, not to a typelib.
 
-Stage 1b's rest: `@gjsify/gi-runtime-android-gtk`, the `release.yml` job that publishes core and
-add-ons in lockstep, and the startup check against a mixed set. All three wait on one sysroot
-release: the add-on needs `cairo-1.0`, `freetype2-2.0` and `fontconfig-2.0` typelibs that tag
-`2026.10.13` does not carry. The startup check has a second prerequisite of its own —
-`gi-runtime.json` is written beside the AAR and never into it, so the sysroot identity it compares
-is not on the device; it has to travel as an AAR asset and be read through NativeScript's file
-API, not `node:fs`. Written before the first add-on it would also be a check over a one-element
-set, which cannot refuse anything. Both facts are in ADR 0117's 1b block.
+Stage 1b is in place (ADR 0117, amendment 2026-11-03): the `@gjsify/gi-runtime-android-gtk` add-on,
+its lockstep publish from the core's `release.yml` job, sysroot `2026.11.03`, the startup check and
+`planGiAddons`. Still open: a device run of core + add-on (confirms `java.io` is reachable in a
+Vite app and that Gtk loads), the owner's first manual npm publish of the new name
+(`status/pending-npm-bootstrap.json`), and a Trusted Publisher entry for it.
 
-Two things need Pascal before stage 2 can start: the TLS backend (OpenSSL or GnuTLS — the Android
-argument is that p11-kit's trust module sits behind a compiled-in path with no env override and
-Android has no system p11-kit) and the CA store route (`/system/etc/security/cacerts`, plus the
-user store or not, our own bundle, or JNI `X509TrustManagerExtensions`). A new sysroot release
-also needs his explicit OK before upload. CI can rebuild the sysroot under qemu-user
-([android-sysroot build.yml](https://github.com/gjsify/android-sysroot/blob/main/.github/workflows/build.yml)), so the OK is a choice, not a constraint (ADR 0117
-§ Amendment). Leftovers (pango/freetype2 wraps still float, GIR race worked around) are tracked
+Both of stage 2's owner questions are answered (2026-11-03). The TLS backend is **OpenSSL**: p11-kit's
+trust module sits behind a compiled-in path with no env override, and Android has no system p11-kit.
+The CA store follows [ADR 0134](../../docs/adr/0134-https-trusts-the-os-store-through-one-package.md)
+(**Proposed**). A new `@gjsify/tls-trust` reads `/system/etc/security/cacerts`, minus the user's
+disabled set, and installs it as Gio's default database. It does not read the user store unless the
+app opts in, and a Mozilla bundle is opt-in too. JNI `X509TrustManagerExtensions` comes later. A new
+sysroot release still needs his explicit OK before upload. CI can rebuild the sysroot under qemu-user
+([android-sysroot build.yml](https://github.com/gjsify/android-sysroot/blob/main/.github/workflows/build.yml)),
+so the OK is a choice, not a constraint (ADR 0117 § Amendment). Leftovers (pango/freetype2 wraps still float, GIR race worked around) are tracked
 in gjsify/android-sysroot.
 
 ### Track C′ (real GTK on a NativeScript worker): lifecycle, pump ownership, composition

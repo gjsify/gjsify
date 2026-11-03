@@ -92,6 +92,23 @@ if [ ! -d "$REPO_ROOT/node_modules" ]; then
     exit 0
 fi
 
+# A `node_modules` that is a symlink into ANOTHER checkout (a worktree sharing
+# `../gjsify-main/node_modules`) makes every `@gjsify/*` import resolve to that
+# checkout's `lib/`, not this tree's. The build cache rebuilds this tree's
+# packages, but dependents typecheck against the other tree's stale
+# `lib/types` (TS2305 on a member that exists in source) — and a bundle that
+# does build is built from the wrong dependencies, then staged. Skip instead.
+NM_REAL="$(cd "$REPO_ROOT/node_modules" && pwd -P)"
+case "$NM_REAL/" in
+    "$(cd "$REPO_ROOT" && pwd -P)"/*) ;;
+    *)
+        echo "::warning::[gjsify pre-commit] node_modules resolves outside this tree ($NM_REAL);"
+        echo "::warning::[gjsify pre-commit] workspace imports would use another checkout's lib/ — skipping the bundle rebuild."
+        echo "::warning::[gjsify pre-commit] Run 'gjsify install' in THIS tree; CI (verify-committed-bundles.mjs) remains the check."
+        exit 0
+        ;;
+esac
+
 # --- Rebuild failure is a WARNING, never a lost commit --------------------
 #
 # The two guards above are preconditions the hook can TEST. This is the one it

@@ -152,6 +152,7 @@ the TODO records the *what's left*.
 | [0130](0130-credits-come-from-the-git-history.md) | `gjsify credits` derives contributor credits from the git history; an overrides file covers supporters and exclusions | Accepted |
 | [0132](0132-ai-capabilities-share-one-shape.md) | AI capabilities share one shape: the web API where one exists, the built-in AI pattern where none does, a remote engine only when the app registers one | Proposed |
 | [0133](0133-fork-and-worker-share-one-ipc-channel.md) | `child_process.fork` and `Worker` share one IPC channel, extracted from `worker_threads` into its own package | Proposed |
+| [0134](0134-https-trusts-the-os-store-through-one-package.md) | HTTPS trusts the OS store on every target, through `@gjsify/tls-trust` and Node's `getCACertificates` vocabulary | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

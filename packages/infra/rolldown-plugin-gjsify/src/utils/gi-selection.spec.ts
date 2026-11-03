@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { planGiSelection } from './gi-selection.js';
+import { planGiAddons, planGiSelection } from './gi-selection.js';
 
 export default async () => {
     await describe('planGiSelection', async () => {
@@ -101,6 +101,23 @@ export default async () => {
             // namespace twice; harmless there, but the plan should be the honest set.
             const { selected } = planGiSelection({ declared: ['Gtk-4.0', 'Gtk'], scanned: [] });
             expect(selected).toStrictEqual(['Gtk-4.0']);
+        });
+    });
+
+    await describe('planGiAddons', async () => {
+        await it('passes a selection the core carries alone', async () => {
+            planGiAddons({ selected: ['GLib', 'Gio'], installed: [] });
+            planGiAddons({ selected: [], installed: [] });
+        });
+
+        await it('names the add-on package a Gtk selection needs', async () => {
+            expect(() => planGiAddons({ selected: ['Gtk-4.0', 'Adw'], installed: [] })).toThrow(
+                /Adw, Gtk need @gjsify\/gi-runtime-android-gtk/,
+            );
+        });
+
+        await it('passes once the add-on is a dependency', async () => {
+            planGiAddons({ selected: ['Gtk'], installed: ['@gjsify/gi-runtime-android-gtk'] });
         });
     });
 };

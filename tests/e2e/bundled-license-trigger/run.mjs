@@ -46,6 +46,7 @@ const { auditBundledLicense, collectBundlingPackages, createContext } = await im
 /** Every package this repository publishes with a third-party payload inside it. */
 const BUNDLING_PACKAGES = [
     '@gjsify/gi-runtime-android',
+    '@gjsify/gi-runtime-android-gtk',
     '@gjsify/gl-runtime-win32-x64',
     '@gjsify/gtk-runtime-darwin-arm64',
     '@gjsify/gtk-runtime-darwin-x64',

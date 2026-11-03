@@ -129,10 +129,27 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
 
     // Legacy / per-target overrides — kept as a separate Record so future
     // mobile-specific shims (e.g. an NS-equivalent of `@gjsify/process`)
-    // have an explicit landing pad. Today: empty. New entries SHOULD go
-    // into `ALIASES_NODE_FOR_NATIVESCRIPT` so the same wiring is reachable
-    // from the Vite-plugin track (`gjsifyNativescript()` preset) too.
-    const nativescriptOverrideAliases: Record<string, string> = {};
+    // have an explicit landing pad. New entries SHOULD go into
+    // `ALIASES_NODE_FOR_NATIVESCRIPT` so the same wiring is reachable from
+    // the Vite-plugin track (`gjsifyNativescript()` preset) too — this
+    // record exists only for an entry whose ANSWER depends on the platform
+    // the curated table cannot see (`ALIASES_NODE_FOR_NATIVESCRIPT` is one
+    // flat map for the whole `nativescript` target).
+    //
+    // `gettext` is exactly that: the curated table points it at
+    // `@gjsify/node-gi/gettext`, correct on Android (ADR 0110 § 1's real
+    // engine) but not on iOS/visionOS — there is no node-gi payload there
+    // (`engine-target.ios.ts`), and `@gjsify/node-gi/index.js` loads
+    // `libnode_gi.so` at MODULE EVAL, not behind any call, so merely
+    // bundling the real answer crashes the app before anything of its own
+    // runs. An undetected platform gets the same safe default.
+    const nativescriptOverrideAliases: Record<string, string> =
+        platform === 'android'
+            ? {}
+            : {
+                  gettext: '@gjsify/native-platform/gettext-fallback',
+                  'node:gettext': '@gjsify/native-platform/gettext-fallback',
+              };
 
     // Derived `@gjsify/<X>` aliases driven by per-package `gjsify.runtimes`
     // triplet declarations. Merge order: derived (lowest priority) → curated

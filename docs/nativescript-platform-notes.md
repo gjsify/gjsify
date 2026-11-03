@@ -153,6 +153,58 @@ through the view's key listener, so a controller sees it once. The window always
 sets `cancel`. A window nested in another window subscribes nothing; `onUnloaded` unsubscribes.
 Unverified on a device.
 
+## A `GridLayout` star cell is content-sized on iOS, so a size floor never reaches it (fixed)
+
+Verified on an iPhone 17 simulator (2026-11-03), Learn6502's gamepad A/B buttons
+(`gtk-button.ts`'s `GridLayout` with one `star` row/column, as every button-shaped widget in this
+port uses): `_adopt()` sets `horizontalAlignment: 'center'`/`verticalAlignment: 'middle'` on the
+label BEFORE `addChild` (also tried AFTER — no difference) and `GridLayout.setColumn/setRow(view,
+0)`. Logged the label's real `UIView.frame` off `layoutChanged` and again 0.5s/1.5s/3s later (so
+not a pre-layout transient): it measures its correct INTRINSIC size (~11×18pt, a one-letter label)
+but its `frame.origin` is **always `(0, 0)`** — pinned to the cell's top-left corner, never
+centred — regardless of how long the view has been on screen. A regular (non-`circular`) button's
+5–16pt padding happened to keep this invisible; `.circular` has none, and Learn6502's gamepad A/B
+request 55×55 against a 34px floor, making the uncentred text visibly off in the corner of a
+circle.
+
+A CSS restatement of the same intent (`horizontal-align`/`vertical-align`/`text-align: center` on
+`.adw-button-label`) was tried and **measured to change nothing** — the label's frame is still
+`(0, 0)` with the CSS in place. That is what says the alignment was never the missing half:
+`ViewHelper.layoutChild` reads exactly that property and had been reading `'center'` all along,
+over a cell with nothing to centre in. Reverted (`004c591d2`/easy6502 `20b97fa`) rather than left
+in as a dead restatement.
+
+**The cause, measured on the same device.** `widthRequest`/`heightRequest` map to NativeScript's
+`minWidth`/`minHeight` (`widgets/widget-layout.ts`), as GTK's size request is a MINIMUM. On iOS a
+`GridLayout` measures in TypeScript, and `MeasureHelper.measure()` ends with "if we are not
+stretched and `minColumnStarValue` is less than `maxColumnStarValue` we need to reduce the width
+of star columns" — a star cell falls back to its CONTENT whenever the grid is not stretched. The
+button is not stretched: its parent (a horizontal box) measures it with `UNSPECIFIED` width, and
+`stretchedHorizontally = widthMode === EXACTLY || (horizontalAlignment === 'stretch' &&
+!infinityWidth)` answers `false` for that. The floor is applied ONE STEP LATER and only to the
+grid's own measurement (`measureWidth = Math.max(measureWidth, this.effectiveMinWidth)`), so it
+never flows back into the cell. Logged on device: `btn minWH=165x165 col=0 row=0
+stretch=false/false childAlign=center/middle` (device pixels at scale 3 — a 55pt floor, a cell
+the size of the letter). On Android the native `org.nativescript.widgets.GridLayout` measures
+instead and the TypeScript pass is never entered, which is why only iOS showed it.
+
+**The fix** is `widgets/star-cell.ts` plus a two-line `onMeasure` override on the widget: measure,
+then measure AGAIN at the size the first pass settled on (`EXACTLY` on both axes), so the cells
+are told the size the floor produced. The second pass is idempotent, and it is skipped when the
+parent already pinned both axes. `width-request` stays a minimum; what this adds is the half GTK
+has for free — a widget allocated at least its request allocates that to its child. Inert on
+Android by construction (that `onMeasure` is never called there), so the fix is iOS-only without
+a platform branch. Verified on the iPhone 17 simulator: the gamepad A/B labels moved from
+`(298.7, 461)` — the button's own origin — to `(321, 479.7)`, which is `(55 − 10.3) / 2` and
+`(55 − 18) / 2` into a 55×55 circle. `GtkButton.onMeasure` is declared `own` in
+`NS_METHOD_ALIGNMENT`: GTK measures through a class-table vfunc and has no public method to
+converge on.
+
+**Not held:** every other widget built from a 1×1 `star` cell has the same shape, and only
+`GtkButton` carries the override. It bites a widget whose own size floor exceeds its content —
+`AdwImageButton` and `AdwAvatar` are the candidates — and nothing fails when one of them is
+added without it.
+
 ## Shipped declarations are judged without `skipLibCheck`
 
 `tests/e2e/consumer-types-adwaita` type-checks the built declarations of `adwaita-web`, `adwaita-nativescript` and `gtksource-nativescript` with and without `lib.dom`; `@nativescript/core` is never loaded (its own `.d.ts` fail under TS 6, and its `global-types.d.ts` redeclares `Reflect`/`WeakRef`), the ns cases merge its upstream `View`/`GridLayout` members onto `ns-core.d.ts` instead. Shipped declarations name no `lib.dom` type directly (`BridgeCanvas`/`FrameCallback` in the canvas2d bridges), and a mixin whose accessors the base class re-declares ships as a `declare abstract class` (`GtkWidgetLayoutMembers`), never an interface (TS2611). The fixture's `KNOWN_GAPS` is empty. A GTK property whose name an NS `View` member already owns (`AdwBottomSheet.modal`, `AdwDataGrid.rows`/`columns`, `AdwSplitButton.direction`) has no JS accessor on NS: it stays reachable through `get_/set_`, `get_property`/`set_property`, `notify::`, `bind_property` and Blueprint, which the builder routes through the table in `widgets/shadowed-properties.ts`. The NS XML writer refuses those names, since NS's `Builder` would assign them to the View member. `AdwToggle.name` was our own clash with `GtkWidgetLayoutMembers.name` and now returns `''` when unset. `scripts/check-gtk-host-member-clashes.mjs` fails when a new GTK property name collides with a member from the `@nativescript/core` or `lib.dom` snapshots in `status/`. The rule: [ADR 0112](adr/0112-gtk-properties-never-take-a-platform-member-name.md).
