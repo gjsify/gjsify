@@ -60,8 +60,11 @@ channel.
    `@gjsify/utils/core`), so a GJS parent forks a GJS child.
 4. **The child side lives in `@gjsify/process`.** When `NODE_CHANNEL_FD` is set at start-up,
    `process` opens the channel and gains `send`, `connected`, `disconnect` and the `'message'` /
-   `'disconnect'` events. The channel holds the main loop only while a `'message'` listener
-   exists, which matches Node's ref behaviour and the worker's existing exit rule.
+   `'disconnect'` events. The channel holds the main loop only while a `'message'` or a
+   `'disconnect'` listener exists, which is Node's ref behaviour (measured on Node 24: either one
+   keeps a child alive, neither lets it exit). The first hold is taken while `process` itself
+   evaluates, at `main_depth()` 0; a hold first taken from a microtask of a GJS entry module runs
+   inside GJS's own spin of the main context, is counted but arms no loop, and the child exits.
 5. **Two serializations, chosen by their partner.** `'json'` is Node's exact wire (one JSON text
    and `\n`), so a GJS parent can fork a Node child and a Node parent a GJS child. `'advanced'`
    maps to the structured-clone codec of decision 2 and is **GJS-to-GJS only**: the V8 serializer
