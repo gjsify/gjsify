@@ -989,3 +989,35 @@ describe('checkSysrootPins: the device side', () => {
         assert.deepEqual(readDeviceManifests('/d', {}), { manifests: [], ran: false });
     });
 });
+
+describe('gi-runtime-addon rule: the pair stays in lockstep', () => {
+    const core = { rel: 'p/core', manifest: { name: 'core', version: '1.0.0' } };
+    const addon = (over = {}) => ({
+        rel: 'p/gtk',
+        manifest: {
+            name: 'gtk',
+            version: '1.0.0',
+            dependencies: { core: '1.0.0' },
+            gjsify: { giRuntime: { core: 'core', namespaces: ['Gtk'] } },
+            ...over,
+        },
+    });
+
+    it('passes the real tree and a conforming pair', async () => {
+        const { auditGiAddons } = await import('../../../../scripts/manifest-conformance/rules/gi-runtime-addon.mjs');
+        assert.deepEqual(auditGiAddons([core, addon()]), { failures: [], addons: 1 });
+        const real = ['gi-runtime-android', 'gi-runtime-android-gtk'].map((d) => ({
+            rel: d,
+            manifest: JSON.parse(readFileSync(new URL(`../../${d}/package.json`, import.meta.url), 'utf8')),
+        }));
+        assert.deepEqual(auditGiAddons(real).failures, []);
+    });
+
+    it('rejects a range, a version skew, and a core that lists its add-on', async () => {
+        const { auditGiAddons } = await import('../../../../scripts/manifest-conformance/rules/gi-runtime-addon.mjs');
+        assert.match(auditGiAddons([core, addon({ dependencies: { core: '^1.0.0' } })]).failures[0], /exact literal/);
+        assert.match(auditGiAddons([core, addon({ version: '1.0.1' })]).failures[0], /lockstep/);
+        const bad = { ...core, manifest: { ...core.manifest, optionalDependencies: { gtk: '1.0.0' } } };
+        assert.match(auditGiAddons([bad, addon()]).failures[0], /must not depend on its add-ons/);
+    });
+});

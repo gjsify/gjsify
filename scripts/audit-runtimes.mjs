@@ -92,6 +92,7 @@ import { platformRows, renderPlatformMatrix } from './manifest-conformance/rules
 import './manifest-conformance/rules/tier.mjs';
 import './manifest-conformance/rules/refs-pin.mjs';
 import './manifest-conformance/rules/status-data.mjs';
+import './manifest-conformance/rules/gi-runtime-addon.mjs';
 import './manifest-conformance/rules/platform-packages.mjs';
 import './manifest-conformance/rules/release-train.mjs';
 import './manifest-conformance/rules/node-script-globals.mjs';
