@@ -98,7 +98,7 @@ export class GtkToggleButton extends withProperties(GtkButton, {
      * Write-only, as `G_PARAM_WRITABLE` has it.
      */
     set group(value: GtkToggleButton | null) {
-        this._setGroup(value);
+        this.set_group(value);
     }
 
     private get _grouped(): boolean {
@@ -106,7 +106,7 @@ export class GtkToggleButton extends withProperties(GtkButton, {
     }
 
     /** `gtk_toggle_button_set_group` — insert this button directly BEFORE `group`, or unlink it. */
-    private _setGroup(group: GtkToggleButton | null): void {
+    set_group(group: GtkToggleButton | null): void {
         if (group === this) {
             console.error('Gtk.ToggleButton cannot be its own group; the group is unchanged.');
             return;
