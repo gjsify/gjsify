@@ -3987,12 +3987,18 @@ jobs:
       # sherpa-onnx subproject, which FetchContents its own dependencies and so
       # needs network access and `tar`/`xz`/`curl` — nothing here is a wrap
       # archive with a sha256 in-tree except sherpa-onnx itself.
+      # No `if:`: the glibc gate at the end runs on a skipped leg too, and it is
+      # a node script.
+      - name: Install node
+        run: >
+          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264
+          nodejs
+
       - name: Install the meson/cmake toolchain and a static libstdc++
         if: ${{ !contains(needs.changes.outputs.skip, '"sherpa-native"') }}
         run: >
           dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264
           git tar xz findutils curl
-          nodejs
           meson vala gcc gcc-c++ libstdc++-static pkgconf cmake
           glib2-devel gobject-introspection-devel
           gjs python3
