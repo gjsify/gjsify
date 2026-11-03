@@ -1,0 +1,15 @@
+# The payload: an AAR of ~14 MB (two ABIs) plus the staged tree it is zipped from
+# and the notice file generated beside it. Built by
+# scripts/build-gi-runtime-android.mjs against an Android GI stack, never
+# committed — the same arrangement as the gtk-runtime-* bundles' `gtk/`.
+platforms/*
+stage/
+
+# EXCEPT the gradle hook, which is hand-written and MUST travel in the checkout.
+# It is the only thing that can fail loudly when the payload above was never
+# built: NativeScript applies it from the same directory it scans for `*.aar`,
+# so a locally linked checkout without a built AAR stops the app's gradle run by
+# name instead of producing an APK that dies in dlopen at startup.
+!platforms/android/
+platforms/android/*
+!platforms/android/include.gradle

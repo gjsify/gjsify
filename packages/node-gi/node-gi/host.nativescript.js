@@ -41,6 +41,8 @@
 //                           JNI_OnLoad, and without that there is no JavaVM to reach GDK
 //                           with — see ensureJavaVm().
 
+import { checkSysrootPins } from './gi-runtime-pin.js';
+
 /** @type {'nativescript'} */
 export const RUNTIME = 'nativescript';
 
@@ -375,6 +377,7 @@ export function loadNativeHost() {
     }
     const native = load('system_lib://libnode_gi.so');
     const appDir = appDirectory();
+    checkSysrootPins(appDir, globalThis.java);
     // `app/` is where NativeScript extracts the bundled assets under the files dir.
     const typelibs = globalThis.__NODE_GI_TYPELIB_PATH ?? (appDir === null ? null : `${appDir}/app/girepository-1.0`);
     if (typeof typelibs === 'string' && typelibs !== '') native.prependSearchPath(typelibs);
