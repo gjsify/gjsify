@@ -35,6 +35,7 @@ import shortcutLabelNsTestSuite from './shortcut-label.spec.js';
 import accentThemeNsTestSuite from './accent-theme.spec.js';
 import engineTargetTestSuite from './engine-target.spec.js';
 import windowInsetsTestSuite from './window-insets.spec.js';
+import hostInsetsTestSuite from './host-insets.spec.js';
 import systemBarsTestSuite from './system-bars.spec.js';
 import styleClassesTestSuite from './style-classes.spec.js';
 import colorSchemeClassesTestSuite from './color-scheme-classes.spec.js';
@@ -87,6 +88,7 @@ run({
     accentThemeNsTestSuite,
     engineTargetTestSuite,
     windowInsetsTestSuite,
+    hostInsetsTestSuite,
     systemBarsTestSuite,
     colorSchemeClassesTestSuite,
     styleClassesTestSuite,
