@@ -2155,7 +2155,9 @@ A commit that touches any file other than `.po` / `.pot` credits its people as `
 
 Bots and AI co-authors are dropped by name or e-mail. Set `gjsify.credits.ignore` in `package.json` to a list of patterns (`*` is the only wildcard, matched against the whole name or e-mail, case-insensitive) to replace the default list.
 
-`credits.overrides.json` takes `developers`, `translators` (language to names), `supporters` and `exclude` (patterns). Unknown keys are an error. `supporters` comes only from this file. A shallow clone is an error, because the history would be incomplete.
+`credits.overrides.json` takes `developers`, `translators` (language to names), `supporters`, `exclude` (patterns, every list) and `excludeTranslators` (language or `*` to patterns, translators only; explicit `translators` still win).
+
+A translator is pinned to a language by commits with exactly one person and one `.po` language. A Weblate squash merge names everyone of its batch, so it credits each person only to the languages they are pinned to, or to all of its languages when nothing pins them. Unknown keys are an error. `supporters` comes only from this file. A shallow clone is an error, because the history would be incomplete.
 
 ### `gjsify login`
 

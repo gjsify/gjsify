@@ -24,12 +24,22 @@ identities are one person.
    its people as developers. A commit that touches `.po` files credits them as translators of each
    language, the language being the `.po` basename (`de`, `pt_BR`). Weblate commits as a bot with
    the real translator in a trailer, so the bot is dropped and the trailer counts.
+
+   A Weblate squash merge breaks the per-language link: one trailer block names every translator
+   of the batch, and the commit touches all their languages (or only one of them). So only a
+   commit with exactly one person and one language pins that person to that language. An
+   ambiguous commit credits each person to the languages they are pinned to; someone nothing pins
+   keeps every language of the commit, because dropping a real translator is worse than listing
+   one too often. Learn6502's history is the case: without this, every member of a batch showed up
+   in every language of it.
 3. **Names only.** An e-mail address is read to recognise a bot or an AI co-author and is dropped
    before anything is built. No output carries one.
 4. **Bots and AI co-authors** are dropped by a default list of patterns, matched on name and
    e-mail. `gjsify.credits.ignore` replaces that list; it does not extend it, so a project can see
    the whole rule in one place.
-5. **Overrides.** `credits.overrides.json` adds people and excludes others. `supporters` has no
+5. **Overrides.** `credits.overrides.json` adds people and excludes others; `excludeTranslators`
+   removes someone from some languages only (`*` for all), for a maintainer whose string updates
+   touch every `.po` file. Explicit `translators` additions win over it. `supporters` has no
    other source, because a sponsor is not a commit. Unknown keys are rejected, so a typo does not
    silently do nothing.
 6. **`--check`** exits 1 when the file on disk is stale, comparing parsed JSON so formatting does

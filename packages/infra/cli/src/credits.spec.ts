@@ -177,8 +177,32 @@ export default async () => {
                 const credits = buildCredits(readCommits(dir));
                 expect(credits.developers.join()).toBe('Dev');
                 expect(Object.keys(credits.translators).join()).toBe('de,pt_BR');
-                expect(credits.translators.de!.join()).toBe('Dev,Hans,Maria');
+                expect(credits.translators.de!.join()).toBe('Dev,Hans');
                 expect(credits.translators.pt_BR!.join()).toBe('Maria,Hans');
+            });
+        });
+
+        await it('credits a squash commit to each person by their own single-language commits', async () => {
+            withRepo((dir) => {
+                const weblate = { author: 'Weblate (bot)', email: 'hosted@weblate.org' };
+                commit(dir, { ...weblate, files: po('id'), trailers: ['Co-authored-by: Arif <arif@x.org>'] });
+                commit(dir, { author: 'Menachem', email: 'm@x.org', files: po('he') });
+                // A squash that touched only he.po but names everyone of the batch.
+                commit(dir, {
+                    ...weblate,
+                    files: po('he'),
+                    trailers: ['Co-authored-by: Arif <arif@x.org>', 'Co-authored-by: Menachem <m@x.org>'],
+                });
+                // Nothing pins Emilio, so he keeps every language of his only commit.
+                commit(dir, {
+                    ...weblate,
+                    files: { ...po('es'), ...po('ia'), ...po('he') },
+                    trailers: ['Co-authored-by: Emilio <e@x.org>', 'Co-authored-by: Menachem <m@x.org>'],
+                });
+                const credits = buildCredits(readCommits(dir));
+                expect(JSON.stringify(credits.translators)).toBe(
+                    '{"es":["Emilio"],"he":["Menachem","Emilio"],"ia":["Emilio"],"id":["Arif"]}',
+                );
             });
         });
 
@@ -224,6 +248,21 @@ export default async () => {
             });
         });
 
+        await it('drops a person from some languages only, while explicit additions still win', async () => {
+            withRepo((dir) => {
+                commit(dir, { author: 'Lead', email: 'l@x.org', files: { ...code(), ...po('de') } });
+                commit(dir, { author: 'Lead', email: 'l@x.org', files: po('ja') });
+                commit(dir, { author: 'Lead', email: 'l@x.org', files: po('uk') });
+                commit(dir, { author: 'Yuki', email: 'y@x.org', files: po('ja') });
+                const overrides = parseOverrides(
+                    JSON.stringify({ excludeTranslators: { '*': ['Lead'] }, translators: { de: ['Lead'] } }),
+                );
+                const credits = buildCredits(readCommits(dir), { overrides });
+                expect(credits.developers.join()).toBe('Lead');
+                expect(JSON.stringify(credits.translators)).toBe('{"de":["Lead"],"ja":["Yuki"]}');
+            });
+        });
+
         await it('refuses a malformed overrides file, naming the key', async () => {
             const message = (text: string) => {
                 try {
@@ -238,6 +277,7 @@ export default async () => {
             expect(message('{"develpers":[]}')).toContain('unknown key "develpers"');
             expect(message('{"developers":"Ada"}')).toContain('o.json.developers must be an array of strings');
             expect(message('{"translators":{"de":[1]}}')).toContain('o.json.translators.de');
+            expect(message('{"excludeTranslators":["Ada"]}')).toContain('o.json.excludeTranslators must map');
         });
 
         await it('--check: a missing, outdated or unparsable file is stale, a current one is not', async () => {
