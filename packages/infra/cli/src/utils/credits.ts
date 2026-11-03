@@ -4,6 +4,7 @@
 // is dropped before anything is built, so no output can carry one.
 
 import { spawnSync } from 'node:child_process';
+import { posix } from 'node:path';
 
 export interface CreditsPerson {
     name: string;
@@ -81,9 +82,9 @@ export function parsePerson(value: string): CreditsPerson {
 
 const isTranslationFile = (file: string) => /\.pot?$/i.test(file);
 
-/** `po/pt_BR.po` → `pt_BR`; a `.pot` template names no language. */
+/** `po/pt_BR.po` → `pt_BR`; a `.pot` template names no language. Git prints `/` on every host. */
 function poLanguage(file: string): string | undefined {
-    const base = file.slice(file.lastIndexOf('/') + 1);
+    const base = posix.basename(file);
     return /\.po$/i.test(base) ? base.slice(0, -3) : undefined;
 }
 
