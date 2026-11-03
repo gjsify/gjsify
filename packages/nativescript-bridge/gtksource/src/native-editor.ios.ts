@@ -56,7 +56,19 @@ declare const UIFont: {
     /** A size of 0 keeps the descriptor's own, which is where the traits came from. */
     fontWithDescriptorSize(descriptor: UIFontDescriptorInstance, size: number): UIFontInstance;
 };
-declare const UIRectFill: (rect: CGRect) => void;
+/**
+ * Measured: plain `UIRectFill` does not alpha-blend a translucent `UIColor` against the existing
+ * context content — it reads as `kCGBlendModeCopy`, which leaves the destination's alpha near the
+ * fill's own (here ~0.094) but the RGB as drawn, and that near-transparent pixel composites as
+ * fully opaque once the layer renders — a `#00000018` current-line tint came out solid black. The
+ * SAME colour via `UIColor.backgroundColor` (ordinary `CALayer` compositing, no `CGContext` draw
+ * call involved) blends correctly, which is what isolates the bug to this call rather than to the
+ * colour conversion. `UIRectFillUsingBlendMode(rect, kCGBlendModeNormal)` is the documented way to
+ * ask for Porter-Duff source-over instead.
+ */
+declare const UIRectFillUsingBlendMode: (rect: CGRect, blendMode: number) => void;
+/** `CGBlendMode.normal` — the NativeScript ObjC bridge exposes the C enum as a numeric global. */
+declare const kCGBlendModeNormal: number;
 declare const NSFontAttributeName: string;
 declare const NSForegroundColorAttributeName: string;
 declare const NSBackgroundColorAttributeName: string;
@@ -191,6 +203,15 @@ class IosEditorDriver implements NativeEditorDriver, DrawingDriver, EditReporter
     attach(nativeView: unknown): void {
         const view = nativeView as UITextViewNative;
         this.view = view;
+        // `opaque` defaults to YES on `UIView`, and for an opaque view UIKit documents that
+        // `-drawRect:` runs on an UNCLEARED context ("may have non-zeroed pixels") and that
+        // `clearsContextBeforeDrawing` is ignored. The current-line and gutter bands are drawn
+        // with a translucent `UIColor` (`0x18000000` = ~9% black), so on an opaque view that
+        // alpha blends onto whatever garbage was already in the backing store, and the opaque
+        // layer then composites ignoring the alpha it produced — a near-invisible overlay came
+        // out as a solid black band. A non-opaque view gets its context pre-filled transparent
+        // every draw, so the blend lands on real pixels and the layer composites it with alpha.
+        view.opaque = false;
         const container = view.textContainer;
         container.widthTracksTextView = false;
         container.lineFragmentPadding = 0;
@@ -538,11 +559,9 @@ class IosEditorDriver implements NativeEditorDriver, DrawingDriver, EditReporter
 
     // --- drawing -----------------------------------------------------------------------------------
 
-    // `UIRectFill` copies rather than blends, which is why the band is drawn BEFORE the text and the
-    // gutter band after it: each one owns its pixels outright, as the Android paints do.
     private fill(color: number, x: number, y: number, width: number, height: number): void {
         uiColor(color).setFill();
-        UIRectFill({ origin: { x, y }, size: { width, height } });
+        UIRectFillUsingBlendMode({ origin: { x, y }, size: { width, height } }, kCGBlendModeNormal);
     }
 
     private draw(text: string, x: number, y: number, color: number): void {
