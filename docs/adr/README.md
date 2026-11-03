@@ -149,6 +149,7 @@ the TODO records the *what's left*.
 | [0127](0127-speech-recognition-on-local-engines.md) | `SpeechRecognition` on GJS runs on local engines behind Vala bridges, with capture, VAD and machine fit as their own packages | Proposed |
 | [0128](0128-a-menu-model-is-a-real-menu-model.md) | A menu model is a real `Gio.MenuModel`, and the abstract base is a class | Accepted |
 | [0129](0129-a-status-icon-on-every-desktop.md) | A status icon on every desktop through `@gjsify/status-icon`; running in the background stays with `Gio.Application.hold()` and `Xdp` (ADR 0101) | Accepted |
+| [0131](0131-monetization-model-and-supporter-status.md) | A build declares its monetization model (`free` / `supporter` / `paid`); only "has this user paid" is decided at runtime, by `@gjsify/supporter` | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
