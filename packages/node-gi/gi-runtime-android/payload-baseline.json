@@ -8,22 +8,41 @@
     "COMPRESSED zip-entry sizes (docs/reports/2026-10-15-adr-0110-gates.md). The entry",
     "counts are checkable here; the byte totals are not reproducible on a host and are",
     "recorded so the entries they account for cannot change unnoticed.",
-    "libintl.so: the AAR now carries gi-runtime-android/libintl/libintl.c (a .mo reader)",
-    "instead of the sysroot's proxy-libintl. Same soname and entry count, so the plan is",
-    "unchanged; measured per ABI after strip: 12.9 KB x86_64 / 12.5 KB arm64-v8a against",
-    "proxy-libintl's 9.2 KB (+3.7 KB; 5.5 KB gzipped). The byte totals above are the",
-    "pre-change stage C numbers and are re-measured at the next release build."
+    "addedSinceMeasured: typelibs the default plan carries that ADR 0110 did not count,",
+    "because a later sysroot started shipping them (their backers were already bundled)."
   ],
   "sysroot": {
     "repository": "gjsify/android-sysroot",
-    "tag": "2026.10.13"
+    "tag": "2026.11.03"
   },
   "measured": {
     "report": "docs/reports/2026-10-15-adr-0110-gates.md",
     "stage": "C — the release split APKs, entry accounting by scripts/apk-size.mjs",
-    "arm64-v8a": { "payloadBytes": 15746594, "libraryBytes": 15541128, "libraries": 15, "typelibs": 7 },
-    "x86_64": { "payloadBytes": 16907482, "libraryBytes": 16702016, "libraries": 15, "typelibs": 7 },
+    "arm64-v8a": {
+      "payloadBytes": 15746594,
+      "libraryBytes": 15541128,
+      "libraries": 15,
+      "typelibs": 7
+    },
+    "x86_64": {
+      "payloadBytes": 16907482,
+      "libraryBytes": 16702016,
+      "libraries": 15,
+      "typelibs": 7
+    },
     "typelibBytes": 205466
+  },
+  "addedSinceMeasured": {
+    "arm64-v8a": [
+      "cairo-1.0.typelib",
+      "fontconfig-2.0.typelib",
+      "freetype2-2.0.typelib"
+    ],
+    "x86_64": [
+      "cairo-1.0.typelib",
+      "fontconfig-2.0.typelib",
+      "freetype2-2.0.typelib"
+    ]
   },
   "planned": {
     "arm64-v8a": {
@@ -49,6 +68,7 @@
         "libandroid.so",
         "libc.so",
         "libdl.so",
+        "liblog.so",
         "libm.so",
         "libz.so"
       ],
@@ -59,7 +79,10 @@
         "GModule-2.0.typelib",
         "GObject-2.0.typelib",
         "Gio-2.0.typelib",
-        "GioUnix-2.0.typelib"
+        "GioUnix-2.0.typelib",
+        "cairo-1.0.typelib",
+        "fontconfig-2.0.typelib",
+        "freetype2-2.0.typelib"
       ]
     },
     "x86_64": {
@@ -85,6 +108,7 @@
         "libandroid.so",
         "libc.so",
         "libdl.so",
+        "liblog.so",
         "libm.so",
         "libz.so"
       ],
@@ -95,7 +119,10 @@
         "GModule-2.0.typelib",
         "GObject-2.0.typelib",
         "Gio-2.0.typelib",
-        "GioUnix-2.0.typelib"
+        "GioUnix-2.0.typelib",
+        "cairo-1.0.typelib",
+        "fontconfig-2.0.typelib",
+        "freetype2-2.0.typelib"
       ]
     }
   },
@@ -273,6 +300,7 @@
           "libffi.so",
           "libintl.so",
           "libandroid.so",
+          "liblog.so",
           "libNativeScript.so",
           "libm.so",
           "libdl.so",
@@ -630,6 +658,37 @@
             "PangoFc-1.0",
             "freetype2-2.0"
           ],
+          "major": 4
+        },
+        {
+          "name": "cairo-1.0.typelib",
+          "namespace": "cairo",
+          "version": "1.0",
+          "key": "cairo-1.0",
+          "sharedLibraries": [
+            "libcairo-gobject.so"
+          ],
+          "dependencies": [
+            "GObject-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "fontconfig-2.0.typelib",
+          "namespace": "fontconfig",
+          "version": "2.0",
+          "key": "fontconfig-2.0",
+          "sharedLibraries": [],
+          "dependencies": [],
+          "major": 4
+        },
+        {
+          "name": "freetype2-2.0.typelib",
+          "namespace": "freetype2",
+          "version": "2.0",
+          "key": "freetype2-2.0",
+          "sharedLibraries": [],
+          "dependencies": [],
           "major": 4
         }
       ]
@@ -807,6 +866,7 @@
           "libffi.so",
           "libintl.so",
           "libandroid.so",
+          "liblog.so",
           "libNativeScript.so",
           "libm.so",
           "libdl.so",
@@ -1164,6 +1224,37 @@
             "PangoFc-1.0",
             "freetype2-2.0"
           ],
+          "major": 4
+        },
+        {
+          "name": "cairo-1.0.typelib",
+          "namespace": "cairo",
+          "version": "1.0",
+          "key": "cairo-1.0",
+          "sharedLibraries": [
+            "libcairo-gobject.so"
+          ],
+          "dependencies": [
+            "GObject-2.0"
+          ],
+          "major": 4
+        },
+        {
+          "name": "fontconfig-2.0.typelib",
+          "namespace": "fontconfig",
+          "version": "2.0",
+          "key": "fontconfig-2.0",
+          "sharedLibraries": [],
+          "dependencies": [],
+          "major": 4
+        },
+        {
+          "name": "freetype2-2.0.typelib",
+          "namespace": "freetype2",
+          "version": "2.0",
+          "key": "freetype2-2.0",
+          "sharedLibraries": [],
+          "dependencies": [],
           "major": 4
         }
       ]

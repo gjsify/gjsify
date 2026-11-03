@@ -7,7 +7,7 @@
 > Android payload = tier-3 `gi-runtime-android/`: addon + a MEASURED DT_NEEDED closure + its
 > typelibs as ONE gitignored AAR, built never committed. What the closure cannot reach is
 > SELECTED: `--gi-namespaces` seeds the walk, `payload-baseline.json` holds the default payload
-> (ADR 0117). Needs `@nativescript/android` ≥ `build-inputs.json`'s pin: older runtimes export NO
+> (ADR 0117). GTK/Adw are the add-on `gi-runtime-android-gtk/` (same builder via `run({addOn})`, payload = closure − core closure, exact-pinned to the core, core never lists it); each AAR carries `assets/app/gi-runtime/<pkg>.json` and `node-gi/gi-runtime-pin.js` refuses a mixed sysroot at startup. Needs `@nativescript/android` ≥ `build-inputs.json`'s pin: older runtimes export NO
 > `napi_*` (9.1.0-alpha.6 zero symbols, 9.1.1 145), so the APK builds and dies in `dlopen` — a
 > peerDependency, failed by name in `platforms/android/include.gradle`. The app opts into the real engine, and
 > `@nativescript/vite`'s vendor chunk would evaluate first so import order could not win —

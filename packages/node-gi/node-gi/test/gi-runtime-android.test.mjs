@@ -31,8 +31,10 @@ import {
     planTypelibs,
     renderAndroidManifest,
     renderNotice,
+    renderRuntimeManifest,
     REQUIRED_NAMESPACES,
 } from '../../gi-runtime-android/scripts/build-gi-runtime-android.mjs';
+import { checkSysrootPins, describePinMismatch, readDeviceManifests } from '../gi-runtime-pin.js';
 import { planTypelibSet } from '../../scripts/typelib-backers.mjs';
 import { buildZip, dosDateTime } from '../../scripts/aar-zip.mjs';
 
@@ -834,7 +836,10 @@ describe('payload-baseline.json: selecting nothing ships what ADR 0110 measured'
         it(`${abi}: the baseline is the entry set ADR 0110 counted`, () => {
             const measured = baseline.measured[abi];
             assert.equal(baseline.planned[abi].libraries.length, measured.libraries);
-            assert.equal(baseline.planned[abi].typelibs.length, measured.typelibs);
+            assert.equal(
+                baseline.planned[abi].typelibs.length,
+                measured.typelibs + baseline.addedSinceMeasured[abi].length,
+            );
             // The report split the payload total the same way; if these stop agreeing, the
             // numbers quoted above came from two different builds.
             assert.equal(measured.libraryBytes + baseline.measured.typelibBytes, measured.payloadBytes);
@@ -850,7 +855,7 @@ describe('payload-baseline.json: selecting nothing ships what ADR 0110 measured'
         it(`${abi}: selecting Graphene only ADDS to the baseline`, () => {
             // The positive half: the mechanism does change the payload, and never by
             // dropping something the default carried. Graphene is the cheapest namespace
-            // the pinned prefix can actually resolve (GTK's needs a cairo typelib the
+            // the pinned prefix can actually resolve (GTK is an add-on namespace now; the
             // prefix has no introspection data for — ADR 0117's Implementation note).
             const selected = replay(abi, ['Graphene']);
             for (const soname of baseline.planned[abi].libraries) {
@@ -874,4 +879,188 @@ describe('payload-baseline.json: selecting nothing ships what ADR 0110 measured'
             );
         });
     }
+});
+
+describe('runtime manifest: the sysroot pin each AAR carries (ADR 0117 § 5)', () => {
+    const sysroot = {
+        repository: 'gjsify/android-sysroot',
+        tag: '2026.11.03',
+        assets: { x86_64: { sha256: 'bb' }, 'arm64-v8a': { sha256: 'aa' } },
+    };
+    const spec = {
+        name: '@gjsify/gi-runtime-android-gtk',
+        version: '1.2.3',
+        sysroot,
+        abis: ['x86_64', 'arm64-v8a'],
+        libraries: { 'arm64-v8a': ['libb.so', 'liba.so'], x86_64: ['liba.so'] },
+        typelibs: ['Gtk-4.0', 'Adw-1'],
+    };
+
+    it('is sorted, has no timestamp and names the pin per ABI', () => {
+        const text = renderRuntimeManifest(spec);
+        const parsed = JSON.parse(text);
+        assert.equal(parsed.sysroot.tag, '2026.11.03');
+        assert.deepEqual(parsed.sysroot.sha256, { 'arm64-v8a': 'aa', x86_64: 'bb' });
+        assert.deepEqual(parsed.libraries['arm64-v8a'], ['liba.so', 'libb.so']);
+        assert.deepEqual(parsed.typelibs, ['Adw-1', 'Gtk-4.0']);
+        assert.equal(/built|time|date/i.test(Object.keys(parsed).join(' ')), false);
+        assert.equal(text, renderRuntimeManifest(spec), 'one input, one file');
+    });
+
+    it('ships as an asset under its own per-package path', () => {
+        const text = renderRuntimeManifest(spec);
+        const entries = aarEntries({
+            perAbi: { x86_64: { libs: new Map([['liba.so', Buffer.from('x')]]) } },
+            typelibs: new Map(),
+            mtime: MTIME,
+            packageName: 'studio.artandcode.gjsify.gi_runtime_gtk',
+            manifest: { id: 'gi-runtime-android-gtk', text },
+        });
+        const asset = entries.find((e) => e.path === 'assets/app/gi-runtime/gi-runtime-android-gtk.json');
+        assert.equal(asset.data.toString('utf8'), text);
+        assert.equal(
+            entries.some((e) => e.path.endsWith('libnode_gi.so')),
+            false,
+            'an add-on carries no addon',
+        );
+        assert.match(entries[0].data.toString('utf8'), /studio\.artandcode\.gjsify\.gi_runtime_gtk/);
+    });
+
+    it('the AAR path agrees with the device path the startup check reads', () => {
+        const dir = new URL('../../gi-runtime-android/scripts/build-gi-runtime-android.mjs', import.meta.url);
+        const src = readFileSync(dir, 'utf8');
+        assert.match(src, /MANIFEST_ASSET_DIR = 'assets\/app\/gi-runtime'/);
+    });
+});
+
+describe('describePinMismatch: refuses a mixed sysroot', () => {
+    const m = (pkg, tag, sha = { 'arm64-v8a': 'aa' }) => ({ package: pkg, sysroot: { tag, sha256: sha } });
+
+    it('accepts one package, or several on the same pin', () => {
+        assert.equal(describePinMismatch([]), null);
+        assert.equal(describePinMismatch([m('@gjsify/gi-runtime-android', 'T')]), null);
+        assert.equal(describePinMismatch([m('a', 'T'), m('b', 'T')]), null);
+    });
+
+    it('names both packages and both tags when the tags differ', () => {
+        const msg = describePinMismatch([
+            m('@gjsify/gi-runtime-android-gtk', 'T2'),
+            m('@gjsify/gi-runtime-android', 'T1'),
+        ]);
+        assert.match(msg, /@gjsify\/gi-runtime-android \(sysroot T1\)/);
+        assert.match(msg, /@gjsify\/gi-runtime-android-gtk \(sysroot T2\)/);
+    });
+
+    it('names both packages when one tag hides two archives', () => {
+        const msg = describePinMismatch([m('core', 'T', { 'arm64-v8a': 'aa' }), m('gtk', 'T', { 'arm64-v8a': 'bb' })]);
+        assert.match(msg, /core and gtk/);
+        assert.match(msg, /arm64-v8a/);
+    });
+});
+
+describe('checkSysrootPins: the device side', () => {
+    /** A `java.io` stand-in over a map of file name → text. */
+    function fakeJava(files) {
+        const names = Object.keys(files);
+        class File {
+            constructor(p) {
+                this.p = p;
+            }
+            exists() {
+                return true;
+            }
+            listFiles() {
+                return names.map((n) => new File(`${this.p}/${n}`));
+            }
+            getName() {
+                return this.p.split('/').pop();
+            }
+        }
+        class FileInputStream {
+            constructor(f) {
+                this.f = f;
+            }
+        }
+        class InputStreamReader {
+            constructor(s) {
+                this.s = s;
+            }
+        }
+        class BufferedReader {
+            constructor(r) {
+                this.lines = files[r.s.f.getName()].split('\n');
+            }
+            readLine() {
+                return this.lines.length ? this.lines.shift() : null;
+            }
+            close() {}
+        }
+        return { io: { File, FileInputStream, InputStreamReader, BufferedReader } };
+    }
+    const doc = (pkg, tag) => JSON.stringify({ package: pkg, sysroot: { tag, sha256: {} } });
+
+    it('does nothing without a java global or a files dir', () => {
+        checkSysrootPins('/data', undefined);
+        checkSysrootPins(null, fakeJava({}));
+    });
+
+    it('throws on a mixed set and passes a matching one', () => {
+        checkSysrootPins('/d', fakeJava({ 'a.json': doc('a', 'T'), 'b.json': doc('b', 'T') }));
+        assert.throws(
+            () => checkSysrootPins('/d', fakeJava({ 'a.json': doc('a', 'T1'), 'b.json': doc('b', 'T2') })),
+            /a \(sysroot T1\) and b \(sysroot T2\)/,
+        );
+    });
+
+    it('reports that it did not run when java.io is missing', () => {
+        assert.deepEqual(readDeviceManifests('/d', {}), { manifests: [], ran: false });
+    });
+});
+
+describe('gi-runtime-addon rule: the pair stays in lockstep', () => {
+    const core = { rel: 'p/core', manifest: { name: 'core', version: '1.0.0' } };
+    const addon = (over = {}) => ({
+        rel: 'p/gtk',
+        manifest: {
+            name: 'gtk',
+            version: '1.0.0',
+            dependencies: { core: '1.0.0' },
+            gjsify: { giRuntime: { core: 'core', namespaces: ['Gtk'] } },
+            ...over,
+        },
+    });
+
+    it('passes the real tree and a conforming pair', async () => {
+        const { auditGiAddons } = await import('../../../../scripts/manifest-conformance/rules/gi-runtime-addon.mjs');
+        assert.deepEqual(auditGiAddons([core, addon()]), { failures: [], addons: 1 });
+        const real = ['gi-runtime-android', 'gi-runtime-android-gtk'].map((d) => ({
+            rel: d,
+            manifest: JSON.parse(readFileSync(new URL(`../../${d}/package.json`, import.meta.url), 'utf8')),
+        }));
+        assert.deepEqual(auditGiAddons(real).failures, []);
+    });
+
+    it('rejects a range, a version skew, and a core that lists its add-on', async () => {
+        const { auditGiAddons } = await import('../../../../scripts/manifest-conformance/rules/gi-runtime-addon.mjs');
+        assert.match(auditGiAddons([core, addon({ dependencies: { core: '^1.0.0' } })]).failures[0], /exact literal/);
+        assert.match(auditGiAddons([core, addon({ version: '1.0.1' })]).failures[0], /lockstep/);
+        const bad = { ...core, manifest: { ...core.manifest, optionalDependencies: { gtk: '1.0.0' } } };
+        assert.match(auditGiAddons([bad, addon()]).failures[0], /must not depend on its add-ons/);
+    });
+});
+
+describe('GI_ADDONS: the build-time catalogue matches the add-on manifest', () => {
+    it('lists exactly the namespaces gjsify.giRuntime declares', () => {
+        const src = readFileSync(
+            fileURLToPath(new URL('../../../infra/rolldown-plugin-gjsify/src/utils/gi-selection.ts', import.meta.url)),
+            'utf8',
+        );
+        const block = /package: '@gjsify\/gi-runtime-android-gtk',\s*namespaces: \[([^\]]*)\]/.exec(src);
+        assert.ok(block, 'catalogue entry for the add-on');
+        const listed = [...block[1].matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
+        const addon = JSON.parse(
+            readFileSync(fileURLToPath(new URL('../../gi-runtime-android-gtk/package.json', import.meta.url)), 'utf8'),
+        );
+        assert.deepEqual(listed, [...addon.gjsify.giRuntime.namespaces].sort());
+    });
 });

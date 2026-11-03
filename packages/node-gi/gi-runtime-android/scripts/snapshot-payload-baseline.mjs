@@ -140,9 +140,12 @@ function main() {
             'COMPRESSED zip-entry sizes (docs/reports/2026-10-15-adr-0110-gates.md). The entry',
             'counts are checkable here; the byte totals are not reproducible on a host and are',
             'recorded so the entries they account for cannot change unnoticed.',
+            'addedSinceMeasured: typelibs the default plan carries that ADR 0110 did not count,',
+            'because a later sysroot started shipping them (their backers were already bundled).',
         ],
         sysroot: { repository: inputs.sysroot.repository, tag: inputs.sysroot.tag },
         measured: existing.measured ?? null,
+        addedSinceMeasured: existing.addedSinceMeasured ?? {},
         planned,
         graph,
     };

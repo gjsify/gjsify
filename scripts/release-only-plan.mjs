@@ -42,7 +42,7 @@ export const JOBS = {
         '@gjsify/node-runtime-win32-x64',
         '@gjsify/node-runtime-win32-arm64',
     ],
-    gi_android: ['@gjsify/gi-runtime-android'],
+    gi_android: ['@gjsify/gi-runtime-android', '@gjsify/gi-runtime-android-gtk'],
 };
 
 // Same translation as `globToRegex` in @gjsify/workspace, which `foreach --include` uses.

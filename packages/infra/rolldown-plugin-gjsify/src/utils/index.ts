@@ -14,5 +14,5 @@ export { staticStringValue, walkModuleAst, importedSpecifier, moduleSpecifiers }
 export type { SpecifierNode, AstNode } from './module-ast.js';
 export { scanGiNamespaces, scanGiRequirements, giSpecifierKey } from './gi-namespaces.js';
 export type { GiRequirements } from './gi-namespaces.js';
-export { planGiSelection, assertGiNamespaceEntries } from './gi-selection.js';
+export { planGiSelection, planGiAddons, assertGiNamespaceEntries, GI_ADDONS } from './gi-selection.js';
 export type { GiSelection } from './gi-selection.js';

@@ -35,7 +35,9 @@ dependency closure` on every release until a maintainer publishes it. Re-running
 workflow does not help: no job owns the package. The list is short on purpose, and each
 entry names the issue that removes it.
 
-None today. The last one, `@gjsify/gi-runtime-android`, got its `release.yml` job in #2179: the
+The first publish of a NEW name is manual too (npm Trusted Publishing cannot create a package): `@gjsify/gi-runtime-android-gtk` is queued in `status/pending-npm-bootstrap.json`. It is built and published by the same `publish-gi-runtime-android` job as its core, because a Trusted Publisher binds to one workflow filename.
+
+No package is hand-published every release today. The last one, `@gjsify/gi-runtime-android`, got its `release.yml` job in #2179: the
 Android GI prefix it needs is now a sha256-pinned download from gjsify/android-sysroot.
 
 ### Two entry points, because CI has already built and a human has not

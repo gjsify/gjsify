@@ -2476,7 +2476,12 @@ jobs:
             --tolerate-republish --tag latest --access public
 
   # @gjsify/gi-runtime-android's AAR: libnode_gi.so cross-built per ABI plus the GLib /
-  # GObject-Introspection closure it links, for arm64-v8a and x86_64 (#2179).
+  # GObject-Introspection closure it links, for arm64-v8a and x86_64 (#2179) — and, from the
+  # SAME job, its add-on @gjsify/gi-runtime-android-gtk (ADR 0117 stage 1b). One job because
+  # npm's Trusted Publisher binds a package to ONE workflow filename, not to a job, and
+  # because the pair is built from one sysroot pin and released in lockstep: the add-on's
+  # payload is computed AGAINST the core's closure, so it needs the core's libnode_gi.so
+  # anyway. The core publishes first; the add-on pins it by exact version.
   #
   # WHY THE GI STACK IS DOWNLOADED, NOT BUILT: g-ir-scanner has to RUN a dumper compiled
   # for the target, which needs an Android emulator or device. So the prefix is built by
@@ -2488,7 +2493,7 @@ jobs:
   # RACE SAFETY: same as publish-gtk-runtime-darwin — `packages/node-gi/*` is not a root
   # workspace, so the ubuntu sweep never enumerates this package.
   publish-gi-runtime-android:
-    name: Publish @gjsify/gi-runtime-android (Android AAR)
+    name: Publish @gjsify/gi-runtime-android + gtk add-on (Android AAR)
     needs: publish
     if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true && (needs.publish.outputs.all == 'true' || needs.publish.outputs.gi_android == 'true') }}
     runs-on: ubuntu-latest
@@ -2498,6 +2503,7 @@ jobs:
       id-token: write
     env:
       PKG: packages/node-gi/gi-runtime-android
+      PKG_GTK: packages/node-gi/gi-runtime-android-gtk
     steps:
       - name: Checkout repository (the released tag)
         uses: actions/checkout@v6
@@ -2546,6 +2552,14 @@ jobs:
           ls -la "$PKG/platforms" "$PKG/platforms/android"
           jq '{abis, typelibs}' "$PKG/platforms/android/gi-runtime.json"
 
+      - name: Build the add-on AAR (GTK 4 / libadwaita, minus the core's closure)
+        run: |
+          node "$PKG_GTK/scripts/build-gi-runtime-android-gtk.mjs" --ndk "$ANDROID_NDK_HOME" \
+            --gi-sysroot "$INPUTS/sysroot" --node-gi-lib "$ADDON_OUT" \
+            --license-corpus "$INPUTS/sysroot/share/licenses"
+          ls -la "$PKG_GTK/platforms/android"
+          jq '{abis, typelibs}' "$PKG_GTK/platforms/android/gi-runtime-gtk.json"
+
       - name: Prepare a Node-runnable @gjsify/cli
         id: cli
         run: node scripts/bootstrap-published-cli.mjs
@@ -2555,6 +2569,15 @@ jobs:
           GJSIFY_PUBLISH_DEBUG: '1'
         run: |
           node "${{ steps.cli.outputs.bin }}" publish "$PKG" \
+            --tolerate-republish --tag latest --access public
+
+      # After the core: the add-on's exact dependency on it must resolve the moment the
+      # add-on is visible.
+      - name: Publish @gjsify/gi-runtime-android-gtk (OIDC, with payload)
+        env:
+          GJSIFY_PUBLISH_DEBUG: '1'
+        run: |
+          node "${{ steps.cli.outputs.bin }}" publish "$PKG_GTK" \
             --tolerate-republish --tag latest --access public
 
   # The LAST word on a release: is what npm now serves internally consistent?
