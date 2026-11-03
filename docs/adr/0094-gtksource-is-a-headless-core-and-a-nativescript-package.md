@@ -255,3 +255,33 @@ from the `tintColor` that also paints the caret, where GTK gives two colours.
 UIKit call sequence is written from the documented API and has been run by nothing. There is no
 iOS leg in `tests/integration/nativescript/` — it drives Android over `adb logcat` — and no NS CLI
 on this machine, so no simulator run was possible (#1051). The package stays `partial`.
+
+## Amendment (2026-11-03): verified on the iPhone 17 simulator, the current-line fill fixed, the gutter still open
+
+Build, type and syntax highlighting checked out on an iPhone 17 simulator (iOS, `D3BF03B2-…`,
+Learn6502's `app-android` target): typing in the Code tab reaches the buffer, `GtkSource`
+syntax highlight attributes land correctly, and the view scrolls. Two things did not:
+
+**The current-line band rendered solid black instead of a translucent tint — root-caused and
+fixed.** Measured directly: a `0x18000000` fill colour (≈9% black, `#00000018` in the style
+scheme) reads correctly as `argb=0x18000000, alpha≈0.094` on the JS side (`argbComponents` is
+correct), and the SAME colour through `UIColor.backgroundColor` (ordinary `CALayer` compositing,
+no `CGContext` draw call) renders as the expected light tint. But `UIRectFill` inside `drawRect:`
+does not alpha-blend it against the existing context content — it behaves as `kCGBlendModeCopy`,
+and the near-transparent result composites as solid black once the layer renders. Fixed in
+`native-editor.ios.ts`'s `fill()`: `UIRectFillUsingBlendMode(rect, kCGBlendModeNormal)` instead of
+plain `UIRectFill`, plus `view.opaque = false` so the `drawRect:` context is pre-cleared
+transparent each pass, per UIKit's own documented contract for opaque views ("may have
+non-zeroed pixels", `clearsContextBeforeDrawing` ignored).
+
+**The line-number gutter does not appear — diagnosed, not fixed.** `drawGutter` never receives
+any columns (`host.gutterColumns()` returns `[]`). The app's `SourceView.setupLineNumbers()`
+(`packages/ui/src/source-view.ts`) is only reached from the `lineNumbers` setter, and that setter
+is never called for the plain code editor: `editor.blp` does not author `line-numbers: true` (only
+`hexdump.blp`, `disassembled.blp`, `hex-monitor.blp` and `example-list-item.blp` do), and the
+`GObject.ParamSpec.boolean('line-numbers', …, true)` default is pure introspection metadata — a
+class that defines its OWN getter/setter (as `SourceView` does) is never auto-invoked with a
+ParamSpec's declared default at construction, on any GObject engine, real or pure-JS. Whether this
+also affects GNOME/Android (same `.blp`, same missing explicit property) or is masked there by
+something else is unconfirmed — not reached within this pass's budget. The `eu.jumplink.Learn6502`
+GSettings key `show-line-numbers` is unused by any `*.ts` in `packages/ui/src`; it is dead.
