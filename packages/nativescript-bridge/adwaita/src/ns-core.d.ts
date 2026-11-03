@@ -85,6 +85,15 @@ declare module '@nativescript/core' {
         initNativeView(): void;
         disposeNativeView(): void;
         /**
+         * The measure pass. On iOS every layout runs it in TypeScript; on Android the native
+         * `org.nativescript.widgets` layout measures instead and this is never entered, so an
+         * override here is an iOS-only correction by construction (`widgets/star-cell.ts`).
+         */
+        onMeasure(widthMeasureSpec: number, heightMeasureSpec: number): void;
+        /** What the last {@link onMeasure} settled on, in device pixels. */
+        getMeasuredWidth(): number;
+        getMeasuredHeight(): number;
+        /**
          * `ViewCommon` declares `private _measuredWidth`
          * (`ui/core/view/view-common.d.ts:80`). Declared here so a widget that
          * gives itself a field of that name fails to compile instead of colliding
@@ -638,6 +647,25 @@ declare module '@nativescript/core' {
         /** Recolours every opaque pixel (hex string or `Color`); `undefined` draws the image as it is. */
         tintColor: string | undefined;
     }
+
+    /**
+     * The measure-spec encoding `View.onMeasure` speaks, as `@nativescript/core/utils` owns it.
+     *
+     * Only re-exported here, never reimplemented: a mode and a size packed into one int is the
+     * platform's own encoding, and a second copy of the packing would be a second truth about
+     * a number this port does not define.
+     */
+    export const Utils: {
+        readonly layout: {
+            /** The three `MeasureSpec` modes, with `@nativescript/core`'s own values. */
+            readonly UNSPECIFIED: number;
+            readonly EXACTLY: number;
+            readonly AT_MOST: number;
+            makeMeasureSpec(size: number, mode: number): number;
+            getMeasureSpecMode(spec: number): number;
+            getMeasureSpecSize(spec: number): number;
+        };
+    };
 
     /** A connected display. */
     export interface ScreenMetrics {

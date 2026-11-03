@@ -1134,6 +1134,22 @@ export class Image extends View {
 /** One screen at scale 1, the density the port's own sizes are written in. */
 export const Screen = { mainScreen: { scale: 1, widthDIPs: 0, heightDIPs: 0 } };
 
+/**
+ * `@nativescript/core`'s own measure-spec packing, which the tree driver never exercises —
+ * it runs no layout pass — but must be able to RESOLVE, because a widget module reaches it
+ * (`widgets/star-cell.ts`). Mode in the top two bits, size in the low thirty, as upstream.
+ */
+export const Utils = {
+    layout: {
+        UNSPECIFIED: 0 << 30,
+        EXACTLY: 1 << 30,
+        AT_MOST: 2 << 30,
+        makeMeasureSpec: (size: number, mode: number): number => (size & ~(3 << 30)) | (mode & (3 << 30)),
+        getMeasureSpecMode: (spec: number): number => spec & (3 << 30),
+        getMeasureSpecSize: (spec: number): number => spec & ~(3 << 30),
+    },
+};
+
 export class SegmentedBarItem extends Observable {
     title = '';
 }

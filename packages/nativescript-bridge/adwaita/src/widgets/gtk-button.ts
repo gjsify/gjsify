@@ -65,6 +65,7 @@ import { GtkImage } from './gtk-image.js';
 import { activateWidgetAction } from './actions.js';
 import { applyNativeTooltip } from './native-tooltip.js';
 import { attachRowPressFeedback } from './row-press.js';
+import { needsOwnSizePass, ownSizeSpecs } from './star-cell.js';
 import { classNameWith, normalizeStyleClasses, withCssClass, withoutCssClass } from './style-classes.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
@@ -133,6 +134,19 @@ export class GtkButton extends withSignals(GridLayout, {
         });
 
         applyConstructProps(this, props);
+    }
+
+    /**
+     * Measure, then measure again at the size the first pass settled on, so the single `star`
+     * cell is as big as the button and the content's centre alignment has something to centre
+     * in. Why that is not already true, and what it looked like when it was not:
+     * `./star-cell.ts`.
+     */
+    onMeasure(widthMeasureSpec: number, heightMeasureSpec: number): void {
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+        if (!needsOwnSizePass(widthMeasureSpec, heightMeasureSpec)) return;
+        const [width, height] = ownSizeSpecs(this.getMeasuredWidth(), this.getMeasuredHeight());
+        super.onMeasure(width, height);
     }
 
     // --- content: one child, three ways to fill it, last write wins ---
