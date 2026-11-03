@@ -19,7 +19,17 @@
 import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+    chmodSync,
+    cpSync,
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    rmSync,
+    symlinkSync,
+    writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -428,6 +438,23 @@ describe('git pre-commit hook — affected.gjs.mjs staleness', { timeout: 2 * 60
                 `[${closureScript}] the fallback did not rebuild`,
             );
         }
+    });
+
+    it('skips the rebuild when node_modules is a link into another checkout', () => {
+        const { root, logPath } = setupSyntheticRepo(parent);
+        const other = mkdtempSync(join(parent, 'other-checkout-'));
+        mkdirSync(join(other, 'node_modules', '.bin'), { recursive: true });
+        cpSync(join(root, 'node_modules', '.bin', 'gjsify'), join(other, 'node_modules', '.bin', 'gjsify'));
+        rmSync(join(root, 'node_modules'), { recursive: true, force: true });
+        symlinkSync(join(other, 'node_modules'), join(root, 'node_modules'));
+
+        writeFileSync(join(root, 'packages/infra/cli/src/index.ts'), `export const v = 4;\n`);
+        execFileSync('git', ['-C', root, 'add', 'packages/infra/cli/src/index.ts']);
+
+        const result = runHook(root);
+        assert.equal(result.status, 0, `hook failed: ${result.stderr}`);
+        assert.deepEqual(readLog(logPath), [], 'a foreign node_modules must not be built against');
+        assert.match(hookOutput(result), /node_modules resolves outside this tree/);
     });
 
     it('skips the rebuild when SKIP_GJSIFY_HOOKS=1', () => {
