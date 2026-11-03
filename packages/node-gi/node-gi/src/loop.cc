@@ -219,7 +219,6 @@ static gboolean uv_source_prepare(GSource* base, gint* timeout) {
   }
 
   uv_update_time(s->loop);
-  DrainMicrotasks();
 
   gboolean alive = uv_loop_alive(s->loop);
   // Toggle whether GLib polls uv's backend fd: an unref'd-but-active uv handle
@@ -255,6 +254,28 @@ static gboolean uv_source_dispatch(GSource* base, GSourceFunc /*callback*/, gpoi
 
 static GSourceFuncs uv_source_funcs = {
     uv_source_prepare, nullptr, uv_source_dispatch, nullptr, nullptr, nullptr,
+};
+
+// Microtask drain, in a source of its own that is only ever PREPARED (never ready).
+// GLib prepares sources in priority order, and the drain runs JS: a source prepared
+// earlier in the same pass may hold a lock until its check() — GDK's Wayland source
+// takes libwayland's reader slot in prepare(). A microtask that then closes a window
+// runs `wl_display_roundtrip` on a slot THIS thread holds and parks forever
+// (`gtk_window_close` -> `gsk_gpu_renderer_unrealize` -> `wsi_wl_swapchain_destroy` ->
+// `wl_display_read_events`: stamped's Node GUI hung after its window closed).
+// GDK's source is prepared even ahead of G_PRIORITY_HIGH, so this one takes G_MININT:
+// it is prepared FIRST and JS runs while nothing is held. It is never dispatched, so it cannot starve GDK redraws the
+// way a high-priority uv source would (see the priority note at the uv source).
+static gboolean drain_source_prepare(GSource* /*base*/, gint* timeout) {
+  *timeout = -1;
+  if (!g_in_uv_pump) DrainMicrotasks();
+  return FALSE;
+}
+static gboolean drain_source_dispatch(GSource*, GSourceFunc, gpointer) {
+  return G_SOURCE_CONTINUE;
+}
+static GSourceFuncs drain_source_funcs = {
+    drain_source_prepare, nullptr, drain_source_dispatch, nullptr, nullptr, nullptr,
 };
 #else  // _WIN32 — the UvLoopSource, readiness-bounded timer instead of uv-backend-fd-driven.
 //
@@ -1168,6 +1189,10 @@ Napi::Value StartMainLoop(const Napi::CallbackInfo& info) {
   g_source_set_priority(source, G_PRIORITY_HIGH_IDLE + 30);
   g_source_attach(source, nullptr);  // default GLib main context
   g_source_unref(source);            // the context holds the surviving ref
+  GSource* drain = g_source_new(&drain_source_funcs, sizeof(GSource));
+  g_source_set_priority(drain, G_MININT);
+  g_source_attach(drain, nullptr);
+  g_source_unref(drain);
 #else  // _WIN32 — readiness-bounded UvLoopSource (no uv backend fd on IOCP).
   GSource* source = g_source_new(&uv_source_funcs, sizeof(UvLoopSource));
   UvLoopSource* s = reinterpret_cast<UvLoopSource*>(source);
