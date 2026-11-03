@@ -5,11 +5,21 @@
 //
 // Both legs run the same vectors, so a difference is a defect in whichever engine disagrees.
 import { Gtk } from '@gjsify/adwaita-nativescript';
+import { GestureTypes } from '@nativescript/core';
 
 import { describe, expect, info, it } from '../reporter.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
+
+// A finger reaches the button through the gesture observer `addEventListener('tap')` builds;
+// `notify({ eventName: 'tap' })` only walks the Observable map and never gets there on a device.
+const tap = (check: Gtk.CheckButton): void => {
+    const observers = ((check as Any).getGestureObservers(GestureTypes.tap) ?? []) as Any[];
+    for (const observer of observers) {
+        observer.callback({ eventName: 'tap', object: check, view: check, type: GestureTypes.tap });
+    }
+};
 
 const EMISSIONS = [
     'toggled',
@@ -79,7 +89,7 @@ export const checkButtonSpec = (engine: 'real-gio' | 'pure-js') => async (): Pro
         await it('a tap emits no activate; emit("activate") toggles; neither clears inconsistent', () => {
             const check = new Gtk.CheckButton({ inconsistent: true });
             const seen = watch(check);
-            check.notify({ eventName: 'tap', object: check as never });
+            tap(check);
             expect(seen.join()).toBe('notify::active,toggled');
             seen.length = 0;
             check.emit('activate');
