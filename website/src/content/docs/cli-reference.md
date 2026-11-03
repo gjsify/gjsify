@@ -41,7 +41,7 @@ Keep the `@latest` tag. All three runners reuse a cached copy of an unpinned bin
 | Debug a running app | [`storybook`](#gjsify-storybook) · [`debug`](#gjsify-debug) · [`browse`](#gjsify-browse) |
 | Browser extensions | [`webext`](#gjsify-webext) |
 | Ship it | [`ship`](#gjsify-ship) · [`flatpak`](#gjsify-flatpak) · [`site`](#gjsify-site) |
-| Publish to npm | [`pack`](#gjsify-pack) · [`publish`](#gjsify-publish) · [`whoami`](#gjsify-whoami) · [`release-notes`](#gjsify-release-notes) · [`credits`](#gjsify-credits) · [`login`](#gjsify-login) · [`logout`](#gjsify-logout) · [`trust`](#gjsify-trust) · [`onboard`](#gjsify-onboard) |
+| Publish to npm | [`pack`](#gjsify-pack) · [`publish`](#gjsify-publish) · [`whoami`](#gjsify-whoami) · [`release-notes`](#gjsify-release-notes) · [`credits`](#gjsify-credits) · [`android-icons`](#gjsify-android-icons) · [`login`](#gjsify-login) · [`logout`](#gjsify-logout) · [`trust`](#gjsify-trust) · [`onboard`](#gjsify-onboard) |
 
 ## Start a project
 
@@ -554,6 +554,7 @@ Anything you would pass repeatedly on the command line can live in the `gjsify` 
 | `browse`, `devtools` | Defaults for [`gjsify browse`](#gjsify-browse), [`gjsify debug`](#gjsify-debug) and [`gjsify devtools`](#gjsify-devtools). |
 | `flatpak` | Config for the [`gjsify flatpak`](#gjsify-flatpak) commands. |
 | `ship` | Config for [`gjsify ship`](#gjsify-ship). Metadata falls back to `flatpak`. |
+| `androidIcons` | `resources`, `icon` and `background` for [`gjsify android-icons`](#gjsify-android-icons). |
 | `credits` | `output`, `overrides` and `ignore` (patterns that replace the default bot and AI list) for [`gjsify credits`](#gjsify-credits). |
 
 ### Where `define` goes
@@ -2158,6 +2159,24 @@ Bots and AI co-authors are dropped by name or e-mail. Set `gjsify.credits.ignore
 `credits.overrides.json` takes `developers`, `translators` (language to names), `supporters`, `exclude` (patterns, every list) and `excludeTranslators` (language or `*` to patterns, translators only; explicit `translators` still win).
 
 A translator is pinned to a language by commits with exactly one person and one `.po` language. A Weblate squash merge names everyone of its batch, so it credits each person only to the languages they are pinned to, or to all of its languages when nothing pins them. Unknown keys are an error. `supporters` comes only from this file. A shallow clone is an error, because the history would be incomplete.
+
+### `gjsify android-icons`
+
+Generate the Android launcher icon and splash logo of a NativeScript app from the one app icon a GNOME app already declares, so nobody hand-maintains Android rasters. The icon is `hicolor/scalable/apps/<id>.svg`, rendered through librsvg (needs `gjs` and the Rsvg typelib, like [`gjsify ship`](#gjsify-ship)).
+
+```bash
+gjsify android-icons            # write under <resources>/Android/src/main/res
+gjsify android-icons --check    # exit 1 when missing or the inputs changed
+```
+
+Written files: `mipmap-*/ic_launcher.png` and `ic_launcher_round.png` (48 to 192 px; the round one is the icon on a circle in the background colour), adaptive-icon layers `ic_launcher_foreground.png` (108 dp, icon scaled into the 66 dp safe zone), `values/ic_launcher_background.xml`, `mipmap-anydpi-v26/ic_launcher.xml` and `ic_launcher_round.xml`, and `drawable-*/logo.png` (the splash logo, 96 dp square). When a `-symbolic` SVG sits next to the icon it also writes `ic_launcher_monochrome.png` and a `<monochrome>` layer for Android 13 themed icons. The template's `drawable/ic_launcher_foreground.xml` is removed. `--check` compares a stamp, `.gjsify-android-icons.json`, holding a hash of the SVGs, the colour and the generator version plus the file list. It never compares PNG bytes, because librsvg versions antialias differently.
+
+| Option | Default | Description |
+|---|---|---|
+| `--resources <dir>` | `gjsify.androidIcons.resources`, else `appResourcesPath` of `nativescript.config.ts`, else `App_Resources` | The App_Resources directory. |
+| `--icon <svg>` | `gjsify.androidIcons.icon`, else the hicolor icon under `data/icons` here or in a sibling package | The scalable app icon. |
+| `--background <color>` | `gjsify.androidIcons.background`, else the metainfo light `<branding>` primary colour, else `#FFFFFF` | Adaptive-icon background. |
+| `--check` | `false` | Write nothing; exit 1 when stale. |
 
 ### `gjsify login`
 
