@@ -6,6 +6,8 @@
 //     rules are added when they are new or changed, and removing a provider cannot take them back.
 //     GTK's `px` is a logical pixel, NativeScript's a physical one, so `px` is dropped on the way in
 //     (`cssPxToDip`); the build does the same for `app.css` (`@gjsify/nativescript-vite`).
+//     `:root { --window-bg-color: #… }` literals are turned into override rules for the theme
+//     (`widgets/named-colors-theme.ts`), and undone by appending the theme's defaults again.
 //   - uris and keys: `./platform-source.ts` and its `.android` / `.ios` variants.
 //   - font: the platform does not say, so `Gtk.Settings:gtk-font-name` is null until written.
 
@@ -14,6 +16,7 @@ import { cssPxToDip } from '@gjsify/adwaita-core/css-length';
 import { Application, CSSHelper, type View } from '@nativescript/core';
 
 import { type IdSelectorClass, provideIdSelector } from './name-selector.js';
+import { createNamedColorsPublisher, parseAdwaitaRootColors } from './widgets/named-colors-theme.js';
 
 import { listenPlatformKeys, openPlatformUri } from './platform-source.js';
 
@@ -21,14 +24,27 @@ import { listenPlatformKeys, openPlatformUri } from './platform-source.js';
 provideIdSelector(() => (CSSHelper.createSelector('#x') as { constructor: IdSelectorClass }).constructor);
 
 const applied = new Map<object, string>();
+const namedColors = createNamedColorsPublisher();
 
 export const nativePlatformHost: PlatformHost = {
     setStyles(list) {
+        let appended = false;
         for (const { owner, css } of list) {
             if (applied.get(owner) === css) continue;
             applied.set(owner, css);
-            if (css) Application.addCss(cssPxToDip(css));
+            if (css) {
+                Application.addCss(cssPxToDip(css));
+                appended = true;
+            }
         }
+        // The `:root` colour variables do nothing on NS, so they become override rules for the
+        // theme's literals. Owners no longer in `list` are gone, so the variables are re-read from
+        // what remains; `appended` forces a re-append because the new CSS now sits after the old
+        // override.
+        const values = new Map<string, string>();
+        for (const { css } of list) for (const [name, value] of parseAdwaitaRootColors(css)) values.set(name, value);
+        const override = namedColors.update(values, appended);
+        if (override) Application.addCss(override);
     },
     openUri: (uri) => openPlatformUri(uri),
     fontName: () => null,
