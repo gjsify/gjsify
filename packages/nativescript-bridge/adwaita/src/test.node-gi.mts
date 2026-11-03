@@ -31,6 +31,7 @@
 // late" — the exact ordering rule `tests/integration/nativescript-gi/app/app.ts` honours with a
 // side-effect import, which is unavailable here because the opt-in needs this file's own
 // `requireGi`.
+import { execFileSync } from 'node:child_process';
 import { run } from '@gjsify/unit';
 import requireGi from '@gjsify/node-gi/gi';
 import { useRealGObjectEngine } from '@gjsify/adwaita-gobject-native';
@@ -50,8 +51,40 @@ useRealGObjectEngine(requireGi);
 
 const { MenuModelRouteDNodeGiTest } = await import('./menu-model-route-d.node-gi.spec.js');
 const { CheckButtonRouteDNodeGiTest } = await import('./check-button-route-d.node-gi.spec.js');
+// A REAL Gtk.ToggleButton in its own process: it shares the GType name `GtkButton` with the port's.
+const REAL_TOGGLE_SCRIPT = `
+import requireGi from '@gjsify/node-gi/gi';
+const Gtk = requireGi('Gtk', '4.0');
+Gtk.init();
+const [a, b, c] = [new Gtk.ToggleButton(), new Gtk.ToggleButton(), new Gtk.ToggleButton()];
+const activate = [];
+let groupNotifies = 0;
+for (const [tag, button] of [['a', a], ['b', b], ['c', c]]) {
+    button.connect('toggled', () => activate.push(tag + ':toggled'));
+    button.connect('notify::active', () => activate.push(tag + ':notify::active'));
+    button.connect('notify::group', () => groupNotifies++);
+}
+a.active = true;
+b.set_group(a);
+b.set_group(a);
+b.set_group(null);
+c.group = a;
+console.log(JSON.stringify({ activate, groupNotifies }));
+`;
+
+const measureRealToggleButton = () =>
+    JSON.parse(
+        // oxlint-disable-next-line gjsify/spawn-node-binary -- this leg only ever runs on Node (see the header)
+        execFileSync(process.execPath, ['--input-type=module', '-e', REAL_TOGGLE_SCRIPT], {
+            cwd: import.meta.dirname,
+            encoding: 'utf8',
+        }),
+    ) as { activate: string[]; groupNotifies: number };
+
+const { createToggleButtonRouteDNodeGiTest } = await import('./toggle-button-route-d.node-gi.spec.js');
 
 run({
     MenuModelRouteDNodeGiTest,
     CheckButtonRouteDNodeGiTest,
+    ToggleButtonRouteDNodeGiTest: createToggleButtonRouteDNodeGiTest(measureRealToggleButton),
 });

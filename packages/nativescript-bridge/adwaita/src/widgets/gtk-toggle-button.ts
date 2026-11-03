@@ -28,7 +28,7 @@
 
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { GtkButton } from './gtk-button.js';
-import { xmlBoolean } from './xml-values.js';
+import { readDeclaredValue, withProperties, type GObjectNotify } from './signals.js';
 
 /** Event name emitted when `active` changes. Mirrors `Gtk.ToggleButton::toggled`. */
 export const GTK_TOGGLE_BUTTON_TOGGLED = 'toggled';
@@ -39,18 +39,44 @@ export const NOTIFY_TOGGLE_ACTIVE = 'notify::active';
 /** The class a pressed-in toggle button wears, which the theme gives the pressed shade. */
 export const GTK_TOGGLE_BUTTON_CHECKED_CLASS = 'checked';
 
-/** Event name emitted when `group` changes. Mirrors GObject `notify::group`. */
-export const NOTIFY_TOGGLE_GROUP = 'notify::group';
-
 /** How far the walk back to the first member goes; it only bounds what a cycle can cost. */
 const GROUP_WALK_LIMIT = 1024;
 
-export class GtkToggleButton extends GtkButton {
+export class GtkToggleButton extends withProperties(GtkButton, {
+    GTypeName: 'GtkToggleButton',
+    Properties: {
+        active: {
+            kind: 'boolean',
+            default: false,
+            explicitNotify: true,
+            blurb: 'If the toggle button should be pressed in',
+            // `set_active (TRUE)` releases every other member BEFORE this one notifies, while
+            // this one still reads false (`gtk_toggle_button_set_active` clears the group first).
+            normalize: (value, self) => {
+                const next = !!readDeclaredValue('active', 'boolean', value);
+                const button = self as GtkToggleButton;
+                if (next && !button.active && button._grouped) button._clearGroup();
+                return next;
+            },
+            // MEASURED on GTK 4.22: `toggled` first, then `notify::active`.
+            afterNotify: (self) => {
+                const button = self as GtkToggleButton;
+                button._restyle();
+                button.emit(GTK_TOGGLE_BUTTON_TOGGLED);
+                button.notify('active');
+            },
+        },
+    },
+    Signals: { toggled: {} },
+}) {
     static readonly GTypeName: string = 'GtkToggleButton';
 
-    static override readonly emittedSignals: readonly string[] = [GTK_TOGGLE_BUTTON_TOGGLED, NOTIFY_TOGGLE_ACTIVE];
+    /** `Gtk.ToggleButton:active` — whether the button is pressed in. Defaults to `false`. */
+    declare active: boolean;
 
-    private _active = false;
+    /** GJS's `notify('<prop>')` beside NativeScript's `notify({ eventName })`; see the seam. */
+    declare notify: GObjectNotify;
+
     private _groupNext: GtkToggleButton | null = null;
     private _groupPrev: GtkToggleButton | null = null;
 
@@ -60,28 +86,11 @@ export class GtkToggleButton extends GtkButton {
         // Connected first, so it runs first: GObject runs handlers in connection order.
         this.connect('clicked', (self) => {
             // `gtk_toggle_button_clicked` refuses to release an active member that has a link.
-            if (self._active && self._grouped) return;
-            self.active = !self._active;
+            if (self.active && self._grouped) return;
+            self.active = !self.active;
         });
 
         applyConstructProps(this, props);
-    }
-
-    /** `Gtk.ToggleButton:active` — whether the button is pressed in. Defaults to `false`. */
-    get active(): boolean {
-        return this._active;
-    }
-
-    set active(raw: boolean | string) {
-        const next = xmlBoolean(raw, this._active);
-        if (next === this._active) return;
-        // Before `_active` moves, so a `toggled` listener on a released member reads this
-        // one as still released (`gtk_toggle_button_set_active` clears the group first).
-        if (next && this._grouped) this._clearGroup();
-        this._active = next;
-        this._restyle();
-        this.notify({ eventName: GTK_TOGGLE_BUTTON_TOGGLED, object: this });
-        this.notify({ eventName: NOTIFY_TOGGLE_ACTIVE, object: this });
     }
 
     /**
@@ -120,7 +129,8 @@ export class GtkToggleButton extends GtkButton {
             group._groupPrev = this;
             this._groupNext = group;
         }
-        this.notify({ eventName: NOTIFY_TOGGLE_GROUP, object: this });
+        // No `notify::group`: MEASURED on GTK 4.22, `group` is write-only and not explicit-notify,
+        // and none of set_group(a) / (null) / repeated emits it.
     }
 
     /** Release every OTHER member: walk back to the first, then forwards (:426-434). */
@@ -143,6 +153,6 @@ export class GtkToggleButton extends GtkButton {
 
     protected _stateClasses(): readonly string[] {
         const inherited = super._stateClasses();
-        return this._active ? [...inherited, GTK_TOGGLE_BUTTON_CHECKED_CLASS] : inherited;
+        return this.active ? [...inherited, GTK_TOGGLE_BUTTON_CHECKED_CLASS] : inherited;
     }
 }
