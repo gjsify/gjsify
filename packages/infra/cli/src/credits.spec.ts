@@ -39,7 +39,16 @@ function commit(cwd: string, { author, email, files, trailers = [] }: FixtureCom
     git(cwd, ['add', '-A']);
     const message = ['-m', 'change'];
     if (trailers.length) message.push('-m', trailers.join('\n'));
-    git(cwd, ['-c', `user.name=${author}`, '-c', `user.email=${email}`, 'commit', '--quiet', `--author=${author} <${email}>`, ...message]);
+    git(cwd, [
+        '-c',
+        `user.name=${author}`,
+        '-c',
+        `user.email=${email}`,
+        'commit',
+        '--quiet',
+        `--author=${author} <${email}>`,
+        ...message,
+    ]);
 }
 
 let serial = 0;
