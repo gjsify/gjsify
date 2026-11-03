@@ -419,18 +419,34 @@ DONE: `AdwEntryRow:text` now refuses a written `null`/`undefined` like `gtk_edit
 (value stays, no notify), matching the bare entry. CONSUMER-VISIBLE: `row.text = null` used to
 clear to `''` and is now a no-op; write `''` to clear.
 
-MIGRATE NEXT: `widgets/gtk-check-button.ts`. It is the next cheapest: three hand-rolled members
-(`toggled`, `activate`, `notify::active`) in a `static emittedSignals` the seam would own, and
-`active` plus `inconsistent` are plain booleans whose coercion (`xmlBoolean`) the seam already
-does. The measurement to take first is the ORDER a tap produces — `gtk_check_button_real_clicked`
-clears `inconsistent` before it toggles, so there are two notifies and two signals in one gesture
-and the entry's `explicitNotify` lesson decides whether `active` can stay change-based. `group`
-is write-only in GTK (`G_PARAM_WRITABLE`) and takes another CHECK BUTTON — a NativeScript `View`,
-not a GObject on either leg — or a `ViewId` resolved out of the loaded tree
-(`builderReferences`), so it stays hand-written for two reasons the menu-model migration does not
-remove: the seam has no write-only arm (`AdwComboRow:selected-item` is read-only BY DERIVATION,
-which is the opposite shape), and `GioMenuModel.$gtype` has no counterpart here — there is no
-registered class to name in a `valueType`.
+DONE (`widgets/gtk-check-button.ts`): `active`, `inconsistent`, `label` and `use-underline` are
+declared with `withProperties` over `AdwStyledLayoutBase` — a meta-less door, so the node-gi leg
+(`check-button-route-d.node-gi.spec.ts`) is what keeps it from regressing as `Gtk.MenuButton` did —
+and `toggled` / `activate` are declared signals. All four pspecs are `explicit-notify`, so each
+`afterNotify` owes its own notify. Measured on GJS (GTK 4.22): `active = true` is
+`[notify::active, toggled]`; `activate()` is `[notify::active, toggled, activate]`; a tap is
+`set_active (!active)` alone (`click_released_cb`) and clears nothing; `label` notifies on EVERY
+write and reads `''` back as `null`; in a group `set_group` is silent and `set_active (TRUE)`
+deactivates the others BEFORE it notifies itself, while `activate()` on the active member emits
+`activate` only. `group` (write-only, takes a View) and `child` stay hand-written.
+
+CONSUMER-VISIBLE: a tap no longer emits `activate` and no longer clears `inconsistent` (GTK4 never
+did; "this has to be done manually"); `emit('activate')` now toggles; `notify::active` now comes
+BEFORE `toggled` (it was after); `notify::inconsistent`, `notify::label` and `notify::use-underline`
+are declared and listed in `emittedSignals` (the hand-written list is gone), each with a
+`NOTIFY_CHECK_*` export; `notify({ eventName: 'notify::<declared>' })` throws; the seam's coercion
+applies, so `active="maybe"` throws and `active = null` is `false`; `label` notifies on every write
+and `''` reads back `null`. Specs: `check-button-properties.spec.ts` (pure-JS),
+`check-button-route-d.node-gi.spec.ts` (real GI), `specs/check-button.ts` (device).
+
+MIGRATE NEXT: `widgets/gtk-toggle-button.ts`. It is the check button's sibling, 148 lines, and the
+same shape: `active` plus `toggled` / `notify::active`, hand-notified in the wrong order for the
+same reason, and a `group` that notifies. Take the measurements the check button just settled
+(`notify::active` before `toggled`, deactivate-the-others first) and then the ones it does not
+answer: the widget emits `notify::group` today, which must be measured before it is kept (the
+check button's `group` is write-only and silent), and `GtkToggleButton` extends `GtkButton`, which
+already declares `clicked` — the first `withProperties` over a base that is itself declared, not
+meta-less.
 
 RESOLVED (owner, 2026-10-27): `emit('<undeclared>')` throws `No signal '<name>' on object '<class>'`,
 as in GJS, on both legs. `emit` is GObject's only; a NativeScript event goes through

@@ -50,17 +50,19 @@ export const GtkControlsNsTest = async () => {
             check.connect('notify::active', () => seen.push('notify'));
             check.active = true;
             check.active = true;
-            expect(seen).toStrictEqual(['toggled', 'notify']);
+            // GTK 4.22: `notify::active` first, `toggled` after (`gtk_check_button_set_active`).
+            expect(seen).toStrictEqual(['notify', 'toggled']);
         });
 
-        await it('a tap toggles, clears inconsistent and emits activate', () => {
+        await it('a tap toggles, emits no activate and leaves inconsistent alone', () => {
+            // `click_released_cb` is `set_active (!active)`; GTK4 never clears `inconsistent`.
             const check = new Gtk.CheckButton({ inconsistent: true });
             let activated = 0;
             check.connect('activate', () => activated++);
             tap(check);
             expect(check.active).toBe(true);
-            expect(check.inconsistent).toBe(false);
-            expect(activated).toBe(1);
+            expect(check.inconsistent).toBe(true);
+            expect(activated).toBe(0);
             tap(check);
             expect(check.active).toBe(false);
         });
