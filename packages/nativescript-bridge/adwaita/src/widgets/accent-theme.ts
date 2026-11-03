@@ -42,7 +42,14 @@
 //
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { adwaitaAccentBgColor, adwaitaAccentColor, type AdwAccentColorName } from '@gjsify/adwaita-core';
+import {
+    adwaitaAccentBgColor,
+    adwaitaStandaloneColor,
+    formatAdwRgb,
+    isAdwAccentColorName,
+    parseAdwRgb,
+    type AdwAccentColorName,
+} from '@gjsify/adwaita-core';
 
 /** Which accent shade a declaration carries. */
 export type AccentRole = 'fill' | 'shade' | 'standalone-dark';
@@ -107,8 +114,16 @@ export const ADWAITA_NS_ACCENT_RULES: ReadonlyArray<AccentRule> = [
     { selector: '.ns-dark .adw-carousel-dot.active', property: 'color', role: 'standalone-dark' },
 ];
 
-/** The colour for one role of `accent`. */
-export function adwaitaNsAccentColor(accent: AdwAccentColorName, role: AccentRole): string {
+/**
+ * The colour for one role of `accent`.
+ *
+ * `accent` is one of the nine names OR any opaque colour (`#rrggbb`, `#rgb`,
+ * `rgb(...)`) — the latter is what an app's `--accent-bg-color` hands over, and the
+ * roles are derived from it exactly as they are from a palette entry. Anything else
+ * throws: a silent fallback to blue would paint the wrong accent and look like a
+ * working override.
+ */
+export function adwaitaNsAccentColor(accent: AdwAccentColorName | string, role: AccentRole): string {
     // 'shade' is the `min(l, 0.5)` derivation — libadwaita's own "darker version of
     // this colour", which is what the shade sites want. It is not scheme dependent
     // here: every one of them is already scheme specific through its selector.
@@ -117,20 +132,39 @@ export function adwaitaNsAccentColor(accent: AdwAccentColorName, role: AccentRol
     // The two are not interchangeable and the difference is the point: a press fill
     // must go darker than the accent, accent text on a dark page must go lighter.
     // Sharing one role between them is what left four rules unreachable.
-    if (role === 'fill') return adwaitaAccentBgColor(accent);
-    return adwaitaAccentColor(accent, role === 'standalone-dark');
+    let fill: string;
+    if (isAdwAccentColorName(accent)) {
+        fill = adwaitaAccentBgColor(accent);
+    } else {
+        const rgb = parseAdwRgb(accent);
+        if (!rgb) throw new RangeError(`adwaitaNsAccentColor: '${accent}' is neither an accent name nor a colour`);
+        fill = formatAdwRgb(rgb);
+    }
+    if (role === 'fill') return fill;
+    return adwaitaStandaloneColor(fill, role === 'standalone-dark');
 }
 
 /**
- * The stylesheet that repaints the theme in `accent`.
+ * The stylesheet that repaints the theme in `accent` — a name or an arbitrary colour.
  *
  * Appended to the app's CSS, so it must WIN over the rules it replaces: NS
  * resolves equal-specificity rules by order, and added CSS comes last. Every
  * selector is reproduced verbatim for that reason — a shortened or merged selector
  * would lose to the original.
+ *
+ * `options.standaloneDark` replaces the derived colour of the `standalone-dark` role.
  */
-export function adwaitaNsAccentCss(accent: AdwAccentColorName): string {
-    return ADWAITA_NS_ACCENT_RULES.map(
-        (rule) => `${rule.selector} { ${rule.property}: ${adwaitaNsAccentColor(accent, rule.role)}; }`,
-    ).join('\n');
+export function adwaitaNsAccentCss(
+    accent: AdwAccentColorName | string,
+    options?: { readonly standaloneDark?: string },
+): string {
+    return ADWAITA_NS_ACCENT_RULES.map((rule) => {
+        // An app that sets `--accent-color` itself knows the standalone colour better than
+        // the derivation does; it only reaches the dark rules, the ones that paint accent text.
+        const value =
+            rule.role === 'standalone-dark' && options?.standaloneDark
+                ? options.standaloneDark
+                : adwaitaNsAccentColor(accent, rule.role);
+        return `${rule.selector} { ${rule.property}: ${value}; }`;
+    }).join('\n');
 }

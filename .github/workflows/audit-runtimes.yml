@@ -1051,6 +1051,11 @@ jobs:
       - name: Check the NativeScript accent override covers the theme
         run: node scripts/check-nativescript-accent-rules.mjs
 
+      # Same drift, for the surface colours an app sets through `:root { --window-bg-color: … }`:
+      # the override table must cover every theme declaration that carries a role literal.
+      - name: Check the NativeScript named-colour override covers the theme
+        run: node scripts/check-nativescript-named-colors.mjs
+
       # XML is the door with no type system behind it: `setPropertyValue` ends in
       # `instance[name] = value`, so a `number` or `boolean` setter is handed the raw
       # STRING and fails silently in both directions — `<AdwAvatar size="96">` rendered
@@ -1795,6 +1800,11 @@ jobs:
       # which reads as "the accent almost works" and is invisible in a diff.
       - name: Check the NativeScript accent override covers the theme
         run: node scripts/check-nativescript-accent-rules.mjs
+
+      # Same drift, for the surface colours an app sets through `:root { --window-bg-color: … }`:
+      # the override table must cover every theme declaration that carries a role literal.
+      - name: Check the NativeScript named-colour override covers the theme
+        run: node scripts/check-nativescript-named-colors.mjs
 
       # XML is the door with no type system behind it: `setPropertyValue` ends in
       # `instance[name] = value`, so a `number` or `boolean` setter is handed the raw
