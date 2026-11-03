@@ -606,6 +606,54 @@ NativeScript APK carries three kinds of native code:
 Done means that an F-Droid metadata file for one sample app builds an APK with no prebuilt `.so`
 or `.aar` left, as F-Droid's `scanner` reports it.
 
+This blocks **only** F-Droid's main repo. Google Play, IzzyOnDroid and a plain APK accept FOSS
+prebuilts. IzzyOnDroid's reproducible-build check additionally needs
+[NativeScript/android#1885](https://github.com/NativeScript/android/issues/1885), an open bug from
+2025-11 where `buildMetaData` output is not deterministic.
+
+**What exists already (researched 2026-11-03).**
+
+How NativeScript has been packaged so far:
+- [fdroiddata#2309 "Packaging NativeScript apps"](https://gitlab.com/fdroid/fdroiddata/-/work_items/2309)
+  (2021, closed) solved the packaging:
+  - the runtime is built from source as a srclib (fdroiddata MR 8337);
+  - `node_modules` blobs are removed with `scandelete`;
+  - every plugin that ships an AAR needs its own srclib.
+- fdroiddata carries a NativeScript build template (MR 12369, merged 2023) and
+  [`srclibs/NativeScript_android-runtime.yml`](https://gitlab.com/fdroid/fdroiddata/-/raw/master/srclibs/NativeScript_android-runtime.yml).
+  That srclib still points at the old repo name `NativeScript/android-runtime`.
+- Its only user, EnRecipes (`com.vishnuraghav.EnRecipes`), is dead (`NoSourceSince: 2.0.2`, runtime
+  v7.0.1).
+- A request for another NativeScript app has been open since 2025-10
+  ([rfp#3337](https://gitlab.com/fdroid/rfp/-/work_items/3337)).
+
+Where V8 is the gap:
+- Runtime v7.0.1 still had `libv8.a` (52 MB) committed in the repo, so even that recipe did not build
+  V8.
+- Today the runtime pins V8 in `V8_RELEASE` (`v8-14.9.207.39-7`). `download_v8.sh` fetches the
+  monoliths from `NativeScript/v8-buildscripts` release assets, and `V8_SKIP_DOWNLOAD=1` accepts a
+  local build.
+- Building V8 itself on F-Droid means a full V8 build per ABI.
+
+**The "trusted" route the owner asked about exists, and it has a precedent.** The
+[Inclusion Policy](https://f-droid.org/en/docs/Inclusion_Policy/) allows prebuilt FLOSS binaries in
+two ways:
+- **From trusted Maven repos (Maven Central and others), "with specific conditions".** NativeScript
+  publishes only `org.nativescript:canvas` there, and not the runtime.
+- **As named exceptions.** Today these are "the Android SDK, Flutter SDK and Hermes". Up to
+  2026-02 the policy gave the reason for the JS engines: "JSC/Hermes … can be built from source
+  which takes hours. Currently we downloaded them from npm and scanignore them."
+
+NativeScript's V8 is the same case, but nobody has asked for it. There are two options:
+- ask F-Droid to treat V8 from `NativeScript/v8-buildscripts` releases (or the runtime AARs) like
+  Hermes;
+- get NativeScript to publish the runtime on Maven Central.
+
+Either one helps every NativeScript app, not only ours. Both are requests at third-party projects,
+so per werkstatt's upstream rule Pascal files them himself. We prepare a gjsify issue
+`Upstream (F-Droid / NativeScript, file by hand): …` with these facts, plus a working fdroiddata
+recipe for one sample app as evidence.
+
 ### Upstream PRs in flight (NativeScript) — track until merged
 
 Two fixes contributed upstream so NS apps work without gjsify-side workarounds. **Both OPEN as of 2026-06-04.** Revisit when either merges + ships in a NativeScript release: drop the corresponding workaround, then bump the version floor / re-validate.
