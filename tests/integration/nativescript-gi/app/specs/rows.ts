@@ -338,6 +338,13 @@ export const rowsSpec = (engine: 'real-gio' | 'pure-js') => async (): Promise<vo
             expect(entryInner(row)._applyButton instanceof View).toBe(true);
         });
 
+        await it('refuses a null text like GTK, leaving the value standing', () => {
+            const row = new Adw.EntryRow();
+            row.text = 'Ada';
+            (row as unknown as { text: unknown }).text = null;
+            expect(row.text).toBe('Ada');
+        });
+
         await it("starts at adw_entry_row_init's defaults", () => {
             const row = new Adw.EntryRow();
             info(

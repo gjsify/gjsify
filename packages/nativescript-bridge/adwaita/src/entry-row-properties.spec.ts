@@ -232,6 +232,17 @@ export const AdwEntryRowPropertiesNsTest = async () => {
             expect(seen).toStrictEqual(['Ada', '']);
         });
 
+        await it('refuses a null or undefined text, leaving the value standing and silent', () => {
+            const row = new Adw.EntryRow();
+            row.text = 'Ada';
+            const seen: string[] = [];
+            row.connect(NOTIFY_TEXT, (self) => seen.push(self.text));
+            (row as unknown as { text: unknown }).text = null;
+            (row as unknown as { text: unknown }).text = undefined;
+            expect(row.text).toBe('Ada');
+            expect(seen).toStrictEqual([]);
+        });
+
         await it('has text-length settled by the time either notify reaches a consumer', () => {
             // `text-length` is derived INSIDE the `notify::text` emission, so a consumer of
             // either one reads a row whose two values agree — which is the whole reason the

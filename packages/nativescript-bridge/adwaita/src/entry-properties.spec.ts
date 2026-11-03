@@ -189,9 +189,8 @@ export const GtkEntryPropertiesNsTest = async () => {
             expect(fieldOf(entry).text).toBe('');
         });
 
-        await it('REFUSES a null, leaving the value standing — the measurement, not the row', () => {
-            // DIVERGENCE #3, and the one place this class parts with `AdwEntryRow`, which resolves
-            // a `null` to `''`. Upstream refuses it: `gtk_editable_set_text` asserts
+        await it('REFUSES a null, leaving the value standing', () => {
+            // Matches `AdwEntryRow`. Upstream refuses it: `gtk_editable_set_text` asserts
             // `text != NULL`, the value does not move and nothing is emitted. The normalizer
             // answers with the text already held, so the equal-write rule drops the write.
             const entry = new Gtk.Entry();
