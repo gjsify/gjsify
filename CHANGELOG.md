@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.64.17](https://github.com/gjsify/gjsify/compare/v0.64.16...v0.64.17) (2026-11-03)
+
+### Features
+
+* **adwaita-nativescript:** adwaita color vars on NS ([#2531](https://github.com/gjsify/gjsify/issues/2531)) ([a9f1d77](https://github.com/gjsify/gjsify/commit/a9f1d77325755c5c0cdd698637f756d0f2f71929))
+* **adwaita:** declare Gtk.CheckButton at the seam ([#2517](https://github.com/gjsify/gjsify/issues/2517)) ([1cd1472](https://github.com/gjsify/gjsify/commit/1cd14727f5a53991fbdee0f38eedea4dd8fdecdd)), closes [#2488](https://github.com/gjsify/gjsify/issues/2488)
+* **cli:** add gjsify credits ([#2521](https://github.com/gjsify/gjsify/issues/2521)) ([4acb255](https://github.com/gjsify/gjsify/commit/4acb255faa720bd4df4769c77937aa61c6264950))
+* **cli:** generate Android launcher icons ([#2527](https://github.com/gjsify/gjsify/issues/2527)) ([b62c9d4](https://github.com/gjsify/gjsify/commit/b62c9d4b3cacf187833d79c45a024c2472122b7b))
+* **gi-runtime-android-gtk:** `ADR` 0117 stage 1b ([#2526](https://github.com/gjsify/gjsify/issues/2526)) ([7dc630b](https://github.com/gjsify/gjsify/commit/7dc630b2743160269e24079836d319c8d7f458d9))
+* **nativescript:** run the Adwaita port on iOS ([#2489](https://github.com/gjsify/gjsify/issues/2489)) ([95a1c2f](https://github.com/gjsify/gjsify/commit/95a1c2f61ea4d94421a9f55f74d0c4cca97cbce9))
+
+### Bug Fixes
+
+* **adwaita:** refuse null text on EntryRow ([#2518](https://github.com/gjsify/gjsify/issues/2518)) ([9fd199f](https://github.com/gjsify/gjsify/commit/9fd199f61b2df8a4d317378082cb9880fed0f256))
+* **bundler:** name Worker files per target suffix ([#2515](https://github.com/gjsify/gjsify/issues/2515)) ([f849f90](https://github.com/gjsify/gjsify/commit/f849f90090c2a9e9a2ffc845c6aa823779950fb0)), closes [#2338](https://github.com/gjsify/gjsify/issues/2338)
+* **cli:** pin credits translators per language ([#2525](https://github.com/gjsify/gjsify/issues/2525)) ([2941bc2](https://github.com/gjsify/gjsify/commit/2941bc22bdd694191ae757905f09d1c2cf528497))
+* **hooks:** skip rebuild on foreign node_modules ([#2519](https://github.com/gjsify/gjsify/issues/2519)) ([d240f5e](https://github.com/gjsify/gjsify/commit/d240f5e25113cdf96609d98deb818565c9bdc523))
+* **nativescript-vite:** dedupe symlinked modules ([#2520](https://github.com/gjsify/gjsify/issues/2520)) ([e06ff77](https://github.com/gjsify/gjsify/commit/e06ff773787c934467b08d10092a913fca828fc5))
+* **net:** bind the host listen() was given ([#2522](https://github.com/gjsify/gjsify/issues/2522)) ([65b0458](https://github.com/gjsify/gjsify/commit/65b04585b699dcc48cac6ef5b4ae39d73638879b))
+* **node-gi:** drain microtasks before GDK prepares ([#2523](https://github.com/gjsify/gjsify/issues/2523)) ([d99349c](https://github.com/gjsify/gjsify/commit/d99349c0f524ce1f8f42ddc39872a8b7e7b907f6))
+
+### Documentation
+
+* **adr:** 0134 HTTPS trusts the OS store ([#2529](https://github.com/gjsify/gjsify/issues/2529)) ([e7f0269](https://github.com/gjsify/gjsify/commit/e7f026913f6dacda98b57c86eee2188d0a580a85))
+* **adr:** a status icon on every desktop ([#2514](https://github.com/gjsify/gjsify/issues/2514)) ([45260f1](https://github.com/gjsify/gjsify/commit/45260f1e8ad0e6b57aed9d58496dabc06ae80f02))
+* **status:** `F-Droid` route for NativeScript runtime ([#2530](https://github.com/gjsify/gjsify/issues/2530)) ([0e2ce9e](https://github.com/gjsify/gjsify/commit/0e2ce9e371caae103f4712f706c20dfb00c66251))
+
+### Maintenance
+
+* **cli:** default to GNOME runtime 51 ([#2516](https://github.com/gjsify/gjsify/issues/2516)) ([928ea83](https://github.com/gjsify/gjsify/commit/928ea83f5041b1f62000064eea7a11aa5e3dc69a))
+* update native prebuilds [skip ci] ([b334eca](https://github.com/gjsify/gjsify/commit/b334ecad64cab5a9ed4253e10b78533fd9bdecdf))
+
 ## [0.64.16](https://github.com/gjsify/gjsify/compare/v0.64.15...v0.64.16) (2026-11-01)
 
 ### Features
