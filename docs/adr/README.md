@@ -150,6 +150,8 @@ the TODO records the *what's left*.
 | [0128](0128-a-menu-model-is-a-real-menu-model.md) | A menu model is a real `Gio.MenuModel`, and the abstract base is a class | Accepted |
 | [0129](0129-a-status-icon-on-every-desktop.md) | A status icon on every desktop through `@gjsify/status-icon`; running in the background stays with `Gio.Application.hold()` and `Xdp` (ADR 0101) | Accepted |
 | [0130](0130-credits-come-from-the-git-history.md) | `gjsify credits` derives contributor credits from the git history; an overrides file covers supporters and exclusions | Accepted |
+| [0132](0132-ai-capabilities-share-one-shape.md) | AI capabilities share one shape: the web API where one exists, the built-in AI pattern where none does, a remote engine only when the app registers one | Proposed |
+| [0133](0133-fork-and-worker-share-one-ipc-channel.md) | `child_process.fork` and `Worker` share one IPC channel, extracted from `worker_threads` into its own package | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
