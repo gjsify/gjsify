@@ -256,7 +256,9 @@ export function hashInputs(input: { icon: Uint8Array; symbolic: Uint8Array | nul
 
 /** The stamp's paths are relative to the resources directory, so it survives a move of the project. */
 export function buildStamp(inputs: string, plan: AndroidIconPlan, resPrefix: string): AndroidIconsStamp {
-    const files = [...plan.png.map((p) => p.path), ...plan.text.map((t) => t.path)].map((p) => posix.join(resPrefix, p));
+    const files = [...plan.png.map((p) => p.path), ...plan.text.map((t) => t.path)].map((p) =>
+        posix.join(resPrefix, p),
+    );
     return { generator: ANDROID_ICONS_GENERATOR_VERSION, inputs, files: files.sort() };
 }
 

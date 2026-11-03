@@ -3,7 +3,16 @@
 // Writes the Android launcher icon and splash logo of a NativeScript app from the
 // ONE app icon the GNOME way already declares, so no app hand-maintains rasters.
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    readdirSync,
+    rmSync,
+    statSync,
+    writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
@@ -53,7 +62,11 @@ function discoverIcon(projectDir: string, flag: string | undefined): { icon: str
     // The app's own `data/` first, then the sibling GNOME package of a monorepo.
     const roots = [join(projectDir, 'data', 'icons'), ...siblingIconRoots(projectDir)];
     for (const root of roots) {
-        const found = pickIconSources(walk(root).filter((f) => f.toLowerCase().endsWith('.svg')).sort());
+        const found = pickIconSources(
+            walk(root)
+                .filter((f) => f.toLowerCase().endsWith('.svg'))
+                .sort(),
+        );
         if (found.icon !== null) return { icon: found.icon, symbolic: found.symbolic };
     }
     throw new Error('no app icon found; pass --icon <svg> or set `gjsify.androidIcons.icon`');
@@ -73,7 +86,9 @@ function findMetainfoColor(iconPath: string, projectDir: string): string | null 
     // `<pkg>/data/icons/hicolor/scalable/apps/<id>.svg` → `<pkg>/data`
     roots.add(resolve(dirname(iconPath), '..', '..', '..', '..'));
     for (const root of roots) {
-        const files = walk(join(root, 'metainfo')).filter((f) => /\.metainfo\.xml(\.in)?$/.test(f)).sort();
+        const files = walk(join(root, 'metainfo'))
+            .filter((f) => /\.metainfo\.xml(\.in)?$/.test(f))
+            .sort();
         for (const file of files) {
             const color = parseMetainfoBranding(readFileSync(file, 'utf8'));
             if (color !== null) return color;
@@ -162,11 +177,13 @@ export const androidIconsCommand: Command<unknown, AndroidIconsOptions> = {
                     sources.set('monochrome', file);
                 }
                 for (const [kind, svg] of sources) {
-                    const wanted = plan.png.filter((p) => (kind === 'plain' ? p.kind === 'legacy' || p.kind === 'splash' : p.kind === kind));
+                    const wanted = plan.png.filter((p) =>
+                        kind === 'plain' ? p.kind === 'legacy' || p.kind === 'splash' : p.kind === kind,
+                    );
                     const sizes = [...new Set(wanted.map((p) => p.size))];
                     const rendered = await rasterizeSvg({ svg, sizes, command: 'gjsify android-icons' });
                     for (const spec of wanted) {
-                        const target = join(res, ...spec.path.split('/'));
+                        const target = join(res, spec.path);
                         mkdirSync(dirname(target), { recursive: true });
                         writeFileSync(target, rendered.get(spec.size) as Uint8Array);
                     }
@@ -175,7 +192,7 @@ export const androidIconsCommand: Command<unknown, AndroidIconsOptions> = {
                 rmSync(tmp, { recursive: true, force: true });
             }
             for (const spec of plan.text) {
-                const target = join(res, ...spec.path.split('/'));
+                const target = join(res, spec.path);
                 mkdirSync(dirname(target), { recursive: true });
                 writeFileSync(target, spec.content);
             }
