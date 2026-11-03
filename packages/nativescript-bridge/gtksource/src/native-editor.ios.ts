@@ -27,8 +27,8 @@
 
 import type {
     CGRect,
+    NSAttributedStringInstance,
     NSRangeValue,
-    NSStringInstance,
     ObjCClass,
     TextAttributes,
     UIBarButtonItemInstance,
@@ -108,6 +108,11 @@ declare const UIAction: {
         handler: (action: unknown) => void,
     ): unknown;
 };
+declare const NSAttributedString: {
+    alloc(): {
+        initWithStringAttributes(text: string, attributes: TextAttributes): NSAttributedStringInstance;
+    };
+};
 declare const NSFontAttributeName: string;
 declare const NSForegroundColorAttributeName: string;
 declare const NSBackgroundColorAttributeName: string;
@@ -148,7 +153,9 @@ interface EditReporter {
 }
 
 /** `this` inside an `.extend()` implementation: the ObjC instance plus the runtime's `super` proxy. */
-type ExtendedTextView = UITextViewNative & { super: { drawRect(rect: CGRect): void } };
+type ExtendedTextView = UITextViewNative & {
+    super: { drawRect(rect: CGRect): void; layoutSubviews(): void };
+};
 
 /** The delegate object, which carries the driver the way the view does. */
 type EditDelegate = { driver?: object };
@@ -198,8 +205,33 @@ function gutterTextView(): ObjCClass<UITextViewNative> {
             drawRect(this: ExtendedTextView, rect: CGRect) {
                 const driver = this.driver as DrawingDriver | undefined;
                 driver?.drawBehind(this);
-                this.super.drawRect(rect);
+                // The gutter goes down BEFORE the glyphs, not after: it occupies the strip the
+                // container inset reserves, where no glyph is laid out, so nothing of it is
+                // overdrawn — and painting it first puts its background over the current-line
+                // band in that strip, which is the stacking GTK has. The band stays underneath
+                // everywhere else.
                 driver?.drawGutter(this);
+                this.super.drawRect(rect);
+            },
+            /**
+             * Hold the container unbounded, which is what makes a logical line ONE line
+             * fragment and the gutter arithmetic exact.
+             *
+             * `attach()` writes `widthTracksTextView = false` and an unbounded size once, and
+             * a `UITextView` puts BOTH back on its next layout pass — measured on an iPhone 17
+             * simulator, `widthTracksTextView` read `true` again on every `layoutSubviews`, and
+             * with it set the size assignment is clamped to the view's own width on the spot
+             * (logged: a write of 1e7 reading back as 340). The editor word-wrapped for the
+             * whole session, and the gutter numbers walked away from their lines, because
+             * `fragmentRect` addresses a line by the one fragment the no-wrap rule promises it.
+             * Re-asserting only the size is not enough; the flag has to go with it, every pass.
+             */
+            layoutSubviews(this: ExtendedTextView) {
+                this.super.layoutSubviews();
+                const container = this.textContainer;
+                if (!container.widthTracksTextView && container.size.width === UNBOUNDED) return;
+                container.widthTracksTextView = false;
+                container.size = { width: UNBOUNDED, height: UNBOUNDED };
             },
         },
         { name: 'GjsifyGtkSourceTextView' },
@@ -242,9 +274,12 @@ function uiColor(argb: number): UIColorInstance {
     return UIColor.colorWithRedGreenBlueAlpha(red, green, blue, alpha);
 }
 
-/** A JS string IS an `NSString` across the ObjC bridge, so measuring and drawing need no wrapper. */
-function asNSString(text: string): NSStringInstance {
-    return text as unknown as NSStringInstance;
+/**
+ * The text as an object that carries UIKit's measuring and drawing verbs — see
+ * `NSAttributedStringInstance` for why a JS string does not.
+ */
+function attributed(text: string, attributes: TextAttributes): NSAttributedStringInstance {
+    return NSAttributedString.alloc().initWithStringAttributes(text, attributes);
 }
 
 class IosEditorDriver implements NativeEditorDriver, DrawingDriver, EditReporter {
@@ -590,7 +625,7 @@ class IosEditorDriver implements NativeEditorDriver, DrawingDriver, EditReporter
     // --- geometry ----------------------------------------------------------------------------------
 
     private measureText(text: string): number {
-        return asNSString(text).sizeWithAttributes(this.baseAttributes()).width;
+        return attributed(text, this.baseAttributes()).size().width;
     }
 
     private numbersPoints(lineCount: number): number {
@@ -649,10 +684,10 @@ class IosEditorDriver implements NativeEditorDriver, DrawingDriver, EditReporter
     }
 
     private draw(text: string, x: number, y: number, color: number): void {
-        asNSString(text).drawAtPointWithAttributes(
-            { x, y },
-            { ...this.baseAttributes(), [NSForegroundColorAttributeName]: uiColor(color) },
-        );
+        attributed(text, { ...this.baseAttributes(), [NSForegroundColorAttributeName]: uiColor(color) }).drawAtPoint({
+            x,
+            y,
+        });
     }
 
     drawBehind(view: UITextViewNative): void {

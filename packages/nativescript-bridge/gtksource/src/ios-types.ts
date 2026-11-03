@@ -139,7 +139,25 @@ export interface UIToolbarInstance extends UIViewNative {
     setItemsAnimated(items: UIBarButtonItemInstance[], animated: boolean): void;
 }
 
-export interface NSStringInstance {
-    drawAtPointWithAttributes(point: CGPoint, attributes: TextAttributes): void;
-    sizeWithAttributes(attributes: TextAttributes): CGSize;
+/**
+ * The measuring and drawing pair the gutter needs, on an object that really carries them.
+ *
+ * NOT `NSString`: `-sizeWithAttributes:` and `-drawAtPoint:withAttributes:` are UIKit's
+ * `NSStringDrawing` CATEGORY on `NSString`, and the NativeScript iOS runtime marshals a JS
+ * string as a VALUE — the string it hands ObjC carries no category methods back, so
+ * `("1" as NSString).sizeWithAttributes(…)` raises `TypeError: … is not a function`. That
+ * throw happened inside a `-drawRect:` override, where the runtime swallows it: the gutter
+ * painted nothing at all and reported no error, for as long as the iOS driver existed.
+ * `NSAttributedString` is a real bridged object, and the same two verbs sit on it.
+ */
+export interface NSAttributedStringInstance {
+    drawAtPoint(point: CGPoint): void;
+    /**
+     * A METHOD, not a property: `NSStringDrawing` declares `- (CGSize)size;`, and the
+     * NativeScript bridge only exposes an ObjC `@property` as a JS accessor. Read as a
+     * property it answers the function object, `.width` on it is `undefined`, and the `NaN`
+     * travels — through `gutterWidth` into `textContainerInset.left`, which UIKit then takes
+     * as zero, so the gutter and the text overlap at x=0 with nothing raising an error.
+     */
+    size(): CGSize;
 }
