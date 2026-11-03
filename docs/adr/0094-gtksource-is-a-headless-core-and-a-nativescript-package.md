@@ -293,3 +293,54 @@ several more `drawRect:` passes still shows no gutter column or widened text ins
 instrumented further this pass (the `drawRect:`/`applyLayout()`/`textContainerInset` interaction
 itself, and whether `visibleLines()` ever returns non-null on the first passes, are the next
 things to log). Whether GNOME/Android render this correctly is still unconfirmed.
+
+## Amendment (2026-11-03, same day): the keyboard now dismisses; the gutter paint itself is the gap
+
+**The iOS code editor's keyboard could not be dismissed — fixed.** Nothing on iOS closed the
+software keyboard: a `UITextView` has no back button, and the editor had no tap-outside target, so
+the keyboard stayed open over the hammer button and the tab bar for the rest of the session. Fixed
+in `native-editor.ios.ts`: `keyboardDismissMode = onDrag` plus an `inputAccessoryView` carrying a
+"Done" button, verified end to end on the iPhone 17 simulator (type → Done → hammer and tab bar
+reachable → Assemble → Play → the game console draws → a D-pad tap changes the snake's direction).
+Two sub-findings worth keeping: a `UIBarButtonItem` built from `UIBarButtonSystemItemDone` renders
+nothing at all here — present, zero-size, no exception — so the visible button is a plain
+`UIButton` wrapped as the item's `customView`; and a target-action selector string a `.extend()`
+class does not LITERALLY implement (`'dismissKeyboard:'` when the class only has `dismissKeyboard`,
+or vice versa) does not fail quietly — `-sendAction:to:from:forEvent:` calls
+`doesNotRecognizeSelector:` and the app aborts (`SIGABRT`, visible on the simulator as an instant
+drop to the home screen) — so the tap handler goes through `UIAction`'s closure instead, which
+needs no selector at all.
+
+**The line-number gutter: traced to the actual paint call, not yet past it.** Continuing the
+previous amendment's trace with full instrumentation (since reverted): `gutterPoints()` genuinely
+computes 36pt on the very first `drawRect:` (confirmed non-zero `GutterRendererLineNumbers` column,
+width 24 + 6 + 6 margin) and `applyLayout()` has already run by then —
+`view.textContainerInset.left` reads **48** (12 own margin + 36 gutter) on that same first call, so
+the TEXT CONTAINER INSET genuinely reserves the gutter's space; this is not a width-computation
+bug. The gutter's columns carry real, non-empty cell text (`vfunc_query_data` runs; a separate,
+now-fixed easy6502 bug made it read `"0","1","2",…` instead of `"1","2","3",…`, see below). The
+palette colours are correct, opaque, non-degenerate (`lineNumberForeground` a legible grey
+`#8a8f92`, `lineNumberBackground` a near-white `#f6f5f4`, both measured, not assumed). And yet nothing
+paints: a forced, unconditional `UIRectFillUsingBlendMode` fill at `(0, 0, 40, 200)` in bright red,
+placed in the EXACT same `drawGutter()` call that has all the numbers above — reaches zero pixels
+on screen (checked by scanning the screenshot for the fill colour, not by eye). Ruled out this
+pass: draw order relative to `this.super.drawRect(rect)` (tried gutter-before-text and
+gutter-after-text — identical, still invisible); a clipped/partial dirty rect (`drawRect:`'s own
+`rect` argument is logged as the FULL view bounds, `(0, 0, 402, 13975)` — the view's `bounds` is
+the whole ~860-line document, not a viewport, because an ancestor scroll view scrolls it rather
+than the `UITextView` itself); and `visible` being `null` (it reads a real `{first, last}` range on
+every capture). The one thing this pass did NOT get to: whether a SECOND `UIRectFillUsingBlendMode`
+call within the same `drawRect:` invocation behaves differently from the first (the current-line
+band, `drawBehind()`'s identical call, DOES render — it is the only reason this is narrowed to
+"something about the gutter's specific call" rather than "CGContext fills never work here" at all).
+Next step: log immediately before/after each `UIRectFillUsingBlendMode` call whether
+`UIGraphicsGetCurrentContext()`-equivalent state looks sane, and try replacing it with a
+`UIBezierPath`/`CGContextFillRect` call to see whether the blend-mode function specifically is at
+fault for a second call in one pass.
+
+Also fixed, in easy6502 not gjsify (`packages/ui/src/source-view.ts`): `setupLineNumbers()` built
+`GutterRendererLineNumbers` with no `mode` in its constructor params, then set `.mode` right after
+construction — but the renderer's OWN constructor computes its default `startValue` from `mode`
+BEFORE that external assignment lands, so it always picked HEX's `startValue = 0`, off by one from
+NORMAL's `1`. Passing `mode` at construction fixes it; unrelated to the rendering gap above, and
+would have been invisible either way until the gap closes.

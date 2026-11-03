@@ -153,6 +153,30 @@ through the view's key listener, so a controller sees it once. The window always
 sets `cancel`. A window nested in another window subscribes nothing; `onUnloaded` unsubscribes.
 Unverified on a device.
 
+## A `GridLayout` star cell does not centre its child on iOS (open, `GtkButton` circular labels)
+
+Verified on an iPhone 17 simulator (2026-11-03), Learn6502's gamepad A/B buttons
+(`gtk-button.ts`'s `GridLayout` with one `star` row/column, as every button-shaped widget in this
+port uses): `_adopt()` sets `horizontalAlignment: 'center'`/`verticalAlignment: 'middle'` on the
+label BEFORE `addChild` (also tried AFTER — no difference) and `GridLayout.setColumn/setRow(view,
+0)`. Logged the label's real `UIView.frame` off `layoutChanged` and again 0.5s/1.5s/3s later (so
+not a pre-layout transient): it measures its correct INTRINSIC size (~11×18pt, a one-letter label)
+but its `frame.origin` is **always `(0, 0)`** — pinned to the cell's top-left corner, never
+centred — regardless of how long the view has been on screen. A regular (non-`circular`) button's
+5–16pt padding happened to keep this invisible; `.circular` has none, and Learn6502's gamepad A/B
+request 55×55 against a 34px floor, making the uncentred text visibly off in the corner of a
+circle.
+
+A CSS restatement of the same intent (`horizontal-align`/`vertical-align`/`text-align: center` on
+`.adw-button-label`) was tried and **measured to change nothing** — the label's frame is still
+`(0, 0)` with the CSS in place — so the JS property was never the missing half; something in how
+NativeScript's iOS `GridLayout` arranges a child of a 1×1 `star` grid is the actual cause. Reverted
+(`004c591d2`/easy6502 `20b97fa`) rather than left in as a dead restatement. Not yet tried: an
+explicit margin computed from the two measured frames as a manual-centring fallback (iOS-only,
+gated like the rest of this bridge on `typeof NSFileManager !== 'undefined'`), or reproducing the
+same 1×1-`star`-cell shape in a bare `@nativescript/core` sample with no Adwaita code at all, to
+tell a `GridLayout` bug from something specific to this port's `GtkButton`.
+
 ## Shipped declarations are judged without `skipLibCheck`
 
 `tests/e2e/consumer-types-adwaita` type-checks the built declarations of `adwaita-web`, `adwaita-nativescript` and `gtksource-nativescript` with and without `lib.dom`; `@nativescript/core` is never loaded (its own `.d.ts` fail under TS 6, and its `global-types.d.ts` redeclares `Reflect`/`WeakRef`), the ns cases merge its upstream `View`/`GridLayout` members onto `ns-core.d.ts` instead. Shipped declarations name no `lib.dom` type directly (`BridgeCanvas`/`FrameCallback` in the canvas2d bridges), and a mixin whose accessors the base class re-declares ships as a `declare abstract class` (`GtkWidgetLayoutMembers`), never an interface (TS2611). The fixture's `KNOWN_GAPS` is empty. A GTK property whose name an NS `View` member already owns (`AdwBottomSheet.modal`, `AdwDataGrid.rows`/`columns`, `AdwSplitButton.direction`) has no JS accessor on NS: it stays reachable through `get_/set_`, `get_property`/`set_property`, `notify::`, `bind_property` and Blueprint, which the builder routes through the table in `widgets/shadowed-properties.ts`. The NS XML writer refuses those names, since NS's `Builder` would assign them to the View member. `AdwToggle.name` was our own clash with `GtkWidgetLayoutMembers.name` and now returns `''` when unset. `scripts/check-gtk-host-member-clashes.mjs` fails when a new GTK property name collides with a member from the `@nativescript/core` or `lib.dom` snapshots in `status/`. The rule: [ADR 0112](adr/0112-gtk-properties-never-take-a-platform-member-name.md).
