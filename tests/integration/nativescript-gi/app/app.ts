@@ -27,6 +27,7 @@ import { menuButtonSpec } from './specs/menu-button.js';
 import { comboRowSpec } from './specs/combo-row.js';
 import { entrySpec } from './specs/entry.js';
 import { checkButtonSpec } from './specs/check-button.js';
+import { toggleButtonSpec } from './specs/toggle-button.js';
 import { spinnerSpec } from './specs/spinner.js';
 import { windowTitleSpec } from './specs/window-title.js';
 import { rowsSpec } from './specs/rows.js';
@@ -118,6 +119,9 @@ async function runSuite(): Promise<void> {
                 // Four properties and two signals declared over the meta-less `AdwStyledLayoutBase`,
                 // where the grouped activation order and `label`'s notify-every-write are the traps.
                 await checkButtonSpec(engine)();
+                // `active` + `toggled` declared over `GtkButton`, itself declared: `clicked` stays
+                // inherited, `toggled` precedes `notify::active`, and `notify::group` never fires.
+                await toggleButtonSpec(engine)();
             }
             if (optedIn) await inversionSpec();
             if (optedIn) await foreignParentSpec();
