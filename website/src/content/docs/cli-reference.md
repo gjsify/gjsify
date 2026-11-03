@@ -41,7 +41,7 @@ Keep the `@latest` tag. All three runners reuse a cached copy of an unpinned bin
 | Debug a running app | [`storybook`](#gjsify-storybook) · [`debug`](#gjsify-debug) · [`browse`](#gjsify-browse) |
 | Browser extensions | [`webext`](#gjsify-webext) |
 | Ship it | [`ship`](#gjsify-ship) · [`flatpak`](#gjsify-flatpak) · [`site`](#gjsify-site) |
-| Publish to npm | [`pack`](#gjsify-pack) · [`publish`](#gjsify-publish) · [`whoami`](#gjsify-whoami) · [`release-notes`](#gjsify-release-notes) · [`login`](#gjsify-login) · [`logout`](#gjsify-logout) · [`trust`](#gjsify-trust) · [`onboard`](#gjsify-onboard) |
+| Publish to npm | [`pack`](#gjsify-pack) · [`publish`](#gjsify-publish) · [`whoami`](#gjsify-whoami) · [`release-notes`](#gjsify-release-notes) · [`credits`](#gjsify-credits) · [`login`](#gjsify-login) · [`logout`](#gjsify-logout) · [`trust`](#gjsify-trust) · [`onboard`](#gjsify-onboard) |
 
 ## Start a project
 
@@ -554,6 +554,7 @@ Anything you would pass repeatedly on the command line can live in the `gjsify` 
 | `browse`, `devtools` | Defaults for [`gjsify browse`](#gjsify-browse), [`gjsify debug`](#gjsify-debug) and [`gjsify devtools`](#gjsify-devtools). |
 | `flatpak` | Config for the [`gjsify flatpak`](#gjsify-flatpak) commands. |
 | `ship` | Config for [`gjsify ship`](#gjsify-ship). Metadata falls back to `flatpak`. |
+| `credits` | `output`, `overrides` and `ignore` (patterns that replace the default bot and AI list) for [`gjsify credits`](#gjsify-credits). |
 
 ### Where `define` goes
 
@@ -2124,6 +2125,37 @@ gh release create v0.1.7 --notes "$(gjsify release-notes v0.1.7 --compare)"
 | `--metainfo <path>` | none | Read the `<release>` entries from this AppStream metainfo file instead of the config. |
 
 Lookup order: `--metainfo`, then `gjsify.ship.releases`, then `gjsify.flatpak.releases`, then the file named by `gjsify.site.metainfo`. The metainfo reader takes the untagged `<description>` of each `<release>` (`xml:lang` translations are skipped): `<p>` becomes a paragraph, `<ul>`/`<ol>` with `<li>` become `- ` items, `<em>`/`<code>`/`<strong>` become `*…*`/`` `…` ``/`**…**`, and entities are decoded. Newest entry first, as in the file, so `--compare` uses the next entry down.
+
+### `gjsify credits`
+
+Derive contributor credits from the git history and write them as `credits.json`, for an About dialog or a README. Authors and `Co-authored-by:` trailers are read from the log with `.mailmap` applied. The output holds names only, never e-mail addresses.
+
+```bash
+gjsify credits                  # write credits.json
+gjsify credits --stdout         # print instead of writing
+gjsify credits --check          # exit 1 when credits.json is stale
+```
+
+A commit that touches any file other than `.po` / `.pot` credits its people as `developers`. A commit that touches `.po` files credits them as `translators` for each language, the language being the `.po` basename (`de`, `pt_BR`). A Weblate co-author trailer counts as a translator for the languages the commit touched. Merge commits are skipped. Each list is sorted by commit count, then name.
+
+```json
+{
+  "developers": ["Ada Example"],
+  "translators": { "de": ["Max Beispiel"] },
+  "supporters": ["Example Foundation"]
+}
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `-o, --output <path>` | `credits.json` | Where to write the file. |
+| `--overrides <path>` | `credits.overrides.json` | Manual additions and exclusions. Missing is fine at the default path and an error when you name it. |
+| `--check` | `false` | Compare with the file on disk, ignoring formatting. Exits 1 when it is stale. |
+| `--stdout` | `false` | Print the JSON instead of writing. |
+
+Bots and AI co-authors are dropped by name or e-mail. Set `gjsify.credits.ignore` in `package.json` to a list of patterns (`*` is the only wildcard, matched against the whole name or e-mail, case-insensitive) to replace the default list.
+
+`credits.overrides.json` takes `developers`, `translators` (language to names), `supporters` and `exclude` (patterns). Unknown keys are an error. `supporters` comes only from this file. A shallow clone is an error, because the history would be incomplete.
 
 ### `gjsify login`
 

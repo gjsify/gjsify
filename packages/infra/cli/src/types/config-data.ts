@@ -214,6 +214,8 @@ export interface ConfigData {
      * typed here: `gjsify release-notes` reads releases from it when the config has none.
      */
     site?: { metainfo?: string };
+    /** Config for `gjsify credits`. CLI flags override these. */
+    credits?: ConfigDataCredits;
     /**
      * Config for `gjsify format` / `lint` / `fix`. A thin shell: oxc's own
      * `.oxfmtrc.json` / `.oxlintrc.json` are the real configuration files.
@@ -223,6 +225,20 @@ export interface ConfigData {
     test?: ConfigDataTest;
     /** Config for the `nativescript` target — what the APK carries (ADR 0117). */
     nativescript?: ConfigDataNativescript;
+}
+
+/** `gjsify.credits` — where `gjsify credits` writes and what it leaves out. */
+export interface ConfigDataCredits {
+    /** File to write. Default `credits.json`. */
+    output?: string;
+    /** Hand-kept additions and exclusions. Default `credits.overrides.json`, read when it exists. */
+    overrides?: string;
+    /**
+     * Patterns for people who are not contributors (bots, AI co-authors, translation services),
+     * matched against the name and the e-mail with `*` as the only wildcard. REPLACES the built-in
+     * list rather than extending it, so a project can also take a name off it.
+     */
+    ignore?: string[];
 }
 
 /**

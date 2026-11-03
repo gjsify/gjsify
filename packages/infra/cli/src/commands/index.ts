@@ -23,6 +23,7 @@ export * from './workspace.js';
 export * from './pack.js';
 export * from './publish.js';
 export * from './release-notes.js';
+export * from './credits.js';
 export * from './whoami.js';
 export * from './login.js';
 export * from './logout.js';
