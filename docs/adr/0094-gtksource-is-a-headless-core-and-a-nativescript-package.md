@@ -274,14 +274,22 @@ plain `UIRectFill`, plus `view.opaque = false` so the `drawRect:` context is pre
 transparent each pass, per UIKit's own documented contract for opaque views ("may have
 non-zeroed pixels", `clearsContextBeforeDrawing` ignored).
 
-**The line-number gutter does not appear — diagnosed, not fixed.** `drawGutter` never receives
-any columns (`host.gutterColumns()` returns `[]`). The app's `SourceView.setupLineNumbers()`
-(`packages/ui/src/source-view.ts`) is only reached from the `lineNumbers` setter, and that setter
-is never called for the plain code editor: `editor.blp` does not author `line-numbers: true` (only
-`hexdump.blp`, `disassembled.blp`, `hex-monitor.blp` and `example-list-item.blp` do), and the
-`GObject.ParamSpec.boolean('line-numbers', …, true)` default is pure introspection metadata — a
-class that defines its OWN getter/setter (as `SourceView` does) is never auto-invoked with a
-ParamSpec's declared default at construction, on any GObject engine, real or pure-JS. Whether this
-also affects GNOME/Android (same `.blp`, same missing explicit property) or is masked there by
-something else is unconfirmed — not reached within this pass's budget. The `eu.jumplink.Learn6502`
-GSettings key `show-line-numbers` is unused by any `*.ts` in `packages/ui/src`; it is dead.
+**The line-number gutter does not appear — the app-side cause is fixed, a core rendering gap
+remains open.** `editor.blp` now authors `line-numbers: true` on its `$SourceView` (matching
+`hexdump.blp`, `disassembled.blp`, `hex-monitor.blp`, `example-list-item.blp`, which always did).
+Confirmed by log instrumentation (since reverted) that this closes the first gap: the `lineNumbers`
+setter now fires, `SourceView.setupLineNumbers()` runs, `GutterRendererLineNumbers` is constructed
+with a non-zero `width_request` and `leftGutter.insert(renderer, 0)` succeeds. The GSettings key
+`show-line-numbers` is still dead — unused by any `*.ts` in `packages/ui/src`.
+
+Despite that, the gutter STILL does not render on the iPhone 17 simulator. Traced one level
+further than the previous pass reached: `@girs/gtksource-5`'s `GutterRendererText` is correctly
+build-time-aliased to `@gjsify/gtksource-nativescript`'s own class on `--app nativescript` (one
+class in the bundle, `instanceof` holds), so that is not it. `native-editor.ios.ts`'s
+`drawGutter`/`gutterColumns`/`queryGutter`/`applyLayout` chain reads structurally correct on paper
+— `gutterPoints()` should total 36pt (24 width + 6+6 margin) the first time `drawRect:` runs and
+schedule `applyLayout()` on the next tick — but a scroll/back-navigation gesture that forces
+several more `drawRect:` passes still shows no gutter column or widened text inset. Not
+instrumented further this pass (the `drawRect:`/`applyLayout()`/`textContainerInset` interaction
+itself, and whether `visibleLines()` ever returns non-null on the first passes, are the next
+things to log). Whether GNOME/Android render this correctly is still unconfirmed.
