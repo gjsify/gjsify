@@ -344,3 +344,61 @@ construction — but the renderer's OWN constructor computes its default `startV
 BEFORE that external assignment lands, so it always picked HEX's `startValue = 0`, off by one from
 NORMAL's `1`. Passing `mode` at construction fixes it; unrelated to the rendering gap above, and
 would have been invisible either way until the gap closes.
+
+## Amendment (2026-11-03, third pass): the gutter renders — a swallowed `TypeError`, not a fill
+
+**The gutter never painted because `drawGutter()` threw on its first measurement, and the
+NativeScript runtime discards a JS exception raised inside an ObjC method override.** The
+previous two passes narrowed this to "the fill reaches zero pixels"; that reading was wrong, and
+it was wrong because nothing reports the throw. An opaque red `UIRectFillUsingBlendMode` placed
+at the TOP of `drawGutter()` — ahead of every early return and every measurement — paints
+normally (screenshot-verified), so neither the blend mode, the draw order, the dirty rect nor the
+context was ever at fault. A `console.log` in a `try`/`catch` around the call in `drawRect:`
+printed the actual cause on the first run:
+
+```
+drawGutter THREW TypeError: asNSString(...).sizeWithAttributes is not a function
+```
+
+`-sizeWithAttributes:` and `-drawAtPoint:withAttributes:` are UIKit's `NSStringDrawing` CATEGORY
+on `NSString`. The runtime marshals a JS string to ObjC as a VALUE, and the object it hands back
+carries no category methods, so `asNSString(text)` — a cast, never a conversion — produced
+something that had neither verb. The throw happened in the first `measureText()` of the column
+loop, BEFORE the background fill and every number, which is exactly the "nothing paints, no
+error" the two earlier passes measured.
+
+Both verbs now go through `NSAttributedString`, a real bridged object:
+`NSAttributedString.alloc().initWithStringAttributes(text, attributes)`, then `-size` and
+`-drawAtPoint:`. **`size` is a METHOD, not a property** — the bridge exposes a JS accessor only
+for an ObjC `@property`, and `NSStringDrawing` declares `- (CGSize)size;`. Read as a property it
+answers the function object, `.width` on it is `undefined`, and the `NaN` travels silently into
+`textContainerInset.left`, which UIKit takes as zero: the first build of this fix drew the numbers
+and the code on top of each other at x=0, with no error anywhere. `size()` is the spelling.
+
+**Word wrap was on, and it broke the gutter's one invariant.** `attach()` sets
+`widthTracksTextView = false` and an unbounded container once; a `UITextView` puts BOTH back on
+its next layout pass — logged, `widthTracksTextView` read `true` on every `layoutSubviews` and a
+write of `1e7` read back as the view's own width on the spot. So every long line wrapped, a
+logical line had several fragments, and `fragmentRect` — which addresses a line by the ONE
+fragment this ADR's "No word wrap" gap promises it — put the numbers on the wrong rows, drifting
+further the further one scrolled. A `layoutSubviews` override re-asserts the flag AND the size
+every pass, guarded so the re-assertion does not re-enter layout. Re-asserting only the size is
+NOT enough; that was tried first and changed nothing.
+
+The draw order is now `drawBehind` → `drawGutter` → `super.drawRect`. The gutter occupies the
+strip the container inset reserves, where no glyph is laid out, so nothing of it is overdrawn,
+and painting it before the glyphs puts its background over the current-line band in that strip,
+which is the stacking GTK has.
+
+**Verified on the iPhone 17 simulator** with Learn6502's commented snake example: the line numbers
+render right-aligned in a `#f6f5f4` band 36pt wide against a 48pt text inset, one number per
+logical line with no wrapping, the numbering stays exact while scrolling (lines 37–50 checked
+mid-file), typing inserts and a line break renumbers the lines below it, and the current-line
+band follows the caret. The package stays `partial` — `extend-selection` and `copy-clipboard`
+remain the named iOS gaps.
+
+**The trap worth keeping:** a JS exception inside an `.extend()`ed ObjC method override is
+swallowed. A draw path that throws is indistinguishable from one that draws nothing, which is how
+this survived two diagnostic passes that both concluded the fill itself was broken. When a UIKit
+callback produces no output and no error, the first question is whether it RAN TO THE END, not
+what the drawing call did.
