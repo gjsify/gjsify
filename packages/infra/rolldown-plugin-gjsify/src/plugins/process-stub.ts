@@ -69,7 +69,12 @@ export const GJS_PROCESS_STUB =
     'getOwnPropertyDescriptor(_,p){const v=_G.getenv(p);return v!==null?{value:v,writable:true,enumerable:true,configurable:true}:undefined}' +
     '}),' +
     'argv:_s?.programArgs?["gjs",_s.programInvocationName||"",..._s.programArgs]:["gjs"],' +
-    'versions:{},config:{},' +
+    // `versions.gjs` is THE runtime marker (`@gjsify/runtime`'s detectRuntime,
+    // `@gjsify/utils`' main loop). With `{}` here, everything that runs while
+    // `@gjsify/process` itself evaluates read "not GJS": a fork child's IPC
+    // channel took its main-loop hold there, armed nothing, and exited at once.
+    // Same encoding as `detectGjsVersion()` in `@gjsify/process`.
+    'versions:{gjs:(v=>`${Math.floor(v/1e4)}.${Math.floor(v%1e4/100)}.${v%100}`)(Number(_s.version))},config:{},' +
     'cwd(){return _G.get_current_dir()||"/"},' +
     'exit(c){_s.exit(c??0)},' +
     'stderr:{write(s){globalThis.printerr(s)}},stdout:{write(s){globalThis.print(s)}},stdin:null,' +
