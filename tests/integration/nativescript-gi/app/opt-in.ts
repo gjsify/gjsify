@@ -43,6 +43,11 @@ if (optedIn) {
         useRealGObjectEngine(requireGi);
     } catch (error) {
         optInError = error;
+        // The port refuses an empty slot at ITS module load (ADR 0110 § 1), and the specs import
+        // it statically, so without an engine the graph dies before `app.ts` can report the
+        // error above and its sentence is lost. The subset is filled only so the report can run;
+        // `app.ts` runs no vectors when `optInError` is set, so nothing passes on it.
+        usePureJsGObjectEngine();
     }
 } else {
     // THE CONTROL LEG IS NOW AN OPT-OUT, and that is the shape of the change this run exists to
