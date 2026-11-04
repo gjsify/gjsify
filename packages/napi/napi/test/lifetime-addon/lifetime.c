@@ -229,6 +229,29 @@ static napi_value WrapStatus(napi_env env, napi_callback_info info) {
   return out;
 }
 
+// wrapCount(obj): kRuntime wrap whose finalizer only bumps a counter (no
+// stdout line), for the many-refs weak-sweep stress.
+static int g_count_finalized = 0;
+static void CountingFinalizer(napi_env env, void* data, void* hint) {
+  (void)env;
+  (void)data;
+  (void)hint;
+  g_count_finalized++;
+}
+
+static napi_value WrapCount(napi_env env, napi_callback_info info) {
+  napi_value obj = get_arg(env, info, NULL);
+  OK_OR_NULL(napi_wrap(env, obj, NULL, CountingFinalizer, NULL, NULL));
+  return obj;
+}
+
+static napi_value CountFinalized(napi_env env, napi_callback_info info) {
+  (void)info;
+  napi_value out;
+  OK_OR_NULL(napi_create_int32(env, g_count_finalized, &out));
+  return out;
+}
+
 // ---- externals ----
 
 static napi_value MakeExternal(napi_env env, napi_callback_info info) {
@@ -430,6 +453,8 @@ static napi_value Init(napi_env env, napi_value exports) {
   EXPORT_FN("deleteAllRefs", DeleteAllRefs);
   EXPORT_FN("wrapFinalize", WrapFinalize);
   EXPORT_FN("unwrapId", UnwrapId);
+  EXPORT_FN("wrapCount", WrapCount);
+  EXPORT_FN("countFinalized", CountFinalized);
   EXPORT_FN("removeWrapId", RemoveWrapId);
   EXPORT_FN("wrapStatus", WrapStatus);
   EXPORT_FN("makeExternal", MakeExternal);

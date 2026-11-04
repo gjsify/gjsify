@@ -66,6 +66,7 @@
 #include <js/Value.h>
 
 #include <cstdint>
+#include <deque>
 #include <memory>
 #include <string>
 #include <vector>
@@ -174,6 +175,9 @@ class RefTracker {
     // Trace hook for the env's extra-roots tracer (Reference overrides).
     virtual void Trace(JSTracer* trc) {}
     RefTracker* next() const { return next_; }
+    // True while the tracker sits in env->pending_finalizers: makes
+    // enqueue's duplicate check and dequeue's miss O(1) (ref.cc only).
+    bool finalizer_queued_ = false;
 
   protected:
     RefTracker* next_ = nullptr;
@@ -258,6 +262,14 @@ class Reference : public RefTracker {
     void* hint_;
     JS::Heap<JS::Value> strong_;     // valid iff state == kStrong
     JS::Heap<JSObject*> weak_obj_;   // valid iff state == kWeak
+    // Position in env_->weak_refs (kNotInWeakSet when absent) so a single
+    // removal is swap-and-pop, O(1). weak_seq_ is the order the ref went
+    // weak: swap-and-pop permutes the vector, the sweep sorts the dead by
+    // it so finalizers still enqueue in the original (FIFO) order.
+    static constexpr size_t kNotInWeakSet = static_cast<size_t>(-1);
+    size_t weak_index_ = kNotInWeakSet;
+    uint64_t weak_seq_ = 0;
+    friend void weak_sweep_callback(JSTracer* trc, void* data);
 };
 
 // Finalizer pipeline (§5c): GC callbacks only QUEUE; ONE idle drain
@@ -437,8 +449,9 @@ struct napi_env__ {
     // Weak set: references currently in the kWeak state, walked by the
     // sweep callback.
     std::vector<gjsify_napi::Reference*> weak_refs;
+    uint64_t weak_seq = 0;  // next Reference::weak_seq_
     // §5c pending finalizers (FIFO), drained on idle or at teardown.
-    std::vector<gjsify_napi::RefTracker*> pending_finalizers;
+    std::deque<gjsify_napi::RefTracker*> pending_finalizers;
     // §5d instance data (TrackedFinalizer; overwrite deletes un-finalized).
     gjsify_napi::TrackedFinalizer* instance_data = nullptr;
     // §7 live threadsafe functions (JS-thread-only access: registered at

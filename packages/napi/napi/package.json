@@ -60,6 +60,7 @@
         "test:gate:p01": "node test/gjs-gate.mjs test/p01-gate.js",
         "test:gate:p02": "node test/gjs-gate.mjs test/p02-gate.js",
         "test:gate:p03": "sh test/run-p03-gate.sh",
+        "test:gate:p05": "node test/gjs-gate.mjs test/p05-weak-sweep.js",
         "test:gate:p1": "node test/gjs-gate.mjs test/p1-tsfn-gate.js",
         "test:gate:tsfn-teardown": "node test/tsfn-teardown-gate.mjs",
         "test:nodegi": "node test/nodegi-gate.mjs",
