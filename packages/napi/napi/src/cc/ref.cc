@@ -167,8 +167,15 @@ Reference::~Reference() {
 }
 
 void Reference::RemoveFromWeakSet() {
+    if (weak_index_ == kNotInWeakSet) {
+        return;
+    }
     auto& set = env_->weak_refs;
-    set.erase(std::remove(set.begin(), set.end(), this), set.end());
+    Reference* last = set.back();
+    set[weak_index_] = last;
+    last->weak_index_ = weak_index_;
+    set.pop_back();
+    weak_index_ = kNotInWeakSet;
 }
 
 // refcount 1→0 (or construction at 0): objects go weak, primitives (and
@@ -185,6 +192,8 @@ void Reference::SetWeakOrRelease() {
         strong_ = JS::UndefinedValue();  // pre-write barrier on overwrite
         weak_obj_ = obj.get();           // post-write barrier
         state_ = State::kWeak;
+        weak_index_ = env_->weak_refs.size();
+        weak_seq_ = env_->weak_seq++;
         env_->weak_refs.push_back(this);
     } else {
         strong_ = JS::UndefinedValue();
@@ -290,14 +299,18 @@ void Reference::Finalize() {
 // ---- finalizer queue (§5c) ----
 
 void enqueue_finalizer(napi_env env, RefTracker* tracker) {
-    auto& q = env->pending_finalizers;
-    if (std::find(q.begin(), q.end(), tracker) == q.end()) {
-        q.push_back(tracker);
+    if (!tracker->finalizer_queued_) {
+        tracker->finalizer_queued_ = true;
+        env->pending_finalizers.push_back(tracker);
     }
     schedule_finalizer_drain();
 }
 
 void dequeue_finalizer(napi_env env, RefTracker* tracker) {
+    if (!tracker->finalizer_queued_) {
+        return;
+    }
+    tracker->finalizer_queued_ = false;
     auto& q = env->pending_finalizers;
     q.erase(std::remove(q.begin(), q.end(), tracker), q.end());
 }
@@ -309,7 +322,8 @@ void drain_finalizer_queue(napi_env env) {
     env->draining_finalizers = true;
     while (!env->pending_finalizers.empty()) {
         RefTracker* tracker = env->pending_finalizers.front();
-        env->pending_finalizers.erase(env->pending_finalizers.begin());
+        env->pending_finalizers.pop_front();
+        tracker->finalizer_queued_ = false;
         tracker->Finalize();
     }
     env->draining_finalizers = false;
@@ -323,16 +337,31 @@ void drain_finalizer_queue(napi_env env) {
 // the main loop (or at teardown).
 void weak_sweep_callback(JSTracer* trc, void* /* data */) {
     for (napi_env env : env_registry()) {
-        // Collect first: UpdateAfterGC survivors keep their slot; the dead
-        // are detached outside the iteration (mutation-safe).
+        // One linear pass: survivors are compacted in place, the dead are
+        // collected and already detached (index reset) so RemoveFromWeakSet
+        // is never called per dead ref. The vector is truncated before any
+        // finalizer is enqueued — nothing mutates it while it is walked.
+        auto& refs = env->weak_refs;
         std::vector<Reference*> died;
-        for (Reference* ref : env->weak_refs) {
+        size_t kept = 0;
+        for (size_t i = 0; i < refs.size(); i++) {
+            Reference* ref = refs[i];
             if (ref->UpdateAfterGC(trc)) {
+                ref->weak_index_ = Reference::kNotInWeakSet;
                 died.push_back(ref);
+            } else {
+                refs[kept] = ref;
+                ref->weak_index_ = kept++;
             }
         }
+        refs.resize(kept);
+        // Swap-and-pop permutes the vector; restore the order the refs
+        // went weak so finalizers enqueue FIFO as before.
+        std::sort(died.begin(), died.end(),
+                  [](Reference* a, Reference* b) {
+                      return a->weak_seq_ < b->weak_seq_;
+                  });
         for (Reference* ref : died) {
-            ref->RemoveFromWeakSet();
             if (ref->HasFinalizer()) {
                 enqueue_finalizer(env, ref);
             }

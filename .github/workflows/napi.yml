@@ -221,6 +221,10 @@ jobs:
         working-directory: packages/napi/napi
         run: GI_TYPELIB_PATH=build LD_LIBRARY_PATH=build gjs test/p04-gate.js
 
+      - name: Gate P0.5 — weak sweep stays linear
+        working-directory: packages/napi/napi
+        run: npm run test:gate:p05
+
       # Phase-1 threadsafe-function gate: the raw-C tsfn-addon (already built by
       # the "Build gate test addons" step — build:test-addons globs test/*-addon)
       # drives make_threadsafe_function from real foreign pthreads through the
