@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.64.19](https://github.com/gjsify/gjsify/compare/v0.64.18...v0.64.19) (2026-11-04)
+
+### Features
+
+* **cli:** derive webext store listings (ADR 0135) ([#2536](https://github.com/gjsify/gjsify/issues/2536)) ([4cb5a7e](https://github.com/gjsify/gjsify/commit/4cb5a7ec706a26b786e44a94045c580e802325c6))
+
+### Bug Fixes
+
+* **napi:** make the weak-ref sweep linear ([#2537](https://github.com/gjsify/gjsify/issues/2537)) ([0c20c42](https://github.com/gjsify/gjsify/commit/0c20c429b6d925eca874df156ce82e85cb7282a9)), closes [#2535](https://github.com/gjsify/gjsify/issues/2535)
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([effc016](https://github.com/gjsify/gjsify/commit/effc0168a57262b4f90db00ad0a2ef61296015c8))
+
 ## [0.64.18](https://github.com/gjsify/gjsify/compare/v0.64.17...v0.64.18) (2026-11-04)
 
 ### Bug Fixes

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/fs",
-    "version": "0.64.18",
+    "version": "0.64.19",
     "description": "Node.js fs module for Gjs",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
