@@ -19,7 +19,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -1081,13 +1081,13 @@ describe('add-on manifest filename: the build, the package API and the workflow 
         const { manifestPath } = await import('../../gi-runtime-android-gtk/index.js');
         const core = await import('../../gi-runtime-android/index.js');
         const yml = read('../../../../.github/workflows/release.yml');
-        assert.ok(yml.includes(`"$PKG_GTK/platforms/android/${manifestPath.split('/').pop()}"`));
-        assert.ok(yml.includes(`"$PKG/platforms/android/${core.manifestPath.split('/').pop()}"`));
+        assert.ok(yml.includes(`"$PKG_GTK/platforms/android/${basename(manifestPath)}"`));
+        assert.ok(yml.includes(`"$PKG/platforms/android/${basename(core.manifestPath)}"`));
     });
 
     it('the two packages never share a manifest filename', async () => {
         const { manifestPath } = await import('../../gi-runtime-android-gtk/index.js');
         const core = await import('../../gi-runtime-android/index.js');
-        assert.notEqual(manifestPath.split('/').pop(), core.manifestPath.split('/').pop());
+        assert.notEqual(basename(manifestPath), basename(core.manifestPath));
     });
 });
