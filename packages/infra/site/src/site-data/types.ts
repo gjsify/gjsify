@@ -344,6 +344,7 @@ export interface AppUrls {
     faq?: string;
     contact?: string;
     contribute?: string;
+    privacy?: string;
 }
 
 /** What the AppStream metainfo says, before any site configuration is mixed in. */

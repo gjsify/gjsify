@@ -49,6 +49,49 @@ gjsify site build --runtime node        # build and run on a specific runtime
 | `--check` | `i18n`: report what is out of date instead of writing it. |
 | `--runtime <r>` | `gjs` \| `node` \| `bun` \| `deno`. Default: the runtime the CLI itself is on. |
 
+## Store listings
+
+`gjsify webext listing` (also `gjsify site listing`) derives the store listing of a browser extension
+from the same sources as the page: the metainfo, the gettext catalogues and the screenshots. It works
+for any extension, not only one built by `gjsify webext build`. See ADR 0135.
+
+```sh
+gjsify webext listing --check                  # validate against the store limits, write nothing
+gjsify webext listing --store amo --out dist/listing
+gjsify webext listing --pot po/listing.pot     # the config strings as a gettext template
+```
+
+It writes `<out>/<store>/<lang>/{name,summary,description}.txt` (plus `description.html` for AMO and
+`permissions.md` for the stores that ask), `<store>/screenshots/*.png`, `<store>/icon*.png` and a
+`listing.json`. Screenshots are scaled down and letterboxed on the `<branding>` light colour to each
+store's exact size; one that would need an enlargement beyond 2× is refused. The metainfo's donation
+URL is never emitted (ADR 0113). Every length is checked and a violation names the field, store,
+language and limit.
+
+Only what the metainfo cannot carry is configured, in `gjsify.webext.listing` of the root
+`package.json` (each key falls back to `gjsify.site`):
+
+```json
+{
+  "gjsify": {
+    "webext": {
+      "listing": {
+        "metainfo": "data/app.metainfo.xml",
+        "singlePurpose": "One sentence: what the extension is for",
+        "permissions": { "tabs": "Why it needs the tab list", "https://*/*": "Why it needs these hosts" },
+        "category": { "cws": "productivity", "edge": "Productivity" },
+        "privacyUrl": "https://example.org/privacy/",
+        "screenshots": "docs/store/screenshots"
+      }
+    }
+  }
+}
+```
+
+`singlePurpose` and the permission justifications are English msgids, translated through the app's
+catalogues like the page strings. The privacy URL comes from `<url type="privacy">`, else
+`privacyUrl`, else `<siteUrl><lang>/privacy/` when `gjsify.site.privacy` is set.
+
 ## Support pages and SEO
 
 With `gjsify.site.support` set, a build also writes `/<base><lang>/support/index.html` (title

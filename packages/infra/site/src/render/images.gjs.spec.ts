@@ -9,7 +9,9 @@ import { join } from 'node:path';
 import { describe, expect, it } from '@gjsify/unit';
 import GdkPixbuf from 'gi://GdkPixbuf?version=2.0';
 
-import { decodeImageBytes, svgToPng } from './image-backend.js';
+import { writeFileSync } from 'node:fs';
+
+import { decodeImageBytes, decodeImageFileAtSize, svgToPng } from './image-backend.js';
 import { ogCardSvg } from './og-card.js';
 import { displayWidth, hasTransparentBorder, processImage, renditionWidths, trimTransparentMargin } from './images.js';
 
@@ -175,6 +177,42 @@ export default async () => {
             expect(displayWidth(2560)).toBe(1280);
             expect(displayWidth(1280)).toBe(1280);
             expect(displayWidth(900)).toBe(900);
+        });
+    });
+
+    await describe('placed', async () => {
+        const pixel = (bytes: Uint8Array, x: number, y: number): number[] => {
+            const loader = new GdkPixbuf.PixbufLoader();
+            loader.write(bytes);
+            loader.close();
+            const pixbuf = loader.get_pixbuf()!;
+            const at = y * pixbuf.get_rowstride() + x * pixbuf.get_n_channels();
+            const data = pixbuf.get_pixels();
+            return [data[at], data[at + 1], data[at + 2]];
+        };
+
+        await it('letterboxes onto the background colour at the exact canvas size', async () => {
+            const image = decodeImageBytes(solid(0xff0000ff, { width: 40, height: 40 }));
+            const out = image.placed({ width: 100, height: 60 }, { x: 30, y: 0, width: 40, height: 60 }, 0x00ff00);
+            expect(out.width).toBe(100);
+            expect(out.height).toBe(60);
+            const bytes = out.encode('png');
+            expect(pixel(bytes, 5, 30)).toStrictEqual([0, 255, 0]);
+            expect(pixel(bytes, 50, 30)).toStrictEqual([255, 0, 0]);
+        });
+    });
+
+    await describe('decodeImageFileAtSize', async () => {
+        await it('renders an SVG behind a leading comment at the requested size', async () => {
+            const dir = await mkdtemp(join(tmpdir(), 'site-svg-'));
+            const path = join(dir, 'icon.svg');
+            writeFileSync(
+                path,
+                '<?xml version="1.0"?>\n<!-- licence -->\n<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="#336699"/></svg>',
+            );
+            const image = decodeImageFileAtSize(path, 128, 128);
+            expect(image.width).toBe(128);
+            expect(image.height).toBe(128);
         });
     });
 };
