@@ -44,18 +44,26 @@ const sweepMs = (GLib.get_monotonic_time() - t0) / 1000;
 
 const ctx = GLib.MainContext.default();
 const t1 = GLib.get_monotonic_time();
-while (ctx.iteration(false)) { /* drain the finalizer queue */ }
+while (ctx.iteration(false)) {
+    /* drain the finalizer queue */
+}
 const drainMs = (GLib.get_monotonic_time() - t1) / 1000;
 
 check('every dead object finalized exactly once', t.countFinalized(), dead);
 for (const o of survivors) {
-    if (t.unwrapId(o) !== 0) { failures++; printerr('FAIL survivor lost its wrap'); break; }
+    if (t.unwrapId(o) !== 0) {
+        failures++;
+        printerr('FAIL survivor lost its wrap');
+        break;
+    }
 }
 
 // Second round after survivors drop: the compacted weak set must still work.
 survivors.length = 0;
 imports.system.gc();
-while (ctx.iteration(false)) { /* drain */ }
+while (ctx.iteration(false)) {
+    /* drain */
+}
 check('survivors finalized after release', t.countFinalized(), N);
 
 print(`weak-sweep: n=${N} dead=${dead} gc=${sweepMs.toFixed(0)}ms drain=${drainMs.toFixed(0)}ms`);
