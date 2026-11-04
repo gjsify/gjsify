@@ -1064,3 +1064,30 @@ describe('GI_ADDONS: the build-time catalogue matches the add-on manifest', () =
         assert.deepEqual(listed, [...addon.gjsify.giRuntime.namespaces].sort());
     });
 });
+
+describe('add-on manifest filename: the build, the package API and the workflow agree', () => {
+    const gtkDir = fileURLToPath(new URL('../../gi-runtime-android-gtk/', import.meta.url));
+    const read = (url) => readFileSync(fileURLToPath(new URL(url, import.meta.url)), 'utf8');
+
+    it('the builder writes the file the package exports as manifestPath', async () => {
+        const { manifestPath } = await import('../../gi-runtime-android-gtk/index.js');
+        const script = readFileSync(`${gtkDir}scripts/build-gi-runtime-android-gtk.mjs`, 'utf8');
+        const named = /manifestName:\s*'([^']+)'/.exec(script);
+        assert.ok(named, 'the add-on spec names its manifest');
+        assert.equal(join(gtkDir, 'platforms', 'android', named[1]), manifestPath);
+    });
+
+    it('release.yml reads that file after building the add-on, and the core file after the core', async () => {
+        const { manifestPath } = await import('../../gi-runtime-android-gtk/index.js');
+        const core = await import('../../gi-runtime-android/index.js');
+        const yml = read('../../../../.github/workflows/release.yml');
+        assert.ok(yml.includes(`"$PKG_GTK/platforms/android/${manifestPath.split('/').pop()}"`));
+        assert.ok(yml.includes(`"$PKG/platforms/android/${core.manifestPath.split('/').pop()}"`));
+    });
+
+    it('the two packages never share a manifest filename', async () => {
+        const { manifestPath } = await import('../../gi-runtime-android-gtk/index.js');
+        const core = await import('../../gi-runtime-android/index.js');
+        assert.notEqual(manifestPath.split('/').pop(), core.manifestPath.split('/').pop());
+    });
+});

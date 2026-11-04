@@ -104,7 +104,7 @@ the first `requireGi` with a `dlopen` error. `test/gi-runtime-android.test.mjs` 
 The payload is BUILT, never committed: `scripts/build-gi-runtime-android.mjs` (`--ndk`,
 `--gi-sysroot`, `--node-gi-lib`, `--typelib-dir <abi>=<dir>`) stages the tree, writes the AAR with a
 deterministic STORE-only zip writer (`packages/node-gi/scripts/aar-zip.mjs`), and records what it did
-in `platforms/android/gi-runtime.json`. The AAR, the staged tree and the generated
+in `platforms/android/gi-runtime.json` (the add-on's: `gi-runtime-gtk.json`). The AAR, the staged tree and the generated
 `platforms/THIRD-PARTY-NOTICES.md` are gitignored; `platforms/android/include.gradle` is the one
 committed file under `platforms/`, and it fails the gradle build by name when the AAR is absent.
 

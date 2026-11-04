@@ -27,6 +27,7 @@ run({
     addOn: {
         namespaces: NAMESPACES,
         aarName: 'gi-runtime-android-gtk.aar',
+        manifestName: 'gi-runtime-gtk.json',
         aarPackage: 'studio.artandcode.gjsify.gi_runtime_gtk',
         coreName: '@gjsify/gi-runtime-android',
     },
