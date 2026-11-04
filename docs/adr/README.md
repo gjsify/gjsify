@@ -151,6 +151,7 @@ the TODO records the *what's left*.
 | [0129](0129-a-status-icon-on-every-desktop.md) | A status icon on every desktop through `@gjsify/status-icon`; running in the background stays with `Gio.Application.hold()` and `Xdp` (ADR 0101) | Accepted |
 | [0130](0130-credits-come-from-the-git-history.md) | `gjsify credits` derives contributor credits from the git history; an overrides file covers supporters and exclusions | Accepted |
 | [0134](0134-https-trusts-the-os-store-through-one-package.md) | HTTPS trusts the OS store on every target, through `@gjsify/tls-trust` and Node's `getCACertificates` vocabulary | Proposed |
+| [0135](0135-store-listings-come-from-the-metainfo.md) | `gjsify webext listing` derives Chrome, Edge and Firefox store listings from the metainfo, the catalogues and the screenshots | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

@@ -88,6 +88,7 @@ const URL_KEYS: Record<string, keyof AppUrls> = {
     faq: 'faq',
     contact: 'contact',
     contribute: 'contribute',
+    privacy: 'privacy',
 };
 
 /** Links are rendered as `href`, so `javascript:` and friends are dropped. */

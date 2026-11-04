@@ -9,6 +9,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 
 import type { Command } from '../../types/index.js';
+import { dispatchSite } from '../../utils/site-dispatch.js';
 import { buildWebext, type BundleRequest } from '../../utils/webext/build.js';
 import { resolveWebextConfig, selectTargets, type ResolvedWebext } from '../../utils/webext/config.js';
 import {
@@ -230,6 +231,79 @@ export const webextDevCommand: Command<unknown, WebextArgs> = {
             },
             spawnChild: null,
             debounceMs: args.debounce,
+        });
+    },
+};
+
+interface ListingArgs {
+    store: string;
+    out?: string;
+    check: boolean;
+    metainfo?: string;
+    config?: string;
+    pot?: string;
+    root?: string;
+    offline: boolean;
+    runtime?: string;
+    globals?: string;
+}
+
+export const webextListingCommand: Command<unknown, ListingArgs> = {
+    command: 'listing',
+    description:
+        'Derive the store listings (Chrome Web Store, Edge Add-ons, Firefox AMO) from the AppStream metainfo, ' +
+        'the gettext catalogues and the screenshots: texts, permission justifications and exact-size images.',
+    builder: (yargs) =>
+        yargs
+            .option('store', {
+                description: 'Which store to write (default: all).',
+                type: 'string',
+                choices: ['cws', 'edge', 'amo', 'all'],
+                default: 'all',
+            })
+            .option('out', { description: 'Output directory, emptied first (default: dist/listing).', type: 'string' })
+            .option('check', {
+                description: 'Validate against the store limits; write nothing.',
+                type: 'boolean',
+                default: false,
+            })
+            .option('metainfo', {
+                description: 'AppStream metainfo (default: gjsify.webext.listing.metainfo, else gjsify.site.metainfo).',
+                type: 'string',
+            })
+            .option('config', {
+                description: 'JSON file that overrides the gjsify.webext.listing block of package.json.',
+                type: 'string',
+            })
+            .option('pot', { description: 'Also write the config strings as a gettext template.', type: 'string' })
+            .option('root', { description: 'Project root (default: the working directory).', type: 'string' })
+            .option('offline', {
+                description: 'Skip downloading screenshots hosted elsewhere.',
+                type: 'boolean',
+                default: false,
+            })
+            .option('runtime', {
+                description: 'Runtime to run on: gjs | node | bun | deno (default: the host runtime).',
+                type: 'string',
+                choices: ['gjs', 'node', 'bun', 'deno'],
+            })
+            .option('globals', { description: 'Value for `gjsify build --globals` (default: auto).', type: 'string' }),
+    handler: async (args) => {
+        const cwd = process.cwd();
+        const forwarded = ['listing', '--store', args.store];
+        if (args.root) forwarded.push('--root', resolve(cwd, args.root));
+        if (args.out) forwarded.push('--out', resolve(cwd, args.out));
+        if (args.check) forwarded.push('--check');
+        if (args.metainfo) forwarded.push('--metainfo', args.metainfo);
+        if (args.config) forwarded.push('--config', resolve(cwd, args.config));
+        if (args.pot) forwarded.push('--pot', resolve(cwd, args.pot));
+        if (args.offline) forwarded.push('--offline');
+        await dispatchSite({
+            invokedAs: 'gjsify webext listing',
+            argv: forwarded,
+            runtime: args.runtime,
+            globals: args.globals,
+            needsClient: false,
         });
     },
 };

@@ -1,10 +1,10 @@
 // `gjsify webext` — yargs subcommand-group dispatcher (ADR 0077).
 //
-// Wires {build, zip, dev}; each is a self-contained `Command<>` in `subcommands.ts`,
+// Wires {build, zip, dev, listing}; each is a self-contained `Command<>` in `subcommands.ts`,
 // the same composition `flatpak/index.ts` uses.
 
 import type { Command } from '../../types/index.js';
-import { webextBuildCommand, webextDevCommand, webextZipCommand } from './subcommands.js';
+import { webextBuildCommand, webextDevCommand, webextListingCommand, webextZipCommand } from './subcommands.js';
 
 export const webextCommand: Command = {
     command: 'webext <subcommand>',
@@ -29,6 +29,12 @@ export const webextCommand: Command = {
                 webextDevCommand.description,
                 webextDevCommand.builder!,
                 webextDevCommand.handler!,
+            )
+            .command(
+                webextListingCommand.command as string,
+                webextListingCommand.description,
+                webextListingCommand.builder!,
+                webextListingCommand.handler!,
             )
             .demandCommand(1)
             .strict(),

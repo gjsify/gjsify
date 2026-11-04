@@ -17,6 +17,8 @@
 // from `ImageFormat`: JPEG. `save_to_bufferv('jpeg', …)` fails on an RGBA
 // pixbuf ("the encoder or decoder for Jpeg does not support the color type
 // `Rgba8`"), and screenshots of a window are RGBA.
+import { readFileSync } from 'node:fs';
+
 import GdkPixbuf from 'gi://GdkPixbuf?version=2.0';
 
 export type ImageFormat = 'avif' | 'webp' | 'png';
@@ -51,6 +53,11 @@ export interface RasterImage {
     /** Keeps the aspect ratio. Never enlarges: a width at or above this one answers the same image. */
     /** `nearest` keeps pixel art's hard edges; the default resamples smoothly. */
     resizedToWidth(width: number, filter?: 'smooth' | 'nearest'): RasterImage;
+    /**
+     * A canvas of `canvas` size filled with the opaque colour `background` (`0xRRGGBB`), with this image
+     * scaled to `at.width` x `at.height` and composited at `at.x`, `at.y`. The answer has no alpha channel.
+     */
+    placed(canvas: { width: number; height: number }, at: Rect, background: number): RasterImage;
     encode(format: ImageFormat): Uint8Array;
 }
 
@@ -129,6 +136,27 @@ function wrap(pixbuf: GdkPixbuf.Pixbuf): RasterImage {
             if (!scaled) throw new Error(`Could not scale an image to ${target}px`);
             return wrap(scaled);
         },
+        placed(canvas, at, background) {
+            const target = GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB, false, 8, canvas.width, canvas.height);
+            if (!target) throw new Error(`Could not allocate a ${canvas.width}x${canvas.height} canvas`);
+            target.fill((((background & 0xffffff) << 8) | 0xff) >>> 0);
+            const scaled = pixbuf.scale_simple(at.width, at.height, GdkPixbuf.InterpType.HYPER);
+            if (!scaled) throw new Error(`Could not scale an image to ${at.width}x${at.height}`);
+            scaled.composite(
+                target,
+                at.x,
+                at.y,
+                at.width,
+                at.height,
+                at.x,
+                at.y,
+                1,
+                1,
+                GdkPixbuf.InterpType.NEAREST,
+                255,
+            );
+            return wrap(target);
+        },
         encode(format) {
             assertEncodable(format);
             const { keys, values } = ENCODER[format];
@@ -141,6 +169,31 @@ function wrap(pixbuf: GdkPixbuf.Pixbuf): RasterImage {
 
 export function decodeImageFile(path: string): RasterImage {
     const pixbuf = GdkPixbuf.Pixbuf.new_from_file(path);
+    if (!pixbuf) throw new Error(`Could not decode ${path}`);
+    return wrap(pixbuf);
+}
+
+/**
+ * glycin decides "is this an SVG" from the first bytes, and a long licence comment ahead of `<svg`
+ * makes it answer `application/xml`; the prologue carries nothing a render needs.
+ */
+function svgWithoutPrologue(bytes: Uint8Array): Uint8Array {
+    const text = new TextDecoder().decode(bytes);
+    const root = text.search(/<svg[\s>]/);
+    return root > 0 ? new TextEncoder().encode(text.slice(root)) : bytes;
+}
+
+/**
+ * Decodes at an exact size; for an SVG that is a crisp render, for a raster a plain scale. Goes
+ * through the loader rather than `new_from_file_at_scale`, which does not sniff an SVG here.
+ */
+export function decodeImageFileAtSize(path: string, width: number, height: number): RasterImage {
+    const loader = new GdkPixbuf.PixbufLoader();
+    loader.set_size(width, height);
+    const bytes = new Uint8Array(readFileSync(path));
+    loader.write(path.toLowerCase().endsWith('.svg') ? svgWithoutPrologue(bytes) : bytes);
+    loader.close();
+    const pixbuf = loader.get_pixbuf();
     if (!pixbuf) throw new Error(`Could not decode ${path}`);
     return wrap(pixbuf);
 }
