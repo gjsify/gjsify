@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 import { renderPo } from '../render/i18n.js';
 import { parseMetainfo } from '../site-data/metainfo.js';
@@ -94,8 +94,9 @@ export async function runListing(options: ListingOptions): Promise<ListingResult
     const files: string[] = [];
     const emit = async (path: string, data: string | Uint8Array) => {
         if (!write) return;
-        await mkdir(join(out, ...path.split('/').slice(0, -1)), { recursive: true });
-        await writeFile(join(out, path), data);
+        const target = join(out, path);
+        await mkdir(dirname(target), { recursive: true });
+        await writeFile(target, data);
         files.push(path);
     };
     if (write) await rm(out, { recursive: true, force: true });
