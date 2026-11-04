@@ -58,7 +58,7 @@ export function generateEntry(app: 'gjs' | 'node', command = 'gjsify site'): str
 
 export interface SiteDispatch {
     /** What the generated entry's header names as its author. */
-    command: string;
+    invokedAs: string;
     /** Forwarded to `runSiteCli` after `--package-dir`. */
     argv: string[];
     runtime?: string;
@@ -73,7 +73,7 @@ export async function dispatchSite(options: SiteDispatch): Promise<void> {
     const packageDir = resolveSitePackage(cwd);
     if (!packageDir) {
         console.error(
-            `${options.command}: @gjsify/site is not installed in this project.\n\n` +
+            `${options.invokedAs}: @gjsify/site is not installed in this project.\n\n` +
                 '  The generator ships as its own package so a project only pays for it when it\n' +
                 '  publishes a page or a store listing. Add it, then run this again:\n\n' +
                 '      npm install --save-dev @gjsify/site',
@@ -82,7 +82,7 @@ export async function dispatchSite(options: SiteDispatch): Promise<void> {
     }
     if (options.needsClient && !existsSync(join(packageDir, 'lib', 'client', 'site.js'))) {
         console.error(
-            `${options.command}: ${packageDir} has no built client bundle (lib/client/site.js).\n` +
+            `${options.invokedAs}: ${packageDir} has no built client bundle (lib/client/site.js).\n` +
                 '  In a source checkout, build the package first: `gjsify workspace site build`.',
         );
         return process.exit(1);
@@ -95,7 +95,7 @@ export async function dispatchSite(options: SiteDispatch): Promise<void> {
     mkdirSync(cacheDir, { recursive: true });
     const entryPath = join(cacheDir, `entry.${app}.ts`);
     const outPath = join(cacheDir, `site.${app}.mjs`);
-    writeFileSync(entryPath, generateEntry(app, options.command));
+    writeFileSync(entryPath, generateEntry(app, options.invokedAs));
 
     const globals = options.globals ?? 'auto';
     if (app === 'gjs') {

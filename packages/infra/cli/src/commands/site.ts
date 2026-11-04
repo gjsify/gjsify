@@ -108,7 +108,7 @@ export const siteCommand: Command<unknown, SiteCliOptions> = {
         if (args.package) forwarded.push('--package');
 
         await dispatchSite({
-            command: 'gjsify site',
+            invokedAs: 'gjsify site',
             argv: forwarded,
             runtime: args.runtime,
             globals: args.globals,

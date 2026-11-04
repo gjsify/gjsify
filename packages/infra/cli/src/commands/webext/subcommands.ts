@@ -299,7 +299,7 @@ export const webextListingCommand: Command<unknown, ListingArgs> = {
         if (args.pot) forwarded.push('--pot', resolve(cwd, args.pot));
         if (args.offline) forwarded.push('--offline');
         await dispatchSite({
-            command: 'gjsify webext listing',
+            invokedAs: 'gjsify webext listing',
             argv: forwarded,
             runtime: args.runtime,
             globals: args.globals,
