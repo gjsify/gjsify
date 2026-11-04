@@ -892,7 +892,7 @@ function buildLibintl(ndk, abi, abiStage) {
  *
  * @param {object} [spec]
  * @param {string} [spec.pkgDir] the package being built
- * @param {{ namespaces: string[], aarName: string, aarPackage: string, coreName: string } | null} [spec.addOn]
+ * @param {{ namespaces: string[], aarName: string, manifestName: string, aarPackage: string, coreName: string } | null} [spec.addOn]
  */
 export function run({ pkgDir: ownDir = pkgDir, addOn = null } = {}) {
     const opts = parseArgs(process.argv.slice(2));
@@ -1053,7 +1053,7 @@ export function run({ pkgDir: ownDir = pkgDir, addOn = null } = {}) {
     // `license` names `platforms/THIRD-PARTY-NOTICES.md` and `files` ships `platforms`.
     writeFileSync(join(dirname(outDir), 'THIRD-PARTY-NOTICES.md'), notice);
     writeFileSync(
-        join(outDir, 'gi-runtime.json'),
+        join(outDir, addOn ? addOn.manifestName : 'gi-runtime.json'),
         `${JSON.stringify(
             {
                 builtAt: new Date().toISOString(),

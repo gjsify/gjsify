@@ -104,7 +104,7 @@ the APK with a `dlopen` crash.
 
 **Versions and the sysroot pin stay in lockstep by construction, not by convention.** All of these
 packages are built in ONE `release.yml` job from ONE `build-inputs.json`, carry the release train's
-version (ADR 0008), and each one's `gi-runtime.json` records the sysroot tag and the per-ABI
+version (ADR 0008), and each one's manifest (`gi-runtime.json`, the add-on's `gi-runtime-gtk.json`) records the sysroot tag and the per-ABI
 sha256 it was cut from. A startup check in `host.nativescript.js` compares the core's recorded
 sysroot identity against each add-on's and refuses to proceed when they differ, naming both — the
 mixed-GLib startup crash made into a sentence. The semver range an add-on is depended on by is
@@ -216,7 +216,7 @@ The Android decision follows ADR 0037 § 2 and § 3 rather than inventing a seco
   `__NODE_GI_APP_DIR` (GLib caches these on first use; a later `GLib.setenv` is too late). The
   path comes from `ApplicationInfo.nativeLibraryDir` through the existing JNI bootstrap, not from
   a guessed `/data/app/...`.
-- Presence is a DECLARED data set like desktop's `tls-backend`: the add-on's `gi-runtime.json`
+- Presence is a DECLARED data set like desktop's `tls-backend`: the add-on's `gi-runtime-gtk.json`
   names the module it shipped, and the build fails on an empty module directory rather than
   publishing a package that cannot do TLS.
 
