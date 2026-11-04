@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.64.18](https://github.com/gjsify/gjsify/compare/v0.64.17...v0.64.18) (2026-11-04)
+
+### Bug Fixes
+
+* **gi-runtime-android-gtk:** write gi-runtime-gtk.json ([#2534](https://github.com/gjsify/gjsify/issues/2534)) ([8e58753](https://github.com/gjsify/gjsify/commit/8e5875396d7d96445d9c6b498498c8e7f697991b))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([d86a1d9](https://github.com/gjsify/gjsify/commit/d86a1d9909523ac1ca0a0eed34ef26067a6e64b8))
+
 ## [0.64.17](https://github.com/gjsify/gjsify/compare/v0.64.16...v0.64.17) (2026-11-03)
 
 ### Features
