@@ -1,6 +1,6 @@
 # 133. `child_process.fork` and `Worker` share one IPC channel, extracted from `worker_threads` into its own package
 
-- Status: **Proposed** (2026-11-03)
+- Status: **Accepted** (2026-11-05; proposed 2026-11-03)
 - Date: 2026-11-03
 - Deciders: Pascal Garber
 - Related: [ADR 0132](0132-ai-capabilities-share-one-shape.md) § 8 (process isolation for GPU

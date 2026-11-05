@@ -1,8 +1,10 @@
 # 132. AI capabilities on GJS share one shape: the web API where one exists, the built-in AI pattern where none does, and a remote engine only when the app registers one
 
-- Status: **Proposed** (2026-11-03)
+- Status: **Accepted** (2026-11-05; proposed 2026-11-03)
 - Date: 2026-11-03
 - Deciders: Pascal Garber
+- Amended by [ADR 0136](0136-machine-fit-checks-memory-and-finds-local-servers.md) § 5: read-only
+  discovery of local inference servers is the one exception to § 3.
 - Amends [ADR 0121](0121-speech-synthesis-on-gjs-via-libspiel.md) § 4 and
   [ADR 0127](0127-speech-recognition-on-local-engines.md) § 3 and § 8. Both stay in force for
   everything else.

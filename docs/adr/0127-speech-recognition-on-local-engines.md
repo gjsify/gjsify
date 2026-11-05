@@ -1,8 +1,11 @@
 # 127. `SpeechRecognition` on GJS runs on local engines behind Vala bridges, with capture, VAD and machine fit as their own packages
 
-- Status: **Proposed** (2026-10-30)
+- Status: **Accepted** (2026-11-05; proposed 2026-10-30)
 - Date: 2026-10-30
 - Deciders: Pascal Garber
+- Amended by [ADR 0132](0132-ai-capabilities-share-one-shape.md) § 4 and § 5 (remote engines,
+  one model store) and by [ADR 0136](0136-machine-fit-checks-memory-and-finds-local-servers.md)
+  (a static memory check in `machine-fit`, extracted before step 5).
 - Related: [ADR 0121](0121-speech-synthesis-on-gjs-via-libspiel.md) (the other half of Web
   Speech, and where the backend-precedence shape comes from),
   [ADR 0123](0123-node-sqlite-runs-on-libsqlite3-through-a-vala-bridge.md) (the thin Vala bridge
