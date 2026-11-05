@@ -48,6 +48,7 @@ export class Duplex_ extends Readable_ {
     private _defaultEncoding = 'utf8';
     private _pendingWrites = 0;
     private _pendingEndCb: (() => void) | null = null;
+    private _autoClosed = false;
 
     constructor(opts?: DuplexOptions) {
         super(opts);
@@ -149,6 +150,9 @@ export class Duplex_ extends Readable_ {
             nextTick(() => {
                 cb(err);
                 this.emit('error', err);
+                // Node's errorOrDestroy(): a write past end() destroys the stream, which is
+                // what closes a Duplex whose readable side nobody consumes.
+                this.destroy();
             });
             return false;
         }
@@ -255,7 +259,7 @@ export class Duplex_ extends Readable_ {
                     nextTick(() => {
                         if (err) this.emit('error', err);
                         this.emit('finish');
-                        nextTick(() => this.emit('close'));
+                        nextTick(() => this._closeAfterFinish());
                         if (callback) callback();
                     });
                 });
@@ -274,6 +278,25 @@ export class Duplex_ extends Readable_ {
         }
 
         return this;
+    }
+
+    /**
+     * Node's autoDestroy closes a Duplex only once BOTH sides are done. A Transform whose
+     * writable side finished still holds buffered output (and whatever its `_flush` pushed) until
+     * the reader consumes it; an early 'close' makes `pipe()` tear down its 'data'/'drain'
+     * listeners and strands that tail. The readable side's 'end' closes it instead.
+     */
+    private _closeAfterFinish(): void {
+        if (this._autoClosed) return;
+        if (!this.destroyed && !this._readableState.endEmitted && this.readable) return;
+        this._autoClosed = true;
+        this.emit('close');
+    }
+
+    protected override _autoClose(): void {
+        if (this._autoClosed) return;
+        this._autoClosed = true;
+        this.emit('close');
     }
 
     /** Hook for subclasses to run logic between _final and 'finish'. Default: no-op. */
