@@ -728,13 +728,13 @@ describe('CLI flatpak subcommand group E2E', { timeout: 10 * 60 * 1000 }, () => 
             timeout: 60 * 1000,
             env: { ...process.env, PATH: pathWithStubs },
         }).toString();
-        assert.match(out, /OK: appstreamcli validate --strict/);
+        assert.match(out, /OK: appstreamcli validate --strict --no-net/);
         assert.match(out, /OK: flatpak-builder-lint manifest/);
         assert.match(out, /all checks passed/);
 
         // Verify call shape
         const appstreamCalls = readFileSync(join(stubBinDir, 'APPSTREAMCLI_CALLS'), 'utf-8').trim();
-        assert.match(appstreamCalls, /validate --strict .*org\.example\.CheckOk\.metainfo\.xml\.in/);
+        assert.match(appstreamCalls, /validate --strict --no-net .*org\.example\.CheckOk\.metainfo\.xml\.in/);
         const lintCalls = readFileSync(join(stubBinDir, 'BUILDER_LINT_CALLS'), 'utf-8').trim();
         assert.match(lintCalls, /manifest .*org\.example\.CheckOk\.json/);
     });

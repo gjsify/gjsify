@@ -1,8 +1,9 @@
 // `gjsify flatpak check` — run Flathub's pre-submission linters locally.
 //
 // Wraps two tools:
-//   - `appstreamcli validate --strict <metainfo>` — MetaInfo XML
-//     correctness check
+//   - `appstreamcli validate --strict --no-net <metainfo>` — MetaInfo XML
+//     correctness check; offline unless `--appstream-network` (a URL that
+//     is merely unreachable from the runner must not fail the gate)
 //   - `flatpak-builder-lint manifest <manifest.json>` — manifest
 //     correctness check (and optionally `repo` for built artefacts)
 //
@@ -34,8 +35,14 @@ interface FlatpakCheckOptions {
     strict?: boolean;
     json?: boolean;
     qualityNetwork?: boolean;
+    appstreamNetwork?: boolean;
     builderLint?: boolean;
     verbose?: boolean;
+}
+
+/** argv for `appstreamcli`; offline unless the caller opts in to URL reachability checks. */
+export function appstreamValidateArgs(metainfoAbs: string, network = false): string[] {
+    return ['validate', '--strict', ...(network ? [] : ['--no-net']), metainfoAbs];
 }
 
 export const flatpakCheckCommand: Command<unknown, FlatpakCheckOptions> = {
@@ -59,7 +66,7 @@ export const flatpakCheckCommand: Command<unknown, FlatpakCheckOptions> = {
                 normalize: true,
             })
             .option('appstream', {
-                description: 'Run `appstreamcli validate --strict` (default: true).',
+                description: 'Run `appstreamcli validate --strict --no-net` (default: true).',
                 type: 'boolean',
                 default: true,
             })
@@ -81,6 +88,11 @@ export const flatpakCheckCommand: Command<unknown, FlatpakCheckOptions> = {
             })
             .option('quality-network', {
                 description: 'Let the quality check fetch http(s) screenshot/icon URLs to measure their size.',
+                type: 'boolean',
+                default: false,
+            })
+            .option('appstream-network', {
+                description: 'Let `appstreamcli` fetch the MetaInfo URLs to check they are reachable.',
                 type: 'boolean',
                 default: false,
             })
@@ -114,7 +126,7 @@ export const flatpakCheckCommand: Command<unknown, FlatpakCheckOptions> = {
             } else {
                 const ok = await runLinter(
                     'appstreamcli',
-                    ['validate', '--strict', metainfoAbs],
+                    appstreamValidateArgs(metainfoAbs, args.appstreamNetwork === true),
                     args.verbose ?? false,
                 );
                 if (!ok) failures++;
