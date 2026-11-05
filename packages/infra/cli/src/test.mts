@@ -145,6 +145,7 @@ import webextSuite from './utils/webext/webext.spec.js';
 import spawnSuite from './utils/spawn.spec.js';
 import win32CommandSuite from './utils/win32-command.spec.js';
 import envCommandSuite from './commands/env.spec.js';
+import flatpakCheckSuite from './commands/flatpak/check.spec.js';
 import execBinSuite from './utils/exec-bin.spec.js';
 import binRebuildRegressionsSuite from './bin-rebuild-regressions.spec.js';
 import gjsBundleGuardSuite from './utils/gjs-bundle-guard.spec.js';
@@ -434,6 +435,7 @@ run(
         spawnSuite,
         win32CommandSuite,
         envCommandSuite,
+        flatpakCheckSuite,
         execBinSuite,
         binRebuildRegressionsSuite,
         gjsBundleGuardSuite,

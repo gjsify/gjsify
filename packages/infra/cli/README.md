@@ -75,7 +75,9 @@ Every command and flag is in the
 (name, summary, description, branding, icon, screenshots, releases). Each finding names its
 rule, severity, location and the guideline anchor; the exit code is non-zero only on errors.
 `--strict` turns warnings into errors, `--json` prints machine-readable output for CI, and
-`--no-quality` skips the step. It is plain TypeScript, so it runs the same locally and in CI.
+`--no-quality` skips the step. `appstreamcli` runs with `--no-net` (a URL unreachable from
+the runner is not a MetaInfo defect); `--appstream-network` opts back in. It is plain
+TypeScript, so it runs the same locally and in CI.
 
 Without a global install, reach the CLI through your runtime's package runner instead:
 `npx @gjsify/cli@latest …`, `bunx @gjsify/cli@latest …` or
