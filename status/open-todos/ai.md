@@ -28,7 +28,7 @@ its own `gpuGuardDir` and GPU switch; its `fork` shim goes now that ADR 0133 has
 
 Found moving the llama.cpp engine in: `await import('node-llama-cpp')` in a `--app gjs` bundle
 hangs without an error, while the static import and the same dynamic import bundled for Node
-work. `@gjsify/embeddings/llama` imports node-llama-cpp statically until this is fixed.
+work. `@gjsify/embeddings/llama` imports node-llama-cpp statically until this is fixed. Issue #2546.
 
 ### Wire `checkFit` into every capability's `availability()`
 
