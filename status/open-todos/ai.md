@@ -3,10 +3,11 @@
      commit + CHANGELOG that closed it). See status/open-todos/README.md for the
      full convention and where to add a new entry. -->
 
-### Extract `@gjsify/model-store` from `@gjsify/vad` and move the model cache path
+### Switch `@gjsify/vad` to `@gjsify/model-store`
 
-ADR 0132 § 5 and § 10 step 1. One store for every capability's models: download, checksum,
-cache path. `@gjsify/vad` holds the code today; the cache path moves with it.
+ADR 0132 § 5. Blocked on the first npm publish of `@gjsify/model-store`: a published vad
+cannot depend on a name npm does not have. Ready on branch `feat/vad-on-model-store`; the
+cache moves from `speech-models/` to `models/speech/` on first lookup.
 
 ### `@gjsify/speech-recognition` on the streaming zipformer
 

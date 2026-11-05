@@ -1,0 +1,82 @@
+{
+    "name": "@gjsify/model-store",
+    "version": "0.64.19",
+    "description": "Where an AI model lives and how it gets there: one store per capability with streaming download, SHA-256 verification, WebML-shaped download progress, and three sources in order (a configured path, an app's read-only data dir, the per-user cache). Pure TypeScript on node:* APIs.",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "type": "module",
+    "sideEffects": false,
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        }
+    },
+    "files": [
+        "lib",
+        "!lib/types/**/*.spec.d.ts"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib tmp tsconfig.tsbuildinfo test.gjs.mjs test.node.mjs",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "gjsify tsc",
+        "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs",
+        "test:node": "node test.node.mjs"
+    },
+    "keywords": [
+        "model",
+        "cache",
+        "download",
+        "sha256",
+        "ai",
+        "onnx",
+        "gguf"
+    ],
+    "dependencies": {
+        "@gjsify/crypto": "workspace:^",
+        "@gjsify/fs": "workspace:^",
+        "@gjsify/os": "workspace:^",
+        "@gjsify/path": "workspace:^",
+        "@gjsify/process": "workspace:^"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/gjs/model-store"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/gjs/model-store#readme",
+    "gjsify": {
+        "tier": 3,
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "none"
+        },
+        "os": {
+            "linux": "supported",
+            "darwin": "supported",
+            "win32": "partial"
+        },
+        "osNotes": {
+            "win32": "The cache root is %LOCALAPPDATA%\\gjsify\\models, where GLib's get_user_cache_dir() would answer the Internet cache folder."
+        },
+        "headless": true
+    }
+}

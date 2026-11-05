@@ -5,6 +5,7 @@
     "//shape": "Key = the npm name. Value = the queued action and who owns it. An empty value fails: an entry without a reason is an exemption, not a queued action. Empty `pending` is the correct steady state, not an oversight.",
     "pending": {
         "@gjsify/local-ai-servers": "QUEUED, owner: the npm account owner (@JumpLinkCom) \u2014 CI cannot do it, OIDC needs the name to exist first. New in the ADR 0136 pull request: finds local inference servers (Ollama, LM Studio, llama.cpp) and their loaded models.",
+        "@gjsify/model-store": "QUEUED, owner: the npm account owner (@JumpLinkCom) \u2014 CI cannot do it, OIDC needs the name to exist first. New in the model-store pull request: the shared model download, verification and cache (ADR 0132 \u00a7 5), which @gjsify/vad switches to once this name is on npm.",
         "@gjsify/machine-fit": "QUEUED, owner: the npm account owner (@JumpLinkCom) \u2014 CI cannot do it, OIDC needs the name to exist first. New in the ADR 0136 pull request: the static memory check and the backend probe extracted from Stamped (ADR 0127 decision 11)."
     }
 }
