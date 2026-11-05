@@ -513,6 +513,11 @@
       "missing": "Tested against made-up machines only. GPU memory: no Intel discrete VRAM, no non-NVIDIA GPU on Windows (DXGI needs native code), Apple silicon's GPU share approximated without Metal.",
       "note": "Static memory check (RAM, free VRAM, unified memory; placement gpu / gpu+cpu / cpu / unknown / none) that can rule a model out before download, plus probeBackends against a wall-clock budget, a GPU-hang guard, hasVulkan and onBattery (ADR 0127 decision 11, ADR 0136). Pure TypeScript on node:* APIs."
     },
+    "@gjsify/model-store": {
+      "status": "partial",
+      "missing": "Tested against a temporary directory and an injected fetch only; no test downloads a real model. No resumable download, no eviction or size limit, no shared lock between processes (two processes downloading one model both fetch; the rename keeps the file whole).",
+      "note": "One model store per capability under <user cache>/gjsify/models/<capability>/: streaming download with a running size check, SHA-256 before an atomic rename, downloadprogress in the WebML CG monitor shape, and three sources in order (configured path, app data dir, cache), each digest-checked. Moves files from a legacy directory once (ADR 0132 \u00a7 5). Pure TypeScript on node:* APIs."
+    },
     "@gjsify/xeddsa": {
       "status": "partial",
       "missing": "Checked against the libsignal-protocol-c and libsignal (Rust) vectors only, not yet interoperating with a deployed OMEMO client. No VXEdDSA (the VRF variant); no constant-time guarantee beyond what @noble/curves gives.",
