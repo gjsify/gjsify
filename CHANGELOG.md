@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.64.20](https://github.com/gjsify/gjsify/compare/v0.64.19...v0.64.20) (2026-11-05)
+
+### Features
+
+* **machine-fit:** memory check and local servers ([#2543](https://github.com/gjsify/gjsify/issues/2543)) ([c72929b](https://github.com/gjsify/gjsify/commit/c72929b1b4305224dceddee4d56c77c262ba0b4d))
+
+### Bug Fixes
+
+* **cli:** validate appstream offline in flatpak check ([#2542](https://github.com/gjsify/gjsify/issues/2542)) ([b1e1e41](https://github.com/gjsify/gjsify/commit/b1e1e417d122a56ed930a38ffed0bdb3aff1d8c0))
+* **net:** write the rest after a partial write_bytes ([#2538](https://github.com/gjsify/gjsify/issues/2538)) ([edc8ae1](https://github.com/gjsify/gjsify/commit/edc8ae1e357036023d9f1d4341a8aea288356f21))
+* **stream:** keep a Duplex open until it was read ([#2541](https://github.com/gjsify/gjsify/issues/2541)) ([7d73bb8](https://github.com/gjsify/gjsify/commit/7d73bb8c23c0774108424331e87f9617617fb12f)), closes [#2539](https://github.com/gjsify/gjsify/issues/2539) [#2538](https://github.com/gjsify/gjsify/issues/2538)
+
+### Documentation
+
+* **adr:** `AI` capabilities and a fork IPC channel ([#2528](https://github.com/gjsify/gjsify/issues/2528)) ([3a5c4a4](https://github.com/gjsify/gjsify/commit/3a5c4a4ed9ae74337b3d5a70e079eafa71814e42))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([8123323](https://github.com/gjsify/gjsify/commit/8123323d169ff71c19b27c48569d56200e94fee8))
+* update native prebuilds [skip ci] ([44274b7](https://github.com/gjsify/gjsify/commit/44274b74b2ae2132260b8c9de2df780a7f4aab7e))
+
 ## [0.64.19](https://github.com/gjsify/gjsify/compare/v0.64.18...v0.64.19) (2026-11-04)
 
 ### Features
