@@ -3,6 +3,8 @@
 - Status: **Accepted** (2026-10-27)
 - Date: 2026-10-27
 - Deciders: Pascal Garber
+- Amended by [ADR 0132](0132-ai-capabilities-share-one-shape.md) § 4: a remote engine the app
+  registers is allowed; gjsify still registers none.
 - Related: [ADR 0075](0075-gamepad-sources.md) (the gamepad backend and its bundled native
   fallback are the template); `packages/web/speech-synthesis`, `packages/web/gamepad`
 

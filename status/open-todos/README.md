@@ -60,6 +60,7 @@ Inside a file, add one `### <title>` heading per open item, same convention as b
 | `examples.md` | Examples and showcases |
 | `devtools.md` | Devtools (`devtools-cdp`, `devtools-export`, `Screenshot(scope)`) |
 | `fonts.md` | Fonts |
+| `ai.md` | AI capabilities (speech, embeddings, image generation, machine fit; ADR 0132) |
 | `roadmap.md` | Architecture roadmap pointer (ADR backlog) |
 
 This table is itself authored, not derived — if you add a new area file, add its row
