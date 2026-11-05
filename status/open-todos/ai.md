@@ -3,12 +3,6 @@
      commit + CHANGELOG that closed it). See status/open-todos/README.md for the
      full convention and where to add a new entry. -->
 
-### Switch `@gjsify/vad` to `@gjsify/model-store`
-
-ADR 0132 § 5. Blocked on the first npm publish of `@gjsify/model-store`: a published vad
-cannot depend on a name npm does not have. Ready on branch `feat/vad-on-model-store`; the
-cache moves from `speech-models/` to `models/speech/` on first lookup.
-
 ### `@gjsify/speech-recognition` on the streaming zipformer
 
 ADR 0127 § 13 step 3, on top of `@gjsify/sherpa-native` and `@gjsify/vad`: the W3C

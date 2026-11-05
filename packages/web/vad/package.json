@@ -35,7 +35,8 @@
         "speech"
     ],
     "dependencies": {
-        "@gjsify/fetch": "workspace:^",
+        "@gjsify/model-store": "workspace:^",
+        "@gjsify/path": "workspace:^",
         "@gjsify/sherpa-native": "workspace:^",
         "@gjsify/utils": "workspace:^"
     },

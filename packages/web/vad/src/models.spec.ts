@@ -1,13 +1,17 @@
 // The manifest and the model cache. NOTHING HERE DOWNLOADS ANYTHING (ADR 0127
 // decision 14): `install()` is exercised through an injected `fetchImpl`, and
-// every case asserted is one that is refused BEFORE a byte reaches disk, so the
-// suite neither reaches the network nor writes into the real cache directory.
+// every case asserted is a refused download, run with `XDG_CACHE_HOME` pointed
+// at a temporary directory, so the suite neither reaches the network nor
+// writes into the real cache directory.
 //
-// The successful write path — digest, atomic rename, the in-flight share — is
-// covered by `real-vad.spec.ts`, which runs only where a model is already
-// cached.
+// The successful write path — streaming, digest, atomic rename, progress — is
+// `@gjsify/model-store`'s and covered by its own suite.
 
 import { describe, expect, it } from '@gjsify/unit';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import process from 'node:process';
 
 import { _resetVadBackendCache, loadVadBackend, type VadBackend } from './backend.js';
 import { DEFAULT_VAD_MODEL, findVadModel, requireVadModel, VAD_MODELS } from './model-manifest.js';
@@ -21,6 +25,20 @@ function withFakeBackend<T>(body: () => T): T {
         return body();
     } finally {
         _resetVadBackendCache();
+    }
+}
+
+/** Run `body` with the user cache in a temporary directory, so a refused download leaves no trace in the real one. */
+async function withTempCache(body: () => Promise<void>): Promise<void> {
+    const saved = process.env.XDG_CACHE_HOME;
+    const dir = mkdtempSync(join(tmpdir(), 'vad-cache-'));
+    process.env.XDG_CACHE_HOME = dir;
+    try {
+        await body();
+    } finally {
+        if (saved === undefined) delete process.env.XDG_CACHE_HOME;
+        else process.env.XDG_CACHE_HOME = saved;
+        rmSync(dir, { recursive: true, force: true });
     }
 }
 
@@ -71,8 +89,8 @@ export default async () => {
     });
 
     await describe('VAD model cache', async () => {
-        await it('caches under gjsify/speech-models, shared with the other speech packages', async () => {
-            expect(modelCacheDir().endsWith('/gjsify/speech-models')).toBe(true);
+        await it('caches under gjsify/models/speech, shared with the other speech packages', async () => {
+            expect(modelCacheDir().endsWith('/gjsify/models/speech')).toBe(true);
             expect(modelPath(DEFAULT_VAD_MODEL).endsWith('/silero_vad_v5.onnx')).toBe(true);
             expect(() => modelPath('nope')).toThrow(RangeError);
         });
@@ -111,59 +129,69 @@ export default async () => {
 
     await describe('install() verification', async () => {
         await it('refuses a Content-Length that disagrees with the manifest, without reading the body', async () => {
-            await withFakeBackend(async () => {
-                let bodyRead = false;
-                const fetchImpl = asFetch(async () => ({
-                    ...fakeResponse(new Uint8Array(0), { contentLength: '123' }),
-                    arrayBuffer: async () => {
-                        bodyRead = true;
-                        return new ArrayBuffer(0);
-                    },
-                }));
-                await expect(install('silero-v4', { fetchImpl })).rejects.toThrow(/declares 123 bytes/);
-                expect(bodyRead).toBe(false);
-            });
+            await withTempCache(() =>
+                withFakeBackend(async () => {
+                    let bodyRead = false;
+                    const fetchImpl = asFetch(async () => ({
+                        ...fakeResponse(new Uint8Array(0), { contentLength: '123' }),
+                        arrayBuffer: async () => {
+                            bodyRead = true;
+                            return new ArrayBuffer(0);
+                        },
+                    }));
+                    await expect(install('silero-v4', { fetchImpl })).rejects.toThrow(/declares 123 bytes/);
+                    expect(bodyRead).toBe(false);
+                }),
+            );
         });
 
         await it('refuses a body whose length is not the manifest size', async () => {
-            await withFakeBackend(async () => {
-                const fetchImpl = asFetch(async () => fakeResponse(new Uint8Array(17), { contentLength: null }));
-                await expect(install('silero-v4', { fetchImpl })).rejects.toThrow(/got 17 bytes/);
-            });
+            await withTempCache(() =>
+                withFakeBackend(async () => {
+                    const fetchImpl = asFetch(async () => fakeResponse(new Uint8Array(17), { contentLength: null }));
+                    await expect(install('silero-v4', { fetchImpl })).rejects.toThrow(/got 17 bytes/);
+                }),
+            );
         });
 
         await it('refuses a body of the right length whose digest is wrong', async () => {
-            await withFakeBackend(async () => {
-                const entry = requireVadModel('silero-v4');
-                const fetchImpl = asFetch(async () => fakeResponse(new Uint8Array(entry.bytes)));
-                await expect(install('silero-v4', { fetchImpl })).rejects.toThrow(
-                    new RegExp(`sha256 [0-9a-f]{64}, expected ${entry.sha256}`),
-                );
-            });
+            await withTempCache(() =>
+                withFakeBackend(async () => {
+                    const entry = requireVadModel('silero-v4');
+                    const fetchImpl = asFetch(async () => fakeResponse(new Uint8Array(entry.bytes)));
+                    await expect(install('silero-v4', { fetchImpl })).rejects.toThrow(
+                        new RegExp(`sha256 [0-9a-f]{64}, expected ${entry.sha256}`),
+                    );
+                }),
+            );
         });
 
         await it('reports an HTTP failure with its status', async () => {
-            await withFakeBackend(async () => {
-                const fetchImpl = asFetch(async () => fakeResponse(new Uint8Array(0), { status: 404 }));
-                await expect(install('silero-v4', { fetchImpl })).rejects.toThrow(/HTTP 404/);
-            });
+            await withTempCache(() =>
+                withFakeBackend(async () => {
+                    const fetchImpl = asFetch(async () => fakeResponse(new Uint8Array(0), { status: 404 }));
+                    await expect(install('silero-v4', { fetchImpl })).rejects.toThrow(/HTTP 404/);
+                }),
+            );
         });
 
         await it('shares one download between two overlapping calls', async () => {
-            await withFakeBackend(async () => {
-                let calls = 0;
-                const fetchImpl = asFetch(async () => {
-                    calls++;
-                    await Promise.resolve();
-                    return fakeResponse(new Uint8Array(1), { contentLength: null });
-                });
-                const both = Promise.all([
-                    install('silero-v4', { fetchImpl }).catch(() => 'rejected'),
-                    install('silero-v4', { fetchImpl }).catch(() => 'rejected'),
-                ]);
-                expect(await both).toStrictEqual(['rejected', 'rejected']);
-                expect(calls).toBe(1);
-            });
+            await withTempCache(() =>
+                withFakeBackend(async () => {
+                    let calls = 0;
+                    const fetchImpl = asFetch(async () => {
+                        calls++;
+                        await Promise.resolve();
+                        return fakeResponse(new Uint8Array(1), { contentLength: null });
+                    });
+                    const both = Promise.all([
+                        install('silero-v4', { fetchImpl }).catch(() => 'rejected'),
+                        install('silero-v4', { fetchImpl }).catch(() => 'rejected'),
+                    ]);
+                    expect(await both).toStrictEqual(['rejected', 'rejected']);
+                    expect(calls).toBe(1);
+                }),
+            );
         });
     });
 };

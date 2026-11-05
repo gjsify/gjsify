@@ -75,7 +75,7 @@ import { listModels, install, uninstall, modelCacheDir } from '@gjsify/vad';
 listModels();      // every entry with its availability, for a settings panel
 await install('silero-v4', { onProgress: (p) => console.log(p.received, p.total) });
 uninstall('silero-v4');
-modelCacheDir();   // ~/.cache/gjsify/speech-models, shared with the other speech packages
+modelCacheDir();   // ~/.cache/gjsify/models/speech, shared with the other speech packages
 ```
 
 `VadOptions.model` takes a manifest id (`silero-v5`, `silero-v4`) or a path — anything containing a path separator is used as given, which is how you point at a model this manifest does not know. An id must already be cached: resolving must not start a download behind a synchronous constructor.

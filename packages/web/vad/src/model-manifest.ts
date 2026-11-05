@@ -11,26 +11,16 @@
 // and a mirror serving the wrong revision both fail on them. Updating a model
 // means re-measuring both, never editing one.
 
-/** One fetchable Silero VAD model. */
-export interface VadModelEntry {
-    /** Stable id used by `available()`, `install()` and `VadOptions.model`. */
-    readonly id: string;
-    /** File name inside the cache directory. Upstream's own name, so a hand-placed file matches. */
-    readonly file: string;
-    /** Where it is fetched from. Upstream only — never a mirror of ours. */
-    readonly url: string;
-    /** Exact size in bytes. */
-    readonly bytes: number;
-    /** SHA-256 of the file, lowercase hex. */
-    readonly sha256: string;
-    /** SPDX id of the MODEL's licence, which is not this package's. */
-    readonly license: string;
+import type { ModelEntry } from '@gjsify/model-store';
+
+/** One fetchable Silero VAD model. `id` is what `available()`, `install()` and `VadOptions.model` take. */
+export interface VadModelEntry extends ModelEntry {
+    /** One line for a settings panel or a download prompt. */
+    readonly description: string;
     /** Sample rate this entry has been measured at. */
     readonly sampleRate: number;
     /** Samples per inference window at {@link sampleRate}. */
     readonly windowSize: number;
-    /** One line for a settings panel or a download prompt. */
-    readonly description: string;
 }
 
 /**
@@ -50,6 +40,7 @@ export const VAD_MODELS: readonly VadModelEntry[] = [
         bytes: 2313101,
         sha256: '6b99cbfd39246b6706f98ec13c7c50c6b299181f2474fa05cbc8046acc274396',
         license: 'MIT',
+        redistributable: true,
         sampleRate: 16000,
         windowSize: 512,
         description: 'Silero VAD v5 (2.2 MiB) — the default. Takes input/state/sr; 16 kHz, 512-sample windows.',
@@ -61,6 +52,7 @@ export const VAD_MODELS: readonly VadModelEntry[] = [
         bytes: 643854,
         sha256: '9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6',
         license: 'MIT',
+        redistributable: true,
         sampleRate: 16000,
         windowSize: 512,
         description: 'Silero VAD v4 (0.6 MiB) — smaller and older. Only its 16 kHz branch is covered here.',
