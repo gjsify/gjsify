@@ -93,17 +93,203 @@ msgstr "Impressum"
 msgid "Who publishes {app}, and how to reach them."
 msgstr "Wer {app} veröffentlicht, und wie man diese Person erreicht."
 
-msgid "Language"
-msgstr "Sprache"
+msgid "Chromium"
+msgstr "Chromium"
+
+msgid "Firefox"
+msgstr "Firefox"
+
+msgid "Edge"
+msgstr "Edge"
+
+msgid "Safari"
+msgstr "Safari"
+
+msgid "…"
+msgstr "…"
+
+msgid "Access the page you are looking at, only after you click the extension"
+msgstr "Auf die Seite zugreifen, die du gerade ansiehst – erst nach einem Klick auf die Erweiterung"
+
+msgid "Schedule work to run later or repeatedly"
+msgstr "Aufgaben für später oder regelmäßig planen"
+
+msgid "Keep running in the background"
+msgstr "Im Hintergrund weiterlaufen"
+
+msgid "Read and change your bookmarks"
+msgstr "Deine Lesezeichen lesen und ändern"
+
+msgid "Clear your browsing data"
+msgstr "Deine Browserdaten löschen"
+
+msgid "Read data you copied"
+msgstr "Kopierte Daten lesen"
+
+msgid "Write to the clipboard"
+msgstr "In die Zwischenablage schreiben"
+
+msgid "Add entries to the right-click menu"
+msgstr "Einträge zum Rechtsklick-Menü hinzufügen"
+
+msgid "Read and change cookies"
+msgstr "Cookies lesen und ändern"
+
+msgid "Block or change requests to websites"
+msgstr "Anfragen an Websites blockieren oder ändern"
+
+msgid "Manage your downloads"
+msgstr "Deine Downloads verwalten"
+
+msgid "Know your location"
+msgstr "Deinen Standort kennen"
+
+msgid "Read and change your browsing history"
+msgstr "Deinen Verlauf lesen und ändern"
+
+msgid "Sign in with your account"
+msgstr "Mit deinem Konto anmelden"
+
+msgid "Notice when you are away from the computer"
+msgstr "Bemerken, wenn du nicht am Computer bist"
+
+msgid "Manage other extensions"
+msgstr "Andere Erweiterungen verwalten"
+
+msgid "Talk to an app installed on your computer"
+msgstr "Mit einer auf deinem Computer installierten App sprechen"
+
+msgid "Show notifications"
+msgstr "Benachrichtigungen anzeigen"
+
+msgid "Run a hidden page for background work"
+msgstr "Eine versteckte Seite für Hintergrundarbeit ausführen"
+
+msgid "Change your browser privacy settings"
+msgstr "Die Datenschutzeinstellungen deines Browsers ändern"
+
+msgid "Control how the browser connects to the internet"
+msgstr "Steuern, wie der Browser sich mit dem Internet verbindet"
+
+msgid "Run code in pages you allow it on"
+msgstr "Code auf Seiten ausführen, für die du es erlaubst"
+
+msgid "Search with your default search engine"
+msgstr "Mit deiner Standardsuchmaschine suchen"
+
+msgid "Read and restore recently closed tabs and windows"
+msgstr "Zuletzt geschlossene Tabs und Fenster lesen und wiederherstellen"
+
+msgid "Show a side panel"
+msgstr "Eine Seitenleiste anzeigen"
+
+msgid "Store its own settings and data"
+msgstr "Eigene Einstellungen und Daten speichern"
+
+msgid "Read and change your tab groups"
+msgstr "Deine Tab-Gruppen lesen und ändern"
+
+msgid "See the address and title of your tabs"
+msgstr "Adresse und Titel deiner Tabs sehen"
+
+msgid "Read the sites you visit most"
+msgstr "Die am häufigsten besuchten Seiten lesen"
+
+msgid "Store an unlimited amount of its own data"
+msgstr "Beliebig viele eigene Daten speichern"
+
+msgid "See how you move between pages"
+msgstr "Sehen, wie du zwischen Seiten wechselst"
+
+msgid "See and handle the requests pages make"
+msgstr "Anfragen von Seiten sehen und bearbeiten"
+
+msgid "Block or change requests pages make"
+msgstr "Anfragen von Seiten blockieren oder ändern"
+
+msgid "Provide sign-in details when a site asks for them"
+msgstr "Anmeldedaten liefern, wenn eine Seite danach fragt"
+
+msgid "Read and change your data on all websites"
+msgstr "Deine Daten auf allen Websites lesen und ändern"
+
+msgid "Read and change your data on this site"
+msgstr "Deine Daten auf dieser Website lesen und ändern"
+
+msgid "Only in {browsers}"
+msgstr "Nur in {browsers}"
+
+msgid "Asked when you install"
+msgstr "Beim Installieren angefragt"
+
+msgid "Asked only when needed"
+msgstr "Nur bei Bedarf angefragt"
+
+msgid "The browser asks you first, when a feature needs it. You can say no."
+msgstr "Der Browser fragt dich vorher, wenn eine Funktion es braucht. Du kannst ablehnen."
+
+msgid "Permissions"
+msgstr "Berechtigungen"
+
+msgid "This extension asks for no permissions."
+msgstr "Diese Erweiterung verlangt keine Berechtigungen."
+
+msgid "Read the privacy statement"
+msgstr "Datenschutzerklärung lesen"
+
+msgid "Data"
+msgstr "Daten"
+
+msgid "The extension declares that it collects no data."
+msgstr "Die Erweiterung erklärt, dass sie keine Daten erhebt."
+
+msgid "Works in"
+msgstr "Funktioniert in"
+
+msgid "Not yet available"
+msgstr "Noch nicht verfügbar"
+
+msgid "Website"
+msgstr "Webseite"
 
 msgid "Source code"
 msgstr "Quellcode"
 
+msgid "Details"
+msgstr "Details"
+
+msgid "Version"
+msgstr "Version"
+
+msgid "Updated"
+msgstr "Aktualisiert"
+
+msgid "Size"
+msgstr "Größe"
+
+msgid "Manifest"
+msgstr "Manifest"
+
+msgid "Requires"
+msgstr "Benötigt"
+
+msgid "License"
+msgstr "Lizenz"
+
+msgid "Links"
+msgstr "Links"
+
+msgid "Needs the app {app}"
+msgstr "Braucht die App {app}"
+
+msgid "About"
+msgstr "Über"
+
+msgid "Language"
+msgstr "Sprache"
+
 msgid "Made with {project}"
 msgstr "Gemacht mit {project}"
-
-msgid "Website"
-msgstr "Webseite"
 
 msgid "Help"
 msgstr "Hilfe"
@@ -137,12 +323,6 @@ msgstr "Android"
 
 msgid "Web"
 msgstr "Web"
-
-msgid "Firefox"
-msgstr "Firefox"
-
-msgid "Chromium"
-msgstr "Chromium"
 
 msgid "macOS asks before opening an app Apple has not checked. Try to open it once, then choose System Settings → Privacy & Security → Open Anyway."
 msgstr "macOS fragt nach, bevor es eine App öffnet, die Apple nicht geprüft hat. Einmal öffnen, dann Systemeinstellungen → Datenschutz & Sicherheit → Dennoch öffnen wählen."
@@ -210,11 +390,11 @@ msgstr "Schließen"
 msgid "Recommended"
 msgstr "Empfohlen"
 
-msgid "Not yet available"
-msgstr "Noch nicht verfügbar"
-
 msgid "Apple Silicon is assumed. Pick the Intel build if your Mac has an Intel processor."
 msgstr "Apple Silicon wird angenommen. Für Macs mit Intel-Prozessor die Intel-Variante wählen."
+
+msgid "About the browser extension"
+msgstr "Über die Browser-Erweiterung"
 
 msgid "Browser"
 msgstr "Browser"
@@ -233,9 +413,6 @@ msgstr "Alle Versionen auf GitHub"
 
 msgid "Download size"
 msgstr "Downloadgröße"
-
-msgid "License"
-msgstr "Lizenz"
 
 msgid "Browsers"
 msgstr "Browser"
@@ -267,9 +444,6 @@ msgstr "Änderungen in Version {version}"
 msgid "Older releases"
 msgstr "Ältere Versionen"
 
-msgid "Links"
-msgstr "Links"
-
 msgid "More apps by {developer}"
 msgstr "Weitere Apps von {developer}"
 
@@ -300,6 +474,9 @@ msgstr "Mit der Banking-App scannen"
 msgid "Support this project"
 msgstr "Dieses Projekt unterstützen"
 
+msgid "Browser extension"
+msgstr "Browser-Erweiterung"
+
 msgid "Categories"
 msgstr "Kategorien"
 
@@ -314,6 +491,9 @@ msgstr "von {developer}"
 
 msgid "{app} is free software. Support its development with a transfer or a service."
 msgstr "{app} ist freie Software. Unterstütze die Entwicklung per Überweisung oder über einen Dienst."
+
+msgid "The browser extension of {app}."
+msgstr "Die Browser-Erweiterung von {app}."
 
 msgid "{app} is licensed under {license}."
 msgstr "{app} steht unter der Lizenz {license}."

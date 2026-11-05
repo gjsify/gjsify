@@ -9,6 +9,8 @@ import type {
     SiteComponent,
     SiteConfig,
     SiteDeveloperConfig,
+    SiteExtensionConfig,
+    ExtensionFamily,
     SiteThemeConfig,
     SiteDownloadConfig,
     SiteLegalLink,
@@ -220,6 +222,56 @@ function parseLegalNotice(raw: Raw, languages: readonly string[]): SiteLegalNoti
     return { statements };
 }
 
+const EXTENSION_FAMILIES: readonly ExtensionFamily[] = ['chromium', 'firefox', 'edge', 'safari'];
+const EXTENSION_KEYS = ['manifests', 'locales', 'component', 'permissions'];
+
+/**
+ * `gjsify.site.extension`: unknown keys fail, like everywhere else, so a typo cannot silently drop a
+ * browser. Explanations are required in every language for the same reason `privacy` is.
+ */
+function parseExtension(
+    raw: Raw,
+    languages: readonly string[],
+    components: readonly SiteComponent[],
+): SiteExtensionConfig | undefined {
+    const value = raw.extension;
+    if (value === undefined) return undefined;
+    const where = 'gjsify.site.extension';
+    if (!isRecord(value)) throw new Error(`${where} must be an object`);
+    for (const key of Object.keys(value)) {
+        if (!EXTENSION_KEYS.includes(key))
+            throw new Error(`${where}.${key} is not a known key: ${EXTENSION_KEYS.join(', ')}`);
+    }
+    const manifestsRaw = value.manifests;
+    if (!isRecord(manifestsRaw) || Object.keys(manifestsRaw).length === 0) {
+        throw new Error(`${where}.manifests must map at least one browser family to a manifest.json path`);
+    }
+    const manifests: SiteExtensionConfig['manifests'] = {};
+    for (const family of Object.keys(manifestsRaw)) {
+        if (!EXTENSION_FAMILIES.includes(family as ExtensionFamily)) {
+            throw new Error(`${where}.manifests.${family} is not a browser family: ${EXTENSION_FAMILIES.join(', ')}`);
+        }
+        manifests[family as ExtensionFamily] = stringField(manifestsRaw, family, `${where}.manifests`);
+    }
+    const component = value.component === undefined ? undefined : stringField(value, 'component', where);
+    if (component !== undefined && !components.some((part) => part.id === component)) {
+        throw new Error(
+            `${where}.component "${component}" is not one of gjsify.site.components: ${components.map((part) => part.id).join(', ') || '(none declared)'}`,
+        );
+    }
+    const permissions: SiteExtensionConfig['permissions'] = {};
+    if (value.permissions !== undefined) {
+        if (!isRecord(value.permissions)) throw new Error(`${where}.permissions must be an object`);
+        for (const [name, texts] of Object.entries(value.permissions)) {
+            if (!isRecord(texts)) throw new Error(`${where}.permissions.${name} must map a language to a sentence`);
+            permissions[name] = Object.fromEntries(
+                languages.map((lang) => [lang, stringField(texts, lang, `${where}.permissions.${name}`)]),
+            );
+        }
+    }
+    return { manifests, locales: optionalString(value, 'locales'), component, permissions };
+}
+
 function parseReleaseAssets(raw: Raw): boolean {
     const value = raw.releaseAssets ?? true;
     if (typeof value !== 'boolean') throw new Error('gjsify.site.releaseAssets must be true or false');
@@ -342,6 +394,7 @@ export function parseAnySiteConfig(manifest: RootManifest): AnySiteConfig {
     if (raw.relatedApps !== undefined) {
         throw new Error('gjsify.site.relatedApps is for app sites; a developer site lists apps in developer.apps');
     }
+    if (raw.extension !== undefined) throw new Error('gjsify.site.extension is for app sites');
     return {
         kind: 'developer',
         ...common,
@@ -356,6 +409,7 @@ export function parseSiteConfig(manifest: RootManifest): SiteConfig {
     if (raw.developer !== undefined) throw new Error('gjsify.site describes a developer site, not an app');
     const common = parseCommon(raw, undefined);
     const components = parseComponents(raw);
+    const extension = parseExtension(raw, common.languages, components);
 
     return {
         kind: 'app',
@@ -374,6 +428,7 @@ export function parseSiteConfig(manifest: RootManifest): SiteConfig {
             raw.developerUrl === undefined
                 ? undefined
                 : httpUrl(requireString(raw, 'developerUrl'), 'gjsify.site.developerUrl'),
+        extension,
     };
 }
 

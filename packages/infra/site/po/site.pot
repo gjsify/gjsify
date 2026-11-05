@@ -92,16 +92,202 @@ msgstr ""
 msgid "Who publishes {app}, and how to reach them."
 msgstr ""
 
-msgid "Language"
+msgid "Chromium"
+msgstr ""
+
+msgid "Firefox"
+msgstr ""
+
+msgid "Edge"
+msgstr ""
+
+msgid "Safari"
+msgstr ""
+
+msgid "…"
+msgstr ""
+
+msgid "Access the page you are looking at, only after you click the extension"
+msgstr ""
+
+msgid "Schedule work to run later or repeatedly"
+msgstr ""
+
+msgid "Keep running in the background"
+msgstr ""
+
+msgid "Read and change your bookmarks"
+msgstr ""
+
+msgid "Clear your browsing data"
+msgstr ""
+
+msgid "Read data you copied"
+msgstr ""
+
+msgid "Write to the clipboard"
+msgstr ""
+
+msgid "Add entries to the right-click menu"
+msgstr ""
+
+msgid "Read and change cookies"
+msgstr ""
+
+msgid "Block or change requests to websites"
+msgstr ""
+
+msgid "Manage your downloads"
+msgstr ""
+
+msgid "Know your location"
+msgstr ""
+
+msgid "Read and change your browsing history"
+msgstr ""
+
+msgid "Sign in with your account"
+msgstr ""
+
+msgid "Notice when you are away from the computer"
+msgstr ""
+
+msgid "Manage other extensions"
+msgstr ""
+
+msgid "Talk to an app installed on your computer"
+msgstr ""
+
+msgid "Show notifications"
+msgstr ""
+
+msgid "Run a hidden page for background work"
+msgstr ""
+
+msgid "Change your browser privacy settings"
+msgstr ""
+
+msgid "Control how the browser connects to the internet"
+msgstr ""
+
+msgid "Run code in pages you allow it on"
+msgstr ""
+
+msgid "Search with your default search engine"
+msgstr ""
+
+msgid "Read and restore recently closed tabs and windows"
+msgstr ""
+
+msgid "Show a side panel"
+msgstr ""
+
+msgid "Store its own settings and data"
+msgstr ""
+
+msgid "Read and change your tab groups"
+msgstr ""
+
+msgid "See the address and title of your tabs"
+msgstr ""
+
+msgid "Read the sites you visit most"
+msgstr ""
+
+msgid "Store an unlimited amount of its own data"
+msgstr ""
+
+msgid "See how you move between pages"
+msgstr ""
+
+msgid "See and handle the requests pages make"
+msgstr ""
+
+msgid "Block or change requests pages make"
+msgstr ""
+
+msgid "Provide sign-in details when a site asks for them"
+msgstr ""
+
+msgid "Read and change your data on all websites"
+msgstr ""
+
+msgid "Read and change your data on this site"
+msgstr ""
+
+msgid "Only in {browsers}"
+msgstr ""
+
+msgid "Asked when you install"
+msgstr ""
+
+msgid "Asked only when needed"
+msgstr ""
+
+msgid "The browser asks you first, when a feature needs it. You can say no."
+msgstr ""
+
+msgid "Permissions"
+msgstr ""
+
+msgid "This extension asks for no permissions."
+msgstr ""
+
+msgid "Read the privacy statement"
+msgstr ""
+
+msgid "Data"
+msgstr ""
+
+msgid "The extension declares that it collects no data."
+msgstr ""
+
+msgid "Works in"
+msgstr ""
+
+msgid "Not yet available"
+msgstr ""
+
+msgid "Website"
 msgstr ""
 
 msgid "Source code"
 msgstr ""
 
-msgid "Made with {project}"
+msgid "Details"
 msgstr ""
 
-msgid "Website"
+msgid "Version"
+msgstr ""
+
+msgid "Updated"
+msgstr ""
+
+msgid "Size"
+msgstr ""
+
+msgid "Manifest"
+msgstr ""
+
+msgid "Requires"
+msgstr ""
+
+msgid "License"
+msgstr ""
+
+msgid "Links"
+msgstr ""
+
+msgid "Needs the app {app}"
+msgstr ""
+
+msgid "About"
+msgstr ""
+
+msgid "Language"
+msgstr ""
+
+msgid "Made with {project}"
 msgstr ""
 
 msgid "Help"
@@ -135,12 +321,6 @@ msgid "Android"
 msgstr ""
 
 msgid "Web"
-msgstr ""
-
-msgid "Firefox"
-msgstr ""
-
-msgid "Chromium"
 msgstr ""
 
 msgid "macOS asks before opening an app Apple has not checked. Try to open it once, then choose System Settings → Privacy & Security → Open Anyway."
@@ -209,10 +389,10 @@ msgstr ""
 msgid "Recommended"
 msgstr ""
 
-msgid "Not yet available"
+msgid "Apple Silicon is assumed. Pick the Intel build if your Mac has an Intel processor."
 msgstr ""
 
-msgid "Apple Silicon is assumed. Pick the Intel build if your Mac has an Intel processor."
+msgid "About the browser extension"
 msgstr ""
 
 msgid "Browser"
@@ -231,9 +411,6 @@ msgid "All releases on GitHub"
 msgstr ""
 
 msgid "Download size"
-msgstr ""
-
-msgid "License"
 msgstr ""
 
 msgid "Browsers"
@@ -266,9 +443,6 @@ msgstr ""
 msgid "Older releases"
 msgstr ""
 
-msgid "Links"
-msgstr ""
-
 msgid "More apps by {developer}"
 msgstr ""
 
@@ -299,6 +473,9 @@ msgstr ""
 msgid "Support this project"
 msgstr ""
 
+msgid "Browser extension"
+msgstr ""
+
 msgid "Categories"
 msgstr ""
 
@@ -312,6 +489,9 @@ msgid "by {developer}"
 msgstr ""
 
 msgid "{app} is free software. Support its development with a transfer or a service."
+msgstr ""
+
+msgid "The browser extension of {app}."
 msgstr ""
 
 msgid "{app} is licensed under {license}."

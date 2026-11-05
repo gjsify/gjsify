@@ -185,6 +185,24 @@ export interface SiteThemeConfig {
     imageRendering: 'auto' | 'pixelated';
 }
 
+/** Browser families a WebExtension manifest can be built for. */
+export type ExtensionFamily = 'chromium' | 'firefox' | 'edge' | 'safari';
+
+/**
+ * `gjsify.site.extension`: the browser extension of the app, described by its BUILT manifests —
+ * what the browser shows at install is the source of truth, not the extension's source tree.
+ */
+export interface SiteExtensionConfig {
+    /** Family → repo-relative path of that family's built manifest.json; at least one. */
+    manifests: Partial<Record<ExtensionFamily, string>>;
+    /** Repo-relative `_locales` directory; needed once a manifest uses `__MSG_key__`. */
+    locales?: string;
+    /** Id of the `gjsify.site.components` entry whose downloads are the install buttons. */
+    component?: string;
+    /** Permission name → language → the publisher's reason for asking. Every language is required. */
+    permissions: Record<string, Record<string, string>>;
+}
+
 /** The keys that mean the same on an app site and on a developer site. */
 export interface SiteCommonConfig {
     base: string;
@@ -254,6 +272,49 @@ export interface SiteConfig extends SiteCommonConfig {
     relatedApps: SiteRelatedAppConfig[];
     /** The developer's own site; the "by <developer>" line under the app name links to it. */
     developerUrl?: string;
+    /** A page about the app's browser extension at `/<lang>/extension/`. `undefined`: no such page. */
+    extension?: SiteExtensionConfig;
+}
+
+/** One built manifest, reduced to what a listing needs; texts are resolved for every site language. */
+export interface ExtensionBrowser {
+    family: ExtensionFamily;
+    version: string;
+    manifestVersion: 2 | 3;
+    /** `minimum_chrome_version` or gecko `strict_min_version`. */
+    minVersion?: string;
+    name: Record<string, string>;
+    description: Record<string, string>;
+    shortName?: Record<string, string>;
+    /** Firefox only: the manifest declares `data_collection_permissions.required: ["none"]`. */
+    declaresNoDataCollection: boolean;
+}
+
+/** A permission as one or more browsers ask for it. `host` marks a site pattern rather than an API name. */
+export interface ExtensionPermission {
+    name: string;
+    host: boolean;
+    /** The browsers that ask for it in this list; fewer than all means the browsers differ. */
+    families: ExtensionFamily[];
+}
+
+/**
+ * Everything the extension page shows, parsed once and free of rendering, so a later mode can render
+ * one preview per store from the same object.
+ */
+export interface ExtensionData {
+    browsers: ExtensionBrowser[];
+    /** Asked at install. */
+    required: ExtensionPermission[];
+    /** Asked only when a feature needs it. */
+    optional: ExtensionPermission[];
+    /** Every browser that has a data-collection declaration says "none". */
+    collectsNoData: boolean;
+    /** Languages with a `_locales` catalogue, as the directories spell them. */
+    locales: string[];
+    component?: string;
+    /** Publisher explanations, per permission and language. */
+    explanations: Record<string, Record<string, string>>;
 }
 
 /**
@@ -436,6 +497,8 @@ export interface SiteData {
     stats: Stats;
     /** Resolved `gjsify.site.relatedApps`, in configured order, without this site's own app. */
     relatedApps: RelatedApp[];
+    /** The browser extension, when `gjsify.site.extension` is configured. */
+    extension?: ExtensionData;
     /** Non-fatal problems met while collecting data, already logged. */
     warnings: string[];
 }

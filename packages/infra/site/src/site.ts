@@ -37,11 +37,13 @@ import {
     type DeveloperContext,
     type DeveloperView,
 } from './render/developer.js';
+import { renderExtensionPage } from './render/extension.js';
 import { ogCardSvg, type OgCardInput } from './render/og-card.js';
 import type { MarkdownOptions } from './render/markdown.js';
 import {
     absolute,
     appShell,
+    extensionUrl,
     legalNoticeUrl,
     localized,
     pageMeta,
@@ -442,6 +444,7 @@ async function buildAppSite(build: Build): Promise<SiteBuildResult> {
         await writeFile(join(target.out, `og-${lang}.png`), svgToPng(ogCardSvg({ ...card, name: meta.name, summary })));
         await writePage(target.out, `${lang}/index.html`, renderPage(ctx));
         if (hasSupport) await writePage(target.out, `${lang}/support/index.html`, renderSupportPage(ctx));
+        if (data.extension) await writePage(target.out, `${lang}/extension/index.html`, renderExtensionPage(ctx));
         if (privacyStatements) {
             await writePage(target.out, `${lang}/privacy/index.html`, renderPrivacyPage(ctx, privacyStatements[lang]!));
         }
@@ -461,6 +464,7 @@ async function buildAppSite(build: Build): Promise<SiteBuildResult> {
     const pages: SitemapPage[] = [
         address(pageUrl),
         ...(hasSupport ? [address(supportUrl)] : []),
+        ...(data.extension ? [address(extensionUrl)] : []),
         ...(privacyStatements ? [address(privacyUrl)] : []),
         ...(legalNoticeStatements ? [address(legalNoticeUrl)] : []),
     ];
