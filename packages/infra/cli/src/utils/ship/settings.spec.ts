@@ -574,6 +574,13 @@ export default async () => {
                 ).toThrow(/not usable as a leaf/);
                 expect(() =>
                     resolveShipNestedBundles({
+                        declared: [{ source: 'extension/Ext.appex', name: '..' }],
+                        projectDir: dir,
+                        layoutOs: 'darwin',
+                    }),
+                ).toThrow(/not usable as a leaf/);
+                expect(() =>
+                    resolveShipNestedBundles({
                         declared: [{ source: 'extension/Ext.appex', name: 'Ext.appex', bogus: 1 }],
                         projectDir: dir,
                         layoutOs: 'darwin',

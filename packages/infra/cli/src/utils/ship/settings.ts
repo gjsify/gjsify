@@ -443,10 +443,17 @@ export function resolveShipExecutables(input: {
 
 /** A `Contents/PlugIns` or `Contents/Helpers` leaf: no path separator, no NUL, not empty. */
 function assertUsableBundleLeaf(name: string, at: string, under: string): string {
-    if (name === '' || name.includes('/') || name.includes('\\') || name.includes('\u0000')) {
+    if (
+        name === '' ||
+        name === '.' ||
+        name === '..' ||
+        name.includes('/') ||
+        name.includes('\\') ||
+        name.includes('\u0000')
+    ) {
         throw new Error(
             `gjsify ship: \`${at}.name\` "${name}" is not usable as a leaf under \`${under}\` — empty and ` +
-                'anything containing "/", "\\" or a NUL byte are refused.',
+                '".", "..", and anything containing "/", "\\" or a NUL byte are refused.',
         );
     }
     return name;
