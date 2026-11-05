@@ -589,4 +589,42 @@ export default async () => {
             rs.push(null);
         });
     });
+
+    // A Transform ended while its output is held back by a backpressured destination must keep
+    // that output: its writable side finishing is not the Duplex closing. (nodemailer ends an
+    // SMTP DATA stream like this — a flush-appended terminator was lost over a TLS socket.)
+    await describe('pipe: Transform ended while the destination is backpressured', async () => {
+        for (const end of [true, false]) {
+            await it(`delivers the _flush output after end() with pipe({ end: ${end} })`, async () => {
+                const received: Buffer[] = [];
+                let sawTail!: () => void;
+                const tailWritten = new Promise<void>((resolve) => (sawTail = resolve));
+                const dest = new Writable({
+                    write(chunk, _enc, cb) {
+                        received.push(chunk);
+                        if (chunk.toString() === 'tail') sawTail();
+                        setTimeout(cb, 5);
+                    },
+                });
+                const t = new Transform({
+                    transform(chunk, _enc, cb) {
+                        cb(null, chunk);
+                    },
+                    flush(cb) {
+                        this.push('tail');
+                        cb();
+                    },
+                });
+                t.pipe(dest, { end });
+                t.write(Buffer.alloc(dest.writableHighWaterMark + 1, 0x61));
+                t.end();
+                const done = await Promise.race([
+                    tailWritten.then(() => true),
+                    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 1000)),
+                ]);
+                expect(done).toBe(true);
+                expect(Buffer.concat(received).toString().endsWith('tail')).toBe(true);
+            });
+        }
+    });
 };
