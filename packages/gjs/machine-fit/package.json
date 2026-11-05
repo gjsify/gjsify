@@ -1,0 +1,83 @@
+{
+    "name": "@gjsify/machine-fit",
+    "version": "0.64.19",
+    "description": "Will a model run on this machine, and on which backend? A static memory check (RAM, VRAM, unified memory) that can rule a model out before download, plus the probe that decides speed: backends tried against a wall-clock budget, a GPU-hang guard, Vulkan and battery hints. Pure TypeScript on node:* APIs.",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "type": "module",
+    "sideEffects": false,
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        }
+    },
+    "files": [
+        "lib",
+        "!lib/types/**/*.spec.d.ts"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib tmp tsconfig.tsbuildinfo test.gjs.mjs test.node.mjs",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "gjsify tsc",
+        "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs",
+        "test:node": "node test.node.mjs"
+    },
+    "keywords": [
+        "gpu",
+        "vram",
+        "hardware",
+        "llm",
+        "model-fit",
+        "vulkan",
+        "battery"
+    ],
+    "dependencies": {
+        "@gjsify/child_process": "workspace:^",
+        "@gjsify/fs": "workspace:^",
+        "@gjsify/os": "workspace:^",
+        "@gjsify/path": "workspace:^",
+        "@gjsify/process": "workspace:^"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/gjs/machine-fit"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/gjs/machine-fit#readme",
+    "gjsify": {
+        "tier": 3,
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "none"
+        },
+        "os": {
+            "linux": "supported",
+            "darwin": "partial",
+            "win32": "partial"
+        },
+        "osNotes": {
+            "darwin": "Apple silicon's GPU share of unified memory is approximated (75 % of RAM unless iogpu.wired_limit_mb is set); Metal's recommendedMaxWorkingSetSize needs native code. Intel Macs report their GPU as unknown. hasVulkan() is always false.",
+            "win32": "Only NVIDIA VRAM is read (nvidia-smi ships with the driver); other GPUs report unknown memory, because DXGI needs native code and WMI's AdapterRAM stops at 4 GiB. onBattery() is always false and hasVulkan() is always false."
+        },
+        "headless": true
+    }
+}
