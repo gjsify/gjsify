@@ -493,25 +493,36 @@ export class Socket extends Duplex {
 
         const outputStream = this._outputStream;
         this._pendingIo++;
-        outputStream.write_bytes_async(
-            new GLib.Bytes(data),
-            GLib.PRIORITY_DEFAULT,
-            this._cancellable,
-            (_source: Gio.OutputStream | null, asyncResult: Gio.AsyncResult) => {
-                let error: Error | null = null;
-                try {
-                    const written = outputStream.write_bytes_finish(asyncResult);
-                    this.bytesWritten += written;
-                    this._resetTimeout();
-                } catch (err: unknown) {
-                    error = this._cancellable.is_cancelled()
-                        ? destroyedError()
-                        : createNodeError(err, 'write', { address: this.remoteAddress });
-                }
-                this._ioSettled();
-                callback(error);
-            },
-        );
+        // `write_bytes_async` may accept fewer bytes than offered (a TLS stream takes one
+        // 16 KB record per call), so the remainder is written until nothing is left.
+        const writeFrom = (offset: number): void => {
+            const rest = offset === 0 ? data : data.subarray(offset);
+            outputStream.write_bytes_async(
+                new GLib.Bytes(rest),
+                GLib.PRIORITY_DEFAULT,
+                this._cancellable,
+                (_source: Gio.OutputStream | null, asyncResult: Gio.AsyncResult) => {
+                    let error: Error | null = null;
+                    let written = 0;
+                    try {
+                        written = outputStream.write_bytes_finish(asyncResult);
+                        this.bytesWritten += written;
+                        this._resetTimeout();
+                    } catch (err: unknown) {
+                        error = this._cancellable.is_cancelled()
+                            ? destroyedError()
+                            : createNodeError(err, 'write', { address: this.remoteAddress });
+                    }
+                    if (!error && written > 0 && offset + written < data.length) {
+                        writeFrom(offset + written);
+                        return;
+                    }
+                    this._ioSettled();
+                    callback(error);
+                },
+            );
+        };
+        writeFrom(0);
     }
 
     _final(callback: (error?: Error | null) => void): void {
