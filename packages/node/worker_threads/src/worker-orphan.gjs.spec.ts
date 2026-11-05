@@ -12,13 +12,12 @@
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import { Worker } from 'node:worker_threads';
-import type Gio from '@girs/gio-2.0';
+import type { LineChannel } from '@gjsify/ipc-channel';
 
 /** Drop the parent's write end of the child's stdin — the child sees EOF, the
  *  same thing it would see if the parent process had died outright. */
 function simulateSpawnerDeath(worker: Worker): void {
-    const pipe = (worker as unknown as { _stdinPipe: Gio.OutputStream | null })._stdinPipe;
-    pipe?.close(null);
+    (worker as unknown as { _channel: LineChannel | null })._channel?.closeOutput();
 }
 
 export default async () => {

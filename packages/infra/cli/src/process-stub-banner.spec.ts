@@ -75,5 +75,15 @@ export default async () => {
             // environment instead of spawning and recovering.
             expect(GJS_PROCESS_STUB).toContain('Windows_NT');
         });
+
+        await it('marks the runtime as GJS through versions.gjs', async () => {
+            // Runtime detection keys on `process.versions.gjs`. An empty
+            // `versions` made code running before `@gjsify/process` registers —
+            // the main-loop hold a fork child's IPC channel takes — read "not
+            // GJS" and skip arming the loop.
+            const stubObject = GJS_PROCESS_STUB.slice(GJS_PROCESS_STUB.indexOf('globalThis.process={'));
+            expect(stubObject).toContain('versions:{gjs:');
+            expect(stubObject).toContain('_s.version');
+        });
     });
 };

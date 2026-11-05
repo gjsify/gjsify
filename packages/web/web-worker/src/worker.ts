@@ -21,7 +21,7 @@ export interface WorkerOptions {
 // oxlint-disable-next-line typescript/no-explicit-any -- event type differs per attribute and lib.dom is absent on GJS
 type Handler = ((event: any) => unknown) | null;
 
-// Not `globalThis.imports`: node-gi defines it on Node too. Only @gjsify/process sets `versions.gjs`.
+// Not `globalThis.imports`: node-gi defines it on Node too. Only GJS (@gjsify/process, the bundle banner) sets `versions.gjs`.
 const isGjs = typeof (versions as { gjs?: unknown }).gjs === 'string';
 
 function resolveScript(scriptURL: string | URL): string {

@@ -102,7 +102,7 @@ export function getExecPath(): string {
 }
 
 /** Is there a GJS host under this process? */
-function isGjsHost(): boolean {
+export function isGjsHost(): boolean {
     try {
         return getGjsGlobal().imports?.gi !== undefined;
     } catch {

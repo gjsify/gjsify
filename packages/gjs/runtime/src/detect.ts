@@ -47,7 +47,8 @@ const LABEL: Record<RuntimeTarget, RuntimeLabel> = {
  *   1. `Bun` / `Deno` — the only globals unique to those two. Both fake
  *      `process.versions.node` for npm compatibility, so any version-table read
  *      before this point is a false Node positive on two of the four runtimes.
- *   2. GJS via `process.versions.gjs`, which only `@gjsify/process` sets.
+ *   2. GJS via `process.versions.gjs`, which only `@gjsify/process` and the
+ *      GJS bundle banner's `process` stub set.
  *   3. GJS via ambient `imports.gi`, but ONLY where there is no `process` at all
  *      — a bare GJS program that never pulled the Node globals in. It must not
  *      come earlier: `@gjsify/node-gi` provides `imports.gi` ON NODE, so an

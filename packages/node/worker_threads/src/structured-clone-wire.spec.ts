@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Tagged-JSON wire codec — what crosses the worker subprocess boundary
-// (`structured-clone-wire.ts`).
+// (`@gjsify/ipc-channel`'s `structured-clone-wire.ts`).
 //
 // There are TWO copies of this codec: the TS module, and a raw-JS mirror
 // inlined in `worker-bootstrap.ts` (BOOTSTRAP_CODE) because the spawned `gjs`
@@ -18,7 +18,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 
-import { decode, encode } from './structured-clone-wire.js';
+import { decode, encode } from '@gjsify/ipc-channel/wire';
 import { BOOTSTRAP_CODE } from './worker-bootstrap.js';
 
 interface Codec {

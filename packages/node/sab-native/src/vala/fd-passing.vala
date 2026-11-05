@@ -33,6 +33,10 @@ namespace GjsifySabNative {
             cheader_filename = "sab-helpers.h")]
     private extern bool _socketpair (out int parent_fd, out int child_fd);
 
+    [CCode (cname = "gjsify_sab_stream_socketpair",
+            cheader_filename = "sab-helpers.h")]
+    private extern bool _stream_socketpair (out int parent_fd, out int child_fd);
+
     [CCode (cname = "gjsify_sab_send_fd",
             cheader_filename = "sab-helpers.h")]
     private extern bool _send_fd (int socket_fd, int fd_to_send, uint32 tag);
@@ -62,6 +66,18 @@ namespace GjsifySabNative {
          */
         public static bool make_pair (out int parent_fd, out int child_fd) {
             return _socketpair (out parent_fd, out child_fd);
+        }
+
+        /**
+         * Create a plain AF_UNIX/SOCK_STREAM socketpair, both fds
+         * close-on-exec. Not for send_fd/recv_fd: this is the byte-stream
+         * channel `child_process.fork` hands its child on NODE_CHANNEL_FD,
+         * which Node opens as a stream socket.
+         *
+         * Returns false on socketpair() failure (errno preserved).
+         */
+        public static bool make_stream_pair (out int parent_fd, out int child_fd) {
+            return _stream_socketpair (out parent_fd, out child_fd);
         }
 
         /**
