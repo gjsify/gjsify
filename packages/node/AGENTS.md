@@ -12,7 +12,7 @@ Status detail + test counts: `status/status.json` (`npm run status:generate` for
 | assert | — | Full | AssertionError, deepEqual, throws, strict |
 | async_hooks | — | Full | AsyncLocalStorage, AsyncResource, createHook |
 | buffer | — | Full | Buffer via Blob/File/atob/btoa |
-| child_process | Gio | Full | exec/execSync, spawn/spawnSync via Gio.Subprocess |
+| child_process | Gio | Full | exec/execSync, spawn/spawnSync via Gio.Subprocess; fork over `NODE_CHANNEL_FD` (`'json'` IPC) |
 | cluster | — | Stub | isPrimary, isWorker |
 | console | — | Full | Console with stream support |
 | constants | — | Full | flattened re-export of os/fs/legacy-crypto constants; deprecated Node alias |
@@ -64,7 +64,7 @@ Status detail + test counts: `status/status.json` (`npm run status:generate` for
 | assert | — | Full | AssertionError, deepEqual, throws, strict |
 | async_hooks | — | Full | AsyncLocalStorage, AsyncResource, createHook |
 | buffer | — | Full | Buffer via Blob/File/atob/btoa |
-| child_process | Gio | Full | exec/execSync, spawn/spawnSync via Gio.Subprocess |
+| child_process | Gio | Full | exec/execSync, spawn/spawnSync via Gio.Subprocess; fork over `NODE_CHANNEL_FD` (`'json'` IPC) |
 | cluster | — | Stub | isPrimary, isWorker |
 | console | — | Full | Console with stream support |
 | constants | — | Full | flattened re-export of os/fs/legacy-crypto constants; deprecated Node alias |
@@ -103,5 +103,5 @@ Status detail + test counts: `status/status.json` (`npm run status:generate` for
 | v8 | — | Stub | getHeapStatistics, serialize/deserialize (JSON) |
 | vm | — | Partial | runInThisContext (eval), runInNewContext (Function+sandbox), Script, compileFunction. No realm isolation |
 
-| worker_threads | @gjsify/sab-native, @gjsify/message-channel | Partial | MessagePort W3C surface composed OVER `@gjsify/message-channel` (single source of truth for listener/queue semantics; wrapper extends EventEmitter for `@types/node` compat); Worker via Gio.Subprocess — a spawned worker holds the process (`@gjsify/utils/main-loop` `acquireMainLoop`, release on exit/`unref()` so a referenced worker outlives the settled entry and its drain exits like Node, #2339); transferList: ArrayBuffer (zero-copy SM140 transfer), MessagePort (in-process hand-off + cross-process `SubprocessPortTransport` over worker stdin/stdout), SharedBuffer (memfd + SCM_RIGHTS over fd 3). `SharedArrayBuffer` ctor still gated by upstream GJS opt-in — use `@gjsify/sab-native` `SharedBuffer`. browser:`partial` — `receiveMessageOnPort` returns `undefined` (no sync drain), `workerData` first-macrotask only |
+| worker_threads | @gjsify/ipc-channel, @gjsify/sab-native, @gjsify/message-channel | Partial | Wire (framing, codec, port transport) lives in `@gjsify/ipc-channel` (ADR 0133); MessagePort W3C surface composed OVER `@gjsify/message-channel` (single source of truth for listener/queue semantics; wrapper extends EventEmitter for `@types/node` compat); Worker via Gio.Subprocess — a spawned worker holds the process (`@gjsify/utils/main-loop` `acquireMainLoop`, release on exit/`unref()` so a referenced worker outlives the settled entry and its drain exits like Node, #2339); transferList: ArrayBuffer (zero-copy SM140 transfer), MessagePort (in-process hand-off + cross-process `SubprocessPortTransport` over worker stdin/stdout), SharedBuffer (memfd + SCM_RIGHTS over fd 3). `SharedArrayBuffer` ctor still gated by upstream GJS opt-in — use `@gjsify/sab-native` `SharedBuffer`. browser:`partial` — `receiveMessageOnPort` returns `undefined` (no sync drain), `workerData` first-macrotask only |
 

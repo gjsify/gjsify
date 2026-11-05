@@ -16,7 +16,7 @@
 //                 loop: no event, and every later message lost too.
 //
 // GJS-only (rule 2b): provoking it means putting a line on the wire that the
-// encoder would never produce, which takes the private `_stdinPipe` in one
+// encoder would never produce, which takes the private `_channel` in one
 // direction and a raw fd-1 write from inside the child in the other. Node has
 // no equivalent — its structured clone is in-process, so there is no wire to
 // corrupt and no portable way to reach this path.
@@ -24,7 +24,7 @@
 import { describe, it, expect, on } from '@gjsify/unit';
 import { Worker, MessageChannel } from 'node:worker_threads';
 import { MessageChannel as SharedMessageChannel } from '@gjsify/message-channel';
-import type Gio from '@girs/gio-2.0';
+import type { LineChannel } from '@gjsify/ipc-channel';
 
 /**
  * A wire line the codec accepts structurally but cannot decode: the `BigInt`
@@ -38,8 +38,7 @@ const UNDECODABLE_LINE = JSON.stringify({ type: 'message', data: UNDECODABLE_PAY
 
 /** Push a raw line into the child's stdin, bypassing `Worker.postMessage`. */
 function writeRawLine(worker: Worker, line: string): void {
-    const pipe = (worker as unknown as { _stdinPipe: Gio.OutputStream | null })._stdinPipe;
-    pipe?.write_all(new TextEncoder().encode(line), null);
+    (worker as unknown as { _channel: LineChannel | null })._channel?.writeLine(line);
 }
 
 /** Collect the next `count` messages from a worker. */

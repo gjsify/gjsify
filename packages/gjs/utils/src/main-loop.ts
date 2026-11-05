@@ -86,7 +86,8 @@ function glib(): typeof GLib | undefined {
     // `@gjsify/runtime`'s detectRuntime() GJS branches, inlined: this module
     // sits in build:infra's bundler-free prefix, before @gjsify/runtime is
     // built, and the CLI loads it. A bare GJS program has no `process`; one
-    // with @gjsify/process sets `versions.gjs`, which node-gi never does.
+    // with @gjsify/process (or just the bundle banner) sets `versions.gjs`,
+    // which node-gi never does.
     const isGjs = typeof host.process?.versions?.gjs === 'string' || host.process === undefined;
     if (!isGjs) return undefined;
     return host.imports?.gi?.GLib;

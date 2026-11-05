@@ -375,6 +375,19 @@
 				</parameter>
 			</parameters>
 		</function>
+		<function name="make_stream_pair" c:identifier="gjsify_sab_native_fd_channel_make_stream_pair">
+			<return-value transfer-ownership="full">
+				<type name="gboolean" c:type="gboolean"/>
+			</return-value>
+			<parameters>
+				<parameter name="parent_fd" direction="out" transfer-ownership="full">
+					<type name="gint" c:type="gint*"/>
+				</parameter>
+				<parameter name="child_fd" direction="out" transfer-ownership="full">
+					<type name="gint" c:type="gint*"/>
+				</parameter>
+			</parameters>
+		</function>
 		<function name="send_fd" c:identifier="gjsify_sab_native_fd_channel_send_fd">
 			<return-value transfer-ownership="full">
 				<type name="gboolean" c:type="gboolean"/>

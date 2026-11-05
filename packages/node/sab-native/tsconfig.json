@@ -31,5 +31,6 @@
     "checkJs": false,
     "strict": false
   },
-  "include": ["src/ts/**/*.ts"]
+  "include": ["src/ts/**/*.ts"],
+  "exclude": ["src/ts/**/*.spec.ts"]
 }

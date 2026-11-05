@@ -35,16 +35,19 @@ import { fdChannel } from '@gjsify/sab-native';
 // its own import of this pair runs the same single-file, Node-safe surface.
 import { hostExecPath } from '@gjsify/utils/core';
 import { acquireMainLoop, releaseMainLoop } from '@gjsify/utils/main-loop';
-import { extractSharedBuffers } from './sab-transfer.js';
-import { createErrorByName, encode as encodeWire, decode as decodeWire } from './structured-clone-wire.js';
-import { MessagePort as SharedMessagePort } from '@gjsify/message-channel';
-import { MessagePort } from './message-port.js';
 import {
+    LineChannel,
     SubprocessPortTransport,
+    createErrorByName,
+    decode as decodeWire,
+    encode as encodeWire,
+    extractSharedBuffers,
     isCrossProcessPortPlaceholder,
     nextParentPortId,
     type CrossProcessPortRegistry,
-} from './subprocess-port-transport.js';
+} from '@gjsify/ipc-channel';
+import { MessagePort as SharedMessagePort } from '@gjsify/message-channel';
+import { MessagePort } from './message-port.js';
 import { BOOTSTRAP_CODE } from './worker-bootstrap.js';
 
 let _nextThreadId = 1;
@@ -71,7 +74,8 @@ export class Worker extends EventEmitter {
     readonly resourceLimits: Record<string, unknown>;
 
     private _subprocess: Gio.Subprocess | null = null;
-    private _stdinPipe: Gio.OutputStream | null = null;
+    /** Child stdin (writes) and stdout (reads), one JSON message per line. */
+    private _channel: LineChannel | null = null;
     private _exited = false;
     private _bootstrapFile: Gio.File | null = null;
     /** Parent-side end of the SCM_RIGHTS side-channel for SharedBuffer fds.
@@ -160,8 +164,8 @@ export class Worker extends EventEmitter {
             throw new Error(`Failed to spawn worker: ${err instanceof Error ? err.message : err}`);
         }
 
-        this._stdinPipe = this._subprocess.get_stdin_pipe();
         const stdoutPipe = this._subprocess.get_stdout_pipe();
+        this._channel = new LineChannel(this._subprocess.get_stdin_pipe(), stdoutPipe);
 
         // Verify file exists for non-eval workers
         if (!isEval) {
@@ -209,7 +213,7 @@ export class Worker extends EventEmitter {
             }) + '\n';
 
         try {
-            this._stdinPipe!.write_all(_encoder.encode(initData), null);
+            this._channel.writeLine(initData);
         } catch (err) {
             this._cleanup();
             throw new Error(`Failed to send init data: ${err instanceof Error ? err.message : err}`);
@@ -217,8 +221,7 @@ export class Worker extends EventEmitter {
 
         // Read IPC messages from subprocess stdout
         if (stdoutPipe) {
-            const dataStream = Gio.DataInputStream.new(stdoutPipe);
-            this._readMessages(dataStream);
+            this._channel.startReading((msg) => this._onChannelMessage(msg));
         }
 
         // Read stderr for error reporting
@@ -234,7 +237,7 @@ export class Worker extends EventEmitter {
     }
 
     postMessage(value: unknown, transferList?: unknown[]): void {
-        if (this._exited || !this._stdinPipe) return;
+        if (this._exited || !this._channel?.writable) return;
         // Cross-process MessagePort handling. For each MessagePort listed
         // in transferList: detach the in-process partnership, attach a
         // SubprocessPortTransport to the kept end's `_inner._transport`,
@@ -265,7 +268,7 @@ export class Worker extends EventEmitter {
         const encoded = encodeWire(serialised);
         const line = JSON.stringify({ type: 'message', data: encoded }) + '\n';
         try {
-            this._stdinPipe.write_all(_encoder.encode(line), null);
+            this._channel.writeLine(line);
         } catch {
             // Worker stdin closed
         }
@@ -280,9 +283,9 @@ export class Worker extends EventEmitter {
      * is closed.
      */
     private _writeStdinLine = (line: string): void => {
-        if (this._exited || !this._stdinPipe) return;
+        if (this._exited || !this._channel?.writable) return;
         try {
-            this._stdinPipe.write_all(_encoder.encode(line), null);
+            this._channel.writeLine(line);
         } catch {
             // Worker stdin closed mid-send — best-effort.
         }
@@ -442,9 +445,8 @@ export class Worker extends EventEmitter {
 
         // Send terminate command
         try {
-            if (this._stdinPipe) {
-                const msg = JSON.stringify({ type: 'terminate' }) + '\n';
-                this._stdinPipe.write_all(_encoder.encode(msg), null);
+            if (this._channel?.writable) {
+                this._channel.send({ type: 'terminate' });
             }
         } catch {
             // The child may already have exited (write on a broken pipe
@@ -518,101 +520,81 @@ export class Worker extends EventEmitter {
         return 'file://' + str;
     }
 
-    private _readMessages(dataStream: Gio.DataInputStream): void {
-        dataStream.read_line_async(GLib.PRIORITY_DEFAULT, null, (_source: unknown, result: Gio.AsyncResult) => {
-            // Read and parse are stream-level: a closed stream or a line that
-            // is not JSON means there is nothing left to read, so the loop ends.
-            // Everything after this point is message-level — see below.
-            let msg: {
-                type?: string;
-                op?: string;
-                __msgport?: number;
-                data?: unknown;
-                name?: string;
-                message?: string;
-                stack?: string;
-            };
-            try {
-                const [line] = dataStream.read_line_finish_utf8(result);
-                if (line === null) return; // EOF
-                msg = JSON.parse(line);
-            } catch {
-                // Stream closed or unparseable line
-                return;
-            }
-
-            try {
-                // Cross-process MessagePort traffic from child stdout. Look up
-                // the kept-end port in the parent registry and route. 'send' →
-                // wrapper's _receiveMessage (which fans out to EventEmitter +
-                // W3C surface); 'close' → _inner.close() so onclose listeners
-                // fire and the transport drops its registry entry.
-                if (typeof msg.__msgport === 'number') {
-                    const keptPort = this._portRegistry.get(msg.__msgport);
-                    if (keptPort) {
-                        if (msg.op === 'send') {
-                            // A payload this end cannot decode is reported to the
-                            // port as 'messageerror' rather than dropped — the
-                            // channel itself is fine and stays open.
-                            let decoded: unknown;
-                            try {
-                                decoded = decodeWire(msg.data);
-                            } catch (err) {
-                                if (keptPort instanceof SharedMessagePort) keptPort._receiveMessageError();
-                                else
-                                    (
-                                        keptPort as unknown as { _receiveMessageError(e: unknown): void }
-                                    )._receiveMessageError(err);
-                                return;
-                            }
-                            if (keptPort instanceof SharedMessagePort) keptPort._receive(decoded);
-                            else
-                                (keptPort as unknown as { _receiveMessage(m: unknown): void })._receiveMessage(decoded);
-                        } else if (msg.op === 'close') {
-                            this._portRegistry.delete(msg.__msgport);
-                            // _inner.close() flips the W3C-side state; close() on the
-                            // wrapper additionally emits 'close' on the EventEmitter
-                            // surface.
-                            (keptPort as unknown as { close(): void }).close();
-                        }
+    /**
+     * One message from the child's stdout. A throw from here (a listener of
+     * ours, or 'error' emitted with nothing listening) does not end the read
+     * loop — `LineChannel` arms the next read either way.
+     */
+    private _onChannelMessage(msg: {
+        type?: string;
+        op?: string;
+        __msgport?: number;
+        data?: unknown;
+        name?: string;
+        message?: string;
+        stack?: string;
+    }): void {
+        // Cross-process MessagePort traffic from child stdout. Look up
+        // the kept-end port in the parent registry and route. 'send' →
+        // wrapper's _receiveMessage (which fans out to EventEmitter +
+        // W3C surface); 'close' → _inner.close() so onclose listeners
+        // fire and the transport drops its registry entry.
+        if (typeof msg.__msgport === 'number') {
+            const keptPort = this._portRegistry.get(msg.__msgport);
+            if (keptPort) {
+                if (msg.op === 'send') {
+                    // A payload this end cannot decode is reported to the
+                    // port as 'messageerror' rather than dropped — the
+                    // channel itself is fine and stays open.
+                    let decoded: unknown;
+                    try {
+                        decoded = decodeWire(msg.data);
+                    } catch (err) {
+                        if (keptPort instanceof SharedMessagePort) keptPort._receiveMessageError();
+                        else
+                            (keptPort as unknown as { _receiveMessageError(e: unknown): void })._receiveMessageError(
+                                err,
+                            );
+                        return;
                     }
-                    return;
+                    if (keptPort instanceof SharedMessagePort) keptPort._receive(decoded);
+                    else (keptPort as unknown as { _receiveMessage(m: unknown): void })._receiveMessage(decoded);
+                } else if (msg.op === 'close') {
+                    this._portRegistry.delete(msg.__msgport);
+                    // _inner.close() flips the W3C-side state; close() on the
+                    // wrapper additionally emits 'close' on the EventEmitter
+                    // surface.
+                    (keptPort as unknown as { close(): void }).close();
                 }
-                switch (msg.type) {
-                    case 'online':
-                        this.emit('online');
-                        break;
-                    case 'message': {
-                        // Decoding is guarded on its own, and the emit is left
-                        // outside that guard: an exception thrown by a user's
-                        // 'message' listener is the listener's bug and must not
-                        // be reported back as a decode failure.
-                        let decoded: unknown;
-                        try {
-                            decoded = decodeWire(msg.data);
-                        } catch (err) {
-                            this.emit('messageerror', err instanceof Error ? err : new Error(String(err)));
-                            break;
-                        }
-                        this.emit('message', this._adoptChildPorts(decoded, new Set()));
-                        break;
-                    }
-                    case 'error': {
-                        const err = createErrorByName(msg.name, msg.message ?? '');
-                        if (msg.stack) err.stack = msg.stack;
-                        this.emit('error', err);
-                        break;
-                    }
-                }
-            } catch {
-                // A listener of ours threw, or 'error' was emitted with nothing
-                // listening (EventEmitter rethrows then). Not the read loop's to
-                // handle — but unlike before it no longer ENDS the loop either:
-                // the finally below arms the next read either way.
-            } finally {
-                this._readMessages(dataStream);
             }
-        });
+            return;
+        }
+        switch (msg.type) {
+            case 'online':
+                this.emit('online');
+                break;
+            case 'message': {
+                // Decoding is guarded on its own, and the emit is left
+                // outside that guard: an exception thrown by a user's
+                // 'message' listener is the listener's bug and must not
+                // be reported back as a decode failure.
+                let decoded: unknown;
+                try {
+                    decoded = decodeWire(msg.data);
+                } catch (err) {
+                    this.emit('messageerror', err instanceof Error ? err : new Error(String(err)));
+                    break;
+                }
+                this.emit('message', this._adoptChildPorts(decoded, new Set()));
+                break;
+            }
+            case 'error': {
+                const err = createErrorByName(msg.name, msg.message ?? '');
+                if (msg.stack) err.stack = msg.stack;
+                this.emit('error', err);
+                break;
+            }
+        }
     }
 
     private _stderrChunks: string[] = [];
@@ -671,13 +653,9 @@ export class Worker extends EventEmitter {
             }
             this._bootstrapFile = null;
         }
-        if (this._stdinPipe) {
-            try {
-                this._stdinPipe.close(null);
-            } catch {
-                // Already closed when the child died first — cleanup continues.
-            }
-            this._stdinPipe = null;
+        if (this._channel) {
+            this._channel.closeOutput();
+            this._channel = null;
         }
         if (this._sabSocketFd !== -1 && fdChannel?.closeFd) {
             // FdChannel.close_fd() is non-throwing (returns a bool the wrapper

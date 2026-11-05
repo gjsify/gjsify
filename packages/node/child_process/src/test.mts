@@ -2,6 +2,7 @@ import { run } from '@gjsify/unit';
 
 import testSuiteChildProcess from './index.spec.js';
 import testSuiteChildProcessParity from './parity.spec.js';
+import testSuiteChildProcessFork from './fork.spec.js';
 
 // Subprocess tests are inherently timing-sensitive (fork/exec/IPC + event
 // delivery on the GLib main loop). On a saturated CI runner (Fedora 44 is a
@@ -10,4 +11,4 @@ import testSuiteChildProcessParity from './parity.spec.js';
 // on the event-awaiting spawn tests. 30s of headroom absorbs that without
 // weakening any assertion — a genuinely stuck test still fails (and the 120s
 // whole-run timeout still bounds the bundle).
-run({ testSuiteChildProcess, testSuiteChildProcessParity }, { testTimeout: 30000 });
+run({ testSuiteChildProcess, testSuiteChildProcessParity, testSuiteChildProcessFork }, { testTimeout: 30000 });

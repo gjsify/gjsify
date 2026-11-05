@@ -51,7 +51,7 @@
 // The child bootstrap materialises that placeholder to an inline port
 // object whose `postMessage` writes back over stdout. Both sides use
 // the same `portId` as a registry key for inbound routing. See
-// `subprocess-port-transport.ts` for the adapter + nextParentPortId
+// `@gjsify/ipc-channel`'s `subprocess-port-transport.ts` for the adapter + nextParentPortId
 // counter. The child can send ports back the same way
 // (`parentPort.postMessage(value, [port])`); `Worker` adopts the placeholders
 // it finds in the message. transferList-within-transferList chains
@@ -60,8 +60,7 @@
 
 import { EventEmitter } from 'node:events';
 import { MessagePort as SharedMessagePort } from '@gjsify/message-channel';
-import { isSharedBuffer } from './sab-transfer.js';
-import { createDataCloneError } from './structured-clone-wire.js';
+import { createDataCloneError, isSharedBuffer } from '@gjsify/ipc-channel/wire';
 
 /**
  * Internal placeholder used while serializing a transferred MessagePort.

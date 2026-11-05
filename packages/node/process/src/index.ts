@@ -10,6 +10,7 @@
 //   - internal/exit.ts     — process.exit with main-loop-aware scheduling
 //   - internal/hrtime.ts   — process.hrtime (incl. bigint) backed by GLib monotonic time
 //   - internal/system.ts   — kill, memoryUsage, cpuUsage with GJS-vs-Node guards
+//   - internal/ipc.ts      — the child end of fork's IPC channel (NODE_CHANNEL_FD)
 //   - streams.ts           — ProcessReadStream (stdin), ProcessWriteStream (stdout/stderr)
 //   - process-class.ts     — Process class wiring it all together
 //   - index.ts             — this file: instantiate + wire SIGWINCH + named exports
@@ -17,8 +18,11 @@
 import { nativeTerminal } from '@gjsify/terminal-native';
 import { Process } from './process-class.js';
 import { hrtimeBigint } from './internal/hrtime.js';
+import { connectParentChannel } from './internal/ipc.js';
 
 const process = new Process();
+
+connectParentChannel(process);
 
 // Wire SIGWINCH → process.stdout.emit('resize') when native terminal is available.
 // Runs only on GJS (nativeTerminal is null on Node.js).

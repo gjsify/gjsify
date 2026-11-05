@@ -521,5 +521,37 @@ export default async () => {
                 }
             });
         });
+
+        // `make_stream_pair` is new with ADR 0133: until `commit-prebuilds` lands the
+        // rebuilt binaries after the merge, the committed ones lack it.
+        const STREAM_PAIR_REASON =
+            'the committed prebuild predates make_stream_pair — `commit-prebuilds` lands it after this merges';
+        const streamPairMissing = typeof nativeSab?.FdChannel.make_stream_pair !== 'function';
+
+        await describe('FdChannel — stream socketpair', async () => {
+            // A SEQPACKET pair returns one write per read; Node's NODE_CHANNEL_FD
+            // needs a byte stream, where two writes can come back as one read.
+            await it.failing(
+                'carries bytes without message boundaries',
+                async () => {
+                    const pair = fdChannel?.makeStreamPair();
+                    if (!pair) throw new Error('make_stream_pair missing');
+                    const a = Gio.Socket.new_from_fd(pair.parentFd);
+                    const b = Gio.Socket.new_from_fd(pair.childFd);
+                    try {
+                        expect(a.get_socket_type()).toBe(Gio.SocketType.STREAM);
+                        a.send(new TextEncoder().encode('ab'), null);
+                        a.send(new TextEncoder().encode('cd'), null);
+                        const got = b.receive_bytes(8, -1, null).toArray();
+                        expect(new TextDecoder().decode(got)).toBe('abcd');
+                    } finally {
+                        a.close();
+                        b.close();
+                    }
+                },
+                STREAM_PAIR_REASON,
+                { when: streamPairMissing },
+            );
+        });
     });
 };
