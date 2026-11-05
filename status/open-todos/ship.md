@@ -86,16 +86,32 @@ here rather than in a comment because each has a plausible wrong answer:
    made here expires with the certificate — the URL is a vendor choice and a
    network dependency, and neither has been decided.
 
-2. **Notarisation has no end-to-end run**, for the reason § A17 makes M6 possible
-   at all: it needs an Apple account, and ad-hoc signing does not.
-   `--notarize <keychain-profile>` builds
-   `xcrun notarytool submit --keychain-profile <p> --wait <artifact>`, the guard
-   tests exactly the value that line reads (§ A15's rule, as a unit test), and
-   the two refusals are e2e-covered. What has never happened is the submission.
-   The App Store Connect API-key form is NOT implemented: measured on `refs/node`
-   at the pinned `0618e9f0`, `--key-id`, `--issuer` and `store-credentials` return
-   0 files each against a control of 16 files for `codesign`, so there is nothing
-   to copy and § A15 says not to invent a spelling.
+2. ~~**Notarisation has no end-to-end run.**~~ **DONE, and repeatedly, outside this
+   repo's own CI** (corrected 2026-11-05 — this line was stale). `--notarize
+   <keychain-profile>` builds `xcrun notarytool submit --keychain-profile <p>
+   --wait <artifact>`, the guard tests exactly the value that line reads (§ A15's
+   rule, as a unit test), the two refusals are e2e-covered, and the submission
+   itself has run: `gh release download` on `JumpLink/beifahrer` v0.1.25,
+   `JumpLink/easy6502` (Learn6502) v0.9.0 and `JumpLink/steuererklaerung` v0.1.8
+   all carry `*.dmg.gjsify-release.json` with `"notarized": true, "stapled":
+   true, "signature": {"kind": "identity", …}` and the matching `.zip` carries
+   `"notarized": true, "stapled": false` — the documented split, because
+   `stapler` cannot staple a zip (§ 3 below). Each consumer's own CI
+   (`beifahrer`'s `ci.yml`, measured by hand) creates a throwaway keychain,
+   imports a real Developer ID `.p12` from `APPLE_DEVELOPER_ID_P12_BASE64`, runs
+   `xcrun notarytool store-credentials gjsify-notary --key … --key-id … --issuer
+   …` from `APPLE_NOTARY_KEY_P8`/`_KEY_ID`/`_ISSUER_ID` to put a real App Store
+   Connect API key INTO that keychain under the profile name `gjsify-notary`,
+   then calls `gjsify ship --sign <identity> --notarize gjsify-notary`. So the
+   mechanism `--notarize` itself speaks is still `--keychain-profile` alone —
+   the API-key FORM (`--key`/`--key-id`/`--issuer` as `notarytool submit`
+   arguments) remains unimplemented exactly as stated below — and what changed
+   is that the credential BEHIND that profile is now known to be a real,
+   production Apple account, proven by the `"notarized": true` these three
+   releases carry. What genuinely remains open: this repository's OWN CI
+   (`macos-suites.yml`) has no Apple account and still proves only the ad-hoc
+   half (§ A17); the measurement above is from three CONSUMER repos' release
+   pipelines, read back after the fact rather than watched running here.
 
 3. **Stapling is implemented and UNVERIFIED** (ADR 0040). `stapleArtifact` runs
    `xcrun stapler staple <artifact>` after a successful notarisation, on the
