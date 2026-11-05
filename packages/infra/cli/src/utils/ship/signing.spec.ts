@@ -185,13 +185,14 @@ export default async () => {
         await it('lets the seal add its own directory and nothing else', async () => {
             const planned = ['Ship Demo.app/Contents/MacOS/ship-demo', 'Ship Demo.app/Contents/Helpers/Ship Demo'];
             const sealPrefix = 'Ship Demo.app/Contents/_CodeSignature/';
+            const sealPrefixes = [sealPrefix];
             const seal = [`${sealPrefix}CodeResources`, `${sealPrefix}CodeDirectory`];
 
             // A bundle seal writes regular files (Apple TN3126: a bundle with no
             // Mach-O main executable keeps its signature in `_CodeSignature/`), so
             // they have to reach the payload — a `.zip` and a `.dmg` both carry
             // them, and dropping them would ship a bundle that verifies as broken.
-            const sealed = partitionSignedFileSet({ arrived: [...planned, ...seal], planned, sealPrefix });
+            const sealed = partitionSignedFileSet({ arrived: [...planned, ...seal], planned, sealPrefixes });
             expect(sealed.sealed.length).toBe(2);
             expect(sealed.unexpected).toStrictEqual([]);
             expect(sealed.removed).toStrictEqual([]);
@@ -202,7 +203,7 @@ export default async () => {
             const stray = partitionSignedFileSet({
                 arrived: [...planned, ...seal, 'Ship Demo.app/Contents/stray'],
                 planned,
-                sealPrefix,
+                sealPrefixes,
             });
             expect(stray.unexpected).toStrictEqual(['Ship Demo.app/Contents/stray']);
 
@@ -215,7 +216,31 @@ export default async () => {
 
             // A vanished file is refused whether or not there is a seal — it
             // would otherwise be packed as absent.
-            expect(partitionSignedFileSet({ arrived: [], planned, sealPrefix }).removed.length).toBe(2);
+            expect(partitionSignedFileSet({ arrived: [], planned, sealPrefixes }).removed.length).toBe(2);
+        });
+
+        await it('accepts MULTIPLE seal prefixes — one outer, one per nested bundle', async () => {
+            // A darwin run with an embedded `.appex` seals TWO directories: the
+            // outer `.app` and the nested bundle's own `_CodeSignature/`. Both
+            // additions are legitimate, and a file outside either is still
+            // unexpected.
+            const planned = [
+                'Ship Demo.app/Contents/MacOS/ship-demo',
+                'Ship Demo.app/Contents/PlugIns/Ext.appex/Contents/MacOS/Ext',
+            ];
+            const outer = 'Ship Demo.app/Contents/_CodeSignature/';
+            const nested = 'Ship Demo.app/Contents/PlugIns/Ext.appex/Contents/_CodeSignature/';
+            const arrived = [...planned, `${outer}CodeResources`, `${nested}CodeResources`];
+            const result = partitionSignedFileSet({ arrived, planned, sealPrefixes: [outer, nested] });
+            expect(result.sealed.length).toBe(2);
+            expect(result.unexpected).toStrictEqual([]);
+
+            const withStray = partitionSignedFileSet({
+                arrived: [...arrived, 'Ship Demo.app/Contents/PlugIns/Ext.appex/Contents/stray'],
+                planned,
+                sealPrefixes: [outer, nested],
+            });
+            expect(withStray.unexpected).toStrictEqual(['Ship Demo.app/Contents/PlugIns/Ext.appex/Contents/stray']);
         });
 
         await it('seals the bundle on darwin and nothing on win32', async () => {

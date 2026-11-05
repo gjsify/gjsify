@@ -447,25 +447,34 @@ export function assertHostCanSign(signer: SignerDescriptor): void {
  * host. Everything else about a bundle seal needs `codesign`, which this
  * repository has on exactly one CI leg; this function needs nothing.
  *
- * `sealPrefix` absent means "this signer seals nothing", and then EVERY addition
- * is unexpected — which is what the file did before ADR 0040 and is still the
- * right answer for `signtool`.
+ * `sealPrefixes` empty or absent means "this signer seals nothing", and then
+ * EVERY addition is unexpected — which is what the file did before ADR 0040
+ * and is still the right answer for `signtool`.
  */
 export function partitionSignedFileSet(input: {
     /** Paths found under the scratch directory after the tool ran. */
     arrived: readonly string[];
     /** Paths the payload had before it. */
     planned: readonly string[];
-    /** Directory prefix the seal is allowed to write into, when there is one. */
-    sealPrefix?: string;
+    /**
+     * Directory prefixes a seal is allowed to write into — one per bundle sealed
+     * this run. A plain array rather than a single optional string, because a
+     * darwin run with nested bundles (ADR 0024 amendment, "nested bundles and
+     * helper executables") seals MORE than one directory: the outer `.app` and
+     * every embedded `.appex`, each writing its own `_CodeSignature/`. `[]` and
+     * absent mean the same thing — "no seal this run" — so a caller with
+     * nothing to add may still pass `[]` rather than reaching for `undefined`.
+     */
+    sealPrefixes?: readonly string[];
 }): { sealed: string[]; unexpected: string[]; removed: string[] } {
     const planned = new Set(input.planned);
     const arrived = new Set(input.arrived);
     const added = [...arrived].filter((path) => !planned.has(path)).sort();
-    const prefix = input.sealPrefix;
+    const prefixes = input.sealPrefixes ?? [];
+    const underAnyPrefix = (path: string): boolean => prefixes.some((prefix) => path.startsWith(prefix));
     return {
-        sealed: prefix === undefined ? [] : added.filter((path) => path.startsWith(prefix)),
-        unexpected: prefix === undefined ? added : added.filter((path) => !path.startsWith(prefix)),
+        sealed: prefixes.length === 0 ? [] : added.filter(underAnyPrefix),
+        unexpected: prefixes.length === 0 ? added : added.filter((path) => !underAnyPrefix(path)),
         removed: [...planned].filter((path) => !arrived.has(path)).sort(),
     };
 }
@@ -495,6 +504,21 @@ export interface SignArgs {
 /** `codesign --sign -`: the one identity value that names no identity at all. */
 export const ADHOC_IDENTITY = '-';
 
+/**
+ * One nested bundle or helper executable the darwin signer signs with its OWN
+ * entitlements, before the outer seal (ADR 0024 amendment, "nested bundles and
+ * helper executables"; the beifahrer ADR this answers: 0026 § 6).
+ */
+export interface SignedSubordinate {
+    /** Payload-relative path — a bundle DIRECTORY for a nested bundle, a FILE for a helper. */
+    path: string;
+    /**
+     * Entitlements this subordinate is signed with, REPLACING the outer signer's
+     * own set — never unioned with it. `[]` signs with none.
+     */
+    entitlements: readonly string[];
+}
+
 export interface SignPayloadInput {
     /** What `readStage` returned — the PRE-sign tree, already held against the manifest. */
     payload: readonly PayloadEntry[];
@@ -518,6 +542,24 @@ export interface SignPayloadInput {
      * read as a file the signer added.
      */
     entitlementsPath: string;
+    /**
+     * Nested BUNDLES this run embeds — e.g. a Safari Web Extension `.appex` under
+     * `Contents/PlugIns/`. Signed INSIDE OUT: every Mach-O under each one's path,
+     * then that bundle's own seal, ALL of it before the outer bundle's images or
+     * seal — because the outer seal's `CodeResources` hashes every file under its
+     * tree, nested bundles included, so resigning one afterwards would invalidate
+     * a hash the outer seal already recorded. `[]` for a layout or project with
+     * none. `sealsBundle` must be `true` on {@link signer} for a non-empty list —
+     * `signtool` has no bundle concept to nest one inside.
+     */
+    nestedBundles?: readonly SignedSubordinate[];
+    /**
+     * Helper EXECUTABLES this run embeds with their own entitlements — e.g. a
+     * small Swift binary with no GI binding. Signed before the outer images and
+     * seal, for the same reason as {@link nestedBundles}: a loose file's bytes
+     * are hashed into the outer seal too. `[]` for none.
+     */
+    helperExecutables?: readonly SignedSubordinate[];
     /** Print every invocation. */
     verbose: boolean;
     log: (line: string) => void;
@@ -546,17 +588,32 @@ export interface SignPayloadInput {
  */
 export async function signPayload(input: SignPayloadInput): Promise<PayloadEntry[]> {
     const { payload, signer, workDir } = input;
+    const nestedBundles = input.nestedBundles ?? [];
+    const helperExecutables = input.helperExecutables ?? [];
+    if ((nestedBundles.length > 0 || helperExecutables.length > 0) && !signer.sealsBundle) {
+        throw new Error(
+            `gjsify ship: this payload declares a nested bundle or helper executable, and the ` +
+                `${signer.layoutOs} signer has no bundle to embed one in — \`signtool\` signs loose images, ` +
+                'never a bundle tree. Nested bundles and helper executables are a darwin-only feature.',
+        );
+    }
+
     writePayload(workDir, payload, '');
 
     const adhoc = input.identity === ADHOC_IDENTITY;
-    let entitlements: string | undefined;
-    const granted = signer.entitlements(adhoc);
-    if (granted.length > 0) {
-        mkdirSync(dirname(input.entitlementsPath), { recursive: true });
-        writeFileSync(input.entitlementsPath, renderEntitlements(granted));
-        entitlements = input.entitlementsPath;
-    }
-    const run = async (file: string, what: string, seal: boolean): Promise<void> => {
+    const entitlementsCache = new Map<string, string | undefined>();
+    /** Write (or reuse) the entitlements plist for one KEYED set of grants, `[]` meaning none. */
+    const entitlementsFileFor = (key: string, granted: readonly string[]): string | undefined => {
+        if (granted.length === 0) return undefined;
+        const cached = entitlementsCache.get(key);
+        if (cached !== undefined) return cached;
+        const path = key === '' ? input.entitlementsPath : `${input.entitlementsPath}.${key}.plist`;
+        mkdirSync(dirname(path), { recursive: true });
+        writeFileSync(path, renderEntitlements(granted));
+        entitlementsCache.set(key, path);
+        return path;
+    };
+    const run = async (file: string, what: string, seal: boolean, entitlements: string | undefined): Promise<void> => {
         const args = signer.args({
             identity: input.identity,
             file,
@@ -580,7 +637,51 @@ export async function signPayload(input: SignPayloadInput): Promise<PayloadEntry
         }
     };
 
-    const signable = payload.filter((entry) => classifyBinary(entry.data) === signer.signs);
+    const outerEntitlements = entitlementsFileFor('', signer.entitlements(adhoc));
+
+    // Every path this run signs with its OWN entitlements rather than the outer
+    // signer's default — excluded from the generic loop below so neither set of
+    // files is signed twice with two different entitlement lists.
+    const subordinatePrefixes = nestedBundles.map((bundle) => `${bundle.path}/`);
+    const helperPaths = new Set(helperExecutables.map((helper) => helper.path));
+    const underSubordinate = (path: string): boolean => subordinatePrefixes.some((prefix) => path.startsWith(prefix));
+
+    // INSIDE OUT, and before anything else: the outer seal's `CodeResources`
+    // hashes every file under its tree, nested bundles and helpers included, so
+    // each one has to be in its FINAL signed form before that hash is taken —
+    // resigning afterwards would invalidate a digest the outer seal already
+    // recorded. Order WITHIN this block does not matter; order relative to the
+    // generic loop and the outer seal below does.
+    const nestedSealPrefixes: string[] = [];
+    let nestedImagesSigned = 0;
+    for (const bundle of nestedBundles) {
+        const entitlements = entitlementsFileFor(bundle.path, bundle.entitlements);
+        const images = payload.filter(
+            (entry) => entry.path.startsWith(`${bundle.path}/`) && classifyBinary(entry.data) === signer.signs,
+        );
+        for (const entry of images) {
+            await run(join(workDir, entry.path.split('/').join(sep)), entry.path, false, entitlements);
+        }
+        nestedImagesSigned += images.length;
+        await run(
+            join(workDir, bundle.path.split('/').join(sep)),
+            `${bundle.path} (nested bundle seal)`,
+            true,
+            entitlements,
+        );
+        nestedSealPrefixes.push(signer.sealAddPrefix(bundle.path));
+    }
+    for (const helper of helperExecutables) {
+        const entitlements = entitlementsFileFor(helper.path, helper.entitlements);
+        await run(join(workDir, helper.path.split('/').join(sep)), helper.path, false, entitlements);
+    }
+
+    const signable = payload.filter(
+        (entry) =>
+            classifyBinary(entry.data) === signer.signs &&
+            !underSubordinate(entry.path) &&
+            !helperPaths.has(entry.path),
+    );
     if (signable.length === 0 && !signer.sealsBundle) {
         // NOT silent, and not an error either. A `--app gjs` payload really is
         // JavaScript and a launcher, so there is nothing for the loader to
@@ -599,7 +700,7 @@ export async function signPayload(input: SignPayloadInput): Promise<PayloadEntry
     }
 
     for (const entry of signable) {
-        await run(join(workDir, entry.path.split('/').join(sep)), entry.path, false);
+        await run(join(workDir, entry.path.split('/').join(sep)), entry.path, false, outerEntitlements);
     }
 
     // THE IMAGES FIRST, THE SEAL LAST, and the order is not stylistic: a bundle
@@ -616,17 +717,24 @@ export async function signPayload(input: SignPayloadInput): Promise<PayloadEntry
             );
         }
         sealPrefix = signer.sealAddPrefix(input.bundleRoot);
-        await run(join(workDir, input.bundleRoot.split('/').join(sep)), `${input.bundleRoot} (bundle seal)`, true);
+        await run(
+            join(workDir, input.bundleRoot.split('/').join(sep)),
+            `${input.bundleRoot} (bundle seal)`,
+            true,
+            outerEntitlements,
+        );
     }
 
-    // THE FILE SET MAY ONLY GROW WHERE THE SEAL WRITES. Both tools rewrite an
-    // image in place, so any other new path means something else ran — and a file
-    // that appeared unnoticed would be packed with no mode from the plan, while
-    // one that vanished would be packed as absent.
+    // THE FILE SET MAY ONLY GROW WHERE A SEAL WRITES — the outer one, or one of
+    // the nested bundles signed above. Both tools rewrite an image in place, so
+    // any other new path means something else ran — and a file that appeared
+    // unnoticed would be packed with no mode from the plan, while one that
+    // vanished would be packed as absent.
+    const sealPrefixes = [...(sealPrefix === undefined ? [] : [sealPrefix]), ...nestedSealPrefixes];
     const changes = partitionSignedFileSet({
         arrived: listFilesRecursive(workDir),
         planned: payload.map((entry) => entry.path),
-        ...(sealPrefix === undefined ? {} : { sealPrefix }),
+        sealPrefixes,
     });
     if (changes.unexpected.length > 0 || changes.removed.length > 0) {
         throw new Error(
@@ -634,15 +742,17 @@ export async function signPayload(input: SignPayloadInput): Promise<PayloadEntry
                 `${changes.unexpected.length} added (${changes.unexpected.slice(0, 3).join(', ') || '—'}), ` +
                 `${changes.removed.length} removed (${changes.removed.slice(0, 3).join(', ') || '—'}). ` +
                 'Signing is a mutation of the files that are already in the payload (ADR 0024 § A4), plus ' +
-                `exactly the seal's own directory${sealPrefix === undefined ? '' : ` (\`${sealPrefix}\`)`}.`,
+                `exactly each seal's own directory${sealPrefixes.length === 0 ? '' : ` (${sealPrefixes.map((prefix) => `\`${prefix}\``).join(', ')})`}.`,
         );
     }
 
     const sealed = changes.sealed;
     input.log(
-        `${signer.tool} signed ${signable.length} of ${payload.length} payload file(s) as ` +
+        `${signer.tool} signed ${signable.length + nestedImagesSigned + helperExecutables.length} of ` +
+            `${payload.length} payload file(s) as ` +
             `${adhoc ? 'ad-hoc (`-`)' : `\`${input.identity}\``}` +
             `${sealPrefix === undefined ? '' : ` and sealed ${input.bundleRoot} (${sealed.length} seal file(s))`}` +
+            `${nestedBundles.length === 0 ? '' : `, nested: ${nestedBundles.map((bundle) => bundle.path).join(', ')}`}` +
             ` — ${signer.gap}.`,
     );
     // Modes come from the PLAN, exactly as `readStage` insists: the signer

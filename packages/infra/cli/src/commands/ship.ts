@@ -44,6 +44,7 @@ import { describeExit, spawnToCompletion } from '../utils/spawn.js';
 import { buildDeb } from '../utils/ship/deb.js';
 import { deriveDepends, warnAboutGjsFloor, warnAboutNodeFloor } from '../utils/ship/depends.js';
 import { isGtkRuntimeTarget, stageAppRuntime, type StagedAppRuntime } from '../utils/ship/app-runtime.js';
+import { recordedNestedBundles, signedSubordinatesFor, stageSubordinates } from '../utils/ship/nested-bundles.js';
 import { resolveNodeModulesClosure, stageNodeModules } from '../utils/ship/node-modules.js';
 import { acquireGtkRuntime } from '../utils/ship/gtk-runtime-acquire.js';
 import { discoverPayload } from '../utils/ship/discover.js';
@@ -544,6 +545,17 @@ async function assemble(args: ShipOptions): Promise<void> {
     // distribution update ever patches.
     const runtime = await resolveCarriedRuntime(layout, settings, projectDir);
     carryNodeModules(runtime, layout, settings, projectDir, ship.nodeModules, ship.nodeModulesExclude);
+    // The nested bundles and helper executables ADR 0026 § 6 needed by hand —
+    // staged like the runtime above (tree-preserving, stage-relative, through
+    // `placeStage`'s `carried` seam), and never through `gjsify.ship.bundledTypelibs`'s
+    // flattening map for the reason `app-runtime.ts`'s header gives: a `.appex`'s
+    // internal relations survive only if its tree is copied as a tree.
+    const subordinates = stageSubordinates({
+        layout,
+        identity: settings,
+        nestedBundles: settings.nestedBundles,
+        helperExecutables: settings.helperExecutables,
+    });
 
     const stageInputs: StageInputs = {
         bundleFiles: discovered.bundleFiles,
@@ -618,7 +630,7 @@ async function assemble(args: ShipOptions): Promise<void> {
               })
             : undefined;
     if (icon !== undefined) console.log(`${LOG} icon: ${iconSizes(icon).join('/')} px, ${icon.source}`);
-    const staged = placeStage(layout, { ...settings, icon }, planned, runtime.files);
+    const staged = placeStage(layout, { ...settings, icon }, planned, [...runtime.files, ...subordinates.files]);
     writeStage(stageDir, staged);
     console.log(`${LOG} staged ${staged.length} file(s) for ${layout.name} in ${relative(projectDir, stageDir)}/`);
     if (args.verbose) for (const file of staged) console.log(`${LOG}   ${file.path}`);
@@ -1297,6 +1309,12 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
     // `signed/<id>/` is scratch this function owns. The arriving stage is never
     // written to: `writeStage` wipes what it is pointed at, and a re-signed file
     // in it would fail the very `readStage` above on the next run.
+    // DERIVED, not carried: the stage-relative path of a nested bundle or helper
+    // executable is `layout.dirs(settings).plugins`/`.helpers` joined with its
+    // name, computable from `settings` alone on either host — see
+    // `nested-bundles.ts`'s `signedSubordinatesFor` header for why that is what
+    // keeps this call and `stageSubordinates` from disagreeing about a path.
+    const subordinates = signedSubordinatesFor(layout, settings, settings);
     const payload =
         input.sign.kind === 'sign'
             ? await signPayload({
@@ -1311,6 +1329,8 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                   // with the payload, so an entitlements plist written into it would
                   // read as a file `codesign` added.
                   entitlementsPath: join(outRoot, 'signed', `${format.id}.entitlements.plist`),
+                  nestedBundles: subordinates.nestedBundles,
+                  helperExecutables: subordinates.helperExecutables,
                   verbose: input.verbose,
                   log: (line) => console.log(`${LOG} ${line}`),
               })
@@ -1659,6 +1679,7 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
             signature: recordedSignature(input.sign.kind === 'sign' ? input.sign.identity : undefined, ADHOC_IDENTITY),
             notarized,
             stapled,
+            nestedBundles: recordedNestedBundles(payload, subordinates.nestedBundles),
             generator: `@gjsify/cli ${cliVersion()}`,
         });
         if (input.verbose) console.log(`${LOG} release record: ${record}`);

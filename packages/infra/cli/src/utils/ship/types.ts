@@ -442,6 +442,19 @@ export interface PackSettings {
      * launcher, and the packing host needs the names for the Windows arch exemption.
      */
     executables: ShipExecutableFacts[];
+    /**
+     * Further bundles the darwin container embeds (`gjsify.ship.nestedBundles`); `[]` for a
+     * package with none. Name and entitlements only — the packing host derives each one's
+     * stage-relative path from `layoutForOs('darwin').dirs(settings).plugins` and signs it
+     * there; the SOURCE directory stays assembling-host-only (it is staged, not re-read).
+     */
+    nestedBundles: ShipNestedBundleFacts[];
+    /**
+     * Prebuilt helper executables staged into `Contents/Helpers/`
+     * (`gjsify.ship.helperExecutables`); `[]` for a package with none. Same shape as
+     * {@link PackSettings.nestedBundles}, one directory over (`dirs.helpers`).
+     */
+    helperExecutables: ShipHelperExecutableFacts[];
 }
 
 /** What the packing host needs to know about one further executable. */
@@ -456,6 +469,57 @@ export interface ShipExecutableFacts {
 export interface ShipExecutable extends ShipExecutableFacts {
     /** Its entry inside {@link ShipSettings.bundleDir}, POSIX-separated. */
     entry: string;
+}
+
+/**
+ * What the packing host needs to know about one nested bundle, to sign it.
+ *
+ * `name` rather than a stage-relative path, mirroring {@link ShipExecutableFacts}:
+ * the PATH is derived — `posix.join(layoutForOs(format.layoutOs).dirs(settings).plugins,
+ * name)` — from data every packing host already has (the layout, `PackSettings`),
+ * so this closure carries nothing a stage-relative string would duplicate.
+ */
+export interface ShipNestedBundleFacts {
+    /** Destination leaf under `Contents/PlugIns/`. */
+    name: string;
+    /**
+     * Entitlements this bundle is signed and sealed with, REPLACING the outer
+     * signer's own set — a sandboxed extension keeps the sandbox entitlements
+     * its own packager wrote and must not inherit the host app's grants.
+     */
+    entitlements: readonly string[];
+}
+
+/**
+ * One nested bundle a darwin container embeds, as resolved from
+ * `gjsify.ship.nestedBundles` — e.g. a Safari Web Extension `.appex`.
+ *
+ * Darwin-only (ADR 0024 § A12-§ A17 amendment, "nested bundles and helper
+ * executables"; the beifahrer ADR this answers: 0026 § 6): `Contents/PlugIns`
+ * is Apple's own nested-code location and no other layout has an equivalent
+ * slot, so `resolveShipSettings` refuses a non-empty list for any other OS.
+ */
+export interface ShipNestedBundle extends ShipNestedBundleFacts {
+    /** Absolute path of the source directory — the built `.appex` tree. */
+    source: string;
+}
+
+/** What the packing host needs to know about one helper executable, to sign it. */
+export interface ShipHelperExecutableFacts {
+    /** Destination leaf under `Contents/Helpers/`. */
+    name: string;
+    /** Entitlements this helper is signed with. */
+    entitlements: readonly string[];
+}
+
+/**
+ * One prebuilt helper executable staged into `Contents/Helpers/`, as resolved
+ * from `gjsify.ship.helperExecutables`. Darwin-only, for the same reason as
+ * {@link ShipNestedBundle}.
+ */
+export interface ShipHelperExecutable extends ShipHelperExecutableFacts {
+    /** Absolute path of the prebuilt executable. */
+    source: string;
 }
 
 /**
@@ -537,6 +601,19 @@ export interface ShipSettings extends PackSettings {
      * a `.mo` staged by basename alone lands where no catalogue lookup will ever look at it.
      */
     localeFiles: { rel: string; abs: string }[];
+    /**
+     * Further bundles the darwin container embeds under `Contents/PlugIns/`
+     * (`gjsify.ship.nestedBundles`) — `[]` for a package with none. Ignored on
+     * every other layout; `resolveShipSettings` refuses a non-empty list there
+     * rather than silently dropping it.
+     */
+    nestedBundles: ShipNestedBundle[];
+    /**
+     * Prebuilt helper executables staged into `Contents/Helpers/`
+     * (`gjsify.ship.helperExecutables`) — `[]` for a package with none.
+     * Darwin-only, like {@link ShipSettings.nestedBundles}.
+     */
+    helperExecutables: ShipHelperExecutable[];
     /**
      * Absolute paths of the font faces the application ships (`gjsify.ship.fonts`).
      *
