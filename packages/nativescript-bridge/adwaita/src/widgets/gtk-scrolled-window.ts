@@ -73,7 +73,7 @@ import {
     type GtkPolicyNick,
 } from './scrolled-window-policy.js';
 import { AdwSingleChildBase } from './single-child-base.js';
-import { xmlBoolean } from './xml-values.js';
+import { xmlBoolean, xmlNumber } from './xml-values.js';
 
 export class GtkScrolledWindow extends AdwSingleChildBase {
     static readonly GTypeName: string = 'GtkScrolledWindow';
@@ -229,7 +229,7 @@ export class GtkScrolledWindow extends AdwSingleChildBase {
     }
 
     set heightRequest(value: number | string) {
-        super.heightRequest = value;
+        super.heightRequest = xmlNumber(value, super.heightRequest);
         this._applyHeightRequest();
     }
 
