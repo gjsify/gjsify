@@ -48,7 +48,7 @@
 // (tracked in status/open-todos/README.md).
 
 import { existsSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { hostLibc } from './platform-check.js';
@@ -253,6 +253,8 @@ export interface RunOxcOptions {
 /** Surface of `@gjsify/oxfmt-native` that the CLI consumes. */
 interface NativeOxfmtSurface {
     hasNativeOxfmt(): boolean;
+    /** The oxfmt release the prebuild embeds. Absent on bridges older than this export. */
+    EMBEDDED_OXFMT_VERSION?: string;
     runOxfmt(args: string[]): number;
 }
 
@@ -322,39 +324,117 @@ async function tryLoadNativeOxfmt(): Promise<NativeOxfmtSurface | null> {
     return _nativeOxfmtProbe;
 }
 
+export interface OxfmtEngineInputs {
+    isGjs: boolean;
+    /** The `@gjsify/oxfmt-native` bridge loaded and its library opened. */
+    nativeLoadable: boolean;
+    /** The oxfmt release the bridge embeds; `undefined` when the bridge does not say. */
+    embeddedVersion?: string;
+    /** Version of the oxfmt npm package the project resolves; `undefined` when it has none. */
+    projectVersion?: string;
+    /** `GJSIFY_OXFMT`. */
+    override?: string;
+}
+
+export interface OxfmtEngineDecision {
+    engine: 'native' | 'npm';
+    /** The forced `native` engine runs a different oxfmt than the project's lock. */
+    warning?: string;
+    /** The forced `native` engine cannot be loaded. */
+    error?: string;
+}
+
+const normalizeVersion = (v: string): string => v.trim().replace(/^v/, '');
+
 /**
- * Engine pick for oxfmt — mirrors `bundler-pick.ts`'s `shouldUseNative()`:
- *   - `GJSIFY_OXFMT=npm` forces the Node launcher.
- *   - `GJSIFY_OXFMT=native` forces the GI bridge and throws when it is not
- *     loadable (instead of silently switching engines).
- *   - Default: native under GJS when loadable (the Node launcher cannot run
- *     without a Node host), npm launcher on Node.
+ * The engine pick as a pure function. Two engines that are not the same build of
+ * oxfmt format some inputs differently (`for (…; cond;) {` vs `for (…; cond; ) {`
+ * between 0.61 and 0.56), so a project that pins its own `oxfmt` must get THAT
+ * build, or `format:check` is green under GJS locally and red under Node in CI.
+ *
+ *   - `npm` override → npm launcher.
+ *   - `native` override → the bridge, an error when it is not loadable, a warning
+ *     when it differs from the project's pinned version.
+ *   - Not GJS, or bridge not loadable → npm launcher.
+ *   - Project resolves no `oxfmt`, or either version is unknown → native (the
+ *     Node-free default; there is nothing to disagree with).
+ *   - Both known → native only when equal, else the project's npm `oxfmt` wins.
  */
-export async function shouldUseNativeOxfmt(): Promise<boolean> {
-    const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
-    const choice = env.GJSIFY_OXFMT;
+export function decideOxfmtEngine(input: OxfmtEngineInputs): OxfmtEngineDecision {
+    const { isGjs: gjs, nativeLoadable, embeddedVersion, projectVersion, override } = input;
+    const known = embeddedVersion !== undefined && projectVersion !== undefined;
+    const differs = known && normalizeVersion(embeddedVersion) !== normalizeVersion(projectVersion);
 
-    if (choice === 'npm') return false;
-    if (choice === 'native') {
-        const native = await tryLoadNativeOxfmt();
-        if (!native) {
-            throw new Error(
-                'GJSIFY_OXFMT=native but @gjsify/oxfmt-native is not loadable (no prebuild for this architecture, or not running under GJS).' +
-                    (_nativeOxfmtLoadError ? `\n${_nativeOxfmtLoadError.message}` : ''),
-            );
+    if (override === 'npm') return { engine: 'npm' };
+    if (override === 'native') {
+        if (!nativeLoadable) {
+            return {
+                engine: 'native',
+                error: 'GJSIFY_OXFMT=native but @gjsify/oxfmt-native is not loadable (no prebuild for this architecture, or not running under GJS).',
+            };
         }
-        return true;
+        return differs
+            ? {
+                  engine: 'native',
+                  warning:
+                      `GJSIFY_OXFMT=native: @gjsify/oxfmt-native embeds oxfmt ${embeddedVersion} but this project ` +
+                      `pins oxfmt ${projectVersion}; output can differ from the project's own oxfmt (and from CI).`,
+              }
+            : { engine: 'native' };
     }
+    if (!gjs || !nativeLoadable) return { engine: 'npm' };
+    return { engine: differs ? 'npm' : 'native' };
+}
 
-    if (!isGjs()) return false;
-    const native = (await tryLoadNativeOxfmt()) !== null;
+/**
+ * Version of the `oxfmt` npm package the project resolves (same walk as
+ * {@link findOxcLauncher}), or `undefined` when there is none.
+ */
+export function findProjectOxfmtVersion(cwd: string = process.cwd()): string | undefined {
+    try {
+        const launcher = findOxcLauncher('oxfmt', cwd);
+        const pkg = JSON.parse(readFileSync(join(dirname(launcher), '..', 'package.json'), 'utf-8'));
+        return typeof pkg?.version === 'string' ? pkg.version : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+let _engineWarned = false;
+
+/**
+ * Engine pick for oxfmt — see {@link decideOxfmtEngine} for the rule. This wrapper
+ * gathers the inputs (bridge probe, project version) and applies the outcome:
+ * a forced `native` that cannot load throws, a forced `native` on another version
+ * than the project's warns once per process.
+ */
+export async function shouldUseNativeOxfmt(cwd: string = process.cwd()): Promise<boolean> {
+    const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
+    const override = env.GJSIFY_OXFMT;
+
+    // Nothing to probe when npm is forced or there is no GJS host (and no native override).
+    if (override === 'npm' || (!isGjs() && override !== 'native')) return false;
+
+    const native = await tryLoadNativeOxfmt();
+    const decision = decideOxfmtEngine({
+        isGjs: isGjs(),
+        nativeLoadable: native !== null,
+        embeddedVersion: native?.EMBEDDED_OXFMT_VERSION,
+        projectVersion: findProjectOxfmtVersion(cwd),
+        override,
+    });
+
+    if (decision.error)
+        throw new Error(decision.error + (_nativeOxfmtLoadError ? `\n${_nativeOxfmtLoadError.message}` : ''));
+    if (decision.warning && !_engineWarned) {
+        _engineWarned = true;
+        console.warn(`[gjsify oxc] ${decision.warning}`);
+    }
     // Falling back to the npm launcher is not an error, so the default path is
     // quiet — but a MEASURED reason why the native bridge would not load is the
     // only place the user hears it, and it is the whole point of measuring.
-    // `GJSIFY_OXFMT=native` above throws with this text; the default earns the
-    // same answer for free.
-    if (!native && _nativeOxfmtLoadError) console.debug(_nativeOxfmtLoadError.message);
-    return native;
+    if (!native && _nativeOxfmtLoadError && decision.engine === 'npm') console.debug(_nativeOxfmtLoadError.message);
+    return decision.engine === 'native';
 }
 
 /**

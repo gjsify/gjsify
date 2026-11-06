@@ -7,9 +7,55 @@
 // tests/integration/oxfmt-native/ against the real prebuild.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { OxcNotFoundError, shouldUseNativeOxfmt } from './oxc-resolve.js';
+import { OxcNotFoundError, decideOxfmtEngine, shouldUseNativeOxfmt } from './oxc-resolve.js';
 
 export default async () => {
+    await describe('decideOxfmtEngine — deterministic per project', async () => {
+        const base = { isGjs: true, nativeLoadable: true, embeddedVersion: '0.61.0', projectVersion: '0.61.0' };
+
+        await it('GJS + loadable + same version → native', async () => {
+            expect(decideOxfmtEngine(base).engine).toBe('native');
+        });
+        await it('GJS + loadable + project pins another version → npm (the lock wins)', async () => {
+            expect(decideOxfmtEngine({ ...base, projectVersion: '0.56.0' }).engine).toBe('npm');
+        });
+        await it('a leading "v" does not count as a difference', async () => {
+            expect(decideOxfmtEngine({ ...base, projectVersion: 'v0.61.0' }).engine).toBe('native');
+        });
+        await it('no project oxfmt → native stays the GJS default', async () => {
+            expect(decideOxfmtEngine({ ...base, projectVersion: undefined }).engine).toBe('native');
+        });
+        await it('bridge does not report its version → native (nothing to compare)', async () => {
+            expect(decideOxfmtEngine({ ...base, embeddedVersion: undefined, projectVersion: '0.56.0' }).engine).toBe(
+                'native',
+            );
+        });
+        await it('not GJS → npm, even with equal versions', async () => {
+            expect(decideOxfmtEngine({ ...base, isGjs: false }).engine).toBe('npm');
+        });
+        await it('bridge not loadable → npm', async () => {
+            expect(decideOxfmtEngine({ ...base, nativeLoadable: false }).engine).toBe('npm');
+        });
+        await it('override npm wins over everything', async () => {
+            expect(decideOxfmtEngine({ ...base, override: 'npm' }).engine).toBe('npm');
+        });
+        await it('override native + version mismatch → native with ONE warning naming both versions', async () => {
+            const d = decideOxfmtEngine({ ...base, projectVersion: '0.56.0', override: 'native' });
+            expect(d.engine).toBe('native');
+            expect(d.warning?.includes('0.61.0')).toBe(true);
+            expect(d.warning?.includes('0.56.0')).toBe(true);
+        });
+        await it('override native + same version → native, no warning', async () => {
+            const d = decideOxfmtEngine({ ...base, override: 'native' });
+            expect(d.engine).toBe('native');
+            expect(d.warning).toBe(undefined);
+        });
+        await it('override native + not loadable → error', async () => {
+            const d = decideOxfmtEngine({ ...base, nativeLoadable: false, override: 'native' });
+            expect(d.error?.includes('not loadable')).toBe(true);
+        });
+    });
+
     await describe('shouldUseNativeOxfmt — engine pick', async () => {
         await it('GJSIFY_OXFMT=npm forces the npm launcher path', async () => {
             const prev = process.env.GJSIFY_OXFMT;

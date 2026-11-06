@@ -28,7 +28,8 @@
         "refsLockstep": {
             "refs/oxc": {
                 "npm": "oxfmt",
-                "tag": "oxfmt_v{version}"
+                "tag": "oxfmt_v{version}",
+                "versionConstant": "EMBEDDED_OXFMT_VERSION"
             }
         },
         "runtimes": {
