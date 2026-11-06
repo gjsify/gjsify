@@ -2,13 +2,11 @@
 
 IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.64.22, ESM-only, GNOME libs. Bootstraps from the PUBLISHED gjsify (ADR 0002): `gjs -m install.mjs` → `gjsify install --immutable` → `gjsify run build:infra`. No committed bundle, no yarn, no Node-only npm CLI. `dist/{cli,tsc}.gjs.mjs` are build outputs; only `dist/affected.gjs.mjs` is tracked. Five pillars — Node.js, Web, DOM, Framework, NativeScript bridge — over supporting infra in `packages/infra/` + `packages/gjs/`; paths in the table below. Counts, status tables and metrics are DERIVED, never here (§ Governance → status).
+Node.js/Web/DOM API + Framework for GJS. npm-workspaces monorepo, ESM-only, GNOME libs. Bootstrap: `gjs -m install.mjs` → `gjsify install --immutable` → `gjsify run build:infra`. `dist/affected.gjs.mjs` is tracked. Five pillars over `packages/infra/` + `packages/gjs/`. Reference docs: [docs/README.md](docs/README.md).
 
 ## Where the rules live — nearest AGENTS.md wins
 
-This file holds what is true across the whole repo. Everything scoped to one subtree lives in
-THAT subtree's AGENTS.md and is authoritative there — never restate it here, a second copy is a
-second truth that drifts. **Read this file, then the one for what you are touching.**
+This file holds what is true across the whole repo. Read this, then the one for what you are touching.
 
 |`packages/node/*` — Node API pillar, CJS-ESM interop → packages/node/AGENTS.md
 |`packages/web/*` — Web API pillar → packages/web/AGENTS.md
@@ -22,172 +20,86 @@ second truth that drifts. **Read this file, then the one for what you are touchi
 |`packages/nativescript-bridge` → packages/nativescript-bridge/AGENTS.md
 |writing or running tests → tests/AGENTS.md
 
-Reference material — read on demand, not loaded every session. Root `docs/`:
+## Hard rules
 
-|the long-form governance reasoning → governance.md
-|OS-axis enforcement + portability strategy → runtime-platform-axes.md
-|the measured anti-patterns, with their incidents → code-anti-patterns.md
-|`/register` subpath convention → register-convention.md
-|build artifacts: the git hook, freshness, what an exit code proves → build-artifacts.md
-|native extensions + prebuilds → prebuilds.md
-|first-publish bootstrap + release closure → publishing.md
-|the `next` channel: running an app against `main` → consuming-the-next-channel.md
-|selective CI → ci-selective.md · lint/format → lint-format.md
-|GNOME lib ↔ API mapping table → gnome-mappings.md
-|what SM140 gives you beyond ES2024 → engine-baseline.md
-|`refs/` · attribution · status data · examples · axis 6 → references.md · attribution.md · status-changelog.md · examples-showcases.md · bundled-toolchains.md
+Short form; reasoning in [docs/governance.md](docs/governance.md).
 
-ADRs: `docs/adr/` (numbered, MADR-style). Open work: `status/open-todos/` (one file per area).
-
-## Governance — non-negotiable
-
-Short form; the reasoning behind each is [docs/governance.md](docs/governance.md).
-
-|doc: an architectural decision (package boundaries, API patterns, build, deps, cross-cutting) updates the AGENTS.md that OWNS that scope, in the same PR — never leave drift between sessions
-|adr: decisions spanning pillars/repos, changing a published contract, or scoping a whole track get an ADR under `docs/adr/` BEFORE implementation
-|tier: every published pkg declares `package.json#gjsify.tier` (1 core / 2 product / 3 experimental, ADR 0003); deps must point to same-or-lower tier; enforced by `scripts/audit-runtimes.mjs --check`
-|required checks: `main` is branch-protected and exactly THREE checks block a merge — `CI gate (GJS)`, `Detect runtime-triplet drift`, `Lint commit messages`. Only workflows with NO `paths:` filter are eligible; everything path-filtered stays ADVISORY — read it before merging. Do not add a fourth without reading [docs/governance.md](docs/governance.md) first: a required check that does not RUN blocks the PR forever
-|declarations: `gjsify.{runtimes,platforms,headless,prebuilds}` are per-package declarations, each MACHINE-CHECKED — model in § Runtime & platform model. No declaration without a check; no promised prebuild target without a loadable artifact behind it
-|manifest-conformance: every "does this declaration match reality" check is a rule in ONE registry — `@gjsify/manifest-conformance`. `field-coverage` FAILS on any `gjsify.*` key no rule claims, so a new declaration kind cannot be added without a check
-|status: the status snapshot is AUTHORED DATA in `status/`; everything derivable is rendered into a GITIGNORED `STATUS.md` by `npm run status:generate` and never committed — [docs/status-changelog.md](docs/status-changelog.md)
-|simplicity: every guard was justified ALONE; the cost is the SUM. Adding a check/step/artifact — ask what it lets you DELETE, and periodically whether the whole arrangement has a simpler SHAPE. A guard watching another mechanism is the smell. Worked example + what this does NOT license: [docs/governance.md](docs/governance.md)
+|doc: update the AGENTS.md that OWNS the scope, same PR — no drift
+|adr: cross-pillar / published-contract / track-scoping decisions get an ADR before implementation
+|tier: every published pkg declares `package.json#gjsify.tier`; deps same-or-lower; enforced by `scripts/audit-runtimes.mjs --check`
+|required checks: `main` is protected by exactly THREE — `CI gate (GJS)`, `Detect runtime-triplet drift`, `Lint commit messages`. Read [docs/governance.md](docs/governance.md) before adding a fourth
+|declarations: `gjsify.{runtimes,platforms,headless,prebuilds}` are machine-checked per-package declarations
+|manifest-conformance: every declaration-check is a rule in `@gjsify/manifest-conformance`; `field-coverage` fails on unclaimed `gjsify.*` keys
+|status: authored data in `status/`; derivables render to gitignored `STATUS.md` via `npm run status:generate`
+|simplicity: every guard must justify itself; ask what it lets you DELETE
 |polyfills: browser-compat patches belong in packages, not examples
-|root-cause: fix bugs in the core package in the SAME PR that exposed them — no "known limitation" notes, no skip-guards, no TODO-for-later (workarounds ossify); examples/tests/CI exist to surface impl gaps
-|scope: expanding PR scope is the *expected* cost, not a reason to defer — goal is `@gjsify/*` running arbitrary npm packages unmodified on GJS
-|exceptions (narrow, documented per case): (a) non-standard Node-internal hack → wrap/skip at consumer with a comment; (b) upstream GJS/SpiderMonkey gap → `status/upstream-patch-candidates.md`; (c) cross-cutting rewrite → Plan + user confirm + split PRs, still landing a minimal root fix in the feature PR
+|root-cause: fix core bugs in the same PR that exposes them — no "known limitation" notes or skip-guards
+|scope: expanding PR scope is the expected cost, not a reason to defer
+|exceptions: (a) non-standard Node-internal hack → wrap/skip at consumer with comment; (b) upstream GJS/SM gap → `status/upstream-patch-candidates.md`; (c) cross-cutting rewrite → Plan + split PRs, still land minimal root fix
 
 ## Structure
 
-`packages/{node,web,dom,framework,nativescript-bridge,gjs,infra}/` (workspace members) | `packages/{node-gi,napi}/` (NOT workspace members — own CI, § Cross-runtime tracks) | `showcases/` (published, CLI deps) | `examples/` (private dev/test) | `tests/{integration,e2e,browser,dom}/` | `refs/` (read-only submodules — DO NOT modify)
+`packages/{node,web,dom,framework,nativescript-bridge,gjs,infra}/` | `packages/{node-gi,napi}/` (own CI) | `showcases/` | `examples/` | `tests/{integration,e2e,browser,dom}/` | `refs/` (read-only — DO NOT modify)
 
 ## Runtime & platform model
 
-The ONE model for "where does this code run and who checks the claim". Four orthogonal axes, each a `package.json#gjsify.*` declaration with a machine check behind it. Everything else in this file references this section. Enforcement invariants and the portability strategy: [docs/runtime-platform-axes.md](docs/runtime-platform-axes.md).
+Four orthogonal `package.json#gjsify.*` declarations, each machine-checked. Full model + incidents: [docs/runtime-platform-axes.md](docs/runtime-platform-axes.md).
 
-### The axes
-
-|**Runtime axis — `gjsify.runtimes`**: quintuplet `{gjs, node, browser, nativescript, react-native}`, each slot ∈ {`polyfill`, `native`, `partial`, `none`}. Declares which JS RUNTIMES a package serves and how; says NOTHING about operating systems. NativeScript is the 4th slot (V8 on Android/iOS, metadata-driven native bridge — conceptually GJS↔GNOME with `java.io.File`/`NSFileManager` instead of `Gio.File`); `gjsify.nativescriptPlatforms` narrows capability WITHIN it. **`react-native` is the 5th slot and is DECLARATION-ONLY**: Metro owns a React Native app's build, so it feeds the ALIAS layer and there is deliberately no `--app react-native`. Held by `auditRuntimeShape` and the reachability pass, where a `polyfill` slot reaching GLib/Gio is FATAL as on `browser`/`nativescript`. Not to be confused with `gjsify build --dialect react-native`, which says what the SOURCE is written in, not what the PACKAGE runs on; a package can be both. Why iOS/Android are not separate slots, and why DRIFT is silent on `react-native`: [docs/runtime-platform-axes.md](docs/runtime-platform-axes.md).
-|**OS axis — TWO declarations, one per question (ADR 0018)**: `gjsify.os` = what the CODE claims (`{linux,darwin,win32}` → `supported`/`partial`/`none`, below `supported` needs a PRINTED `gjsify.osNotes.<os>` reason), demanded only of pkgs BRANCHING on the OS in shipping source — DERIVED, so no OS-conditional code = nothing to declare; `gjsify.platforms` = the `<os>-<arch>` targets a pkg with a native build system (meson/node-gyp) or a prebuild dir PROMISES a prebuild for (a pure-TS pkg is legitimately `os.win32:"supported"` with no win32 in `platforms`). ONE spelling everywhere: `${process.platform}-${process.arch}` — it is what a running process computes about itself, so resolution needs no translation. **The two axes are blind to each other BY DESIGN, and never let one answer the other's question.** The retired uname spelling, the read-only tolerance behind it, and the measurement that made the blindness a rule: [docs/runtime-platform-axes.md](docs/runtime-platform-axes.md).
-|**Intra-GJS layering — `gjsify.headless`** (ADR 0015): a package that DOCUMENTS itself as headless declares either `true` (root entry reaches NO typelib: no `gi://`, no `@girs/*` value import, no bare `cairo`/`system`/`gettext`, no `imports.*`) or a LIST of forbidden typelib namespaces (`["Gdk","GdkPixbuf","Gsk","Gtk","Adw"]` — headless *of GTK*, Cairo/Pango still fine). `audit-runtimes --check` walks the ROOT import graph from `exports["."]` (relative imports AND `@gjsify/*` workspace edges) and fails on any forbidden reach. ROOT-ONLY IS THE POINT: a side-effect SUBPATH may legitimately reach them, and scanning `src/**` would flag the fix itself. Not wanted on pure-TS contract packages: their all-`polyfill` slots already put ADR 0014 in charge. Why the other two axes are structurally blind here, and the incident that cost: [docs/runtime-platform-axes.md](docs/runtime-platform-axes.md). **The EMITTED bytes too, by `shipped-gi-deps`:** a build SYNTHESISES GI bindings no source holds (`--globals auto`), so `--scope=ship|examples` reads the shipped root entry and fails an UNBUILT one (the vacuity #1898); `gi://X?…&optional` (ADR 0086) is not a hard dep.
-|**Build target — `--app gjs|node|browser|nativescript`**: how a BUILD selects a runtime; the alias layer routes each `@gjsify/<X>` per its declared slots (§ Slot routing). ONE `--app node` bundle serves node, bun AND deno (Node-API is their common ABI) — `--runtime <gjs|node|bun|deno>` on `gjsify showcase|run|storybook` selects the LAUNCHER, not a different bundle (shared map `packages/infra/cli/src/utils/runtimes.ts`). NB `gjsify.example.runtimes` (which runtimes a showcase SHIPS artifacts for, § Showcase) is a distinct field from `gjsify.runtimes` (slot routing).
+|runtime axis — `gjsify.runtimes`: quintuplet `{gjs,node,browser,nativescript,react-native}` ∈ {`polyfill`,`native`,`partial`,`none`}. `react-native` is declaration-only
+|OS axis — `gjsify.os` + `gjsify.osNotes` (what source claims) and `gjsify.platforms` (prebuild targets). Blind to each other by design
+|intra-GJS layering — `gjsify.headless`: `true` or forbidden typelib list; root import graph checked
+|build target — `--app gjs|node|browser|nativescript`; alias layer routes per declared slots
 
 ## Don't patch — implement at the source
 
-We own ~every Web/Node/DOM API. First question for any new feature: *"which package owns this,
-can we implement it there?"* — never *"where can we monkey-patch it in?"*. Five hard rules, each
-written out with the incident that produced it in
-[docs/code-anti-patterns.md](docs/code-anti-patterns.md):
+Rules + incidents: [docs/code-anti-patterns.md](docs/code-anti-patterns.md).
 
-|**reading globals**: `import { X } from '@gjsify/<pkg>'`, not `(globalThis as any).X` — six documented exceptions, all in register/bootstrap code
-|**the legacy `imports.*` object is NOT an API** — it is the GJS host, absent on the node target, and a bare `imports.gi.X` is a `ReferenceError` thrown at the CALL, so the package tests green and the failure surfaces in a CONSUMER. Portable spellings exist for every use (`gi://Ns`, `import system from 'system'`, `TextDecoder`). Enforced by `no-restricted-globals` and `node-bundle-guard.ts`
-|**patching classes you own**: put the method on the class, not on `globalThis.X.method=…` in a register module
-|**"no module to import from"**: check again — the workspace almost certainly exports it
-|**pure-JS → native swap**: keep the pure-JS path and lift it into a `/core` subpath; the other runtimes still need it. A separate `-core` NAME needs a package-level cycle or independent external consumers, never onboarding cost
+|read globals via `import { X } from '@gjsify/<pkg>'`, not `(globalThis as any).X`
+|`imports.*` is the GJS host, NOT an API — portable spellings exist
+|patch classes you own by adding methods, not `globalThis.X.method=…`
+|"no module to import from" — check again; the workspace exports it
+|pure-JS → native swap: keep pure-JS path in `/core` subpath
 
-## Code anti-patterns — measured
+## Code anti-patterns
 
-Recurring shapes LLM-written code gets wrong. Every one was paid for in THIS repo, and the
-incident IS the rule — so it is written out in
-[docs/code-anti-patterns.md](docs/code-anti-patterns.md), which you read before arguing with one.
-Here: the rule and what enforces it.
+Rules + incidents: [docs/code-anti-patterns.md](docs/code-anti-patterns.md).
 
-|**try/catch around a call that cannot throw** — for GI calls read the GIR, only `throws="1"` raises. A kept catch must STATE ITS REASON; `eslint/no-empty` is `error`
-|**paranoid probes for what the workspace guarantees** — redundant `x?.m?.()` on our own classes hides real bugs as silent no-calls. Only the documented probes are sanctioned
-|**comments that restate the code** — comment WHY. Cut restatement, narrative history, upstream source coordinates; keep the incident, GI quirks, spec links, error text. **A LIVE COUNT is restatement too**: write what the number establishes, not the number. `scripts/check-comment-budget.mjs` reports per-tree volume — a score, so it advises
-|**duplication instead of a helper** — the SECOND copy is where you lift; the drifted copy fails in a CONSUMER while the owning package stays green
-|**scattered lifecycle** — cleanup beside creation, ownership in ONE place, wired to the exit the host actually has
-|**shelling out where an API exists** — pass an argv array (`Gio.Subprocess`), never an interpolated command line
-|**monolithic entry points** — `index.ts` = barrel re-exports only
-|**a side-effect import that has no side effect** — css-as-string makes any CSS import `export default "<css>"`, so a bare `import './x.css'` tree-shakes away at exit 0. Import the VALUE and apply it; enforced by `gjsify/no-css-side-effect-import` and the `stylesheet-font-families` conformance rule
-|**an interface assembled in TypeScript** — a widget class that builds its own children instead of declaring them in a `.blp` cannot be translated AT ALL: a caption assigned from code carries no `translatable` attribute, so `xgettext` never sees it. Declare the tree in Blueprint, keep logic in TypeScript, fill data-driven children inside the template. Enforced by `gjsify/prefer-blueprint-template` + `gjsify/no-literal-widget-label`
-|**toolkit imports in shared code** — declare `gjsify.headless` so CI holds the claim instead of relying on discipline
-|**a deferral marker that names nothing** — a `TODO`/`FIXME`/`HACK`/`XXX` opening a comment line must anchor to `#123`, a forge issue URL, `open-todos` (the `status/` ledger) or `fixed upstream in …`; better still, fix it in the PR that exposed it. Enforced at `error` by `gjsify/todo-needs-anchor`
+|no try/catch around calls that cannot throw; a kept catch states its reason
+|no paranoid probes for what the workspace guarantees
+|no comments that restate the code
+|no duplication instead of a helper
+|no scattered lifecycle
+|no shelling out where an API exists
+|no monolithic entry points
+|no side-effect CSS imports
+|no interfaces assembled in TypeScript
+|declare `gjsify.headless` for shared code
+|anchor every TODO/FIXME/HACK/XXX
 
 ## Package convention
 
-`packages/<pillar>/<name>/` → `@gjsify/<name>`, ONE workspace version (release train, ADR 0008 — compatibility guaranteed only within a release), `"type":"module"` | exports `./lib/esm/index.js` (+ `./lib/esm/register.js` if globals) | `sideEffects` pinned register-only (a package with no `/register` pins the one module that mutates the realm) | scripts `build:gjsify|build:types|build:test:{gjs,node}|test|test:{gjs,node}` | deps `@girs/*`, devDep `@gjsify/unit`, workspace deps `workspace:^`. Layout: `src/index.ts` (pure named exports) | `src/register.ts` | `src/*.spec.ts` | `src/test.mts`. Full register rules: § Tree-shakeable globals.
-
-Shared utils: `@gjsify/utils` — check before duplicating; extract only when a 2nd package needs it; `/core` vs barrel split in § Runtime & platform model. `@gjsify/stream` direct imports allowed in internal modules/tests needing non-standard exports; all public code uses `node:stream`.
-
-A NEW `@gjsify/*` name needs a manual npm first-publish + Trusted Publisher bootstrap BEFORE
-the release that ships it — skipping it never stalls the train, it SHIPS: the sweep skips it and
-ships its dependents (#1713). [publishing](docs/publishing.md).
-
-TWO dist-tags: `latest` (the train) and `next` — a nightly at 03:00 Europe/Berlin republishes the
-whole sweep as `<next patch>-next.<run number>`, rewritten in the CI checkout and NEVER committed
-(ADR 0111). So a new publishing job belongs in `release.yml`: Trusted Publishing is registered
-against that FILENAME. [publishing](docs/publishing.md) § A second channel.
+See [docs/package-convention.md](docs/package-convention.md).
 
 ## Testing
 
-`@gjsify/unit` (describe/it/expect, Node + GJS). Run: `gjsify workspace @gjsify/<pkg> run test[:node|:gjs]`;
-e2e `node --test tests/e2e/<name>/run.mjs`. Full rules — the seven numbered conventions, browser
-tests, integration tests — are [tests/](tests/AGENTS.md). The three that get broken most:
+Run: `gjsify workspace @gjsify/<pkg> run test[:node|:gjs]`; e2e `node --test tests/e2e/<name>/run.mjs`. Full rules: [tests/AGENTS.md](tests/AGENTS.md).
 
-|**never weaken a test** to make it pass — fix the impl. When the blocker genuinely is not ours, the sanctioned tool is `it.failing(name, fn, reason[, {when}])`, never `it.skip` and never an `if (platform)` guard: it RUNS the test and fails the day it starts passing, so it retires itself
-|**Node tests prove the TEST is correct; GJS tests prove OUR impl.** Both must pass
-|**`/register` side-effect tests go in a dedicated `register.spec.ts`** — `/register` can pull GTK/Cairo through its import chain and crash Node
+|never weaken a test to make it pass — use `it.failing(name, fn, reason[, {when}])`, never `it.skip`
+|Node tests prove the test is correct; GJS tests prove the impl
+|`/register` side-effect tests go in a dedicated `register.spec.ts`
 
-## Implementation workflow (TDD)
+## Workflow
 
-1 study `refs/node/lib/<name>.js` → 2 port tests (`@gjsify/unit`) → 3 `gjsify run test:node` (verify the tests) → 4 `test:gjs` (expect failures) → 5 implement with `@girs/*`, consult `refs/{deno,bun,quickjs,workerd}/` → 6 iterate until both pass → 7 full gate: `gjsify install --immutable && gjsify run clear && gjsify run build && gjsify run check && gjsify run test`.
-
-## Commit conventions
-
-Conventional commits `<type>[scope]: <description>`, imperative, ≤50-char subject — HOUSE STYLE, not machine-held: `commitlint.config.cjs` overrides only `type-enum`, so what the required `Lint commit messages` check actually enforces is config-conventional's `header-max-length` of 100 — which is the ceiling the SQUASH subject `<title> (#N)` needs — AND `body-max-line-length` of 100, which holds every line of the commit BODY: a SQUASH body IS the PR description, so one 101-column line reds a required check with `body's lines must not be longer than 100 characters [body-max-line-length]` and nothing else wrong. `main` is SQUASH-ONLY, so a PR's branch commits are not linted, and `commitlint.yml`'s `repair-text` job edits the title/body itself (case, type synonyms, a header the branch supplies, closing lists, wrapping, tables → comment; `scripts/repair-pr-text.mjs`) — only a type or a header the branch cannot supply stays red for you. Measured, 85% of `main`'s last 300 subjects are over 50, so tightening the rule reds every open PR at once; keep the 50 yourself. **All types surface in CHANGELOG.md** (`.release-it.json` `types`) — use the best fit, none is dropped: `feat` `fix` `perf` `revert` `docs` `refactor` `build` `ci` `chore` `test`; `style` hidden. Scope = lowercase package name without `@gjsify/` (`fix(rolldown-plugin-gjsify): …`), `(e2e)` for e2e suites, omit when crossing packages.
-
-## PR size — prefer few large ones
-
-A full CI pass is ~25 minutes, and that cost is per PR, not per commit: **land one
-large feature PR rather than several small stacked ones.** The measurement (four
-stacked PRs → three main-merge rounds, two bundle rebuilds before anything landed)
-is in [docs/governance.md](docs/governance.md). When a stack is unavoidable, make it a NATIVE one (`gh stack`), not hand-chained bases: GitHub then rebases the rest after each squash. Merge one via `gh api -X PUT …/pulls/<n>/merge-async`, no `merge_method` (`gh pr merge` is refused).
-
-**Open PRs as draft, push in batches, mark ready when done** (`gh pr ready`): heavy CI skips
-on drafts and runs on `ready_for_review` ([why](docs/ci-selective.md)). Lint, format and the
-three required checks still run on every push.
-
-**Do not idle on CI.** A green run gates MERGING, not writing the next commit —
-push, keep going, check back. Watch the WORKFLOW status, not the check list: a
-workflow that has not spawned its jobs contributes zero checks, so "no pending
-checks" reads as green before anything has started.
+TDD: [docs/implementation-workflow.md](docs/implementation-workflow.md). Commits: [docs/commit-conventions.md](docs/commit-conventions.md). PRs: [docs/pr-workflow.md](docs/pr-workflow.md).
 
 ## Constraints
 
-Target: GJS 1.86.0 / SpiderMonkey 140 (ES2024) / Rolldown `firefox140` | ESM-only | GNOME libs + standard JS only | tests pass on Node + GJS | do NOT modify `refs/`. SM128 (GJS 1.84) is no longer supported; SM128-era polyfills still load (idempotent no-ops), retired package by package as native SM140 paths are validated. What SM140 gives you beyond ES2024: [docs/engine-baseline.md](docs/engine-baseline.md).
-
-**TypeScript version invariant**: root + EVERY workspace declares `typescript: "^6.0.3"` — no 5.x
-carve-out, enforced by the CI `gjsify upgrade --check` step. Bumping it touches every
-`package.json` incl. `templates/*` and the integration tests, in one PR. Do NOT reintroduce a 5.x
-pin + root `overrides` scoping — the reasoning and the two CI breaks behind it are in
-[docs/governance.md](docs/governance.md).
+GJS 1.86 / SpiderMonkey 140 (ES2024) / Rolldown `firefox140` | ESM-only | GNOME libs + standard JS only | tests on Node + GJS | do NOT modify `refs/`. Details: [docs/constraints.md](docs/constraints.md).
 
 ## Cross-runtime tracks
 
-The active axis-5/axis-6 engineering tracks. Concepts + slot model: § Runtime & platform model. Axis 5 → [packages/node-gi](packages/node-gi/AGENTS.md) ·
-N-API host → [packages/napi](packages/napi/AGENTS.md) ·
-NativeScript → [packages/nativescript-bridge](packages/nativescript-bridge/AGENTS.md) ·
-axis 6 bundled toolchains → [docs/bundled-toolchains.md](docs/bundled-toolchains.md).
+Axis 5/6 tracks: [packages/node-gi/AGENTS.md](packages/node-gi/AGENTS.md) · [packages/napi/AGENTS.md](packages/napi/AGENTS.md) · [packages/nativescript-bridge/AGENTS.md](packages/nativescript-bridge/AGENTS.md) · [docs/bundled-toolchains.md](docs/bundled-toolchains.md).
 
-## Writing agent context files
+## Agent context files
 
-**Budget first — an agent context file is loaded on EVERY turn, so its size is a permanent tax.**
-Every AGENTS.md ≤ 20 KB, nothing over 32 KiB: that is `project_doc_max_bytes`, where Codex
-silently truncates the tail with no warning — that cap is unconditional. Held by
-`scripts/check-agent-context-size.mjs --check`: the 32 KiB cap, plus a fail on growing more than
-512 bytes past the file's size at the PR base (`HEAD^` on a push to `main`). A file that needs
-more room opts in with a `Context-Budget: grow <path>` commit trailer. Why base-relative replaced
-an exact committed ledger, and the residual it leaves: [docs/governance.md](docs/governance.md)
-§ Agent context budget.
-
-**Where content goes.** True repo-wide → this file. Scoped to one subtree → that subtree's
-AGENTS.md, authoritative there. The INCIDENT behind a rule, a lookup table, a rare procedure →
-`docs/`, linked from the rule. Growing a section past a screen is the signal to move its detail
-out and leave the rule plus one link, never to append.
-
-**Never compress away the INCIDENT that justifies a rule** — a rule without its reason gets
-"simplified" back into the bug. Moving it one hop into `docs/` preserves it; deleting it does not.
-
-Style: pipe-delimited | single-line directives | strip prose | abbreviated keys | "Prefer
-retrieval-led reasoning" preamble | keep non-obvious code examples | never compress error
-messages or edge-case docs.
+Loaded every turn, so size is a permanent tax. Keep every AGENTS.md ≤ 20 KB (hard cap 32 KiB); held by `scripts/check-agent-context-size.mjs --check`. Why base-relative growth replaced a ledger: [docs/governance.md](docs/governance.md) § Agent context budget.
