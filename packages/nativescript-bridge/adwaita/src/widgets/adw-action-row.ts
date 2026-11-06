@@ -92,6 +92,12 @@ export class AdwActionRow extends withSignals(GridLayout, {
 }) {
     static readonly GTypeName: string = 'AdwActionRow';
 
+    /**
+     * `activated` is a NativeScript event, not a declared signal (see `activate()`), yet the
+     * builder's `bindSignals` accepts a `.blp` `activated => …` only for a name listed here.
+     */
+    static override readonly emittedSignals: readonly string[] = [...super.emittedSignals, ACTIVATED];
+
     /** The names this widget's `_addChildFromBuilder` honours — see `./builder-slots.ts`. */
     static readonly builderSlots: readonly string[] = builderSlotsOf(ACTION_ROW_SLOTS, 'suffix');
 

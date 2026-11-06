@@ -255,6 +255,12 @@ export const AdwActionRowPropertiesNsTest = async () => {
             expect(viaConnect.length).toBe(1);
         });
 
+        await it('lists `activated` in emittedSignals so a builder binding is accepted', () => {
+            const emitted = (Adw.ActionRow as unknown as { emittedSignals: readonly string[] }).emittedSignals;
+            expect(emitted.includes(ACTIVATED)).toBe(true);
+            expect(emitted.includes('notify::title')).toBe(true);
+        });
+
         await it('does not activate while unactivatable', () => {
             const row = new Adw.ActionRow();
             const seen: number[] = [];
