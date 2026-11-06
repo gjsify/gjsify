@@ -242,7 +242,7 @@ export const ADWAITA_NS_NAMED_COLOR_RULES: ReadonlyArray<NamedColorRule> = [
         fallback: '#fafafb',
     },
     {
-        selector: '.adw-about-dialog-link, .adw-about-dialog-links-item',
+        selector: '.adw-about-dialog-back',
         property: 'color',
         variable: 'window-fg-color',
         fallback: 'rgba(0, 0, 0, 0.8)',
@@ -508,7 +508,7 @@ export const ADWAITA_NS_NAMED_COLOR_RULES: ReadonlyArray<NamedColorRule> = [
         fallback: '#ffffff',
     },
     {
-        selector: '.ns-dark .adw-about-dialog-link, .ns-dark .adw-about-dialog-links-item',
+        selector: '.ns-dark .adw-about-dialog-back, .ns-dark .adw-about-dialog-page-title',
         property: 'color',
         variable: 'window-fg-color',
         fallback: '#ffffff',
