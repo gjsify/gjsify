@@ -148,6 +148,29 @@ export default async () => {
             expect(html(undefined)).not.toMatch(/os-note-unsigned/);
         });
 
+        await it('hints at the Safari extension only when the release record carries one', async () => {
+            const html = (safariExtension: boolean | undefined, signing?: DownloadTarget['signing']) =>
+                downloadWidget({
+                    data: downloadData([], [{ ...target('darwin', 'zip'), safariExtension, signing }]),
+                    t,
+                    lang: 'en',
+                });
+            expect(html(true)).toMatch(/os-note-safari">Contains the Safari extension/);
+            expect(html(true)).not.toMatch(/Allow Unsigned Extensions/);
+            expect(html(undefined)).not.toMatch(/os-note-safari/);
+            expect(html(false)).not.toMatch(/os-note-safari/);
+            // Unsigned adds the second sentence about Safari's own "Allow unsigned extensions" gate.
+            expect(html(true, 'unsigned')).toMatch(/Allow Unsigned Extensions/);
+            expect(html(true, 'notarized')).not.toMatch(/Allow Unsigned Extensions/);
+            // Not Safari-specific at all on a different OS, even if the field were set.
+            const win32 = downloadWidget({
+                data: downloadData([], [{ ...target('win32', 'zip'), safariExtension: true } as DownloadTarget]),
+                t,
+                lang: 'en',
+            });
+            expect(win32).not.toMatch(/os-note-safari/);
+        });
+
         await it('numbers nothing when there is only one part to install', async () => {
             const single = downloadWidget({ data: downloadData([], [target('linux', 'deb')]), t, lang: 'en' });
             expect(single).not.toMatch(/component-head|component-step/);
