@@ -28,11 +28,11 @@ import { statusPageIconVisibility, statusPageLabelVisibility } from './status-pa
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { classNameWith, normalizeStyleClasses, withCssClass, withoutCssClass } from './style-classes.js';
 import { withSignals } from './signals.js';
+import { onAdwaitaColorSchemeChanged, themeIconColor } from './color-scheme.js';
+import { dimmedIconColor, onWindowFgChanged, publishedWindowFg } from './status-icon-color.js';
 
 /** Default status-page icon size (DIPs) — `-gtk-icon-size: 128px` (_misc.scss, statuspage). */
 const DEFAULT_STATUS_ICON_SIZE = 128;
-/** Default dim icon colour — Adw.StatusPage dims the empty-state icon. */
-const DEFAULT_STATUS_ICON_COLOR = '#9b9b9b';
 
 /** The class every status page carries, which a `styleClasses` write keeps. */
 const STATUS_PAGE_BASE_CLASS_NAME = 'adw-status-page';
@@ -62,6 +62,9 @@ export class AdwStatusPage extends withSignals(GridLayout) {
     protected readonly _descriptionLabel: Label;
     private _child: View | null = null;
     private _styleClasses: string[] = [];
+    private _explicitIconColor = false;
+    private _unsubFg: (() => void) | null = null;
+    private _unsubScheme: (() => void) | null = null;
 
     constructor(props?: ConstructProps<AdwStatusPage>) {
         super();
@@ -89,7 +92,7 @@ export class AdwStatusPage extends withSignals(GridLayout) {
         const icon = new GtkImage();
         icon.className = `${icon.className} adw-status-page-icon`.trim();
         icon.horizontalAlignment = 'center';
-        icon.iconColor = DEFAULT_STATUS_ICON_COLOR;
+        icon.iconColor = dimmedIconColor(publishedWindowFg(), themeIconColor());
         icon.pixelSize = DEFAULT_STATUS_ICON_SIZE;
         icon.visibility = statusPageIconVisibility(this._iconName);
         this._icon = icon;
@@ -115,6 +118,20 @@ export class AdwStatusPage extends withSignals(GridLayout) {
         this._descriptionLabel = descriptionLabel;
 
         for (const part of [icon, iconLabel, titleLabel, descriptionLabel]) stack.addChild(part);
+
+        // The icon is a bitmap, so CSS cannot recolour it: follow the window foreground (and the
+        // scheme) by hand, until a caller pins a colour.
+        this.addEventListener('loaded', () => {
+            this._syncIconColor();
+            this._unsubFg ??= onWindowFgChanged(() => this._syncIconColor());
+            this._unsubScheme ??= onAdwaitaColorSchemeChanged(() => this._syncIconColor());
+        });
+        this.addEventListener('unloaded', () => {
+            this._unsubFg?.();
+            this._unsubFg = null;
+            this._unsubScheme?.();
+            this._unsubScheme = null;
+        });
 
         applyConstructProps(this, props);
     }
@@ -161,7 +178,14 @@ export class AdwStatusPage extends withSignals(GridLayout) {
     }
 
     set iconColor(value: string) {
+        this._explicitIconColor = true;
         this._icon.iconColor = value;
+    }
+
+    /** Adopt the window foreground at libadwaita's icon opacity (no-op once a caller pinned a colour). */
+    private _syncIconColor(): void {
+        if (this._explicitIconColor) return;
+        this._icon.iconColor = dimmedIconColor(publishedWindowFg(), themeIconColor());
     }
 
     /** The page title (bold, centered). An empty title takes no space. */

@@ -34,6 +34,7 @@ import buttonContentNsTestSuite from './button-content.spec.js';
 import shortcutLabelNsTestSuite from './shortcut-label.spec.js';
 import accentThemeNsTestSuite from './accent-theme.spec.js';
 import namedColorsThemeTestSuite from './named-colors-theme.spec.js';
+import statusIconColorTestSuite from './widgets/status-icon-color.spec.js';
 import engineTargetTestSuite from './engine-target.spec.js';
 import windowInsetsTestSuite from './window-insets.spec.js';
 import hostInsetsTestSuite from './host-insets.spec.js';
@@ -88,6 +89,7 @@ run({
     shortcutLabelNsTestSuite,
     accentThemeNsTestSuite,
     namedColorsThemeTestSuite,
+    statusIconColorTestSuite,
     engineTargetTestSuite,
     windowInsetsTestSuite,
     hostInsetsTestSuite,
