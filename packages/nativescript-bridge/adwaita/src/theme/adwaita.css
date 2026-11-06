@@ -48,7 +48,7 @@ Page.adw-window {
 }
 
 .adw-preferences-group-title {
-    font-size: 11;
+    font-size: 14.67;
     font-weight: 700;
     color: rgba(0, 0, 0, 0.55);
     margin: 0;
@@ -61,7 +61,7 @@ Page.adw-window {
  * — the labels box carries nothing else, and the NS subset has no property for a
  * spacing, so the gap rides on the second child. It was 2. */
 .adw-preferences-group-description {
-    font-size: 12;
+    font-size: 14.67;
     color: rgba(0, 0, 0, 0.55);
     margin: 6 0 0 0;
 }
@@ -187,13 +187,13 @@ Page.adw-window {
 }
 
 .adw-row-title {
-    font-size: 15;
+    font-size: 14.67;
     color: rgba(0, 0, 0, 0.8);
     margin: 0;
 }
 
 .adw-row-subtitle {
-    font-size: 13;
+    font-size: 12.22;
     color: rgba(0, 0, 0, 0.55);
     margin: 2 0 0 0;
 }
@@ -236,7 +236,7 @@ Page.adw-window {
 
 /* The title shrinks to a small dim floating label above the field. */
 .adw-entry-title {
-    font-size: 12;
+    font-size: 12.22;
     color: rgba(0, 0, 0, 0.55);
     margin: 0;
 }
@@ -248,7 +248,7 @@ Page.adw-window {
  * they are restated here so the rule is readable from the stylesheet.) */
 .adw-entry-field,
 .adw-entry-input {
-    font-size: 15;
+    font-size: 14.67;
     color: rgba(0, 0, 0, 0.8);
     background-color: transparent;
     /* No Material underline — no Adwaita entry has a field border. */
@@ -342,7 +342,7 @@ Page.adw-window {
 }
 
 .adw-combo-value {
-    font-size: 15;
+    font-size: 14.67;
     color: rgba(0, 0, 0, 0.55);
     margin: 0 4 0 0;
 }
@@ -373,7 +373,7 @@ Page.adw-window {
 /* `button { font-weight: bold }` (_buttons.scss:24). The label carries the
  * colour because NS does not inherit `color` to a child Label. */
 .adw-drop-down-label {
-    font-size: 15;
+    font-size: 14.67;
     font-weight: 700;
     color: rgba(0, 0, 0, 0.8);
     vertical-align: center;
@@ -417,7 +417,7 @@ Page.adw-window {
 }
 
 .adw-spin-value {
-    font-size: 15;
+    font-size: 14.67;
     color: rgba(0, 0, 0, 0.8);
     margin: 0 6 0 4;
     vertical-align: center;
@@ -442,13 +442,13 @@ Page.adw-window {
 }
 
 .adw-slider-title {
-    font-size: 15;
+    font-size: 14.67;
     color: rgba(0, 0, 0, 0.8);
     margin: 0;
 }
 
 .adw-slider-value {
-    font-size: 15;
+    font-size: 14.67;
     color: rgba(0, 0, 0, 0.55);
     margin: 0;
 }
@@ -663,7 +663,7 @@ Page.adw-window {
  * text button has neither, and one selector for both would give every text button
  * `image-text-button` spacing. */
 .adw-button-label {
-    font-size: 15;
+    font-size: 14.67;
     font-weight: 700;
     color: rgba(0, 0, 0, 0.8);
 }
@@ -758,7 +758,7 @@ Page.adw-window {
 }
 
 .adw-banner-title {
-    font-size: 15;
+    font-size: 14.67;
     color: rgba(0, 0, 0, 0.8);
     margin: 0;
 }
@@ -804,14 +804,14 @@ Page.adw-window {
 }
 
 .adw-window-title-title {
-    font-size: 15;
+    font-size: 14.67;
     font-weight: 700;
     color: rgba(0, 0, 0, 0.8);
     margin: 0;
 }
 
 .adw-window-title-subtitle {
-    font-size: 12;
+    font-size: 12.22;
     color: rgba(0, 0, 0, 0.55);
     margin: 0;
 }
@@ -977,7 +977,7 @@ Page.adw-window {
 /* AdwIndicatorBin's badge — the unread count, or (with .needs-attention and no
  * count) a bare dot. Reference: refs/libadwaita/src/adw-indicator-bin.c */
 .adw-viewswitcherbar-button-badge {
-    font-size: 10;
+    font-size: 8.8;
     font-weight: 700;
     color: #ffffff;
     background-color: #3584e4;
@@ -1019,7 +1019,7 @@ Page.adw-window {
  * --spacing-s / --spacing-m, 9 and 12). Single-line is set on the widget: a
  * wrapped figure column stops being a column of figures. */
 .adw-data-grid-cell {
-    font-size: 15;
+    font-size: 14.67;
     color: rgba(0, 0, 0, 0.8);
     padding: 9 12 9 12;
     vertical-align: center;
@@ -1060,7 +1060,7 @@ Page.adw-window {
 }
 
 .adw-data-grid-cell.header-cell {
-    font-size: 12;
+    font-size: 14.67;
     font-weight: 700;
     color: rgba(0, 0, 0, 0.55);
 }
@@ -1149,14 +1149,14 @@ Page.adw-window {
 }
 
 .adw-status-page-title {
-    font-size: 20;
+    font-size: 26.55;
     font-weight: 700;
     color: rgba(0, 0, 0, 0.8);
     margin: 0 0 6 0;
 }
 
 .adw-status-page-description {
-    font-size: 14;
+    font-size: 14.67;
     color: rgba(0, 0, 0, 0.55);
     margin: 0;
 }
@@ -1171,7 +1171,7 @@ Page.adw-window {
 }
 
 .adw-status-page.compact .adw-status-page-title {
-    font-size: 15;
+    font-size: 19.95;
 }
 
 /* ===== Button row (full-width tappable row) ===== */
@@ -1185,7 +1185,7 @@ Page.adw-window {
 }
 
 .adw-button-row-title {
-    font-size: 15;
+    font-size: 14.67;
     font-weight: 700;
     color: #3584e4;
     margin: 0;
@@ -1238,7 +1238,7 @@ Page.adw-window {
 }
 
 .adw-button-content-label {
-    font-size: 15;
+    font-size: 14.67;
     font-weight: 700;
     color: rgba(0, 0, 0, 0.8);
     margin: 0;
@@ -1266,7 +1266,7 @@ Page.adw-window {
 }
 
 .adw-split-button-label {
-    font-size: 15;
+    font-size: 14.67;
     font-weight: 700;
     color: rgba(0, 0, 0, 0.8);
     vertical-align: center;
@@ -1325,7 +1325,7 @@ Page.adw-window {
 }
 
 .adw-toggle-label {
-    font-size: 14;
+    font-size: 14.67;
     font-weight: 700;
     color: rgba(0, 0, 0, 0.8);
     vertical-align: center;
@@ -1395,7 +1395,7 @@ Page.adw-window {
 
 /* AdwIndicatorBin's badge on the classic switcher's buttons. */
 .adw-view-switcher-button-badge {
-    font-size: 10;
+    font-size: 8.8;
     font-weight: 700;
     color: #ffffff;
     background-color: #3584e4;
@@ -1449,7 +1449,7 @@ Page.adw-window {
 
 /* AdwIndicatorBin's badge on the inline switcher's toggles. */
 .adw-inline-view-switcher-button-badge {
-    font-size: 10;
+    font-size: 8.8;
     font-weight: 700;
     color: #ffffff;
     background-color: #3584e4;
@@ -1632,7 +1632,7 @@ Page.adw-window {
 }
 
 .adw-sidebar-row-title {
-    font-size: 15;
+    font-size: 14.67;
     color: rgba(0, 0, 0, 0.8);
     margin: 0;
 }
@@ -1715,7 +1715,7 @@ Page.adw-window {
 }
 
 .adw-check-label {
-    font-size: 15;
+    font-size: 14.67;
     color: rgba(0, 0, 0, 0.8);
 }
 
@@ -1759,7 +1759,7 @@ Page.adw-window {
 
 .adw-text-view-input {
     color: rgba(0, 0, 0, 0.8);
-    font-size: 15;
+    font-size: 14.67;
 }
 
 .adw-text-view.monospace .adw-text-view-input {
@@ -1779,7 +1779,7 @@ Page.adw-window {
 }
 
 .adw-toast-title {
-    font-size: 14;
+    font-size: 14.67;
     color: #ffffff;
     margin: 0;
 }
@@ -1831,7 +1831,7 @@ Page.adw-window {
 }
 
 .adw-about-dialog-page-title {
-    font-size: 15;
+    font-size: 14.67;
     font-weight: 700;
     color: rgba(0, 0, 0, 0.85);
 }
@@ -1841,14 +1841,14 @@ Page.adw-window {
 }
 
 .adw-about-dialog-name {
-    font-size: 20;
+    font-size: 26.55;
     font-weight: 700;
     color: rgba(0, 0, 0, 0.85);
     margin: 0 0 2 0;
 }
 
 .adw-about-dialog-version {
-    font-size: 13;
+    font-size: 14.67;
     color: rgba(0, 0, 0, 0.55);
     margin: 0 0 8 0;
 }
@@ -1858,9 +1858,15 @@ Page.adw-window {
 .adw-about-dialog-credits,
 .adw-about-dialog-acknowledgements,
 .adw-about-dialog-legal,
-.adw-about-dialog-release-notes,
+.adw-about-dialog-release-notes {
+    font-size: 14.67;
+    color: rgba(0, 0, 0, 0.6);
+    margin: 2 0 2 0;
+}
+
+/* monospace font, 10pt (adw-style-manager.c) */
 .adw-about-dialog-debug-info {
-    font-size: 13;
+    font-size: 13.33;
     color: rgba(0, 0, 0, 0.6);
     margin: 2 0 2 0;
 }
@@ -1880,7 +1886,7 @@ Page.adw-window {
 }
 
 .adw-preferences-dialog-title {
-    font-size: 17;
+    font-size: 14.67;
     font-weight: 700;
     color: rgba(0, 0, 0, 0.85);
     margin: 0;
@@ -1963,7 +1969,7 @@ Page.adw-window {
 
 .adw-shortcut-label-cap-text {
     color: rgba(0, 0, 0, 0.8);
-    font-size: 14;
+    font-size: 14.67;
     text-align: center;
 }
 
@@ -1971,7 +1977,7 @@ Page.adw-window {
  * smaller and bold, and rides inside its keycap rather than beside it. */
 .adw-shortcut-label-side {
     color: rgba(0, 0, 0, 0.8);
-    font-size: 11;
+    font-size: 12.22;
     font-weight: 700;
     margin-left: 2;
 }
@@ -1979,7 +1985,7 @@ Page.adw-window {
 /* `dim_label` — `--dim-opacity: 55%` (`_colors.scss:319`). */
 .adw-shortcut-label .dimmed {
     color: rgba(0, 0, 0, 0.8);
-    font-size: 14;
+    font-size: 14.67;
     opacity: 0.55;
     padding: 6 0 6 0;
 }

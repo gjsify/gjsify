@@ -1036,6 +1036,9 @@ jobs:
       - name: Check the NativeScript model states what is undefined before a write
         run: node scripts/check-nativescript-ns-defaults.mjs
 
+      - name: Check the NativeScript theme font sizes derive from libadwaita
+        run: node scripts/check-nativescript-font-sizes.mjs
+
       # NativeScript's V8 has no ICU, and a regex literal compiles with its MODULE: one
       # `/^\p{L}$/u` in adwaita-core's release-notes parser, in a helper nothing had called
       # yet, killed Learn6502's Android bundle at startup ("Invalid property name") while
@@ -1785,6 +1788,9 @@ jobs:
       # classless child killed Learn6502's Android port at startup on a real emulator.
       - name: Check the NativeScript model states what is undefined before a write
         run: node scripts/check-nativescript-ns-defaults.mjs
+
+      - name: Check the NativeScript theme font sizes derive from libadwaita
+        run: node scripts/check-nativescript-font-sizes.mjs
 
       # NativeScript's V8 has no ICU, and a regex literal compiles with its MODULE: one
       # `/^\p{L}$/u` in adwaita-core's release-notes parser, in a helper nothing had called
