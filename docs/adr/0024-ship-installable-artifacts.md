@@ -2052,9 +2052,17 @@ and signing INSIDE OUT (a nested bundle signed and sealed before the outer one, 
 }}
 ```
 
-Refused outright (not silently dropped) on any layout but darwin — `Contents/PlugIns` and
-`Contents/Helpers` have no equivalent on a `.deb`/`.rpm`/Flatpak or a Windows program directory.
-`resolveShipSettings` throws the moment a non-empty list reaches a different `layoutOs`.
+Darwin-only — `Contents/PlugIns` and `Contents/Helpers` have no equivalent on a
+`.deb`/`.rpm`/Flatpak or a Windows program directory. **Addendum, 2026-11-06 (beifahrer#203):**
+on every OTHER layout the two keys are now IGNORED, not refused — `resolveShipNestedBundles`/
+`resolveShipHelperExecutables` resolve a non-empty list to `[]` there, with one notice on stderr
+("nestedBundles/helperExecutables apply to darwin only — not staged for `<os>`"), exit 0. The
+original refusal shipped in gjsify 0.64.21 and surfaced in beifahrer as `gjsify ship linux --target deb,rpm` and
+`--target flatpak` failing hard the moment a Mac-only extension was declared — a project with a
+Safari extension could no longer ship for Linux or Windows at all. SHAPE validation (schema, leaf
+names, `..`, duplicates, unknown keys) still runs on every layout unconditionally, so a typo is
+still caught on a Linux build; only the SOURCE's existence check is darwin-only, since a non-darwin
+runner never built the `.appex` in the first place.
 
 **Staging** (`utils/ship/nested-bundles.ts`): a nested bundle is staged TREE-PRESERVING under
 `Layout.dirs().plugins` — never through `gjsify.ship.bundledTypelibs`'s flattening map, for the
