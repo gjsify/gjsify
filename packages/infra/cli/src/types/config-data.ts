@@ -747,8 +747,10 @@ export interface ConfigDataShip extends AppMetadata {
      *
      * `Contents/PlugIns` is Apple's own nested-code location (`codesign(1)`'s
      * bundle format, beside `Frameworks`/`Helpers`/`XPCServices`); no other
-     * layout has an equivalent slot, so this is refused outside
-     * `gjsify ship darwin`.
+     * layout has an equivalent slot, so this is IGNORED (not refused) outside
+     * `gjsify ship darwin` — one notice on stderr, exit 0 (ADR 0024 amendment,
+     * 2026-11-06 addendum, beifahrer#203). The shape is still validated on
+     * every layout.
      */
     nestedBundles?: ShipNestedBundleOptions[];
     /**

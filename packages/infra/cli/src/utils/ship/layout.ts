@@ -184,9 +184,11 @@ export interface LayoutDirs {
      * `Helpers`, `XPCServices`). `''` on linux and windows, where neither a
      * prefix nor a program directory has an equivalent: a Flatpak sandbox has no
      * App Extension model and a Windows program directory has nothing Apple's
-     * extension points name. `gjsify.ship.nestedBundles` is refused outright on
-     * any layout where this is `''` (ADR 0024 amendment, "nested bundles and
-     * helper executables"; the beifahrer ADR this answers: 0026 § 6).
+     * extension points name. `gjsify.ship.nestedBundles` is IGNORED (not
+     * refused) on any layout where this is `''` — `resolveShipNestedBundles`
+     * resolves it to `[]` before `stageSubordinates` ever sees it (ADR 0024
+     * amendment, "nested bundles and helper executables", 2026-11-06 addendum;
+     * the beifahrer ADR this answers: 0026 § 6).
      */
     plugins: string;
 }
