@@ -176,7 +176,7 @@ function openAnywayHint(os: TargetPlatform, t: Translate): string | undefined {
 }
 
 /**
- * The Safari hint for a macOS download whose release record carries the extension (ADR 0124's
+ * The Safari hint for a macOS download whose release record carries the extension (ADR 0024's
  * nested-bundles amendment). Safari is optional, so this is informational, never styled as a
  * warning like {@link openAnywayHint}. The second sentence — Safari refusing to load an unsigned
  * extension without an explicit opt-in — only applies when the download itself is unsigned; see
