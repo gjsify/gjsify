@@ -738,6 +738,53 @@ export interface ConfigDataShip extends AppMetadata {
      * is the default path and a legitimate output (ADR 0024 § A13).
      */
     sign?: ShipSignOptions;
+    /**
+     * Further BUNDLES this package's darwin container embeds — e.g. a Safari Web
+     * Extension `.appex` built by `xcrun safari-web-extension-packager`. Each is
+     * copied wholesale into `Contents/PlugIns/` and signed+sealed as its OWN
+     * bundle, with its OWN entitlements, before the outer `.app` is sealed
+     * (ADR 0024 § A12-§ A17; the beifahrer ADR this answers: 0026 § 6).
+     *
+     * `Contents/PlugIns` is Apple's own nested-code location (`codesign(1)`'s
+     * bundle format, beside `Frameworks`/`Helpers`/`XPCServices`); no other
+     * layout has an equivalent slot, so this is refused outside
+     * `gjsify ship darwin`.
+     */
+    nestedBundles?: ShipNestedBundleOptions[];
+    /**
+     * Prebuilt helper EXECUTABLES this package carries beside the carried
+     * interpreter, in `Contents/Helpers/` — e.g. a small Swift binary with no GI
+     * binding (`SafariServices` has none), execed via `Gio.Subprocess`. Signed
+     * with its OWN entitlements before the outer `.app` is sealed. Darwin only,
+     * for the same reason as {@link ConfigDataShip.nestedBundles}.
+     */
+    helperExecutables?: ShipHelperExecutableOptions[];
+}
+
+/** One entry of `gjsify.ship.nestedBundles`. */
+export interface ShipNestedBundleOptions {
+    /** Project-relative directory holding the built bundle (e.g. the `.appex`). */
+    source: string;
+    /** Destination leaf under `Contents/PlugIns/` — keep the source's own extension. */
+    name: string;
+    /**
+     * Entitlements this bundle is signed and sealed with, REPLACING the outer
+     * signer's own set rather than adding to it: a sandboxed extension keeps the
+     * sandbox entitlements its packager wrote (`com.apple.security.app-sandbox`,
+     * file access) and must not inherit the host app's JIT/dyld-environment
+     * grants (ADR 0026 § 5). Absent or `[]` signs with none.
+     */
+    entitlements?: string[];
+}
+
+/** One entry of `gjsify.ship.helperExecutables`. */
+export interface ShipHelperExecutableOptions {
+    /** Project-relative path of the prebuilt executable. */
+    source: string;
+    /** Destination leaf under `Contents/Helpers/`. */
+    name: string;
+    /** Entitlements this helper is signed with. Absent or `[]` signs with none. */
+    entitlements?: string[];
 }
 
 /** One entry of `gjsify.ship.executables`. */

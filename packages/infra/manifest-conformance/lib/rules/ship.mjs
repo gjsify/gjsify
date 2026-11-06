@@ -371,6 +371,62 @@ export function auditShip(ctx) {
             }
         }
 
+        // `nestedBundles` / `helperExecutables`: darwin-only, each entry needs a
+        // `source` that exists relative to the package and a usable `name`. The
+        // SAME silent-key failure class as `bundle`/`app` is not reachable here —
+        // there is no per-OS table to mis-key — but a missing `source` is exactly
+        // as late-discovered: `gjsify ship darwin` fails on it, nothing else ever
+        // reads the path.
+        for (const [key, under] of [
+            ['nestedBundles', 'Contents/PlugIns'],
+            ['helperExecutables', 'Contents/Helpers'],
+        ]) {
+            const entries = block[key];
+            if (entries === undefined) continue;
+            if (!Array.isArray(entries)) {
+                failures.push(`${pkg.rel}/package.json: \`gjsify.ship.${key}\` must be a list of objects.`);
+                continue;
+            }
+            const seen = new Set();
+            for (const [index, entry] of entries.entries()) {
+                const at = `${pkg.rel}/package.json: \`gjsify.ship.${key}[${index}]\``;
+                if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+                    failures.push(`${at} must be an object with \`source\` and \`name\`.`);
+                    continue;
+                }
+                if (typeof entry.source !== 'string' || entry.source.length === 0) {
+                    failures.push(`${at}.source must be a project-relative path.`);
+                } else if (!existsSync(join(pkg.dir, entry.source))) {
+                    failures.push(`${at}.source points at ${entry.source}, which does not exist in this package.`);
+                }
+                if (
+                    typeof entry.name !== 'string' ||
+                    entry.name.length === 0 ||
+                    entry.name.includes('/') ||
+                    entry.name.includes('\\')
+                ) {
+                    failures.push(
+                        `${at}.name must be a non-empty string with no \`/\` or \`\\\` — the leaf under \`${under}\`.`,
+                    );
+                } else if (seen.has(entry.name)) {
+                    failures.push(`${at}.name "${entry.name}" is already taken by an earlier entry.`);
+                } else {
+                    seen.add(entry.name);
+                }
+                if (
+                    entry.entitlements !== undefined &&
+                    (!Array.isArray(entry.entitlements) || entry.entitlements.some((key2) => typeof key2 !== 'string'))
+                ) {
+                    failures.push(`${at}.entitlements must be a list of strings.`);
+                }
+                for (const stray of Object.keys(entry)) {
+                    if (!['source', 'name', 'entitlements'].includes(stray)) {
+                        failures.push(`${at}.${stray} is not a known key. Known: source, name, entitlements.`);
+                    }
+                }
+            }
+        }
+
         for (const [namespace, row] of Object.entries(block.typelibPackages ?? {})) {
             // A half-filled row is worse than none: the format it forgot falls
             // back to the built-in table, which is what did not know the

@@ -514,6 +514,15 @@ jobs:
           GJSIFY_SHIP_SIGNING_REQUIRE_DARWIN_TOOLS: '1'
         run: node --test tests/e2e/ship-signing/run.mjs
 
+      # The inside-out order for an embedded `.appex` and a helper executable
+      # (ADR 0024 amendment) is only provable where `codesign` and `cc` exist:
+      # on Linux the signing case returns early. Same switch as above, so this
+      # leg fails instead of passing having signed nothing.
+      - name: Sign nested bundles and helpers inside out
+        env:
+          GJSIFY_SHIP_SIGNING_REQUIRE_DARWIN_TOOLS: '1'
+        run: node --test tests/e2e/ship-nested-bundles/run.mjs
+
       # Blueprint reaches a `--library` build here for the first time. ADR 0053
       # clause 5 moved the `.blp` transform out of a spawned `blueprint-compiler`
       # and into JavaScript, which is what makes this leg possible AND what makes

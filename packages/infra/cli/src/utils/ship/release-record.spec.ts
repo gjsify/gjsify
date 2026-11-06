@@ -32,6 +32,7 @@ const base = {
     format: 'macos-app-dmg' as const,
     os: 'darwin' as const,
     arch: 'arm64',
+    nestedBundles: [],
     generator: '@gjsify/cli 0.0.0-test',
 };
 

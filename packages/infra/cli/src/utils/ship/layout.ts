@@ -178,6 +178,17 @@ export interface LayoutDirs {
      * first place, so its interpreter stays beside the `.cmd`.
      */
     helpers: string;
+    /**
+     * macOS only: where a NESTED BUNDLE lives — `Contents/PlugIns`, Apple's own
+     * slot for a `.appex` (`codesign(1)`'s bundle format, beside `Frameworks`,
+     * `Helpers`, `XPCServices`). `''` on linux and windows, where neither a
+     * prefix nor a program directory has an equivalent: a Flatpak sandbox has no
+     * App Extension model and a Windows program directory has nothing Apple's
+     * extension points name. `gjsify.ship.nestedBundles` is refused outright on
+     * any layout where this is `''` (ADR 0024 amendment, "nested bundles and
+     * helper executables"; the beifahrer ADR this answers: 0026 § 6).
+     */
+    plugins: string;
 }
 
 /**
@@ -463,6 +474,7 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
             data: 'share',
             other: '',
             helpers: '',
+            plugins: '',
         }),
         // THE RASTERS THE BUILD-TIME READERS OF THE THEME NEED, and the one row
         // whose icon is written as ordinary payload files rather than into a
@@ -642,6 +654,8 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
                 // file there named `<BinaryName>` collides with it bytewise even
                 // when the casing differs.
                 helpers: `${app}/Contents/Helpers`,
+                // Apple's own slot for a nested `.appex` — see `LayoutDirs.plugins`.
+                plugins: `${app}/Contents/PlugIns`,
             };
         },
         // The two files that make the directory a BUNDLE. Without `Info.plist`
@@ -776,7 +790,15 @@ export const LAYOUTS: Record<LayoutName, Layout> = {
         // LOADER: `lib/` is what the launcher prepends to `PATH`, because Windows
         // has no rpath — a DLL is found on `PATH`, in the directory of the image
         // that loaded it, or not at all.
-        dirs: () => ({ launcher: '', bundle: 'app', native: 'lib', data: 'share', other: '', helpers: '' }),
+        dirs: () => ({
+            launcher: '',
+            bundle: 'app',
+            native: 'lib',
+            data: 'share',
+            other: '',
+            helpers: '',
+            plugins: '',
+        }),
         // NO METADATA, and one PROGRAM. A Windows installer's metadata lives in the
         // `.msi`'s own tables, not in a file inside the program directory —
         // `msi.ts` puts every such fact in the `Product`/`Package` attributes of the

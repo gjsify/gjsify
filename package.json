@@ -82,6 +82,7 @@
         "test:e2e:ship-flatpak": "node --test tests/e2e/ship-flatpak/run.mjs",
         "test:e2e:ship-macos": "node --test tests/e2e/ship-macos/run.mjs",
         "test:e2e:ship-msi": "node --test tests/e2e/ship-msi/run.mjs",
+        "test:e2e:ship-nested-bundles": "node --test tests/e2e/ship-nested-bundles/run.mjs",
         "test:e2e:ship-signing": "node --test tests/e2e/ship-signing/run.mjs",
         "test:e2e:ship-windows": "node --test tests/e2e/ship-windows/run.mjs",
         "test:e2e:self-host": "node --test tests/e2e/self-host/run.mjs",

@@ -41,8 +41,37 @@ export interface ReleaseRecord {
     signature: RecordedSignature;
     notarized: boolean;
     stapled: boolean;
+    /**
+     * Bundles embedded under `Contents/PlugIns/` (`gjsify.ship.nestedBundles`) —
+     * `[]` for an artifact with none. ADDITIVE and backward-compatible: an older
+     * record with no such key is still a valid `schema: 1` record, because this
+     * is the first consumer of the field and nothing reads its absence as a
+     * claim. Named rather than counted, for `@gjsify/site` to tell a Safari
+     * extension apart from an unrelated nested bundle a future consumer adds —
+     * `extensionPoint` is what lets it do that without parsing `Info.plist`
+     * itself.
+     */
+    nestedBundles: RecordedNestedBundle[];
     /** `@gjsify/cli <version>` — who wrote this record. */
     generator: string;
+}
+
+/**
+ * One nested bundle this artifact's `Contents/PlugIns/` carries, as the site
+ * needs to know it — e.g. a Safari Web Extension's `com.apple.Safari.web-extension`.
+ */
+export interface RecordedNestedBundle {
+    /** Leaf under `Contents/PlugIns/` — `gjsify.ship.nestedBundles[].name`. */
+    name: string;
+    /** `CFBundleIdentifier` from the bundle's own `Info.plist`, when it has one. */
+    bundleId?: string;
+    /**
+     * `NSExtension.NSExtensionPointIdentifier` from `Info.plist`, when the
+     * bundle declares an extension point — `com.apple.Safari.web-extension` for
+     * a Safari Web Extension. Absent for a nested bundle that is not an
+     * extension at all.
+     */
+    extensionPoint?: string;
 }
 
 export interface ReleaseRecordInput {
@@ -54,6 +83,8 @@ export interface ReleaseRecordInput {
     signature: RecordedSignature;
     notarized: boolean;
     stapled: boolean;
+    /** `[]` for an artifact with no nested bundle. */
+    nestedBundles: RecordedNestedBundle[];
     generator: string;
 }
 
@@ -82,6 +113,7 @@ export function buildReleaseRecord(input: ReleaseRecordInput): ReleaseRecord {
         signature: input.signature,
         notarized: input.notarized,
         stapled: input.stapled,
+        nestedBundles: input.nestedBundles,
         generator: input.generator,
     };
 }

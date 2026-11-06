@@ -226,6 +226,8 @@ export function toPackSettings(settings: ShipSettings): PackSettings {
         minNodeVersion: settings.minNodeVersion,
         flatpak: settings.flatpak,
         executables: settings.executables.map(({ name, gui }) => ({ name, gui })),
+        nestedBundles: settings.nestedBundles.map(({ name, entitlements }) => ({ name, entitlements })),
+        helperExecutables: settings.helperExecutables.map(({ name, entitlements }) => ({ name, entitlements })),
     };
 }
 
@@ -647,6 +649,28 @@ function readPackSettings(data: Record<string, unknown>, at: string): PackSettin
                 throw new Error(`gjsify ship: ${field(`executables[${index}].gui`)} must be a boolean.`);
             }
             return { name: expectString(row.name, field(`executables[${index}].name`)), gui: row.gui };
+        }),
+        // OPTIONAL on read, same reason as `executables`: a stage written before
+        // `gjsify.ship.nestedBundles`/`helperExecutables` existed carries neither,
+        // and `[]` is exactly right for it.
+        nestedBundles: expectArray(data.nestedBundles ?? [], field('nestedBundles')).map((entry, index) => {
+            const row = record(entry, field(`nestedBundles[${index}]`));
+            return {
+                name: expectString(row.name, field(`nestedBundles[${index}].name`)),
+                entitlements: expectArray(row.entitlements, field(`nestedBundles[${index}].entitlements`)).map(
+                    (key, keyIndex) => expectString(key, field(`nestedBundles[${index}].entitlements[${keyIndex}]`)),
+                ),
+            };
+        }),
+        helperExecutables: expectArray(data.helperExecutables ?? [], field('helperExecutables')).map((entry, index) => {
+            const row = record(entry, field(`helperExecutables[${index}]`));
+            return {
+                name: expectString(row.name, field(`helperExecutables[${index}].name`)),
+                entitlements: expectArray(row.entitlements, field(`helperExecutables[${index}].entitlements`)).map(
+                    (key, keyIndex) =>
+                        expectString(key, field(`helperExecutables[${index}].entitlements[${keyIndex}]`)),
+                ),
+            };
         }),
     };
 }

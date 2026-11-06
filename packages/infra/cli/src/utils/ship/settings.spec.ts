@@ -9,12 +9,18 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import {
     descriptionParagraphs,
     deriveBinaryName,
     resolveShipApp,
     resolveShipBundle,
     resolveShipExecutables,
+    resolveShipHelperExecutables,
+    resolveShipNestedBundles,
     resolveShipSettings,
     type SettingsInput,
 } from './settings.js';
@@ -454,6 +460,133 @@ export default async () => {
             expect(refusal([{ name: 'x', entry: 'dist/a.mjs', icon: 'i' }])).toContain('unknown key');
             expect(refusal([{ name: 'x', entry: 'dist/a.mjs', gui: 'yes' }])).toContain('.gui');
             expect(refusal({ name: 'x' })).toContain('must be a list');
+        });
+    });
+
+    await describe('resolveShipNestedBundles / resolveShipHelperExecutables', async () => {
+        // No `before`/`after` — `@gjsify/unit` exports `beforeEach`/`afterEach` only, and this
+        // fixture is cheap enough to build and tear down per call.
+        function withFixture<T>(run: (dir: string) => T): T {
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-nested-bundles-spec-'));
+            try {
+                mkdirSync(join(dir, 'extension', 'Ext.appex', 'Contents', 'MacOS'), { recursive: true });
+                writeFileSync(join(dir, 'extension', 'Ext.appex', 'Contents', 'MacOS', 'Ext'), 'macho-stub');
+                writeFileSync(join(dir, 'helper'), 'swift-stub');
+                return run(dir);
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        }
+
+        await it('is empty without a declaration, on every layout', () => {
+            withFixture((dir) => {
+                expect(
+                    resolveShipNestedBundles({ declared: undefined, projectDir: dir, layoutOs: 'linux' }),
+                ).toStrictEqual([]);
+                expect(
+                    resolveShipHelperExecutables({ declared: undefined, projectDir: dir, layoutOs: 'win32' }),
+                ).toStrictEqual([]);
+            });
+        });
+
+        await it('resolves a nested bundle to its absolute source and defaults entitlements to []', () => {
+            withFixture((dir) => {
+                const resolved = resolveShipNestedBundles({
+                    declared: [{ source: 'extension/Ext.appex', name: 'Ext.appex' }],
+                    projectDir: dir,
+                    layoutOs: 'darwin',
+                });
+                expect(resolved).toStrictEqual([
+                    { source: join(dir, 'extension', 'Ext.appex'), name: 'Ext.appex', entitlements: [] },
+                ]);
+            });
+        });
+
+        await it('carries declared entitlements through verbatim', () => {
+            withFixture((dir) => {
+                const resolved = resolveShipHelperExecutables({
+                    declared: [
+                        {
+                            source: 'helper',
+                            name: 'safari-ext-helper',
+                            entitlements: ['com.apple.security.app-sandbox'],
+                        },
+                    ],
+                    projectDir: dir,
+                    layoutOs: 'darwin',
+                });
+                expect(resolved).toStrictEqual([
+                    {
+                        source: join(dir, 'helper'),
+                        name: 'safari-ext-helper',
+                        entitlements: ['com.apple.security.app-sandbox'],
+                    },
+                ]);
+            });
+        });
+
+        await it('refuses a non-empty list on any layout but darwin', () => {
+            withFixture((dir) => {
+                const declared = [{ source: 'extension/Ext.appex', name: 'Ext.appex' }];
+                expect(() => resolveShipNestedBundles({ declared, projectDir: dir, layoutOs: 'linux' })).toThrow(
+                    /nestedBundles.*darwin/s,
+                );
+                expect(() =>
+                    resolveShipHelperExecutables({
+                        declared: [{ source: 'helper', name: 'h' }],
+                        projectDir: dir,
+                        layoutOs: 'win32',
+                    }),
+                ).toThrow(/helperExecutables.*darwin/s);
+            });
+        });
+
+        await it('refuses a source that does not exist', () => {
+            withFixture((dir) => {
+                expect(() =>
+                    resolveShipNestedBundles({
+                        declared: [{ source: 'missing.appex', name: 'Ext.appex' }],
+                        projectDir: dir,
+                        layoutOs: 'darwin',
+                    }),
+                ).toThrow(/does not exist/);
+            });
+        });
+
+        await it('refuses a name collision, a path-separator name and unknown keys', () => {
+            withFixture((dir) => {
+                expect(() =>
+                    resolveShipNestedBundles({
+                        declared: [
+                            { source: 'extension/Ext.appex', name: 'Ext.appex' },
+                            { source: 'extension/Ext.appex', name: 'Ext.appex' },
+                        ],
+                        projectDir: dir,
+                        layoutOs: 'darwin',
+                    }),
+                ).toThrow(/already taken/);
+                expect(() =>
+                    resolveShipHelperExecutables({
+                        declared: [{ source: 'helper', name: 'a/b' }],
+                        projectDir: dir,
+                        layoutOs: 'darwin',
+                    }),
+                ).toThrow(/not usable as a leaf/);
+                expect(() =>
+                    resolveShipNestedBundles({
+                        declared: [{ source: 'extension/Ext.appex', name: '..' }],
+                        projectDir: dir,
+                        layoutOs: 'darwin',
+                    }),
+                ).toThrow(/not usable as a leaf/);
+                expect(() =>
+                    resolveShipNestedBundles({
+                        declared: [{ source: 'extension/Ext.appex', name: 'Ext.appex', bogus: 1 }],
+                        projectDir: dir,
+                        layoutOs: 'darwin',
+                    }),
+                ).toThrow(/unknown key/);
+            });
         });
     });
 };

@@ -11,6 +11,7 @@
 // indistinguishable from a value the user typed and would clobber the config.
 
 import { validateMimeTypes } from './mime.js';
+import { existsSync } from 'node:fs';
 import { basename, isAbsolute, posix, relative, resolve, sep } from 'node:path';
 
 import type {
@@ -24,7 +25,7 @@ import type {
 import { DEFAULT_GJS_FLOOR, DEFAULT_NODE_FLOOR } from './depends.js';
 import { resolveShipFlatpakSettings } from './flatpak-config.js';
 import { assertRelease, normaliseVersion } from './version.js';
-import type { HostOs, ShipExecutable, ShipSettings } from './types.js';
+import type { HostOs, ShipExecutable, ShipHelperExecutable, ShipNestedBundle, ShipSettings } from './types.js';
 
 /** The subset of `package.json` the resolver reads. */
 export interface ShipPackageManifest {
@@ -349,6 +350,16 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
             projectDir: input.projectDir,
             bundleDir: discovered.bundleDir,
         }),
+        nestedBundles: resolveShipNestedBundles({
+            declared: ship.nestedBundles,
+            projectDir: input.projectDir,
+            layoutOs: input.cli.layoutOs,
+        }),
+        helperExecutables: resolveShipHelperExecutables({
+            declared: ship.helperExecutables,
+            projectDir: input.projectDir,
+            layoutOs: input.cli.layoutOs,
+        }),
         outDir: input.cli.outDir ?? ship.outDir ?? 'ship',
         arch: input.cli.arch ?? process.arch,
         app,
@@ -427,6 +438,170 @@ export function resolveShipExecutables(input: {
             );
         }
         return { name, entry: rel.split(sep).join(posix.sep), gui: gui === true };
+    });
+}
+
+/** A `Contents/PlugIns` or `Contents/Helpers` leaf: no path separator, no NUL, not empty. */
+function assertUsableBundleLeaf(name: string, at: string, under: string): string {
+    if (
+        name === '' ||
+        name === '.' ||
+        name === '..' ||
+        name.includes('/') ||
+        name.includes('\\') ||
+        name.includes('\u0000')
+    ) {
+        throw new Error(
+            `gjsify ship: \`${at}.name\` "${name}" is not usable as a leaf under \`${under}\` — empty and ` +
+                '".", "..", and anything containing "/", "\\" or a NUL byte are refused.',
+        );
+    }
+    return name;
+}
+
+/**
+ * `gjsify.ship.nestedBundles` → the further bundles the darwin container embeds
+ * under `Contents/PlugIns/` — e.g. a Safari Web Extension `.appex`.
+ *
+ * Darwin-only by construction: `layoutOs !== 'darwin'` refuses a non-empty list
+ * rather than silently dropping it, because `Contents/PlugIns` has no
+ * equivalent on the other two layouts (ADR 0024 amendment, "nested bundles and
+ * helper executables"; the beifahrer ADR this answers: 0026 § 6).
+ */
+export function resolveShipNestedBundles(input: {
+    declared: unknown;
+    projectDir: string;
+    layoutOs: HostOs;
+}): ShipNestedBundle[] {
+    const { declared } = input;
+    if (declared === undefined) return [];
+    if (!Array.isArray(declared)) {
+        throw new Error(
+            'gjsify ship: `gjsify.ship.nestedBundles` must be a list of `{ "source", "name", "entitlements"? }` ' +
+                'objects.',
+        );
+    }
+    if (declared.length > 0 && input.layoutOs !== 'darwin') {
+        throw new Error(
+            `gjsify ship: \`gjsify.ship.nestedBundles\` is set and this run assembles the ${input.layoutOs} ` +
+                'layout, which has no `Contents/PlugIns` or equivalent — a Flatpak sandbox has no App ' +
+                "Extension model and a Windows program directory has nothing Apple's extension points name. " +
+                'Nested bundles are staged only for `gjsify ship darwin`.',
+        );
+    }
+    const seen = new Set<string>();
+    return declared.map((row: unknown, index): ShipNestedBundle => {
+        const at = `gjsify.ship.nestedBundles[${index}]`;
+        if (typeof row !== 'object' || row === null || Array.isArray(row)) {
+            throw new Error(`gjsify ship: \`${at}\` must be an object with \`source\` and \`name\`.`);
+        }
+        const { source, name, entitlements, ...unknown } = row as Record<string, unknown>;
+        const stray = Object.keys(unknown);
+        if (stray.length > 0) {
+            throw new Error(
+                `gjsify ship: \`${at}\` has unknown key(s) ${stray.join(', ')}; known: source, name, entitlements.`,
+            );
+        }
+        if (typeof source !== 'string' || source === '') {
+            throw new Error(`gjsify ship: \`${at}.source\` must be the project-relative directory of a built bundle.`);
+        }
+        if (typeof name !== 'string') {
+            throw new Error(`gjsify ship: \`${at}.name\` must be a string — the leaf under \`Contents/PlugIns/\`.`);
+        }
+        assertUsableBundleLeaf(name, at, 'Contents/PlugIns');
+        if (seen.has(name)) {
+            throw new Error(`gjsify ship: \`${at}.name\` "${name}" is already taken by an earlier nested bundle.`);
+        }
+        seen.add(name);
+        const abs = isAbsolute(source) ? source : resolve(input.projectDir, source);
+        if (!existsSync(abs)) {
+            throw new Error(`gjsify ship: \`${at}.source\` ${source} does not exist.`);
+        }
+        if (entitlements !== undefined && !Array.isArray(entitlements)) {
+            throw new Error(`gjsify ship: \`${at}.entitlements\` must be a list of strings.`);
+        }
+        return {
+            source: abs,
+            name,
+            entitlements: (entitlements ?? []).map((key: unknown, keyIndex: number) => {
+                if (typeof key !== 'string') {
+                    throw new Error(`gjsify ship: \`${at}.entitlements[${keyIndex}]\` must be a string.`);
+                }
+                return key;
+            }),
+        };
+    });
+}
+
+/**
+ * `gjsify.ship.helperExecutables` → prebuilt executables staged into
+ * `Contents/Helpers/` beside the carried interpreter — e.g. a small Swift
+ * helper with no GI binding. Darwin-only, for the same reason as
+ * {@link resolveShipNestedBundles}.
+ */
+export function resolveShipHelperExecutables(input: {
+    declared: unknown;
+    projectDir: string;
+    layoutOs: HostOs;
+}): ShipHelperExecutable[] {
+    const { declared } = input;
+    if (declared === undefined) return [];
+    if (!Array.isArray(declared)) {
+        throw new Error(
+            'gjsify ship: `gjsify.ship.helperExecutables` must be a list of `{ "source", "name", ' +
+                '"entitlements"? }` objects.',
+        );
+    }
+    if (declared.length > 0 && input.layoutOs !== 'darwin') {
+        throw new Error(
+            `gjsify ship: \`gjsify.ship.helperExecutables\` is set and this run assembles the ` +
+                `${input.layoutOs} layout, which has no \`Contents/Helpers\` or equivalent. Helper ` +
+                'executables are staged only for `gjsify ship darwin`.',
+        );
+    }
+    const seen = new Set<string>();
+    return declared.map((row: unknown, index): ShipHelperExecutable => {
+        const at = `gjsify.ship.helperExecutables[${index}]`;
+        if (typeof row !== 'object' || row === null || Array.isArray(row)) {
+            throw new Error(`gjsify ship: \`${at}\` must be an object with \`source\` and \`name\`.`);
+        }
+        const { source, name, entitlements, ...unknown } = row as Record<string, unknown>;
+        const stray = Object.keys(unknown);
+        if (stray.length > 0) {
+            throw new Error(
+                `gjsify ship: \`${at}\` has unknown key(s) ${stray.join(', ')}; known: source, name, entitlements.`,
+            );
+        }
+        if (typeof source !== 'string' || source === '') {
+            throw new Error(
+                `gjsify ship: \`${at}.source\` must be the project-relative path of a prebuilt executable.`,
+            );
+        }
+        if (typeof name !== 'string') {
+            throw new Error(`gjsify ship: \`${at}.name\` must be a string — the leaf under \`Contents/Helpers/\`.`);
+        }
+        assertUsableBundleLeaf(name, at, 'Contents/Helpers');
+        if (seen.has(name)) {
+            throw new Error(`gjsify ship: \`${at}.name\` "${name}" is already taken by an earlier helper executable.`);
+        }
+        seen.add(name);
+        const abs = isAbsolute(source) ? source : resolve(input.projectDir, source);
+        if (!existsSync(abs)) {
+            throw new Error(`gjsify ship: \`${at}.source\` ${source} does not exist.`);
+        }
+        if (entitlements !== undefined && !Array.isArray(entitlements)) {
+            throw new Error(`gjsify ship: \`${at}.entitlements\` must be a list of strings.`);
+        }
+        return {
+            source: abs,
+            name,
+            entitlements: (entitlements ?? []).map((key: unknown, keyIndex: number) => {
+                if (typeof key !== 'string') {
+                    throw new Error(`gjsify ship: \`${at}.entitlements[${keyIndex}]\` must be a string.`);
+                }
+                return key;
+            }),
+        };
     });
 }
 

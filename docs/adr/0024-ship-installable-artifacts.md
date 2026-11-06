@@ -2030,3 +2030,63 @@ ok), and still two things were missing:
 The `.app` inside the image still has no ticket of its own: one more notarisation per release
 would buy only the offline first launch from a copied `.app`, and Gatekeeper's online check
 covers the rest.
+
+## Amendment, 2026-11-05 — nested bundles and helper executables
+
+A consumer (beifahrer, ADR 0026 "the Safari extension ships inside the desktop app") needed to
+embed a Safari Web Extension `.appex` under `Contents/PlugIns/` and a prebuilt Swift helper under
+`Contents/Helpers/` — both Apple's own nested-code slots, neither reachable before this: a `.appex`
+needs its own `Info.plist`, its own sandbox entitlements (never the outer app's JIT/dyld grants),
+and signing INSIDE OUT (a nested bundle signed and sealed before the outer one, or the outer seal's
+`CodeResources` hash would record a tree it no longer contains the moment the inner one changes).
+
+**Config, two new darwin-only keys, same shape as `gjsify.ship.executables`:**
+
+```jsonc
+"gjsify": { "ship": {
+  "nestedBundles": [
+    { "source": "extension/Safari.appex", "name": "Safari.appex",
+      "entitlements": ["com.apple.security.app-sandbox"] }
+  ],
+  "helperExecutables": [{ "source": "build/safari-ext-helper", "name": "safari-ext-helper" }]
+}}
+```
+
+Refused outright (not silently dropped) on any layout but darwin — `Contents/PlugIns` and
+`Contents/Helpers` have no equivalent on a `.deb`/`.rpm`/Flatpak or a Windows program directory.
+`resolveShipSettings` throws the moment a non-empty list reaches a different `layoutOs`.
+
+**Staging** (`utils/ship/nested-bundles.ts`): a nested bundle is staged TREE-PRESERVING under
+`Layout.dirs().plugins` — never through `gjsify.ship.bundledTypelibs`'s flattening map, for the
+same reason the relocated GTK closure in `app-runtime.ts` is not flattened either: a `.appex`'s
+internal relations (`Info.plist`'s `CFBundleExecutable`, its own `_CodeSignature/`) survive only if
+the tree is copied as a tree. A helper executable is one FILE staged flat under `.helpers`.
+
+**Signing order** (`signing.ts`'s `signPayload`, extended): for each nested bundle, in order —
+(1) sign every Mach-O under it with its OWN entitlements plist (never the outer signer's default,
+never unioned), (2) seal the bundle itself with the same entitlements. Then every helper executable
+is signed with its own entitlements. ONLY THEN does the existing outer pass run: every remaining
+Mach-O in the payload, then the outer bundle's own seal. `partitionSignedFileSet` now takes
+`sealPrefixes` (plural) rather than one — a darwin run with N nested bundles seals N+1 directories
+(`_CodeSignature/` once per nested bundle, once for the outer app), and the file-set check accepts
+every growth, none other. Measured with a REAL Developer ID (`Developer ID Application: Pascal
+Garber (XB8ZR5XCD5)`, probe-only identifiers `eu.jumplink.gjsify.probe*`, deleted after):
+`codesign --verify --deep --strict <App>.app` exits 0, `codesign -d --entitlements -
+<App>.app/Contents/PlugIns/Ext.appex` shows the nested bundle's OWN `com.apple.security.app-sandbox`
+and none of the outer app's `allow-jit`/`allow-dyld-environment-variables`, and the signature chain
+reads `Authority=Developer ID Application: Pascal Garber (XB8ZR5XCD5)`, timestamped.
+
+**Release record** (`release-record.ts`, additive — ADR 0124 is unaffected, an older record with no
+such key is still a valid `schema: 1` record): `nestedBundles: RecordedNestedBundle[]`, each
+`{ name, bundleId?, extensionPoint? }` — `bundleId` and `extensionPoint` read back off the PACKED
+bundle's own `Info.plist` (`CFBundleIdentifier`, `NSExtension.NSExtensionPointIdentifier`) rather
+than off the declaration, because neither exists in `gjsify.ship.nestedBundles` and both only exist
+inside the `.appex` the project built. `@gjsify/site` can tell a Safari Web Extension
+(`com.apple.Safari.web-extension`) apart from any other future nested bundle without parsing a
+plist itself.
+
+**Tests:** `nested-bundles.spec.ts` (staging + the stage-relative path derivation that keeps
+staging and signing from disagreeing), `signing.spec.ts` (multi-prefix `partitionSignedFileSet`),
+`tests/e2e/ship-nested-bundles` (darwin-only refusal, tree-preserving staging on every host, and —
+where `codesign`/`cc` exist — real signing with inside-out order, per-bundle entitlements, and a
+full `--verify --deep --strict` pass).

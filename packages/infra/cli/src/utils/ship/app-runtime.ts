@@ -609,7 +609,7 @@ function discoveryOptions(input: StageAppRuntimeInput): ResolveRuntimeOptions {
  * A dylib does not need the execute bit to be `dlopen`'d, so this is not about
  * making the closure loadable — it is about the two files that are EXEC'd.
  */
-function stagedMode(rel: string, abs: string): number {
+export function stagedMode(rel: string, abs: string): number {
     if (isExecutableAsset(rel)) return 0o755;
     if (rel.startsWith('libexec/') || rel.startsWith('bin/')) return 0o755;
     try {
