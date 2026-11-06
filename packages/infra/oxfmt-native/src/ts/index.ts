@@ -24,6 +24,13 @@
 // `hasNativeOxfmt()` — beside the typelib that was found, naming a missing
 // dependency — in the CLI's `oxc-resolve.ts`.
 
+/**
+ * The oxfmt release this prebuild embeds (`refs/oxc` is pinned to its `oxfmt_v<version>`
+ * tag by `gjsify.refsLockstep`; the `refs-pin` rule checks this constant against it).
+ * The CLI compares it with the project's own `oxfmt` to keep both engines on one build.
+ */
+export const EMBEDDED_OXFMT_VERSION = '0.61.0';
+
 /** Minimal structural type of the `gi://GjsifyOxfmt` `Formatter` GObject. */
 interface FormatterInstance {
     /** Format `code`, typed from `filename`'s extension. Throws on fatal error. */

@@ -59,7 +59,7 @@ export function linkedRefsSubmodules(pkgDir) {
  * commits past `v1.1.5` against an npm devDep of `1.1.4` across a runtime-chunk change.
  *
  * Declared per package as
- * `gjsify.refsLockstep: { "refs/<name>": { npm: "<pkg>", tag: "v{version}" } }`.
+ * `gjsify.refsLockstep: { "refs/<name>": { npm: "<pkg>", tag: "v{version}", versionConstant?: "<EXPORT>" } }`.
  *
  * @returns {Record<string, {npm: string, tag: string}>}
  */
@@ -147,6 +147,24 @@ export function inspectRefsPin(repoRoot, pkgDir) {
                 problems.push(`${sub}: lockstep partner \`${rule.npm}\` is not installed — cannot verify the pin.`);
             } else {
                 const wantTag = rule.tag.replace('{version}', version);
+                // A bridge that reports the version it embeds (`versionConstant`, an
+                // exported string in src/ts/index.ts) must report the lockstep one — the
+                // CLI compares it with the project's own tool to pick an engine.
+                if (rule.versionConstant) {
+                    const src = join(pkgDir, 'src', 'ts', 'index.ts');
+                    const declared = existsSync(src)
+                        ? readFileSync(src, 'utf8').match(
+                              new RegExp(`export const ${rule.versionConstant}\\s*=\\s*'([^']*)'`),
+                          )?.[1]
+                        : undefined;
+                    if (declared !== version) {
+                        problems.push(
+                            `${sub}: \`${rule.versionConstant}\` in src/ts/index.ts is ${declared ?? 'missing'}, ` +
+                                `but the lockstep partner ${rule.npm} is ${version}.\n` +
+                                `    Fix: set it to '${version}' in the same change as the bump.`,
+                        );
+                    }
+                }
                 let wantSha = '';
                 try {
                     wantSha = git(repoRoot, ['-C', sub, 'rev-parse', `${wantTag}^{commit}`]);
