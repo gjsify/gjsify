@@ -2,7 +2,7 @@
 
 **The JavaScript ecosystem you already know — running natively on GNOME.**
 
-**[Documentation](https://gjsify.org/gjsify/)** · [Project status](status/) · [Architecture & contributor guide](AGENTS.md)
+**[Documentation](https://gjsify.org/gjsify/)** · [Project status](status/) · [Architecture & contributor guide](AGENTS.md) · [Docs index](docs/README.md)
 
 ---
 
