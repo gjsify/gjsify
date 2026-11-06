@@ -21,6 +21,7 @@ import { AdwBlueprintTreesNsTest } from './blueprint-trees.spec.js';
 import { AdwBlueprintMarkupNsTest } from './blueprint-markup.spec.js';
 import { AdwClampClasslessChildNsTest } from './clamp-child.spec.js';
 import { AdwClampedBinNsTest } from './clamped-bin.spec.js';
+import { GtkScrolledWindowHeightNsTest } from './scrolled-window-height.spec.js';
 import { AdwDefaultTranslateNsTest } from './default-translate.spec.js';
 import { AdwAboutDialogDoorsNsTest } from './about-dialog-doors.spec.js';
 import { AdwAboutDialogCreditsNsTest } from './about-dialog-credits.spec.js';
@@ -85,6 +86,7 @@ run({
     AdwRegisterBarrelNsTest,
     AdwClampClasslessChildNsTest,
     AdwClampedBinNsTest,
+    GtkScrolledWindowHeightNsTest,
     AdwDefaultTranslateNsTest,
     AdwAboutDialogDoorsNsTest,
     AdwAboutDialogCreditsNsTest,
