@@ -314,6 +314,31 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
     const flatpakSettings = resolveShipFlatpakSettings({ ship, flatpak, kind });
     warnings.push(...flatpakSettings.warnings);
 
+    // `gjsify.ship.nestedBundles`/`helperExecutables` describe what the DARWIN
+    // `.app` carries — on any other layout they are IGNORED, with one combined
+    // notice (ADR 0024 amendment, 2026-11-06, beifahrer#203), never refused: a
+    // project with a Mac extension must still be able to ship for Linux and
+    // Windows. Shape is still validated on every layout inside each resolver.
+    const nestedBundlesResolved = resolveShipNestedBundles({
+        declared: ship.nestedBundles,
+        projectDir: input.projectDir,
+        layoutOs: input.cli.layoutOs,
+    });
+    const helperExecutablesResolved = resolveShipHelperExecutables({
+        declared: ship.helperExecutables,
+        projectDir: input.projectDir,
+        layoutOs: input.cli.layoutOs,
+    });
+    if (
+        input.cli.layoutOs !== 'darwin' &&
+        ((Array.isArray(ship.nestedBundles) && ship.nestedBundles.length > 0) ||
+            (Array.isArray(ship.helperExecutables) && ship.helperExecutables.length > 0))
+    ) {
+        warnings.push(
+            `gjsify ship: nestedBundles/helperExecutables apply to darwin only — not staged for ${input.cli.layoutOs}`,
+        );
+    }
+
     const settings: ShipSettings = {
         projectDir: input.projectDir,
         appId,
@@ -350,16 +375,8 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
             projectDir: input.projectDir,
             bundleDir: discovered.bundleDir,
         }),
-        nestedBundles: resolveShipNestedBundles({
-            declared: ship.nestedBundles,
-            projectDir: input.projectDir,
-            layoutOs: input.cli.layoutOs,
-        }),
-        helperExecutables: resolveShipHelperExecutables({
-            declared: ship.helperExecutables,
-            projectDir: input.projectDir,
-            layoutOs: input.cli.layoutOs,
-        }),
+        nestedBundles: nestedBundlesResolved,
+        helperExecutables: helperExecutablesResolved,
         outDir: input.cli.outDir ?? ship.outDir ?? 'ship',
         arch: input.cli.arch ?? process.arch,
         app,
@@ -463,10 +480,15 @@ function assertUsableBundleLeaf(name: string, at: string, under: string): string
  * `gjsify.ship.nestedBundles` → the further bundles the darwin container embeds
  * under `Contents/PlugIns/` — e.g. a Safari Web Extension `.appex`.
  *
- * Darwin-only by construction: `layoutOs !== 'darwin'` refuses a non-empty list
- * rather than silently dropping it, because `Contents/PlugIns` has no
- * equivalent on the other two layouts (ADR 0024 amendment, "nested bundles and
- * helper executables"; the beifahrer ADR this answers: 0026 § 6).
+ * Darwin-only in EFFECT, not in form (ADR 0024 amendment, 2026-11-06,
+ * beifahrer#203): the declaration describes what the darwin `.app` carries and
+ * is not an error on another layout, so a non-empty list on `linux`/`windows`
+ * resolves to `[]` rather than throwing — a project with a Mac extension must
+ * still ship for Linux and Windows. The SHAPE check (schema, leaf names, `..`,
+ * duplicates, unknown keys) still runs on every layout, so a typo is caught on
+ * a Linux build too; only the SOURCE's existence is darwin-only, because a
+ * Linux runner never built the `.appex` to check. The caller
+ * ({@link resolveShipSettings}) prints the one-line notice this silence needs.
  */
 export function resolveShipNestedBundles(input: {
     declared: unknown;
@@ -481,16 +503,8 @@ export function resolveShipNestedBundles(input: {
                 'objects.',
         );
     }
-    if (declared.length > 0 && input.layoutOs !== 'darwin') {
-        throw new Error(
-            `gjsify ship: \`gjsify.ship.nestedBundles\` is set and this run assembles the ${input.layoutOs} ` +
-                'layout, which has no `Contents/PlugIns` or equivalent — a Flatpak sandbox has no App ' +
-                "Extension model and a Windows program directory has nothing Apple's extension points name. " +
-                'Nested bundles are staged only for `gjsify ship darwin`.',
-        );
-    }
     const seen = new Set<string>();
-    return declared.map((row: unknown, index): ShipNestedBundle => {
+    const resolved = declared.map((row: unknown, index): ShipNestedBundle => {
         const at = `gjsify.ship.nestedBundles[${index}]`;
         if (typeof row !== 'object' || row === null || Array.isArray(row)) {
             throw new Error(`gjsify ship: \`${at}\` must be an object with \`source\` and \`name\`.`);
@@ -514,7 +528,10 @@ export function resolveShipNestedBundles(input: {
         }
         seen.add(name);
         const abs = isAbsolute(source) ? source : resolve(input.projectDir, source);
-        if (!existsSync(abs)) {
+        // Existence is checked for darwin alone: on linux/windows this bundle is
+        // ignored outright (see below), and a CI runner assembling those layouts
+        // never built the `.appex` in the first place.
+        if (input.layoutOs === 'darwin' && !existsSync(abs)) {
             throw new Error(`gjsify ship: \`${at}.source\` ${source} does not exist.`);
         }
         if (entitlements !== undefined && !Array.isArray(entitlements)) {
@@ -531,12 +548,14 @@ export function resolveShipNestedBundles(input: {
             }),
         };
     });
+    return input.layoutOs === 'darwin' ? resolved : [];
 }
 
 /**
  * `gjsify.ship.helperExecutables` → prebuilt executables staged into
  * `Contents/Helpers/` beside the carried interpreter — e.g. a small Swift
- * helper with no GI binding. Darwin-only, for the same reason as
+ * helper with no GI binding. Darwin-only in EFFECT, not in form — same reason
+ * and same split (shape always, source existence darwin-only) as
  * {@link resolveShipNestedBundles}.
  */
 export function resolveShipHelperExecutables(input: {
@@ -552,15 +571,8 @@ export function resolveShipHelperExecutables(input: {
                 '"entitlements"? }` objects.',
         );
     }
-    if (declared.length > 0 && input.layoutOs !== 'darwin') {
-        throw new Error(
-            `gjsify ship: \`gjsify.ship.helperExecutables\` is set and this run assembles the ` +
-                `${input.layoutOs} layout, which has no \`Contents/Helpers\` or equivalent. Helper ` +
-                'executables are staged only for `gjsify ship darwin`.',
-        );
-    }
     const seen = new Set<string>();
-    return declared.map((row: unknown, index): ShipHelperExecutable => {
+    const resolved = declared.map((row: unknown, index): ShipHelperExecutable => {
         const at = `gjsify.ship.helperExecutables[${index}]`;
         if (typeof row !== 'object' || row === null || Array.isArray(row)) {
             throw new Error(`gjsify ship: \`${at}\` must be an object with \`source\` and \`name\`.`);
@@ -586,7 +598,10 @@ export function resolveShipHelperExecutables(input: {
         }
         seen.add(name);
         const abs = isAbsolute(source) ? source : resolve(input.projectDir, source);
-        if (!existsSync(abs)) {
+        // Existence is checked for darwin alone — on linux/windows this helper is
+        // ignored outright (see below), and a CI runner assembling those layouts
+        // never built it in the first place.
+        if (input.layoutOs === 'darwin' && !existsSync(abs)) {
             throw new Error(`gjsify ship: \`${at}.source\` ${source} does not exist.`);
         }
         if (entitlements !== undefined && !Array.isArray(entitlements)) {
@@ -603,6 +618,7 @@ export function resolveShipHelperExecutables(input: {
             }),
         };
     });
+    return input.layoutOs === 'darwin' ? resolved : [];
 }
 
 /** The entry one ship target installs, which key named it, and what it must NOT carry. */

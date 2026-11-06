@@ -34,7 +34,6 @@ import { signedMachO } from '../macho.mjs';
 process.env.GJSIFY_GTK_RUNTIME_FETCH = '0';
 
 const APP_NAME = 'Ship Demo';
-const BINARY = 'ship-demo';
 const HAS_CODESIGN = hasCommand('codesign');
 const HAS_CC = hasCommand('cc');
 const REQUIRE_DARWIN = process.env.GJSIFY_SHIP_SIGNING_REQUIRE_DARWIN_TOOLS === '1';
@@ -133,6 +132,11 @@ async function shipOk(args, cwd) {
     return result;
 }
 
+/** The leaf a linux/windows layout stages for `name`, when it stages ANYTHING extra at all. */
+function hasNoPlugins(root) {
+    return !existsSync(join(root, 'Contents', 'PlugIns')) && !existsSync(join(root, 'PlugIns'));
+}
+
 describe('CLI ship nested bundles / helper executables E2E', { timeout: 10 * 60 * 1000 }, () => {
     let tmpDir;
 
@@ -143,33 +147,53 @@ describe('CLI ship nested bundles / helper executables E2E', { timeout: 10 * 60 
         if (!process.env.GJSIFY_E2E_KEEP_TEMP) rmSync(tmpDir, { recursive: true, force: true, maxRetries: 5 });
     });
 
+    // ── outside darwin, which runs on every host ────────────────────────────
+    describe('outside the darwin layout', () => {
+        it('stages gjsify.ship.nestedBundles without Contents/PlugIns, prints the notice, exit 0', async () => {
+            const project = scaffoldNodeApp(mkdtempSync(join(tmpDir, 'linux-nested-')), {
+                nestedBundles: [{ source: 'extension/Ext.appex', name: 'Ext.appex' }],
+            });
+            plantFakeAppex(project);
+            const result = await shipOk(['ship', 'linux', '--target', 'deb', '--skip-build'], project);
+            assert.match(result.stderr, /nestedBundles\/helperExecutables apply to darwin only — not staged for linux/);
+        });
+
+        it('stages gjsify.ship.helperExecutables without Contents/Helpers, prints the notice, exit 0', async () => {
+            const project = scaffoldNodeApp(mkdtempSync(join(tmpDir, 'windows-helper-')), {
+                helperExecutables: [{ source: 'helper-bin', name: 'helper' }],
+            });
+            plantFakeHelper(project);
+            const result = await shipOk(
+                ['ship', 'windows', '--target', 'windows-dir', '--skip-build', '--arch', 'x64'],
+                project,
+            );
+            assert.match(result.stderr, /nestedBundles\/helperExecutables apply to darwin only — not staged for win32/);
+            const dir = join(project, 'ship', 'out', APP_NAME);
+            assert.ok(hasNoPlugins(dir), 'a windows program directory must carry no Contents/PlugIns at all');
+        });
+
+        it('still validates SHAPE outside darwin — a typo is caught on a linux build too', async () => {
+            // A path-separator name is a SHAPE defect, independent of the
+            // declaration being ignored on this layout.
+            const project = scaffoldNodeApp(mkdtempSync(join(tmpDir, 'linux-shape-')), {
+                nestedBundles: [{ source: 'extension/Ext.appex', name: 'sub/Ext.appex' }],
+            });
+            plantFakeAppex(project);
+            const said = await shipFailing(['ship', 'linux', '--target', 'deb', '--skip-build'], project);
+            assert.match(said, /not usable as a leaf/);
+        });
+
+        it('does NOT demand the nested bundle source exist outside darwin — never built there', async () => {
+            const project = scaffoldNodeApp(mkdtempSync(join(tmpDir, 'linux-no-source-')), {
+                nestedBundles: [{ source: 'nowhere.appex', name: 'Nowhere.appex' }],
+            });
+            await shipOk(['ship', 'linux', '--target', 'deb', '--skip-build'], project);
+        });
+    });
+
     // ── refusals, which run on every host ───────────────────────────────────
     describe('declaration refusals', () => {
-        it('refuses gjsify.ship.nestedBundles outside the darwin layout', async () => {
-            const project = scaffoldNodeApp(mkdtempSync(join(tmpDir, 'linux-nested-')));
-            plantFakeAppex(project);
-            const said = await shipFailing(
-                ['ship', 'linux', '--target', 'deb', '--skip-build'],
-                scaffold(project, (pkg) => {
-                    pkg.gjsify.ship.nestedBundles = [{ source: 'extension/Ext.appex', name: 'Ext.appex' }];
-                }),
-            );
-            assert.match(said, /nestedBundles.*staged only for `gjsify ship darwin`/s);
-        });
-
-        it('refuses gjsify.ship.helperExecutables outside the darwin layout', async () => {
-            const project = scaffoldNodeApp(mkdtempSync(join(tmpDir, 'windows-helper-')));
-            plantFakeHelper(project);
-            const said = await shipFailing(
-                ['ship', 'windows', '--target', 'windows-dir', '--skip-build', '--arch', 'x64'],
-                scaffold(project, (pkg) => {
-                    pkg.gjsify.ship.helperExecutables = [{ source: 'helper-bin', name: 'helper' }];
-                }),
-            );
-            assert.match(said, /helperExecutables.*staged only for `gjsify ship darwin`/s);
-        });
-
-        it('refuses a nested bundle source that does not exist', async () => {
+        it('refuses a nested bundle source that does not exist, on darwin', async () => {
             const project = scaffoldNodeApp(mkdtempSync(join(tmpDir, 'missing-source-')), {
                 nestedBundles: [{ source: 'nowhere.appex', name: 'Nowhere.appex' }],
             });

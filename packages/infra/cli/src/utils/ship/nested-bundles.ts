@@ -64,8 +64,8 @@ export function stageSubordinates(input: {
             throw new Error(
                 `gjsify ship: the ${input.layout.name} layout has no \`Contents/PlugIns\` equivalent, so ` +
                     `the nested bundle "${bundle.name}" has nowhere to go. ` +
-                    '`gjsify.ship.nestedBundles` is darwin-only; `resolveShipSettings` should have refused ' +
-                    'this already — report this as a gjsify bug if it did not.',
+                    '`gjsify.ship.nestedBundles` is darwin-only; `resolveShipNestedBundles` should have ' +
+                    'resolved this to `[]` already — report this as a gjsify bug if it did not.',
             );
         }
         const bundleRoot = posix.join(dirs.plugins, bundle.name);
@@ -85,8 +85,8 @@ export function stageSubordinates(input: {
             throw new Error(
                 `gjsify ship: the ${input.layout.name} layout has no \`Contents/Helpers\` equivalent, so ` +
                     `the helper executable "${helper.name}" has nowhere to go. ` +
-                    '`gjsify.ship.helperExecutables` is darwin-only; `resolveShipSettings` should have refused ' +
-                    'this already — report this as a gjsify bug if it did not.',
+                    '`gjsify.ship.helperExecutables` is darwin-only; `resolveShipHelperExecutables` should have ' +
+                    'resolved this to `[]` already — report this as a gjsify bug if it did not.',
             );
         }
         const path = posix.join(dirs.helpers, helper.name);

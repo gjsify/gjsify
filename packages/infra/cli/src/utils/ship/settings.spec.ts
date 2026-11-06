@@ -525,23 +525,33 @@ export default async () => {
             });
         });
 
-        await it('refuses a non-empty list on any layout but darwin', () => {
+        await it('ignores a non-empty, well-formed list on any layout but darwin, resolving to []', () => {
             withFixture((dir) => {
                 const declared = [{ source: 'extension/Ext.appex', name: 'Ext.appex' }];
-                expect(() => resolveShipNestedBundles({ declared, projectDir: dir, layoutOs: 'linux' })).toThrow(
-                    /nestedBundles.*darwin/s,
-                );
-                expect(() =>
+                expect(resolveShipNestedBundles({ declared, projectDir: dir, layoutOs: 'linux' })).toStrictEqual([]);
+                expect(
                     resolveShipHelperExecutables({
                         declared: [{ source: 'helper', name: 'h' }],
                         projectDir: dir,
                         layoutOs: 'win32',
                     }),
-                ).toThrow(/helperExecutables.*darwin/s);
+                ).toStrictEqual([]);
             });
         });
 
-        await it('refuses a source that does not exist', () => {
+        await it('ignores a non-existent source on any layout but darwin — the shape is well-formed, the file just was never built there', () => {
+            withFixture((dir) => {
+                expect(
+                    resolveShipNestedBundles({
+                        declared: [{ source: 'missing.appex', name: 'Ext.appex' }],
+                        projectDir: dir,
+                        layoutOs: 'linux',
+                    }),
+                ).toStrictEqual([]);
+            });
+        });
+
+        await it('refuses a source that does not exist, on darwin', () => {
             withFixture((dir) => {
                 expect(() =>
                     resolveShipNestedBundles({
@@ -553,7 +563,7 @@ export default async () => {
             });
         });
 
-        await it('refuses a name collision, a path-separator name and unknown keys', () => {
+        await it('refuses a name collision, a path-separator name and unknown keys — on darwin', () => {
             withFixture((dir) => {
                 expect(() =>
                     resolveShipNestedBundles({
@@ -586,6 +596,43 @@ export default async () => {
                         layoutOs: 'darwin',
                     }),
                 ).toThrow(/unknown key/);
+            });
+        });
+
+        await it('still validates SHAPE on a non-darwin layout — a typo is caught on a linux build too', () => {
+            withFixture((dir) => {
+                // Name collision: a shape defect, independent of the source existing.
+                expect(() =>
+                    resolveShipNestedBundles({
+                        declared: [
+                            { source: 'extension/Ext.appex', name: 'Ext.appex' },
+                            { source: 'extension/Ext.appex', name: 'Ext.appex' },
+                        ],
+                        projectDir: dir,
+                        layoutOs: 'linux',
+                    }),
+                ).toThrow(/already taken/);
+                expect(() =>
+                    resolveShipHelperExecutables({
+                        declared: [{ source: 'helper', name: 'a/b' }],
+                        projectDir: dir,
+                        layoutOs: 'windows',
+                    }),
+                ).toThrow(/not usable as a leaf/);
+                expect(() =>
+                    resolveShipNestedBundles({
+                        declared: [{ source: 'extension/Ext.appex', name: 'Ext.appex', bogus: 1 }],
+                        projectDir: dir,
+                        layoutOs: 'linux',
+                    }),
+                ).toThrow(/unknown key/);
+                expect(() =>
+                    resolveShipNestedBundles({
+                        declared: 'not-a-list',
+                        projectDir: dir,
+                        layoutOs: 'linux',
+                    }),
+                ).toThrow(/must be a list/);
             });
         });
     });
