@@ -323,6 +323,8 @@ export interface GtkWidgetLayout {
     widthRequest: number;
     /** `GtkWidget:height-request` — `minHeight`; `-1` is unset. */
     heightRequest: number;
+    width_request: number;
+    height_request: number;
 }
 
 /**
@@ -363,6 +365,12 @@ export declare abstract class GtkWidgetLayoutMembers {
     set widthRequest(value: number | string);
     get heightRequest(): number;
     set heightRequest(value: number | string);
+    /** GJS spelling of `widthRequest`. */
+    get width_request(): number;
+    set width_request(value: number | string);
+    /** GJS spelling of `heightRequest`. */
+    get height_request(): number;
+    set height_request(value: number | string);
     /** `gtk_widget_get_visible`: the `visible` property. */
     get_visible(): boolean;
     /** `gtk_widget_set_visible`: the `visible` property. */
@@ -689,6 +697,25 @@ export function withGtkWidgetLayout<TBase extends ObservableConstructor>(
         set heightRequest(value: number | string) {
             const view = laidOut(this, 'heightRequest');
             view.minHeight = Math.max(0, sizeRequestOf(value, 'heightRequest'));
+        }
+
+        // GJS spells these `width_request` / `height_request`; without the twins a script
+        // written for GJS assigns a plain property that nothing reads (MEASURED on a Galaxy
+        // S9: Learn6502's `SourceView.height = 150` did nothing).
+        get width_request(): number {
+            return this.widthRequest;
+        }
+
+        set width_request(value: number | string) {
+            this.widthRequest = value;
+        }
+
+        get height_request(): number {
+            return this.heightRequest;
+        }
+
+        set height_request(value: number | string) {
+            this.heightRequest = value;
         }
     }
     return WithGtkWidgetLayout as unknown as (abstract new (...args: any[]) => GtkWidgetLayoutMembers) & TBase;

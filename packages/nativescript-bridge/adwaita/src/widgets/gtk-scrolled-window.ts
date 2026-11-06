@@ -67,6 +67,7 @@ import {
     DEFAULT_SCROLLBAR_POLICY,
     GTK_POLICY_TYPES,
     normalizePolicy,
+    policyScrolls,
     scrollOrientationFor,
     scrollsBothAxes,
     type GtkPolicyNick,
@@ -218,6 +219,25 @@ export class GtkScrolledWindow extends AdwSingleChildBase {
         }
     }
 
+    // HEIGHT-REQUEST IS A HEIGHT HERE, NOT A FLOOR. GTK sizes a scrolled window without
+    // `propagate-natural-height` to its request and scrolls the rest; the base class maps the
+    // request to `minHeight`, and the `ScrollView` measures its content unbounded, so a
+    // `height-request: 150` window took the full content height (MEASURED on a Galaxy S9:
+    // Learn6502's example cards). A vertically scrolling window therefore pins its `ScrollView`.
+    get heightRequest(): number {
+        return super.heightRequest;
+    }
+
+    set heightRequest(value: number | string) {
+        super.heightRequest = value;
+        this._applyHeightRequest();
+    }
+
+    private _applyHeightRequest(): void {
+        const request = super.heightRequest;
+        this._scroll.height = request > 0 && policyScrolls(this._vscrollbarPolicy) ? request : 'auto';
+    }
+
     /** `Gtk.ScrolledWindow:has-frame` — held and read back; no frame is drawn (see the header). */
     get hasFrame(): boolean {
         return this._hasFrame;
@@ -246,6 +266,7 @@ export class GtkScrolledWindow extends AdwSingleChildBase {
     }
 
     private _applyOrientation(): void {
+        this._applyHeightRequest();
         this._scroll.orientation = scrollOrientationFor(this._hscrollbarPolicy, this._vscrollbarPolicy);
         const nested = scrollsBothAxes(this._hscrollbarPolicy, this._vscrollbarPolicy);
         if (nested === this._nested && this._viewport.content !== null) return;
