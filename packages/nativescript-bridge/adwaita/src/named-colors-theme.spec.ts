@@ -128,7 +128,7 @@ export default async () => {
             const surface = publisher.update(values({ 'window-bg-color': '#f3e6f5' }))!;
             expect(surface.includes('.adw-switch {')).toBe(false);
             const accented = publisher.update(values({ 'window-bg-color': '#f3e6f5', 'accent-bg-color': '#9141ac' }))!;
-            expect(accented.includes('.adw-switch { color: #9141ac; }')).toBe(true);
+            expect(accented.includes('.adw-switch { background-color: #9141ac; }')).toBe(true);
             const undone = publisher.update(values({ 'window-bg-color': '#f3e6f5' }))!;
             expect(undone.includes('.adw-switch {')).toBe(true);
         });
