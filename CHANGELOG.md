@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.64.22](https://github.com/gjsify/gjsify/compare/v0.64.21...v0.64.22) (2026-11-06)
+
+### Bug Fixes
+
+* **adwaita-ns:** derive theme font sizes from libadwaita ([#2555](https://github.com/gjsify/gjsify/issues/2555)) ([3a5aad3](https://github.com/gjsify/gjsify/commit/3a5aad3986aa015ce806c8ae5549b59894b2a554))
+* **cli:** pick oxfmt engine by project version ([#2556](https://github.com/gjsify/gjsify/issues/2556)) ([772b826](https://github.com/gjsify/gjsify/commit/772b826eb5bcbebfd2a96f159940683c4c9b9c59))
+* **cli:** stage nestedBundles/helperExecutables off darwin ([#2557](https://github.com/gjsify/gjsify/issues/2557)) ([e150076](https://github.com/gjsify/gjsify/commit/e150076dc53a425f247e88e7c4de765a4fd2301e))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([dd966b3](https://github.com/gjsify/gjsify/commit/dd966b3f3887f582e939a217528611e060c454f6))
+
 ## [0.64.21](https://github.com/gjsify/gjsify/compare/v0.64.20...v0.64.21) (2026-11-06)
 
 ### Features
