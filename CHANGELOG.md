@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.64.21](https://github.com/gjsify/gjsify/compare/v0.64.20...v0.64.21) (2026-11-06)
+
+### Features
+
+* **cli:** ship darwin nested bundles and helpers ([#2548](https://github.com/gjsify/gjsify/issues/2548)) ([c2b66a8](https://github.com/gjsify/gjsify/commit/c2b66a81d7230a98ea9b2d44b3a9020b31f498b8))
+* **model-store:** shared model download and cache ([#2544](https://github.com/gjsify/gjsify/issues/2544)) ([ba41f15](https://github.com/gjsify/gjsify/commit/ba41f15c33bb756ad36787eaefd8d7e0c63414b6))
+
+### Bug Fixes
+
+* **adwaita-nativescript:** about dialog link rows ([#2551](https://github.com/gjsify/gjsify/issues/2551)) ([31f05c8](https://github.com/gjsify/gjsify/commit/31f05c8cc00a0ed777ecb0966f57f51d0139dcbf))
+* **adwaita-ns:** list activated in ActionRow signals ([#2550](https://github.com/gjsify/gjsify/issues/2550)) ([d5fbfe1](https://github.com/gjsify/gjsify/commit/d5fbfe11b8a6bb6ece67dafdc6b61a067f87997f))
+* **adwaita-ns:** switch track and status icon follow theme ([#2552](https://github.com/gjsify/gjsify/issues/2552)) ([45a1f5a](https://github.com/gjsify/gjsify/commit/45a1f5ab3a02757e561f68b740421c605e1c5469))
+* **nativescript:** cap scrolled window at height-request ([#2553](https://github.com/gjsify/gjsify/issues/2553)) ([ca4b211](https://github.com/gjsify/gjsify/commit/ca4b2110befacf52f081e27c3462ed8ede888d66))
+
+### Maintenance
+
+* clear model-store from bootstrap ledger ([#2554](https://github.com/gjsify/gjsify/issues/2554)) ([851995e](https://github.com/gjsify/gjsify/commit/851995e30481314e0a5ad8f8ef5b90f9ac0961c1))
+* update native prebuilds [skip ci] ([b2ec15a](https://github.com/gjsify/gjsify/commit/b2ec15a9702034e4d90e07ba0789785340693358))
+* update native prebuilds [skip ci] ([80db943](https://github.com/gjsify/gjsify/commit/80db94328c95a9e4090234c973fb818c6fa740ee))
+* update the npm bootstrap ledger ([#2549](https://github.com/gjsify/gjsify/issues/2549)) ([93fb4c7](https://github.com/gjsify/gjsify/commit/93fb4c77e4aeb5cf8408822a415da8559d9f6004)), closes [#2544](https://github.com/gjsify/gjsify/issues/2544) [#2544](https://github.com/gjsify/gjsify/issues/2544)
+
 ## [0.64.20](https://github.com/gjsify/gjsify/compare/v0.64.19...v0.64.20) (2026-11-05)
 
 ### Features
