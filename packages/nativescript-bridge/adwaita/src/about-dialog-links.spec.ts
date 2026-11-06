@@ -13,17 +13,18 @@ import { ABOUT_DIALOG_DETAILS_VECTORS } from '@gjsify/adwaita-core/conformance';
 import * as Adw from './namespace/adw.js';
 
 interface Tappable {
-    text: string;
+    title: string;
     visibility: string;
     notify(data: { eventName: string }): void;
 }
 
 interface CardParts {
     _appIcon: { iconName: string; pixelSize: number; visibility: string };
-    _websiteButton: Tappable;
-    _supportButton: Tappable;
-    _issueButton: Tappable;
-    _linksBox: { getChildAt(index: number): Tappable };
+    _websiteRow: Tappable;
+    _detailsWebsiteRow: Tappable;
+    _supportRow: Tappable;
+    _issueRow: Tappable;
+    _linkRows: Tappable[];
 }
 
 const card = (dialog: InstanceType<typeof Adw.AboutDialog>) => dialog as unknown as CardParts;
@@ -51,7 +52,10 @@ export const AdwAboutDialogLinksNsTest = async () => {
                 if (website) dialog.website = 'https://example.org';
                 if (comments) dialog.comments = 'A description.';
                 if (customLinks) dialog.add_link('Docs', 'https://example.org/docs');
-                expect(card(dialog)._websiteButton.visibility).toBe(website ? 'visible' : 'collapse');
+                const parts = card(dialog);
+                const shown =
+                    parts._websiteRow.visibility === 'visible' || parts._detailsWebsiteRow.visibility === 'visible';
+                expect(shown).toBe(website);
             });
         }
     });
@@ -59,9 +63,9 @@ export const AdwAboutDialogLinksNsTest = async () => {
     await describe('NativeScript Adw.AboutDialog link buttons', async () => {
         await it('titles the rows as libadwaita, mnemonics stripped', () => {
             const dialog = new Adw.AboutDialog();
-            expect(card(dialog)._websiteButton.text).toBe(stripMnemonic(ADW_ABOUT_DIALOG_LABELS.websiteRow));
-            expect(card(dialog)._supportButton.text).toBe(stripMnemonic(ADW_ABOUT_DIALOG_LABELS.supportRow));
-            expect(card(dialog)._issueButton.text).toBe(stripMnemonic(ADW_ABOUT_DIALOG_LABELS.issueRow));
+            expect(card(dialog)._websiteRow.title).toBe(stripMnemonic(ADW_ABOUT_DIALOG_LABELS.websiteRow));
+            expect(card(dialog)._supportRow.title).toBe(stripMnemonic(ADW_ABOUT_DIALOG_LABELS.supportRow));
+            expect(card(dialog)._issueRow.title).toBe(stripMnemonic(ADW_ABOUT_DIALOG_LABELS.issueRow));
         });
 
         await it('emits activate-link with the URI of the tapped row', () => {
@@ -75,17 +79,17 @@ export const AdwAboutDialogLinksNsTest = async () => {
                 seen.push((data as unknown as { uri: string }).uri);
                 return true;
             });
-            tap(card(dialog)._websiteButton);
-            tap(card(dialog)._supportButton);
-            tap(card(dialog)._issueButton);
-            tap(card(dialog)._linksBox.getChildAt(0));
+            tap(card(dialog)._websiteRow);
+            tap(card(dialog)._supportRow);
+            tap(card(dialog)._issueRow);
+            tap(card(dialog)._linkRows[0]);
             expect(seen).toStrictEqual([
                 'https://example.org',
                 'https://example.org/help',
                 'https://example.org/issues',
                 'https://example.org/docs',
             ]);
-            expect(card(dialog)._linksBox.getChildAt(0).text).toBe('Docs');
+            expect(card(dialog)._linkRows[0].title).toBe('Docs');
         });
 
         await it('re-renders without stacking tap handlers', () => {
@@ -98,7 +102,7 @@ export const AdwAboutDialogLinksNsTest = async () => {
                 count += 1;
                 return true;
             });
-            tap(card(dialog)._websiteButton);
+            tap(card(dialog)._websiteRow);
             expect(count).toBe(1);
         });
     });

@@ -27,8 +27,11 @@ interface Shown {
 }
 
 interface CardLabels {
-    _supportButton: Shown;
-    _issueButton: Shown;
+    _supportRow: Shown;
+    _issueRow: Shown;
+    _creditsRow: Shown;
+    _legalRow: Shown;
+    _acknowledgementsRow: Shown;
     _creditsLabel: Shown;
     _acknowledgementsLabel: Shown;
     _legalLabel: Shown;
@@ -56,7 +59,7 @@ export const AdwAboutDialogCreditsNsTest = async () => {
                     dialog.add_credit_section(section.title, [...section.people]);
                 }
                 expect(card(dialog)._creditsLabel.text).toBe(groupsText(sections));
-                expect(card(dialog)._creditsLabel.visibility).toBe(sections.length > 0 ? 'visible' : 'collapse');
+                expect(card(dialog)._creditsRow.visibility).toBe(sections.length > 0 ? 'visible' : 'collapse');
             });
         }
 
@@ -77,7 +80,7 @@ export const AdwAboutDialogCreditsNsTest = async () => {
                 const dialog = new Adw.AboutDialog();
                 for (const section of sections) dialog.add_acknowledgement_section(section.title, [...section.people]);
                 expect(card(dialog)._acknowledgementsLabel.text).toBe(groupsText(groups));
-                expect(card(dialog)._acknowledgementsLabel.visibility).toBe(groups.length > 0 ? 'visible' : 'collapse');
+                expect(card(dialog)._acknowledgementsRow.visibility).toBe(groups.length > 0 ? 'visible' : 'collapse');
             });
         }
     });
@@ -96,7 +99,7 @@ export const AdwAboutDialogCreditsNsTest = async () => {
                     .map((section) => [section.title ?? '', section.text].filter((part) => part.length > 0).join('\n'))
                     .join('\n\n');
                 expect(card(dialog)._legalLabel.text).toBe(expected);
-                expect(card(dialog)._legalLabel.visibility).toBe(vector.hasLegal ? 'visible' : 'collapse');
+                expect(card(dialog)._legalRow.visibility).toBe(vector.hasLegal ? 'visible' : 'collapse');
             });
         }
     });
@@ -134,9 +137,9 @@ export const AdwAboutDialogCreditsNsTest = async () => {
                 if (hasAcknowledgements) dialog.add_acknowledgement_section('Funded by', ['Bob']);
                 const shown = (label: Shown) => label.visibility === 'visible';
                 expect({
-                    creditsRow: shown(card(dialog)._creditsLabel),
-                    legalRow: shown(card(dialog)._legalLabel),
-                    acknowledgementsRow: shown(card(dialog)._acknowledgementsLabel),
+                    creditsRow: shown(card(dialog)._creditsRow),
+                    legalRow: shown(card(dialog)._legalRow),
+                    acknowledgementsRow: shown(card(dialog)._acknowledgementsRow),
                 }).toStrictEqual({
                     creditsRow: visible.creditsRow,
                     legalRow: visible.legalRow,
@@ -151,8 +154,8 @@ export const AdwAboutDialogCreditsNsTest = async () => {
                 if (supportUrl) dialog.supportUrl = 'https://example.org/help';
                 if (issueUrl) dialog.issueUrl = 'https://example.org/issues';
                 expect({
-                    supportRow: card(dialog)._supportButton.visibility === 'visible',
-                    issueRow: card(dialog)._issueButton.visibility === 'visible',
+                    supportRow: card(dialog)._supportRow.visibility === 'visible',
+                    issueRow: card(dialog)._issueRow.visibility === 'visible',
                 }).toStrictEqual({ supportRow: visible.supportRow, issueRow: visible.issueRow });
             });
         }
@@ -160,7 +163,7 @@ export const AdwAboutDialogCreditsNsTest = async () => {
         await it('refuses an add_legal_section whose license_type is outside Gtk.License', () => {
             const dialog = new Adw.AboutDialog();
             dialog.add_legal_section('Fonts', '© Foundry', 99, null);
-            expect(card(dialog)._legalLabel.visibility).toBe('collapse');
+            expect(card(dialog)._legalRow.visibility).toBe('collapse');
         });
     });
 };

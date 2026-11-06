@@ -1814,13 +1814,26 @@ Page.adw-window {
     margin: 0 0 8 0;
 }
 
-.adw-about-dialog-link,
-.adw-about-dialog-links-item {
+.adw-about-dialog-page-bar {
+    margin: 0 0 12 0;
+}
+
+.adw-about-dialog-back {
     background-color: transparent;
     color: rgba(0, 0, 0, 0.8);
-    text-decoration: underline;
-    font-size: 13;
-    margin: 2 0 2 0;
+    font-size: 24;
+    font-weight: 700;
+    padding: 0 12 0 4;
+}
+
+.adw-about-dialog-page-title {
+    font-size: 15;
+    font-weight: 700;
+    color: rgba(0, 0, 0, 0.85);
+}
+
+.adw-about-dialog-card .adw-preferences-group {
+    margin: 0 0 12 0;
 }
 
 .adw-about-dialog-name {
@@ -1838,14 +1851,10 @@ Page.adw-window {
 
 .adw-about-dialog-developer,
 .adw-about-dialog-comments,
-.adw-about-dialog-website,
-.adw-about-dialog-support,
-.adw-about-dialog-issue,
 .adw-about-dialog-credits,
 .adw-about-dialog-acknowledgements,
 .adw-about-dialog-legal,
 .adw-about-dialog-release-notes,
-.adw-about-dialog-links,
 .adw-about-dialog-debug-info {
     font-size: 13;
     color: rgba(0, 0, 0, 0.6);
@@ -2680,20 +2689,16 @@ Page.ns-dark.adw-window {
 .ns-dark .adw-about-dialog-version,
 .ns-dark .adw-about-dialog-developer,
 .ns-dark .adw-about-dialog-comments,
-.ns-dark .adw-about-dialog-website,
-.ns-dark .adw-about-dialog-support,
-.ns-dark .adw-about-dialog-issue,
 .ns-dark .adw-about-dialog-credits,
 .ns-dark .adw-about-dialog-acknowledgements,
 .ns-dark .adw-about-dialog-legal,
 .ns-dark .adw-about-dialog-release-notes,
-.ns-dark .adw-about-dialog-links,
 .ns-dark .adw-about-dialog-debug-info {
     color: rgba(255, 255, 255, 0.6);
 }
 
-.ns-dark .adw-about-dialog-link,
-.ns-dark .adw-about-dialog-links-item {
+.ns-dark .adw-about-dialog-back,
+.ns-dark .adw-about-dialog-page-title {
     color: #ffffff;
 }
 

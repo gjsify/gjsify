@@ -14,21 +14,20 @@
 // pixel-size 128 (as `adw-about-dialog.ui`), so it resolves through the icon theme like any
 // icon name; a name nothing carries draws the `image-missing` glyph, never the name as text.
 //
-// LINKS are tappable buttons: website, support-url, issue-url and every `add_link`. A tap
-// emits `activate-link` (payload `{ uri }`, handled accumulator): a handler returning true keeps
-// the default, which is `Gio.AppInfo.launch_default_for_uri` over the platform host. The
-// website shows whenever `website` is set, since libadwaita moves it onto the Details page
-// (`flatCardShowsWebsite`) and this card has none.
+// MAIN PAGE as `adw-about-dialog.ui` lays it out: boxed-list groups of `Adw.ActionRow`s. Website,
+// Support Questions, Report an Issue and every `add_link` are link rows (an external-link glyph,
+// `AdwLinkRow`); What's New, Details, Troubleshooting, Credits, Legal and Acknowledgements are
+// navigation rows (a go-next chevron) that swap the card to a subpage with a back button. As in
+// libadwaita the website sits on the main page only while there is no Details page, else on
+// Details. A tap on a link row emits `activate-link` (payload `{ uri }`, handled accumulator): a
+// handler returning true keeps the default, `Gio.AppInfo.launch_default_for_uri`.
 //
-// The card has no subpages, so the What's New, Troubleshooting, Details, Credits, Legal and
-// Acknowledgements pages land on it as labels: `release-notes` shows the core's
-// `releaseNotesBuffer` text (the buffer rebuilt by the two release-notes setters only, as
-// `update_release_notes` is), `debug-info` its text with a Copy Text button, `add_link (title,
-// url)`, `support-url` and `issue-url` one link button each. The credit lists,
-// `translator-credits` and `add_credit_section` / `add_acknowledgement_section` become one
-// block per core group, `license`, `license-type`, `copyright` and `add_legal_section` one
-// block per core legal section — as plain text, so a markup link shows its text only.
-// Left out: `add_other_app` / `other-apps-title` and the debug-info Save As.
+// Subpage bodies are plain text: `release-notes` is the core's `releaseNotesBuffer` text,
+// `debug-info` is verbatim with a Copy Text button, credit lists / `translator-credits` /
+// `add_credit_section` / `add_acknowledgement_section` one block per core group, `license`,
+// `copyright` and `add_legal_section` one block per core legal section — so a markup link shows
+// its text only. Left out: `add_other_app` / `other-apps-title`, the debug-info Save As and
+// the separate Debugging Information subpage (its text is on Troubleshooting).
 // `new_from_appdata` is refused by name: it needs AppStream.
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-about-dialog`.
@@ -64,6 +63,9 @@ import {
 import { Button, GridLayout, ItemSpec, Label, ScrollView, StackLayout, type EventData } from '@nativescript/core';
 import { nativeClipboardHost } from '../clipboard-host.js';
 import { nativePlatformHost } from '../platform-host.js';
+import { ACTIVATED as ROW_ACTIVATED, AdwActionRow } from './adw-action-row.js';
+import { AdwPreferencesGroup } from './adw-preferences-group.js';
+import { EXTERNAL_LINK_SVG } from './adw-bundled-icons.js';
 import { GtkImage } from './gtk-image.js';
 import { applyTemplateXalign } from './gtk-label.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
@@ -83,6 +85,17 @@ const APPLICATION_ICON_PIXEL_SIZE = 128;
 
 const appInfo = createAppInfo(nativePlatformHost);
 
+/** The subpages the main page's navigation rows push. */
+type AboutPage = 'whatsnew' | 'details' | 'troubleshooting' | 'credits' | 'legal' | 'acknowledgements';
+
+/** `go-next-symbolic`, the trailing glyph `adw-about-dialog.ui` gives every navigation row. */
+const NAV_ICON = 'go-next-symbolic';
+
+/** `AdwLinkRow`'s glyph: an envelope for `mailto:`, else the libadwaita-bundled external-link. */
+function linkIcon(uri: string): string {
+    return /^mailto:/i.test(uri) ? 'mail-send-symbolic' : EXTERNAL_LINK_SVG;
+}
+
 /** A credits page as text: per group its heading (if any) and one line per person. */
 function creditsText(groups: ReadonlyArray<AdwCreditsSection>): string {
     return groups
@@ -94,21 +107,36 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
     static readonly GTypeName: string = 'AdwAboutDialog';
 
     protected readonly _card: StackLayout;
+    protected readonly _header: StackLayout;
+    protected readonly _mainBody: StackLayout;
     protected readonly _appIcon: GtkImage;
     protected readonly _nameLabel: Label;
     protected readonly _versionLabel: Label;
     protected readonly _developerLabel: Label;
     protected readonly _commentsLabel: Label;
-    protected readonly _websiteButton: Button;
-    protected readonly _supportButton: Button;
-    protected readonly _issueButton: Button;
+    protected readonly _whatsNewRow: AdwActionRow;
+    protected readonly _detailsRow: AdwActionRow;
+    protected readonly _websiteRow: AdwActionRow;
+    protected readonly _supportRow: AdwActionRow;
+    protected readonly _issueRow: AdwActionRow;
+    protected readonly _troubleshootingRow: AdwActionRow;
+    protected readonly _creditsRow: AdwActionRow;
+    protected readonly _legalRow: AdwActionRow;
+    protected readonly _acknowledgementsRow: AdwActionRow;
+    protected readonly _detailsWebsiteRow: AdwActionRow;
+    protected readonly _detailsGroup: AdwPreferencesGroup;
+    protected readonly _supportGroup: AdwPreferencesGroup;
+    protected readonly _creditsLegalGroup: AdwPreferencesGroup;
+    protected readonly _linksGroup: AdwPreferencesGroup;
     protected readonly _creditsLabel: Label;
     protected readonly _acknowledgementsLabel: Label;
     protected readonly _legalLabel: Label;
     protected readonly _releaseNotesLabel: Label;
-    protected readonly _linksBox: StackLayout;
     protected readonly _debugInfoLabel: Label;
     protected readonly _copyButton: Button;
+    /** The `add_link` rows currently in `_linksGroup`, after the website row. */
+    protected _linkRows: AdwActionRow[] = [];
+    private readonly _pages = new Map<AboutPage, StackLayout>();
 
     private _applicationName = '';
     private _applicationIcon = '';
@@ -159,46 +187,87 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         this.addChild(scroller);
         this._card = card;
 
+        const header = new StackLayout();
+        header.orientation = 'vertical';
+        card.addChild(header);
+        this._header = header;
+
         const icon = new GtkImage();
         icon.className = 'adw-icon adw-about-dialog-icon';
         icon.pixelSize = APPLICATION_ICON_PIXEL_SIZE;
         icon.horizontalAlignment = 'center';
-        card.addChild(icon);
+        header.addChild(icon);
         this._appIcon = icon;
-        this._nameLabel = this._addCardLabel(card, 'adw-about-dialog-name');
-        this._versionLabel = this._addCardLabel(card, 'adw-about-dialog-version');
-        this._developerLabel = this._addCardLabel(card, 'adw-about-dialog-developer');
-        this._commentsLabel = this._addCardLabel(card, 'adw-about-dialog-comments');
-        // `comments_label` is the one card label whose upstream counterpart states an alignment
-        // (`xalign 0`, on the details subpage in `adw-about-dialog.ui`). The rest carry none
-        // there, so they keep the centred card presentation `_addCardLabel` gives them.
-        applyTemplateXalign(this._commentsLabel, 0);
-        this._releaseNotesLabel = this._addCardLabel(card, 'adw-about-dialog-release-notes');
-        this._websiteButton = this._addLinkButton(card, 'adw-about-dialog-website');
-        this._linksBox = new StackLayout();
-        this._linksBox.className = 'adw-about-dialog-links';
-        card.addChild(this._linksBox);
-        this._supportButton = this._addLinkButton(card, 'adw-about-dialog-support');
-        this._issueButton = this._addLinkButton(card, 'adw-about-dialog-issue');
-        this._creditsLabel = this._addCardLabel(card, 'adw-about-dialog-credits');
-        this._acknowledgementsLabel = this._addCardLabel(card, 'adw-about-dialog-acknowledgements');
-        this._legalLabel = this._addCardLabel(card, 'adw-about-dialog-legal');
-        this._debugInfoLabel = this._addCardLabel(card, 'adw-about-dialog-debug-info');
+        this._nameLabel = this._addCardLabel(header, 'adw-about-dialog-name');
+        this._versionLabel = this._addCardLabel(header, 'adw-about-dialog-version');
+        this._developerLabel = this._addCardLabel(header, 'adw-about-dialog-developer');
 
-        const copyButton = new Button();
-        copyButton.text = stripMnemonic(ADW_ABOUT_DIALOG_LABELS.copyText);
-        copyButton.className = 'adw-about-dialog-copy';
-        copyButton.set('androidElevation', 0);
-        copyButton.addEventListener('tap', () => this._copyDebugInfo());
-        card.addChild(copyButton);
-        this._copyButton = copyButton;
+        const main = new StackLayout();
+        main.orientation = 'vertical';
+        card.addChild(main);
+        this._mainBody = main;
+
+        const labels = ADW_ABOUT_DIALOG_LABELS;
+        const nav = (title: string, page: AboutPage): AdwActionRow => {
+            const row = this._newRow(title, NAV_ICON);
+            this._bindRow(row, () => this._showPage(page));
+            return row;
+        };
+        const group = (...rows: AdwActionRow[]): AdwPreferencesGroup => {
+            const g = new AdwPreferencesGroup();
+            for (const row of rows) g.add(row);
+            main.addChild(g);
+            return g;
+        };
+        this._whatsNewRow = nav(labels.whatsNewRow, 'whatsnew');
+        this._detailsRow = nav(labels.detailsRow, 'details');
+        this._websiteRow = this._newRow(labels.websiteRow, EXTERNAL_LINK_SVG);
+        this._detailsGroup = group(this._whatsNewRow, this._detailsRow, this._websiteRow);
+        this._supportRow = this._newRow(labels.supportRow, EXTERNAL_LINK_SVG);
+        this._issueRow = this._newRow(labels.issueRow, EXTERNAL_LINK_SVG);
+        this._troubleshootingRow = nav(labels.troubleshootingRow, 'troubleshooting');
+        this._supportGroup = group(this._supportRow, this._issueRow, this._troubleshootingRow);
+        this._creditsRow = nav(labels.creditsRow, 'credits');
+        this._legalRow = nav(labels.legalRow, 'legal');
+        this._acknowledgementsRow = nav(labels.acknowledgementsRow, 'acknowledgements');
+        this._creditsLegalGroup = group(this._creditsRow, this._legalRow, this._acknowledgementsRow);
 
         const closeButton = new Button();
         closeButton.text = 'Close';
         closeButton.className = 'adw-about-dialog-close';
         closeButton.set('androidElevation', 0);
         closeButton.addEventListener('tap', () => this.close());
-        card.addChild(closeButton);
+        main.addChild(closeButton);
+
+        // The subpages. `comments_label` is the one label whose upstream counterpart states an
+        // alignment (`xalign 0`); `_makeLabel` states it for every left-aligned body.
+        this._commentsLabel = this._makeLabel('adw-about-dialog-comments', false);
+        this._detailsWebsiteRow = this._newRow(labels.websiteRow, EXTERNAL_LINK_SVG);
+        const linksGroup = new AdwPreferencesGroup();
+        linksGroup.add(this._detailsWebsiteRow);
+        this._linksGroup = linksGroup;
+        this._addPage('details', labels.detailsPage, this._commentsLabel, linksGroup);
+
+        this._releaseNotesLabel = this._makeLabel('adw-about-dialog-release-notes', false);
+        this._addPage('whatsnew', labels.whatsNewPage, this._releaseNotesLabel);
+
+        const intro = this._makeLabel('adw-about-dialog-debug-info', false);
+        intro.text = labels.troubleshootingIntro;
+        this._debugInfoLabel = this._makeLabel('adw-about-dialog-debug-info', false);
+        const copyButton = new Button();
+        copyButton.text = stripMnemonic(labels.copyText);
+        copyButton.className = 'adw-about-dialog-copy';
+        copyButton.set('androidElevation', 0);
+        copyButton.addEventListener('tap', () => this._copyDebugInfo());
+        this._copyButton = copyButton;
+        this._addPage('troubleshooting', labels.troubleshootingPage, intro, this._debugInfoLabel, copyButton);
+
+        this._creditsLabel = this._makeLabel('adw-about-dialog-credits', false);
+        this._addPage('credits', labels.creditsPage, this._creditsLabel);
+        this._legalLabel = this._makeLabel('adw-about-dialog-legal', false);
+        this._addPage('legal', labels.legalPage, this._legalLabel);
+        this._acknowledgementsLabel = this._makeLabel('adw-about-dialog-acknowledgements', false);
+        this._addPage('acknowledgements', labels.acknowledgementsPage, this._acknowledgementsLabel);
 
         // A dialog nobody has written to yet is a card of empty labels, all visible —
         // the same blank lines the visibility rules exist to remove. Every setter
@@ -209,22 +278,82 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         applyConstructProps(this, props);
     }
 
-    private _addCardLabel(card: StackLayout, className: string): Label {
+    private _makeLabel(className: string, centered: boolean): Label {
         const label = new Label();
         label.className = className;
-        label.horizontalAlignment = 'center';
         label.textWrap = true;
-        card.addChild(label);
+        if (centered) label.horizontalAlignment = 'center';
+        else applyTemplateXalign(label, 0);
         return label;
     }
 
-    /** A link row: tapping it activates whatever URI the render last gave it. */
-    private _addLinkButton(parent: StackLayout, className: string): Button {
-        const button = new Button();
-        button.className = `adw-about-dialog-link ${className}`;
-        button.set('androidElevation', 0);
-        parent.addChild(button);
-        return button;
+    private _addCardLabel(parent: StackLayout, className: string): Label {
+        const label = this._makeLabel(className, true);
+        parent.addChild(label);
+        return label;
+    }
+
+    /** An activatable row with a trailing glyph: the chevron or the external-link icon. */
+    private _newRow(title: string, trailingIcon: string): AdwActionRow {
+        const row = new AdwActionRow();
+        row.title = stripMnemonic(title);
+        row.activatable = true;
+        this._setTrailing(row, trailingIcon);
+        return row;
+    }
+
+    private _setTrailing(row: AdwActionRow, iconName: string): void {
+        const icon = new GtkImage();
+        icon.className = 'adw-icon';
+        icon.pixelSize = 16;
+        icon.iconName = iconName;
+        row.add_suffix(icon);
+    }
+
+    /** Point a row's activation at `run`; the handler is replaced, never stacked. */
+    private _bindRow(row: AdwActionRow, run: () => void): void {
+        const slot = row as AdwActionRow & { _run?: () => void };
+        if (slot._run === undefined) row.addEventListener(ROW_ACTIVATED, () => slot._run?.());
+        slot._run = run;
+    }
+
+    /** A subpage: a back button and the page title above its content, collapsed until shown. */
+    private _addPage(name: AboutPage, title: string, ...content: View[]): void {
+        const page = new StackLayout();
+        page.orientation = 'vertical';
+        page.visibility = 'collapse';
+
+        const bar = new GridLayout();
+        bar.className = 'adw-about-dialog-page-bar';
+        bar.addColumn(new ItemSpec(1, 'auto'));
+        bar.addColumn(new ItemSpec(1, 'star'));
+        bar.addRow(new ItemSpec(1, 'auto'));
+        const back = new Button();
+        back.text = '\u2039';
+        back.className = 'adw-about-dialog-back';
+        back.set('androidElevation', 0);
+        back.addEventListener('tap', () => this._showPage(null));
+        GridLayout.setColumn(back, 0);
+        bar.addChild(back);
+        const heading = new Label();
+        heading.text = title;
+        heading.className = 'adw-about-dialog-page-title';
+        heading.horizontalAlignment = 'center';
+        GridLayout.setColumn(heading, 1);
+        bar.addChild(heading);
+        page.addChild(bar);
+
+        for (const view of content) page.addChild(view);
+        this._card.addChild(page);
+        this._pages.set(name, page);
+    }
+
+    /** Show a subpage, or the main page for `null`. */
+    private _showPage(name: AboutPage | null): void {
+        const main = name === null ? 'visible' : 'collapse';
+        this._header.visibility = main;
+        this._mainBody.visibility = main;
+        for (const [key, page] of this._pages) page.visibility = key === name ? 'visible' : 'collapse';
     }
 
     /**
@@ -242,14 +371,10 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         }
     }
 
-    /** Point a link button at `uri`; the tap handler is replaced, never stacked. */
-    private _setLink(button: Button, title: string, uri: string, shown: boolean): void {
-        button.text = title;
-        button.visibility = shown ? 'visible' : 'collapse';
-        const slot = button as Button & { _uriTap?: () => void };
-        if (slot._uriTap) button.removeEventListener('tap', slot._uriTap);
-        slot._uriTap = () => this._activateLink(uri);
-        button.addEventListener('tap', slot._uriTap);
+    /** Point a link row at `uri` and show or hide it. */
+    private _setLink(row: AdwActionRow, uri: string, shown: boolean): void {
+        row.visibility = shown ? 'visible' : 'collapse';
+        this._bindRow(row, () => this._activateLink(uri));
     }
 
     /** The application name (bold, centered). */
@@ -546,46 +671,38 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         show(this._versionLabel, this._version, visibility.version);
         show(this._developerLabel, this._developerName, visibility.developerName);
         show(this._commentsLabel, this._comments, visibility.commentsLabel);
-        this._setLink(
-            this._websiteButton,
-            stripMnemonic(ADW_ABOUT_DIALOG_LABELS.websiteRow),
-            this._website,
-            flatCardShowsWebsite(visibility),
-        );
-        this._setLink(
-            this._supportButton,
-            stripMnemonic(ADW_ABOUT_DIALOG_LABELS.supportRow),
-            this._supportUrl,
-            visibility.supportRow,
-        );
-        this._setLink(
-            this._issueButton,
-            stripMnemonic(ADW_ABOUT_DIALOG_LABELS.issueRow),
-            this._issueUrl,
-            visibility.issueRow,
-        );
-        show(this._creditsLabel, creditsText(credits), visibility.creditsRow);
-        show(this._acknowledgementsLabel, creditsText(acknowledgements), visibility.acknowledgementsRow);
-        show(
-            this._legalLabel,
-            legalSections(legalInput)
-                .map((section) =>
-                    [section.title ?? '', legalMarkupText(section.markup)].filter((part) => part.length > 0).join('\n'),
-                )
-                .join('\n\n'),
-            visibility.legalRow,
-        );
-        show(
-            this._releaseNotesLabel,
-            this._releaseNotesSegments.map((segment) => segment.text).join(''),
-            visibility.whatsNewRow,
-        );
-        this._linksBox.removeChildren();
-        for (const link of this._links) {
-            const button = this._addLinkButton(this._linksBox, 'adw-about-dialog-links-item');
-            this._setLink(button, stripMnemonic(link.title), link.url, true);
-        }
-        this._linksBox.visibility = this._links.length > 0 ? 'visible' : 'collapse';
+        const shownIf = (view: View, shown: boolean): void => {
+            view.visibility = shown ? 'visible' : 'collapse';
+        };
+        shownIf(this._detailsGroup, visibility.detailsGroup);
+        shownIf(this._whatsNewRow, visibility.whatsNewRow);
+        shownIf(this._detailsRow, visibility.detailsRow);
+        this._setLink(this._websiteRow, this._website, visibility.websiteRow);
+        this._setLink(this._detailsWebsiteRow, this._website, visibility.detailsWebsiteRow);
+        shownIf(this._supportGroup, visibility.supportGroup);
+        this._setLink(this._supportRow, this._supportUrl, visibility.supportRow);
+        this._setLink(this._issueRow, this._issueUrl, visibility.issueRow);
+        shownIf(this._troubleshootingRow, visibility.troubleshootingRow);
+        shownIf(this._creditsLegalGroup, visibility.creditsLegalGroup);
+        shownIf(this._creditsRow, visibility.creditsRow);
+        shownIf(this._legalRow, visibility.legalRow);
+        shownIf(this._acknowledgementsRow, visibility.acknowledgementsRow);
+        shownIf(this._linksGroup, visibility.linksGroup);
+        this._creditsLabel.text = creditsText(credits);
+        this._acknowledgementsLabel.text = creditsText(acknowledgements);
+        this._legalLabel.text = legalSections(legalInput)
+            .map((section) =>
+                [section.title ?? '', legalMarkupText(section.markup)].filter((part) => part.length > 0).join('\n'),
+            )
+            .join('\n\n');
+        this._releaseNotesLabel.text = this._releaseNotesSegments.map((segment) => segment.text).join('');
+        for (const row of this._linkRows) this._linksGroup.remove(row);
+        this._linkRows = this._links.map((link) => {
+            const row = this._newRow(link.title, linkIcon(link.url));
+            this._setLink(row, link.url, true);
+            this._linksGroup.add(row);
+            return row;
+        });
         show(this._debugInfoLabel, this._debugInfo, visibility.troubleshootingRow);
         this._copyButton.visibility = visibility.troubleshootingRow ? 'visible' : 'collapse';
     }

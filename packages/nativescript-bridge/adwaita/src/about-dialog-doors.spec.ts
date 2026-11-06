@@ -18,7 +18,10 @@ import * as Adw from './namespace/adw.js';
 
 interface CardLabels {
     _releaseNotesLabel: { text: string; visibility: string };
-    _linksBox: { visibility: string; getChildrenCount(): number; getChildAt(i: number): { text: string } };
+    _whatsNewRow: { visibility: string };
+    _troubleshootingRow: { visibility: string };
+    _linksGroup: { visibility: string };
+    _linkRows: { title: string }[];
     _debugInfoLabel: { text: string; visibility: string };
 }
 
@@ -50,7 +53,7 @@ export const AdwAboutDialogDoorsNsTest = async () => {
             expect(card(dialog)._releaseNotesLabel.text).toBe(
                 `${ADW_ABOUT_DIALOG_LABELS.releaseNotesHeading.replace('%s', '1.0')}\n• A`,
             );
-            expect(card(dialog)._releaseNotesLabel.visibility).toBe('visible');
+            expect(card(dialog)._whatsNewRow.visibility).toBe('visible');
         });
 
         await it('does not rebuild the heading when only version changes', () => {
@@ -60,12 +63,12 @@ export const AdwAboutDialogDoorsNsTest = async () => {
             expect(card(dialog)._releaseNotesLabel.text).toBe('Hi');
         });
 
-        await it('collapses the notes, links and debug labels while they are empty', () => {
+        await it('collapses the notes, links and troubleshooting rows while they are empty', () => {
             const labels = card(new Adw.AboutDialog());
             expect([
-                labels._releaseNotesLabel.visibility,
-                labels._linksBox.visibility,
-                labels._debugInfoLabel.visibility,
+                labels._whatsNewRow.visibility,
+                labels._linksGroup.visibility,
+                labels._troubleshootingRow.visibility,
             ]).toStrictEqual(['collapse', 'collapse', 'collapse']);
         });
 
@@ -73,16 +76,15 @@ export const AdwAboutDialogDoorsNsTest = async () => {
             const dialog = new Adw.AboutDialog();
             dialog.add_link('_Docs', 'https://example.org/docs');
             dialog.add_link('Chat', 'https://example.org/chat');
-            const box = card(dialog)._linksBox;
-            expect([0, 1].map((i) => box.getChildAt(i).text)).toStrictEqual(['Docs', 'Chat']);
-            expect(box.getChildrenCount()).toBe(2);
+            const rows = card(dialog)._linkRows;
+            expect(rows.map((row) => row.title)).toStrictEqual(['Docs', 'Chat']);
         });
 
         await it('shows debug-info verbatim', () => {
             const dialog = new Adw.AboutDialog();
             dialog.debugInfo = 'GTK 4.20\n  Wayland';
             expect(card(dialog)._debugInfoLabel.text).toBe('GTK 4.20\n  Wayland');
-            expect(card(dialog)._debugInfoLabel.visibility).toBe('visible');
+            expect(card(dialog)._troubleshootingRow.visibility).toBe('visible');
         });
 
         await it('refuses new_from_appdata by name', () => {
