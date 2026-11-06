@@ -20,7 +20,7 @@ const listeners = new Set<() => void>();
 export function publishWindowFg(value: string | null): void {
     if (value === windowFg) return;
     windowFg = value;
-    for (const listener of [...listeners]) listener();
+    for (const listener of listeners) listener();
 }
 
 /** The published window foreground, or `null` while the app declares none. */
