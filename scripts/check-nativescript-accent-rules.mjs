@@ -58,6 +58,8 @@ const NON_ACCENT_LITERALS = {
     '#505053': 'libadwaita $toast_bg_color (_colors.scss:296), the same in both schemes',
     '#c01c28': 'libadwaita $destructive_bg (red_4)',
     '#9a9996': 'neutral grey thumb of an unchecked switch (.adw-switch.off), no accent',
+    '#deddda': 'neutral grey track of an unchecked switch (.adw-switch.off), no accent',
+    '#5e5c64': 'neutral dark-grey track of an unchecked switch (.ns-dark .adw-switch.off), no accent',
     '#ff7b80': 'libadwaita destructive foreground on dark',
 };
 

@@ -16,6 +16,7 @@ import { cssPxToDip } from '@gjsify/adwaita-core/css-length';
 import { Application, CSSHelper, type View } from '@nativescript/core';
 
 import { type IdSelectorClass, provideIdSelector } from './name-selector.js';
+import { publishWindowFg } from './widgets/status-icon-color.js';
 import { createNamedColorsPublisher, parseAdwaitaRootColors } from './widgets/named-colors-theme.js';
 
 import { listenPlatformKeys, openPlatformUri } from './platform-source.js';
@@ -43,6 +44,7 @@ export const nativePlatformHost: PlatformHost = {
         // override.
         const values = new Map<string, string>();
         for (const { css } of list) for (const [name, value] of parseAdwaitaRootColors(css)) values.set(name, value);
+        publishWindowFg(values.get('window-fg-color') ?? null);
         const override = namedColors.update(values, appended);
         if (override) Application.addCss(override);
     },

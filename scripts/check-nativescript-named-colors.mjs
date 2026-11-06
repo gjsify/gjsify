@@ -41,6 +41,7 @@ const EXCLUDED = {
     '.adw-inline-view-switcher-button.active|background-color': 'a raised pill on the headerbar, not a surface',
     '.ns-dark .adw-button.suggested-action|color': 'accent foreground (white), not a window foreground',
     '.ns-dark .adw-button.suggested-action .adw-button-label|color': 'accent foreground (white)',
+    '.ns-dark .adw-switch|color': 'the white thumb of a checked switch, not a window foreground',
     '.ns-dark .adw-toast-title, .ns-dark .adw-toast-button|color': 'toast is #505053 in both schemes, text stays white',
 };
 

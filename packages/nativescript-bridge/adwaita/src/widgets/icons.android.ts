@@ -132,7 +132,7 @@ export function renderSymbolicIcon(svg: string, options?: SymbolicIconOptions): 
             }
         }
         paint.setColor(pathColor);
-        paint.setAlpha(Math.round(255 * opacity));
+        paint.setAlpha(Math.round(((pathColor >>> 24) & 0xff) * opacity));
         canvas.drawPath(path, paint);
         drew = true;
     }
