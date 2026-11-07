@@ -560,6 +560,15 @@ export interface SignPayloadInput {
      * are hashed into the outer seal too. `[]` for none.
      */
     helperExecutables?: readonly SignedSubordinate[];
+    /**
+     * Payload-relative paths of generated `sh` launchers that sit in the bundle's executable
+     * directory but are NOT its main executable (`gjsify.ship.mainExecutable` moves the main
+     * to an app-provided Mach-O). Signed as nested items BEFORE the seal: an unsigned script
+     * there makes `codesign --verify --deep --strict` fail with "code has no resources but
+     * signature indicates they must be present". Their signatures live in xattrs, so the
+     * file set does not change. `[]` for none.
+     */
+    launcherScripts?: readonly string[];
     /** Print every invocation. */
     verbose: boolean;
     log: (line: string) => void;
@@ -676,6 +685,16 @@ export async function signPayload(input: SignPayloadInput): Promise<PayloadEntry
         await run(join(workDir, helper.path.split('/').join(sep)), helper.path, false, entitlements);
     }
 
+    const launcherScripts = input.launcherScripts ?? [];
+    for (const script of launcherScripts) {
+        if (!payload.some((entry) => entry.path === script)) {
+            throw new Error(
+                `gjsify ship: launcher script ${script} is not in the payload — report this as a gjsify bug.`,
+            );
+        }
+        await run(join(workDir, script.split('/').join(sep)), script, false, undefined);
+    }
+
     const signable = payload.filter(
         (entry) =>
             classifyBinary(entry.data) === signer.signs &&
@@ -748,7 +767,7 @@ export async function signPayload(input: SignPayloadInput): Promise<PayloadEntry
 
     const sealed = changes.sealed;
     input.log(
-        `${signer.tool} signed ${signable.length + nestedImagesSigned + helperExecutables.length} of ` +
+        `${signer.tool} signed ${signable.length + nestedImagesSigned + helperExecutables.length + launcherScripts.length} of ` +
             `${payload.length} payload file(s) as ` +
             `${adhoc ? 'ad-hoc (`-`)' : `\`${input.identity}\``}` +
             `${sealPrefix === undefined ? '' : ` and sealed ${input.bundleRoot} (${sealed.length} seal file(s))`}` +

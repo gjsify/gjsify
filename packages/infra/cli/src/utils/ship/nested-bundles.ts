@@ -21,7 +21,7 @@ import { join, posix } from 'node:path';
 
 import { listFilesRecursive } from './discover.js';
 import { stagedMode } from './app-runtime.js';
-import type { Layout, LayoutIdentity } from './layout.js';
+import { launcherPath, mainExecutablePath, type Layout, type LayoutIdentity } from './layout.js';
 import type { PayloadEntry } from './payload.js';
 import type { RecordedNestedBundle } from './release-record.js';
 import type { SignedSubordinate } from './signing.js';
@@ -53,6 +53,8 @@ export function stageSubordinates(input: {
     identity: LayoutIdentity;
     nestedBundles: readonly ShipNestedBundle[];
     helperExecutables: readonly ShipHelperExecutable[];
+    /** Absolute path of the app's own Mach-O main (`gjsify.ship.mainExecutable`), darwin only. */
+    mainExecutable?: string;
 }): StagedSubordinates {
     const dirs = input.layout.dirs(input.identity);
     const files: StagedFile[] = [];
@@ -94,6 +96,20 @@ export function stageSubordinates(input: {
         helperExecutables.push({ path, entitlements: helper.entitlements });
     }
 
+    if (input.mainExecutable !== undefined) {
+        if (input.layout.name !== 'darwin') {
+            throw new Error(
+                `gjsify ship: \`gjsify.ship.mainExecutable\` is darwin-only, but the ${input.layout.name} layout was asked ` +
+                    'to stage it — report this as a gjsify bug.',
+            );
+        }
+        files.push({
+            path: mainExecutablePath(input.layout, input.identity),
+            mode: 0o755,
+            source: { kind: 'file', path: input.mainExecutable },
+        });
+    }
+
     return { files, nestedBundles, helperExecutables };
 }
 
@@ -116,10 +132,26 @@ export function signedSubordinatesFor(
     facts: {
         nestedBundles: readonly ShipNestedBundleFacts[];
         helperExecutables: readonly ShipHelperExecutableFacts[];
+        executables?: readonly { name: string }[];
+        hasMainExecutable?: boolean;
     },
-): { nestedBundles: SignedSubordinate[]; helperExecutables: SignedSubordinate[] } {
+): { nestedBundles: SignedSubordinate[]; helperExecutables: SignedSubordinate[]; launcherScripts: string[] } {
     const dirs = layout.dirs(identity);
+    // With an app-provided Mach-O main, the generated `sh` launchers are no longer the bundle's
+    // main executable, so the seal treats them as resources that must be sealed — they need their
+    // own signature first, or `codesign --verify --deep --strict` reports "code has no resources
+    // but signature indicates they must be present". Empty without the setting: byte-identical.
+    const launcherScripts =
+        layout.name === 'darwin' && facts.hasMainExecutable === true
+            ? [
+                  launcherPath(layout, { ...identity, hasMainExecutable: true }),
+                  ...(facts.executables ?? []).map((executable) =>
+                      launcherPath(layout, { ...identity, binaryName: executable.name, hasMainExecutable: false }),
+                  ),
+              ]
+            : [];
     return {
+        launcherScripts,
         nestedBundles: facts.nestedBundles.map((bundle) => ({
             path: posix.join(dirs.plugins, bundle.name),
             entitlements: bundle.entitlements,

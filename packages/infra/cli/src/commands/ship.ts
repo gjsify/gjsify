@@ -555,6 +555,7 @@ async function assemble(args: ShipOptions): Promise<void> {
         identity: settings,
         nestedBundles: settings.nestedBundles,
         helperExecutables: settings.helperExecutables,
+        mainExecutable: settings.mainExecutableSource,
     });
 
     const stageInputs: StageInputs = {
@@ -1331,6 +1332,7 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                   entitlementsPath: join(outRoot, 'signed', `${format.id}.entitlements.plist`),
                   nestedBundles: subordinates.nestedBundles,
                   helperExecutables: subordinates.helperExecutables,
+                  launcherScripts: subordinates.launcherScripts,
                   verbose: input.verbose,
                   log: (line) => console.log(`${LOG} ${line}`),
               })

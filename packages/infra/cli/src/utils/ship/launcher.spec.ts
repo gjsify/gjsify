@@ -87,6 +87,21 @@ export default async () => {
         });
     });
 
+    await describe('ship launcher: with an app-provided darwin main executable', async () => {
+        await it('renders the SAME body, because it resolves everything from its own directory ($0)', () => {
+            const plain = renderLauncher(settings([]), 'gjs.js', LAYOUTS.darwin, CARRIED);
+            const beside = renderLauncher(
+                { ...settings([]), hasMainExecutable: true, mainExecutableSource: '/x/main' },
+                'gjs.js',
+                LAYOUTS.darwin,
+                CARRIED,
+            );
+            expect(beside).toBe(plain);
+            expect(plain.includes('here=$(cd -- "$(dirname -- "$0")" && pwd)')).toBe(true);
+            expect(plain.includes('hello-launcher')).toBe(false);
+        });
+    });
+
     await describe('ship launcher: the runtime the bundle carries', async () => {
         await it('execs the HELPER by the app\'s own name, not a bare "node"', () => {
             // `exec node` is true of a developer's machine and false of a `.app` a

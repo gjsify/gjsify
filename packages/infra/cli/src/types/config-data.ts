@@ -761,6 +761,21 @@ export interface ConfigDataShip extends AppMetadata {
      * for the same reason as {@link ConfigDataShip.nestedBundles}.
      */
     helperExecutables?: ShipHelperExecutableOptions[];
+    /**
+     * An app-provided prebuilt Mach-O staged as the bundle's MAIN executable
+     * (`Contents/MacOS/<binaryName>`, the `CFBundleExecutable`); the generated
+     * `/bin/sh` launcher moves to `Contents/MacOS/<binaryName>-launcher`. Darwin
+     * only — ignored with a stderr notice on other layouts (shape still validated).
+     * The Mach-O must `execv("<dir of its own executable>/<binaryName>-launcher", argv)`
+     * for every argv it does not handle itself (ADR 0024, main-executable amendment).
+     */
+    mainExecutable?: ShipMainExecutableOptions;
+}
+
+/** `gjsify.ship.mainExecutable`. */
+export interface ShipMainExecutableOptions {
+    /** Package-relative path of the prebuilt Mach-O (thin or universal). */
+    source: string;
 }
 
 /** One entry of `gjsify.ship.nestedBundles`. */

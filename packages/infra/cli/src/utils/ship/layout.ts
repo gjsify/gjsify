@@ -56,6 +56,12 @@ export interface LayoutIdentity {
      * `bin/<name>` is each one's planned launcher; the layout decides where it lands.
      */
     executables?: readonly { name: string; gui: boolean }[];
+    /**
+     * The darwin `.app` carries an app-provided Mach-O at `Contents/MacOS/<binaryName>`
+     * (`gjsify.ship.mainExecutable`), so the generated launcher moves to
+     * `<binaryName>-launcher` beside it. Ignored by every other layout.
+     */
+    hasMainExecutable?: boolean;
 }
 
 /**
@@ -906,6 +912,15 @@ const BY_OS = new Map<HostOs, Layout>(LAYOUT_NAMES.map((name) => [LAYOUTS[name].
 
 /** Stage-relative path of the launcher this layout puts in front of the app. */
 export function launcherPath(layout: Layout, identity: LayoutIdentity): string {
+    const leaf =
+        layout.name === 'darwin' && identity.hasMainExecutable === true
+            ? `${identity.binaryName}-launcher`
+            : identity.binaryName;
+    return posix.join(layout.dirs(identity).launcher, `${leaf}${layout.launcherExt}`);
+}
+
+/** Stage-relative path of the app-provided Mach-O main executable, the `CFBundleExecutable`. */
+export function mainExecutablePath(layout: Layout, identity: LayoutIdentity): string {
     return posix.join(layout.dirs(identity).launcher, `${identity.binaryName}${layout.launcherExt}`);
 }
 
@@ -1073,7 +1088,8 @@ export function place(layout: Layout, identity: LayoutIdentity, rel: string): st
     // launcher directory, with the layout's extension — and not by the generic `bin/*` rule
     // below, which has no extension: a windows `<name>` without `.cmd` is not runnable.
     const further = identity.executables?.find((executable) => rel === `bin/${executable.name}`);
-    if (further !== undefined) return launcherPath(layout, { ...identity, binaryName: further.name });
+    if (further !== undefined)
+        return launcherPath(layout, { ...identity, binaryName: further.name, hasMainExecutable: false });
 
     const libPrefix = `lib/${identity.binaryName}/`;
     const giPrefix = `${libPrefix}gi/`;

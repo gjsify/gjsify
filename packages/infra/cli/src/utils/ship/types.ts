@@ -455,6 +455,12 @@ export interface PackSettings {
      * {@link PackSettings.nestedBundles}, one directory over (`dirs.helpers`).
      */
     helperExecutables: ShipHelperExecutableFacts[];
+    /**
+     * `true` when the darwin `.app` carries an app-provided Mach-O as its main executable
+     * (`gjsify.ship.mainExecutable`) and the generated launcher lives beside it as
+     * `<binaryName>-launcher`. Absent = `false`. The packing host needs it to sign that script.
+     */
+    hasMainExecutable?: boolean;
 }
 
 /** What the packing host needs to know about one further executable. */
@@ -614,6 +620,13 @@ export interface ShipSettings extends PackSettings {
      * Darwin-only, like {@link ShipSettings.nestedBundles}.
      */
     helperExecutables: ShipHelperExecutable[];
+    /**
+     * Absolute path of the app's own prebuilt Mach-O main executable
+     * (`gjsify.ship.mainExecutable`), darwin only; absent when none.
+     */
+    mainExecutableSource?: string;
+    /** `true` iff {@link mainExecutableSource} is set. */
+    hasMainExecutable?: boolean;
     /**
      * Absolute paths of the font faces the application ships (`gjsify.ship.fonts`).
      *

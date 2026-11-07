@@ -228,6 +228,8 @@ export function toPackSettings(settings: ShipSettings): PackSettings {
         executables: settings.executables.map(({ name, gui }) => ({ name, gui })),
         nestedBundles: settings.nestedBundles.map(({ name, entitlements }) => ({ name, entitlements })),
         helperExecutables: settings.helperExecutables.map(({ name, entitlements }) => ({ name, entitlements })),
+        // Only when true: a stage without the setting stays byte-identical.
+        ...(settings.hasMainExecutable === true ? { hasMainExecutable: true } : {}),
     };
 }
 
@@ -672,6 +674,15 @@ function readPackSettings(data: Record<string, unknown>, at: string): PackSettin
                 ),
             };
         }),
+        // OPTIONAL on read: absent in every stage written before `gjsify.ship.mainExecutable`.
+        ...(data.hasMainExecutable === undefined
+            ? {}
+            : (() => {
+                  if (typeof data.hasMainExecutable !== 'boolean') {
+                      throw new Error(`gjsify ship: ${field('hasMainExecutable')} must be a boolean.`);
+                  }
+                  return data.hasMainExecutable ? { hasMainExecutable: true } : {};
+              })()),
     };
 }
 

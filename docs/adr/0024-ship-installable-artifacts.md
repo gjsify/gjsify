@@ -2098,3 +2098,37 @@ staging and signing from disagreeing), `signing.spec.ts` (multi-prefix `partitio
 `tests/e2e/ship-nested-bundles` (darwin-only refusal, tree-preserving staging on every host, and —
 where `codesign`/`cc` exist — real signing with inside-out order, per-bundle entitlements, and a
 full `--verify --deep --strict` pass).
+
+## Amendment, 2026-11-07 — `gjsify.ship.mainExecutable`: an app-provided Mach-O as `CFBundleExecutable`
+
+**Why (measured on macOS 27).** `SFSafariExtensionManager.getStateOfSafariExtension` succeeds only
+when the calling process's executable IS the bundle's `CFBundleExecutable`. The same Mach-O fails
+(`SFErrorDomain Code=1`, log "Unable to resolve host app record … -10814") in `Contents/Helpers/`,
+in another `Contents/MacOS/<name>`, outside the bundle, and with an identical codesign identifier.
+At `Contents/MacOS/<CFBundleExecutable>` it succeeds — even when it runs as a child of a Helpers
+process. The generated `sh` launcher as main therefore cannot host that call. The Mac App Store
+also wants a Mach-O main, not a script.
+
+**Setting.** `gjsify.ship.mainExecutable: { "source": "<package-relative path>" }`, darwin-only in
+effect, handled like `helperExecutables`: the shape is validated on every host, the source's
+existence and its Mach-O magic bytes (thin 32/64-bit, both endiannesses, fat) are checked on darwin
+only, and on linux/windows the key is ignored with the same stderr note. A script is refused, with
+the reason in the message.
+
+**Layout.** The source is staged at `Contents/MacOS/<binaryName>` (0755); `CFBundleExecutable` is
+unchanged. The generated launcher moves to `Contents/MacOS/<binaryName>-launcher`. It resolves
+everything from its own directory (`$0`), so its body is identical and independent of its file
+name (pinned in `launcher.spec.ts`). Without the setting nothing moves and the stage manifest gains
+no key — output is byte-identical (pinned in `nested-bundles.spec.ts`).
+
+**Contract for the main.** For any argv it does not handle itself, it must
+`execv("<dir of own executable>/<binaryName>-launcher", argv)`, passing every argument unchanged
+(argv[0] is then the launcher path). That keeps the app startable exactly as before.
+
+**Signing.** The Mach-O main is signed with the bundle main's flags and entitlements by the generic
+image loop. Each generated `sh` launcher in `Contents/MacOS` (`-launcher`, plus the launchers of
+`gjsify.ship.executables`) is signed as a nested item BEFORE the bundle seal; otherwise
+`codesign --verify --deep --strict` fails with "code has no resources but signature indicates they
+must be present" (checked, and pinned by a real-`codesign` test in `signing.spec.ts`). The stage
+manifest records `hasMainExecutable` (only when true) so a `--from-stage` finishing host derives the
+same paths.
