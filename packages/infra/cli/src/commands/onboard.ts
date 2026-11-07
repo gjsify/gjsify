@@ -38,8 +38,9 @@ import { filterWorkspaces, type Workspace } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
 import { hasAnyCredential, loadNpmrc } from '../utils/load-npmrc.js';
 import { OtpProvider } from '../utils/npm-otp.js';
+import { OIDC_VERIFY_IN_CI_HINT } from '../utils/npm-oidc.js';
 import { writeAroundPrompt } from '../utils/prompt-output.js';
-import { publishWorkspace } from './publish.js';
+import { publishWorkspace, type PublishOutcome } from './publish.js';
 import { createTrustRequester } from './trust.js';
 import { runLogin, LoginError } from './login.js';
 import { detectPackageManager } from './workspace.js';
@@ -615,6 +616,11 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
             );
         }
 
+        if (!dryRun) {
+            log();
+            log(OIDC_VERIFY_IN_CI_HINT);
+        }
+
         finish(results, plans, { asJson, dryRun, failed, root, sources, discovered: all.length });
     },
 };
@@ -757,13 +763,21 @@ async function buildIfPresent(ws: Workspace, log: (msg?: string) => void): Promi
 }
 
 /** Human-readable reason for a failed publish outcome. */
-function describePublishFailure(pub: Awaited<ReturnType<typeof publishWorkspace>>): string {
+export function describePublishFailure(pub: PublishOutcome): string {
+    if (pub.ok) {
+        return `unexpected successful publish outcome: ${pub.action}`;
+    }
     switch (pub.action) {
         case 'otp-required':
             return 'npm required a 2FA code (re-run with --otp, or on a TTY)';
-        case 'oidc-failed':
-        case 'oidc-no-token':
-            return 'OIDC/token auth failed';
+        case 'oidc-failed': {
+            const msg = pub.error instanceof Error ? pub.error.message : String(pub.error);
+            return `OIDC token exchange failed: ${msg}`;
+        }
+        case 'oidc-no-token': {
+            const msg = pub.error instanceof Error ? pub.error.message : String(pub.error);
+            return `OIDC token exchange unavailable and no fallback token: ${msg}`;
+        }
         case 'diagnostic':
             return `HTTP 404 (${pub.diag.reason})`;
         case 'publish-unconfirmed':
@@ -785,9 +799,31 @@ function describePublishFailure(pub: Awaited<ReturnType<typeof publishWorkspace>
                 `have: ${pub.missing.map((m) => `${m.block}.${m.name}@${m.spec}`).join(', ')}. Bootstrap the ` +
                 `target BEFORE its dependent; that order is a correctness property`
             );
+        case 'held-unpublished-dependency': {
+            const reasons = pub.reasons.map((r) => `${r.block}.${r.name}@${r.version} (${r.detail})`).join(', ');
+            return (
+                `not published — ${pub.reasons.length} intra-repo pin(s) name a version ${pub.registry} does not serve ` +
+                `yet: ${reasons}. The package is held until the dependency is available.`
+            );
+        }
         case 'error':
-            return `HTTP ${pub.status} ${pub.statusText}`;
-        default:
-            return 'unknown';
+            return `HTTP ${pub.status} ${pub.statusText}: ${pub.text}`;
+        default: {
+            // Exhaustiveness check: if this compiles, every PublishOutcome action is handled above.
+            const _exhaustive: never = pub;
+            return assertNeverDescribeFailure(_exhaustive);
+        }
     }
+}
+
+/**
+ * Fallback renderer for a future PublishOutcome action this switch does not know yet.
+ * Kept separate so the `never` assignment above stays the compile-time exhaustiveness check.
+ */
+function assertNeverDescribeFailure(pub: never): string {
+    const anyPub = pub as unknown as Record<string, unknown>;
+    const action = typeof anyPub.action === 'string' ? anyPub.action : 'unknown';
+    const error = anyPub.error;
+    const msg = error instanceof Error ? error.message : error ? String(error) : '';
+    return `publish failed: ${action}${msg ? ` — ${msg}` : ''}`;
 }

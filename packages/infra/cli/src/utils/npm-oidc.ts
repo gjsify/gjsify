@@ -74,6 +74,15 @@ export class OidcExchangeError extends Error {
 }
 
 /**
+ * Post-bootstrap hint printed by `gjsify onboard` and `gjsify trust`.
+ * The trust entry can be stored locally, but the OIDC exchange can only be
+ * verified inside GitHub Actions where `ACTIONS_ID_TOKEN_REQUEST_URL` exists.
+ */
+export const OIDC_VERIFY_IN_CI_HINT =
+    'Trust entries are stored but the OIDC exchange is only verifiable in CI: ' +
+    'run `gh workflow run release.yml --ref main -f verify_only=true -f skip_publish=true` and check for ✗ lines.';
+
+/**
  * Decode the non-secret payload of a JWT — the middle base64url segment. A GitHub OIDC
  * id-token's payload is public metadata about the workflow run; the SIGNATURE is what makes it
  * trustworthy. Null when the token isn't a well-formed three-part JWT.
