@@ -37,9 +37,11 @@ if (latestVersion === nextVersion) {
 // Each entry bumps the version that IMMEDIATELY follows `anchor` (the anchor
 // ends in the `v` of `vX.Y.Z`). The anchor must be unique to the current-version
 // mention — never a phrase that also precedes a historical version.
+/** @type {{ file: string, anchor: string }[]} */
 const TARGETS = [
-    // AGENTS.md monorepo header: "...npm-workspaces monorepo, v0.7.3, ESM-only..."
-    { file: 'AGENTS.md', anchor: 'monorepo, v' },
+    // The AGENTS.md header ("monorepo, v0.64.22, ESM-only") has NO entry since #2558 dropped
+    // the literal: a version there is a derived value, which AGENTS.md no longer states. Its
+    // stale entry failed the v0.64.23 cut as a dead target.
     // The package-convention line deliberately has NO entry: it states "ONE workspace
     // version (release train, ADR 0008)" instead of a literal. Do not re-add a version
     // literal there just to give this script a second target.
