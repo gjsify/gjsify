@@ -59,7 +59,7 @@ export interface LayoutIdentity {
     /**
      * The darwin `.app` carries an app-provided Mach-O at `Contents/MacOS/<binaryName>`
      * (`gjsify.ship.mainExecutable`), so the generated launcher moves to
-     * `<binaryName>-launcher` beside it. Ignored by every other layout.
+     * `Contents/Resources/<binaryName>-launcher`. Ignored by every other layout.
      */
     hasMainExecutable?: boolean;
 }
@@ -912,11 +912,14 @@ const BY_OS = new Map<HostOs, Layout>(LAYOUT_NAMES.map((name) => [LAYOUTS[name].
 
 /** Stage-relative path of the launcher this layout puts in front of the app. */
 export function launcherPath(layout: Layout, identity: LayoutIdentity): string {
-    const leaf =
-        layout.name === 'darwin' && identity.hasMainExecutable === true
-            ? `${identity.binaryName}-launcher`
-            : identity.binaryName;
-    return posix.join(layout.dirs(identity).launcher, `${leaf}${layout.launcherExt}`);
+    const dirs = layout.dirs(identity);
+    // Beside an app-provided Mach-O main the sh launcher is a RESOURCE, not nested code: a script in
+    // `Contents/MacOS` that is not the main executable keeps its signature only in an xattr, which our
+    // packers drop, while `Contents/Resources` is sealed by hash and needs no signature of its own.
+    if (layout.name === 'darwin' && identity.hasMainExecutable === true) {
+        return posix.join(dirs.other, `${identity.binaryName}-launcher${layout.launcherExt}`);
+    }
+    return posix.join(dirs.launcher, `${identity.binaryName}${layout.launcherExt}`);
 }
 
 /** Stage-relative path of the app-provided Mach-O main executable, the `CFBundleExecutable`. */

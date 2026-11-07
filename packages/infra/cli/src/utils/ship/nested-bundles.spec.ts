@@ -105,30 +105,13 @@ export default async () => {
             expect(signedSubordinatesFor(LAYOUTS.darwin, IDENTITY, facts)).toStrictEqual({
                 nestedBundles: [{ path: 'Ship Demo.app/Contents/PlugIns/Ext.appex', entitlements: ['a'] }],
                 helperExecutables: [{ path: 'Ship Demo.app/Contents/Helpers/helper', entitlements: [] }],
-                launcherScripts: [],
             });
         });
 
         await it('is empty given no facts', () => {
             expect(
                 signedSubordinatesFor(LAYOUTS.darwin, IDENTITY, { nestedBundles: [], helperExecutables: [] }),
-            ).toStrictEqual({ nestedBundles: [], helperExecutables: [], launcherScripts: [] });
-        });
-
-        await it('lists the sh launchers to sign only with an app-provided main executable', () => {
-            const facts = {
-                nestedBundles: [],
-                helperExecutables: [],
-                executables: [{ name: 'ship-demo-tool' }],
-                hasMainExecutable: true,
-            };
-            expect(signedSubordinatesFor(LAYOUTS.darwin, IDENTITY, facts).launcherScripts).toStrictEqual([
-                'Ship Demo.app/Contents/MacOS/ship-demo-launcher',
-                'Ship Demo.app/Contents/MacOS/ship-demo-tool',
-            ]);
-            expect(
-                signedSubordinatesFor(LAYOUTS.darwin, IDENTITY, { ...facts, hasMainExecutable: false }).launcherScripts,
-            ).toStrictEqual([]);
+            ).toStrictEqual({ nestedBundles: [], helperExecutables: [] });
         });
     });
 
@@ -152,9 +135,9 @@ export default async () => {
             ]);
         });
 
-        await it('moves the generated launcher to <binaryName>-launcher, and only with the setting', () => {
+        await it('moves the generated launcher to Resources/<binaryName>-launcher, and only with the setting', () => {
             expect(place(LAYOUTS.darwin, WITH_MAIN, 'bin/ship-demo')).toBe(
-                'Ship Demo.app/Contents/MacOS/ship-demo-launcher',
+                'Ship Demo.app/Contents/Resources/ship-demo-launcher',
             );
             // Byte-identical default: the launcher stays the bundle's main executable.
             expect(place(LAYOUTS.darwin, IDENTITY, 'bin/ship-demo')).toBe('Ship Demo.app/Contents/MacOS/ship-demo');

@@ -764,9 +764,9 @@ export interface ConfigDataShip extends AppMetadata {
     /**
      * An app-provided prebuilt Mach-O staged as the bundle's MAIN executable
      * (`Contents/MacOS/<binaryName>`, the `CFBundleExecutable`); the generated
-     * `/bin/sh` launcher moves to `Contents/MacOS/<binaryName>-launcher`. Darwin
+     * `/bin/sh` launcher moves to `Contents/Resources/<binaryName>-launcher`. Darwin
      * only — ignored with a stderr notice on other layouts (shape still validated).
-     * The Mach-O must `execv("<dir of its own executable>/<binaryName>-launcher", argv)`
+     * The Mach-O must `execv("<dir of its own executable>/../Resources/<binaryName>-launcher", argv)`
      * for every argv it does not handle itself (ADR 0024, main-executable amendment).
      */
     mainExecutable?: ShipMainExecutableOptions;

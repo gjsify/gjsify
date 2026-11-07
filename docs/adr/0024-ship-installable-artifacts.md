@@ -2116,19 +2116,21 @@ only, and on linux/windows the key is ignored with the same stderr note. A scrip
 the reason in the message.
 
 **Layout.** The source is staged at `Contents/MacOS/<binaryName>` (0755); `CFBundleExecutable` is
-unchanged. The generated launcher moves to `Contents/MacOS/<binaryName>-launcher`. It resolves
+unchanged. The generated launcher moves to `Contents/Resources/<binaryName>-launcher` (0755). It resolves
 everything from its own directory (`$0`), so its body is identical and independent of its file
 name (pinned in `launcher.spec.ts`). Without the setting nothing moves and the stage manifest gains
 no key — output is byte-identical (pinned in `nested-bundles.spec.ts`).
 
 **Contract for the main.** For any argv it does not handle itself, it must
-`execv("<dir of own executable>/<binaryName>-launcher", argv)`, passing every argument unchanged
-(argv[0] is then the launcher path). That keeps the app startable exactly as before.
+`execv("<dir of own executable>/../Resources/<binaryName>-launcher", argv)`, passing every argument
+unchanged (argv[0] is then the launcher path). That keeps the app startable exactly as before.
 
 **Signing.** The Mach-O main is signed with the bundle main's flags and entitlements by the generic
-image loop. Each generated `sh` launcher in `Contents/MacOS` (`-launcher`, plus the launchers of
-`gjsify.ship.executables`) is signed as a nested item BEFORE the bundle seal; otherwise
-`codesign --verify --deep --strict` fails with "code has no resources but signature indicates they
-must be present" (checked, and pinned by a real-`codesign` test in `signing.spec.ts`). The stage
-manifest records `hasMainExecutable` (only when true) so a `--from-stage` finishing host derives the
-same paths.
+image loop. The launcher lives in `Contents/Resources` rather than beside the main because a script in
+`Contents/MacOS` that is not the main executable is nested code whose signature lives only in an
+xattr, which our payload/zip/dmg packers do not carry (the shipped app would fail
+`codesign --verify --strict` and notarization); a Resource is sealed by hash and needs no signature of
+its own (TN2206). Its body is unchanged: every path resolves from `$0`'s directory and its parent, which
+is `Contents` from `Resources` as well. Further `gjsify.ship.executables` launchers keep their place.
+The stage manifest records `hasMainExecutable` (only when true) so a `--from-stage` finishing host
+derives the same paths.

@@ -683,7 +683,7 @@ export function resolveShipMainExecutable(input: {
         throw new Error(
             `gjsify ship: \`gjsify.ship.mainExecutable.source\` ${source} is not a Mach-O binary (thin or universal). ` +
                 'macOS resolves the host app record only for a native main executable, and the Mac App Store refuses a script; ' +
-                'the generated launcher is staged beside it as `<binaryName>-launcher`.',
+                'the generated launcher is staged as `Contents/Resources/<binaryName>-launcher`.',
         );
     }
     return abs;

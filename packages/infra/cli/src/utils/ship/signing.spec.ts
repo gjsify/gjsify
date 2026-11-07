@@ -388,8 +388,8 @@ export default async () => {
 
     // Needs the real `codesign`; the ordering claim (script signed before the seal) is only
     // observable there. Skipped silently elsewhere, like every darwin-only spec in this tree.
-    await describe('ship signing: an app-provided main executable beside the generated launcher', async () => {
-        await it('verifies --deep --strict once the launcher script is signed before the seal', async () => {
+    await describe('ship signing: an app-provided main executable with the generated launcher under Resources', async () => {
+        await it('verifies --deep --strict with no signature of its own on the launcher script', async () => {
             const signer = SIGNERS.darwin;
             if (process.platform !== 'darwin' || signer === undefined) return;
             const dir = mkdtempSync(join(tmpdir(), 'gjsify-sign-main-'));
@@ -409,24 +409,22 @@ export default async () => {
                     },
                     { path: `${root}/Contents/MacOS/demo`, mode: 0o755, data: macho },
                     {
-                        path: `${root}/Contents/MacOS/demo-launcher`,
+                        path: `${root}/Contents/Resources/demo-launcher`,
                         mode: 0o755,
                         data: Buffer.from('#!/bin/sh\nexit 0\n'),
                     },
                 ];
-                const out = await signPayload({
+                await signPayload({
                     payload: files,
                     identity: ADHOC_IDENTITY,
                     signer,
                     workDir: join(dir, 'signed'),
                     bundleRoot: root,
                     entitlementsPath: join(dir, 'e.plist'),
-                    launcherScripts: [`${root}/Contents/MacOS/demo-launcher`],
                     verbose: false,
                     log: () => undefined,
                 });
-                // The script's signature lives in an xattr that the returned bytes do not carry,
-                // so verify the signing directory itself.
+                // A Resources file is sealed by hash; nothing needs an xattr that our packers would drop.
                 const verify = spawnSync('codesign', ['--verify', '--deep', '--strict', join(dir, 'signed', root)]);
                 expect(verify.status).toBe(0);
             } finally {

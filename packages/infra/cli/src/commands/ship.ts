@@ -1332,7 +1332,6 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                   entitlementsPath: join(outRoot, 'signed', `${format.id}.entitlements.plist`),
                   nestedBundles: subordinates.nestedBundles,
                   helperExecutables: subordinates.helperExecutables,
-                  launcherScripts: subordinates.launcherScripts,
                   verbose: input.verbose,
                   log: (line) => console.log(`${LOG} ${line}`),
               })

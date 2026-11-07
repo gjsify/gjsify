@@ -457,8 +457,8 @@ export interface PackSettings {
     helperExecutables: ShipHelperExecutableFacts[];
     /**
      * `true` when the darwin `.app` carries an app-provided Mach-O as its main executable
-     * (`gjsify.ship.mainExecutable`) and the generated launcher lives beside it as
-     * `<binaryName>-launcher`. Absent = `false`. The packing host needs it to sign that script.
+     * (`gjsify.ship.mainExecutable`) and the generated launcher lives at
+     * `Contents/Resources/<binaryName>-launcher`. Absent = `false`.
      */
     hasMainExecutable?: boolean;
 }
