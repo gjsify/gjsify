@@ -458,7 +458,13 @@ CONSUMER-VISIBLE: `notify::group` is no longer emitted and the `NOTIFY_TOGGLE_GR
 `widgets/gtk-toggle-button.ts` is gone; `active="maybe"` throws (it used to fall back silently) and `active = null` is `false`;
 `notify({ eventName: 'notify::active' })` throws; the hand-written `emittedSignals` is gone.
 Specs: `gtk-toggle-button.spec.ts` (pure-JS), `toggle-button-route-d.node-gi.spec.ts` (real GI),
-`specs/toggle-button.ts` (device — written, NOT yet run on a device).
+`specs/toggle-button.ts` (device — run on the S9: real-gio 301/301, pure-js 198/198).
+
+BEFORE AUTO-MERGING a seam migration, the desktop suites must be green too, not only the device run:
+the reverse-bridge suites under Xvfb (`node-gi.yml`, job `gtk-host-node`) and
+`tests/e2e/report-target-gap`. PR #2532 passed its device run and still went red on both — the probe
+of a real widget needs a display, and the reporter did not read seam-declared properties. Run them
+locally under `scripts/headless-run` before queueing.
 
 MIGRATE NEXT: `widgets/gtk-stack.ts`, then its sibling `widgets/adw-view-stack.ts`. Both are still a
 bare `withSignals(GridLayout)` with a hand-written `static emittedSignals` for
