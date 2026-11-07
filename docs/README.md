@@ -51,6 +51,7 @@ Reference material for the root [`AGENTS.md`](../AGENTS.md). Read the AGENTS.md 
 | [`nativescript-icons.md`](nativescript-icons.md) | NativeScript icons |
 | [`nativescript-shell-trees.md`](nativescript-shell-trees.md) | NativeScript shell trees |
 | [`nativescript-xml.md`](nativescript-xml.md) | NativeScript XML |
+| [`nativescript-fdroid-recipe.md`](nativescript-fdroid-recipe.md) | F-Droid metadata draft for the NativeScript Android sample |
 | [`react-layers.md`](react-layers.md) | React layers |
 | [`react-native-gtk-measurements.md`](react-native-gtk-measurements.md) | React Native GTK measurements |
 | [`worker-url.md`](worker-url.md) | Worker URL handling |
