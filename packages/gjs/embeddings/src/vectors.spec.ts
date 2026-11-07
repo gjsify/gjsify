@@ -70,7 +70,8 @@ export default async () => {
                 }
             });
             expect(running).toBe(0);
-            expect((failure?.error as Error).message).toBe('boom');
+            expect(failure).toBeDefined();
+            expect((failure as { error: Error }).error.message).toBe('boom');
             expect(vectors[0]).toBe('ok');
             expect(vectors[3]).toBeUndefined();
         });
