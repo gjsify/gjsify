@@ -333,7 +333,8 @@ const declaredSignals = (file, className, depth = 0) => {
     let base = found.node.heritageClauses?.find((clause) => clause.token === ts.SyntaxKind.ExtendsKeyword)?.types[0]
         ?.expression;
     if (base === undefined) return { names, complete };
-    // `extends withSignals(Base, { Signals: { … } })`: the declared signals are the call's own.
+    // `extends withSignals(Base, { Signals: { … } })` or `withProperties(Base, { Properties: { … } })`:
+    // the declared signals and the properties that notify are the call's own.
     if (ts.isCallExpression(base) && base.arguments.length === 2) {
         const meta = unwrap(base.arguments[1]);
         const declared = ts.isObjectLiteralExpression(meta)
@@ -344,6 +345,34 @@ const declaredSignals = (file, className, depth = 0) => {
         if (declared !== undefined) collect(declared.initializer);
         else if (ts.isObjectLiteralExpression(meta) && !meta.properties.every((p) => ts.isPropertyAssignment(p)))
             complete = false;
+        const properties = ts.isObjectLiteralExpression(meta)
+            ? meta.properties.find(
+                  (property) => ts.isPropertyAssignment(property) && nameOf(property.name) === 'Properties',
+              )
+            : undefined;
+        if (properties !== undefined) {
+            const bag = unwrap(properties.initializer);
+            if (ts.isObjectLiteralExpression(bag)) {
+                for (const property of bag.properties) {
+                    const key =
+                        ts.isPropertyAssignment(property) && ts.isComputedPropertyName(property.name)
+                            ? unwrap(property.name.expression)
+                            : undefined;
+                    const name =
+                        key !== undefined
+                            ? ts.isStringLiteralLike(key)
+                                ? key.text
+                                : ts.isIdentifier(key)
+                                  ? constantOf(found.file, key.text)
+                                  : UNRESOLVED
+                            : nameOf(property.name);
+                    if (name === UNRESOLVED) complete = false;
+                    else if (name !== undefined) names.add(`notify::${name}`);
+                }
+            } else {
+                complete = false;
+            }
+        }
         base = unwrap(base.arguments[0]);
     }
     // `extends withSignals(GridLayout)`: a mixin that declares nothing is followed to its argument.

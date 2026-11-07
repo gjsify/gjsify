@@ -239,6 +239,17 @@ describe('report-target-gap', () => {
             }
         });
 
+        it('does not report a property declared through withProperties, and still reports one that is not', () => {
+            for (const target of TARGETS) {
+                const issues = issuesOf(target).filter((issue) => issue.tag === 'GtkToggleButton');
+                assert.deepEqual(
+                    issues,
+                    [{ issue: 'undeclared-notify', tag: 'GtkToggleButton', name: 'sensitive', line: 15 }],
+                    target,
+                );
+            }
+        });
+
         it('keeps the template out of "builds" and tallies the undeclared signals per widget', () => {
             const report = reportOf(FIXTURE);
             for (const target of TARGETS) {

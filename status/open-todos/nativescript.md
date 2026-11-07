@@ -439,14 +439,36 @@ applies, so `active="maybe"` throws and `active = null` is `false`; `label` noti
 and `''` reads back `null`. Specs: `check-button-properties.spec.ts` (pure-JS),
 `check-button-route-d.node-gi.spec.ts` (real GI), `specs/check-button.ts` (device).
 
-MIGRATE NEXT: `widgets/gtk-toggle-button.ts`. It is the check button's sibling, 148 lines, and the
-same shape: `active` plus `toggled` / `notify::active`, hand-notified in the wrong order for the
-same reason, and a `group` that notifies. Take the measurements the check button just settled
-(`notify::active` before `toggled`, deactivate-the-others first) and then the ones it does not
-answer: the widget emits `notify::group` today, which must be measured before it is kept (the
-check button's `group` is write-only and silent), and `GtkToggleButton` extends `GtkButton`, which
-already declares `clicked` — the first `withProperties` over a base that is itself declared, not
-meta-less.
+DONE (`widgets/gtk-toggle-button.ts`): `active` is a declared boolean (`explicit-notify`, so
+`afterNotify` owes its own notify) and `toggled` a declared signal, `withProperties` over `GtkButton`
+— the first one over a base that is itself declared (`clicked`), not meta-less. `signals.ts` needed
+NO change: `clicked` stays inherited, appears once in `emittedSignalsOf`, and fires through the
+declared base. `group` (write-only), the linked-list group and `_stateClasses` stay hand-written.
+Measured on real GTK 4.22: `active = true` is `[toggled, notify::active]` — the port's order was
+already right, and the migration brief's `notify::active` first was WRONG (`GtkCheckButton`
+measured the other way round, so the two widgets differ in GTK itself); in a group the other active
+member's `toggled` + `notify::active` come first, then this one's; `set_group` is silent and keeps
+active states; `clicked` on an ACTIVE grouped member emits `clicked` alone. `notify::group` is NEVER
+emitted by GTK — not by `set_group(a)`, a repeat, `set_group(null)` nor `group = a` (the pspec is
+WRITABLE | STATIC_STRINGS) — so the port's `notify::group` is gone. The real-Gtk measurement runs in
+a CHILD PROCESS (`test.node-gi.mts`): real `Gtk.ToggleButton` and the port's `GtkButton` both
+register the GType name `GtkButton`, so they cannot share one process.
+
+CONSUMER-VISIBLE: `notify::group` is no longer emitted and the `NOTIFY_TOGGLE_GROUP` constant of
+`widgets/gtk-toggle-button.ts` is gone; `active="maybe"` throws (it used to fall back silently) and `active = null` is `false`;
+`notify({ eventName: 'notify::active' })` throws; the hand-written `emittedSignals` is gone.
+Specs: `gtk-toggle-button.spec.ts` (pure-JS), `toggle-button-route-d.node-gi.spec.ts` (real GI),
+`specs/toggle-button.ts` (device — written, NOT yet run on a device).
+
+MIGRATE NEXT: `widgets/gtk-stack.ts`, then its sibling `widgets/adw-view-stack.ts`. Both are still a
+bare `withSignals(GridLayout)` with a hand-written `static emittedSignals` for
+`notify::visible-child` and `notify::visible-child-name`, which the seam can declare as
+`visible-child` / `visible-child-name` properties; they sit under every navigation and switcher
+widget, so a declared, correctly ordered notify there pays off more than another leaf. The open
+question to measure first is the pair's order and whether setting one notifies the other (GTK's
+`gtk_stack_set_visible_child_name` moves both), plus what `visible-child` — an object, not a scalar
+GType — needs from `withProperties`: it may be the case that only the name is declarable and the
+child stays hand-written, as `child` did for the check button.
 
 RESOLVED (owner, 2026-10-27): `emit('<undeclared>')` throws `No signal '<name>' on object '<class>'`,
 as in GJS, on both legs. `emit` is GObject's only; a NativeScript event goes through

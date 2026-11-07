@@ -109,16 +109,37 @@ export const GtkToggleButtonNsTest = async () => {
             expect(a.active).toBe(true);
         });
 
-        await it('group: leaving releases the links, the same group twice notifies once, and a button is not its own group', () => {
+        await it('toggled comes BEFORE notify::active, as GTK 4.22 emits them', () => {
+            const button = new Gtk.ToggleButton();
+            const seen: string[] = [];
+            button.connect('notify::active', () => seen.push('notify'));
+            button.connect('toggled', () => seen.push('toggled'));
+            button.active = true;
+            expect(seen).toStrictEqual(['toggled', 'notify']);
+        });
+
+        await it('active coerces by JS truthiness; null is silent and stays false', () => {
+            const button = new Gtk.ToggleButton();
+            const seen: string[] = [];
+            button.connect('toggled', () => seen.push('toggled'));
+            (button as unknown as { active: unknown }).active = null;
+            expect(seen.length).toBe(0);
+            (button as unknown as { active: unknown }).active = 1;
+            expect(button.active).toBe(true);
+            (button as unknown as { active: unknown }).active = 0;
+            expect(button.active).toBe(false);
+            expect(seen).toStrictEqual(['toggled', 'toggled']);
+        });
+
+        await it('group: leaving releases the links, notifies nothing (as GTK), and a button is not its own group', () => {
             const a = new Gtk.ToggleButton();
             const b = new Gtk.ToggleButton();
             let notified = 0;
             b.addEventListener('notify::group', () => notified++);
             b.group = a;
             b.group = a;
-            expect(notified).toBe(1);
             b.group = null;
-            expect(notified).toBe(2);
+            expect(notified).toBe(0);
             tap(b);
             tap(b);
             expect(b.active).toBe(false);

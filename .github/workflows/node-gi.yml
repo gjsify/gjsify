@@ -927,14 +927,16 @@ jobs:
       # nothing else, and can only be passed on a process's own command line — so this leg opts
       # in and no consumer can.
       #
-      # No xvfb: the subject is GObject registration and signal plumbing over the ns-core testing
-      # double. No widget is realized and nothing opens a display, so a display here would only
-      # hide an accidental Gtk import behind a working one.
-      - name: Run the route-D menu-model leg on the real-Gio engine (node-gi)
+      # xvfb since the Gtk.ToggleButton route-D probe instantiates a real Gtk.ToggleButton
+      # in a child node process. The probe inherits DISPLAY from this wrapper; the render
+      # env keeps GTK on the software path a headless Xvfb can provide.
+      - name: Run the route-D leg on the real-Gio engine (node-gi)
         working-directory: packages/nativescript-bridge/adwaita
         run: |
           export PATH="$PWD/../../../node_modules/.bin:$PATH"
-          NODE_GI_NATIVE=build gjsify run test:gjs-on-node
+          xvfb-run -a dbus-run-session -- \
+            env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
+            NODE_GI_NATIVE=build gjsify run test:gjs-on-node
 
       # `@gjsify/site`'s image backend on the bridge (ADR 0109 § 4). The package names
       # no runtime at all: `gjsify site build` runs on whatever runtime the CLI itself
