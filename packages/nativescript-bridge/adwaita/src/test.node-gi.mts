@@ -72,12 +72,26 @@ c.group = a;
 console.log(JSON.stringify({ activate, groupNotifies }));
 `;
 
+// Software-only GTK render env for the real-GTK probe child. DISPLAY comes from the
+// surrounding xvfb-run / real session / headless-run; these keep GTK off any GPU/
+// Vulkan path a headless display cannot provide and off the a11y bus. Merged over the
+// inherited env so a value already present (DISPLAY, WAYLAND_DISPLAY, NODE_GI_NATIVE)
+// is preserved.
+const RUN_ENV = {
+    GSK_RENDERER: 'cairo',
+    LIBGL_ALWAYS_SOFTWARE: '1',
+    GTK_A11Y: 'none',
+    NODE_GI_NATIVE: 'build',
+    ...process.env,
+};
+
 const measureRealToggleButton = () =>
     JSON.parse(
         // oxlint-disable-next-line gjsify/spawn-node-binary -- this leg only ever runs on Node (see the header)
         execFileSync(process.execPath, ['--input-type=module', '-e', REAL_TOGGLE_SCRIPT], {
             cwd: import.meta.dirname,
             encoding: 'utf8',
+            env: RUN_ENV,
         }),
     ) as { activate: string[]; groupNotifies: number };
 
