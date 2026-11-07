@@ -303,6 +303,12 @@ export interface DownloadTarget {
      * not shown.
      */
     signing?: Signing;
+    /**
+     * True when the release record's `nestedBundles` carries a Safari Web Extension (the
+     * nested-bundles amendment to ADR 0024) — darwin only. Safari is optional, so unlike `signing`
+     * this is never shown as a warning.
+     */
+    safariExtension?: boolean;
 }
 
 export type Signing = 'notarized' | 'signed' | 'unsigned';

@@ -40,6 +40,28 @@ export function signingOf(asset: ReleaseAsset, record: unknown): Signing {
     return fields.notarized === true ? 'notarized' : 'signed';
 }
 
+/** `NSExtensionPointIdentifier` of a Safari Web Extension (the nested-bundles amendment to ADR 0024). */
+const SAFARI_WEB_EXTENSION_POINT = 'com.apple.Safari.web-extension';
+
+/**
+ * Whether a release record's `nestedBundles` (ADR 0024's nested-bundles amendment) says this
+ * macOS artifact carries a Safari Web Extension. Derived from the record ALONE — never from a
+ * project declaration or configuration — and fails closed: a missing field (a record from before
+ * the amendment), an unknown shape, or a malformed entry all read as `false`, same as an artifact
+ * that truly carries no extension. Safari is optional, so this is informational, not a warning.
+ */
+export function hasSafariExtension(record: unknown): boolean {
+    if (typeof record !== 'object' || record === null) return false;
+    const { nestedBundles } = record as { nestedBundles?: unknown };
+    if (!Array.isArray(nestedBundles)) return false;
+    return nestedBundles.some(
+        (bundle) =>
+            typeof bundle === 'object' &&
+            bundle !== null &&
+            (bundle as { extensionPoint?: unknown }).extensionPoint === SAFARI_WEB_EXTENSION_POINT,
+    );
+}
+
 /**
  * Whether the visitor's OS will stop this download and ask to be overruled. macOS opens only a
  * notarised app without asking; Windows SmartScreen is content with a signature.
@@ -252,6 +274,7 @@ export function buildDownloadTargets(sources: DownloadSources): DownloadTarget[]
             downloadCount: asset.downloadCount,
             recommended: false,
             ...(gated ? { signing: signingOf(asset, sources.records?.get(asset.name)) } : {}),
+            ...(kind.os === 'darwin' ? { safariExtension: hasSafariExtension(sources.records?.get(asset.name)) } : {}),
         });
     }
 

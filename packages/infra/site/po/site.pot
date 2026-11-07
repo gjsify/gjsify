@@ -149,6 +149,12 @@ msgstr ""
 msgid "Windows may warn about an unknown publisher. Choose More info → Run anyway."
 msgstr ""
 
+msgid "Contains the Safari extension. Turn it on after the first launch: Safari → Settings → Extensions."
+msgstr ""
+
+msgid "Safari only loads an unsigned extension once “Allow unsigned extensions” is turned on — Safari 17 and later: Settings → Developer; Safari 16 and earlier: Develop menu → Allow Unsigned Extensions."
+msgstr ""
+
 msgid "Not notarized"
 msgstr ""
 

@@ -19,6 +19,7 @@ import {
     classifyAsset,
     componentOf,
     defaultLabel,
+    hasSafariExtension,
     RELEASE_RECORD_SUFFIX,
     recordedArtifact,
     signingOf,
@@ -293,6 +294,34 @@ export default async () => {
             ]);
             expect(recordedArtifact(`${dmg.name}${RELEASE_RECORD_SUFFIX}`)).toBe(dmg.name);
             expect(recordedArtifact(dmg.name)).toBeUndefined();
+        });
+
+        await it('derives the Safari hint from the release record alone, and fails closed', async () => {
+            const withExtensionPoint = (extensionPoint: unknown) => ({
+                nestedBundles: [{ name: 'Safari.appex', bundleId: 'eu.jumplink.app.Extension', extensionPoint }],
+            });
+            expect(hasSafariExtension(withExtensionPoint('com.apple.Safari.web-extension'))).toBe(true);
+            // An older record, written before the nested-bundles amendment, has no such key at all.
+            expect(hasSafariExtension({ schema: 1, artifact: 'App.dmg' })).toBe(false);
+            // A different, unrelated nested bundle (e.g. a Share Extension) says nothing about Safari.
+            expect(hasSafariExtension(withExtensionPoint('com.apple.share-services'))).toBe(false);
+            expect(hasSafariExtension(withExtensionPoint(undefined))).toBe(false);
+            // Malformed shapes never throw and never count as a hint.
+            expect(hasSafariExtension(undefined)).toBe(false);
+            expect(hasSafariExtension(null)).toBe(false);
+            expect(hasSafariExtension('nope')).toBe(false);
+            expect(hasSafariExtension({ nestedBundles: 'nope' })).toBe(false);
+            expect(hasSafariExtension({ nestedBundles: [null, 'nope', 42] })).toBe(false);
+            expect(hasSafariExtension({ nestedBundles: [{}] })).toBe(false);
+
+            const zip = { ...asset('App-1.0-macos-arm64.zip'), sha256: 'c'.repeat(64) };
+            const targets = buildDownloadTargets({
+                assets: [zip],
+                records: new Map([[zip.name, withExtensionPoint('com.apple.Safari.web-extension')]]),
+            });
+            expect(targets[0]?.safariExtension).toBe(true);
+            // Not a darwin target at all: the field is not even considered.
+            expect(buildDownloadTargets({ assets: [asset('a.deb')] })[0]?.safariExtension).toBeUndefined();
         });
 
         await it('prefers a Flatpak bundle over an AppImage on Linux, Flathub over both', async () => {

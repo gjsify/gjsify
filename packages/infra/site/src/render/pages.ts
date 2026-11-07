@@ -175,6 +175,29 @@ function openAnywayHint(os: TargetPlatform, t: Translate): string | undefined {
     return undefined;
 }
 
+/**
+ * The Safari hint for a macOS download whose release record carries the extension (ADR 0024's
+ * nested-bundles amendment). Safari is optional, so this is informational, never styled as a
+ * warning like {@link openAnywayHint}. The second sentence — Safari refusing to load an unsigned
+ * extension without an explicit opt-in — only applies when the download itself is unsigned; see
+ * Apple's "Running your Safari web extension" and "Building a Safari app extension" docs.
+ */
+function safariExtensionHints(own: readonly DownloadTarget[], t: Translate): string {
+    const withExtension = own.filter((target) => target.available && target.safariExtension);
+    if (withExtension.length === 0) return '';
+    const hints = [
+        t('Contains the Safari extension. Turn it on after the first launch: Safari → Settings → Extensions.'),
+    ];
+    if (withExtension.some((target) => target.signing === 'unsigned')) {
+        hints.push(
+            t(
+                'Safari only loads an unsigned extension once “Allow unsigned extensions” is turned on — Safari 17 and later: Settings → Developer; Safari 16 and earlier: Develop menu → Allow Unsigned Extensions.',
+            ),
+        );
+    }
+    return hints.map((hint) => `<p class="os-note os-note-safari">${esc(hint)}</p>`).join('\n');
+}
+
 /** The short form beside the target itself; the group's note says what to do about it. */
 function unsignedMark(os: TargetPlatform, t: Translate): string {
     return os === 'darwin' ? t('Not notarized') : t('Unsigned');
@@ -417,6 +440,7 @@ ${own.map((target) => targetItem(target, ctx)).join('\n')}
 </ul>
 ${os === 'darwin' ? `<p class="os-note">${esc(t('Apple Silicon is assumed. Pick the Intel build if your Mac has an Intel processor.'))}</p>` : ''}
 ${own.some((target) => target.available && needsOpenAnywayHint(target)) ? `<p class="os-note os-note-unsigned">${esc(openAnywayHint(os, t) ?? '')}</p>` : ''}
+${os === 'darwin' ? safariExtensionHints(own, t) : ''}
 </section>`,
     );
     const head = block.name

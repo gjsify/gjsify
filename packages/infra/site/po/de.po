@@ -150,6 +150,12 @@ msgstr "macOS fragt nach, bevor es eine App öffnet, die Apple nicht geprüft ha
 msgid "Windows may warn about an unknown publisher. Choose More info → Run anyway."
 msgstr "Windows warnt eventuell vor einem unbekannten Herausgeber. Weitere Informationen → Trotzdem ausführen wählen."
 
+msgid "Contains the Safari extension. Turn it on after the first launch: Safari → Settings → Extensions."
+msgstr "Enthält die Safari-Erweiterung. Nach dem ersten Start einschalten: Safari → Einstellungen → Erweiterungen."
+
+msgid "Safari only loads an unsigned extension once “Allow unsigned extensions” is turned on — Safari 17 and later: Settings → Developer; Safari 16 and earlier: Develop menu → Allow Unsigned Extensions."
+msgstr "Safari lädt eine unsignierte Erweiterung nur, wenn „Nicht signierte Erweiterungen zulassen“ aktiviert ist – ab Safari 17: Einstellungen → Entwickler; bis Safari 16: Menü Entwickeln → Nicht signierte Erweiterungen zulassen."
+
 msgid "Not notarized"
 msgstr "Nicht notarisiert"
 
