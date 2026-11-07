@@ -15,13 +15,16 @@
 // half: it checks sizes only and never reads a byte of a model.
 
 import { createHash, randomUUID } from 'node:crypto';
-import { closeSync, copyFileSync, mkdirSync, openSync, renameSync, statSync, unlinkSync, writeSync } from 'node:fs';
+import { copyFileSync, mkdirSync, renameSync, statSync, unlinkSync } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { modelsRoot } from './cache-dir.js';
+import { downloadVerifiedInternal, type FetchLike } from './download.js';
 import { validateManifest, type ModelEntry } from './manifest.js';
 import { ProgressFanout, type CreateMonitorCallback } from './progress.js';
+
+export { type FetchLike };
 
 /**
  * The WebML CG availability states. The store itself never answers
@@ -37,18 +40,6 @@ export interface LocatedModel {
     readonly path: string;
     readonly source: ModelSource;
 }
-
-/** The subset of `fetch` the store uses, so a test can inject one. */
-export type FetchLike = (
-    url: string,
-    init: { signal?: AbortSignal; redirect?: 'follow' },
-) => Promise<{
-    ok: boolean;
-    status: number;
-    headers: { get(name: string): string | null };
-    body?: { getReader(): { read(): Promise<{ done: boolean; value?: Uint8Array }>; cancel(): Promise<void> } } | null;
-    arrayBuffer(): Promise<ArrayBuffer>;
-}>;
 
 export interface ModelStoreOptions<E extends ModelEntry> {
     /** Directory name under the models root: `speech`, `embeddings`, `image`. Lowercase, digits, dashes. */
@@ -328,78 +319,17 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
     }
 
     async #download(entry: E, progress: ProgressFanout, options: InstallOptions): Promise<string> {
-        const signal = options.signal;
-        const doFetch: FetchLike =
-            options.fetch ?? this.#fetch ?? ((url, init) => fetch(url, init) as ReturnType<FetchLike>);
-        const response = await doFetch(entry.url, { signal, redirect: 'follow' });
-        if (!response.ok) {
-            throw new Error(`Downloading ${entry.id} from ${entry.url} failed: HTTP ${response.status}`);
-        }
-        // Refused before a byte is read. A server that sends no length is not
-        // refused here: the running size check and the digest still cover it.
-        const declared = response.headers.get('content-length');
-        if (declared !== null && Number(declared) !== entry.bytes) {
-            throw new Error(
-                `Downloading ${entry.id} refused: ${entry.url} declares ${declared} bytes, the manifest says ${entry.bytes}`,
-            );
-        }
-
-        const dir = this.cacheDir;
-        const target = join(dir, entry.file);
-        mkdirSync(dir, { recursive: true });
-        // Written under a unique name and RENAMED into place, in the same
-        // directory: a reader sees no file or the whole verified one, never a part.
-        const partial = `${target}.part-${randomUUID()}`;
-        const fd = openSync(partial, 'w');
-        let closed = false;
-        try {
-            const hash = createHash('sha256');
-            let received = 0;
-            const write = (chunk: Uint8Array) => {
-                received += chunk.length;
-                // Checked per chunk, so a server streaming past the size cannot fill the disk.
-                if (received > entry.bytes) {
-                    throw new Error(`Downloading ${entry.id} failed: more than the manifest's ${entry.bytes} bytes`);
-                }
-                hash.update(chunk);
-                writeSync(fd, chunk);
-                progress.report(received, entry.bytes);
-            };
-            progress.report(0, entry.bytes);
-
-            const reader = response.body?.getReader();
-            if (reader !== undefined) {
-                try {
-                    for (;;) {
-                        signal?.throwIfAborted();
-                        const { done, value } = await reader.read();
-                        if (done) break;
-                        if (value !== undefined && value.length > 0) write(value);
-                    }
-                } catch (error) {
-                    await reader.cancel().catch(() => undefined);
-                    throw error;
-                }
-            } else {
-                write(new Uint8Array(await response.arrayBuffer()));
-            }
-
-            if (received !== entry.bytes) {
-                throw new Error(`Downloading ${entry.id} failed: got ${received} bytes, expected ${entry.bytes}`);
-            }
-            const digest = hash.digest('hex');
-            if (digest !== entry.sha256) {
-                throw new Error(`Downloading ${entry.id} failed: sha256 ${digest}, expected ${entry.sha256}`);
-            }
-            closeSync(fd);
-            closed = true;
-            renameSync(partial, target);
-            progress.report(entry.bytes, entry.bytes);
-            return target;
-        } catch (error) {
-            if (!closed) closeSync(fd);
-            removeQuietly(partial);
-            throw error;
-        }
+        const target = join(this.cacheDir, entry.file);
+        await downloadVerifiedInternal({
+            url: entry.url,
+            dest: target,
+            bytes: entry.bytes,
+            sha256: entry.sha256,
+            signal: options.signal,
+            fetch: options.fetch ?? this.#fetch,
+            progress,
+            id: entry.id,
+        });
+        return target;
     }
 }
