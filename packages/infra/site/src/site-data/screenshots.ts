@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { extname, join, resolve } from 'node:path';
 
 import { fetchBinary, type NetworkOptions } from './network.js';
-import type { Metainfo, Screenshot } from './types.js';
+import { pickByLanguage } from './po.js';
+import type { Metainfo, Screenshot, ScreenshotFile } from './types.js';
 
 const RAW_GITHUB = 'https://raw.githubusercontent.com/';
 
@@ -59,52 +60,103 @@ export interface ScreenshotOptions {
 
 /**
  * The metainfo `<screenshots>` list with every image located on disk — the same artwork Flathub
- * shows, in the same order, so the page doubles as a preview of the store listing.
+ * shows, in the same order, so the page doubles as a preview of the store listing. Each screenshot
+ * also carries its `xml:lang` translations and its dark twin.
  *
- * A screenshot whose file cannot be found or fetched is skipped with a warning: a page missing one
- * image is better than no page at all, and the warning names what to fix.
+ * An image that cannot be found or fetched is skipped with a warning: a page missing one image is
+ * better than no page at all, and the warning names what to fix. When it is the default image the
+ * whole screenshot goes; a missing translation or dark rendition only falls back to the default.
  */
 export async function resolveScreenshots(metainfo: Metainfo, options: ScreenshotOptions): Promise<Screenshot[]> {
     const warn = options.warn ?? (() => {});
     const store = options.cacheDir ?? join(tmpdir(), 'gjsify-site-screenshots');
-    const screenshots: Screenshot[] = [];
 
+    const locate = async (url: string, label: string): Promise<ScreenshotFile | undefined> => {
+        const repoPath = repositoryPath(url, options.repository);
+        const slug = imageSlug(repoPath ?? urlPath(url));
+
+        if (repoPath !== undefined) {
+            const file = resolve(options.root, repoPath);
+            if (existsSync(file)) return { url, slug, file };
+            warn(`${label} points at "${repoPath}" of this repository, which does not exist; skipping it`);
+            return undefined;
+        }
+
+        const file = join(store, `${slug}${extname(urlPath(url)) || '.png'}`);
+        if (!existsSync(file)) {
+            if (options.offline) {
+                warn(`${label} is hosted at ${url}; skipping it because this build is offline`);
+                return undefined;
+            }
+            try {
+                await mkdir(store, { recursive: true });
+                await writeFile(file, await fetchBinary(url, options.network ?? {}));
+            } catch (error) {
+                warn(`Could not download ${label} from ${url} (${String(error)}); skipping it`);
+                return undefined;
+            }
+        }
+        return { url, slug, file };
+    };
+
+    const locateTranslations = async (byLanguage: Record<string, string>, label: string) => {
+        const located: Record<string, ScreenshotFile> = {};
+        for (const [language, url] of Object.entries(byLanguage)) {
+            const file = await locate(url, `${label} (${language})`);
+            if (file) located[language] = file;
+        }
+        return located;
+    };
+
+    const screenshots: Screenshot[] = [];
     for (const [index, entry] of metainfo.screenshots.entries()) {
         const label = `Screenshot ${index + 1}`;
         if (!entry.url) {
             warn(`${label} of the metainfo has no <image>; skipping it`);
             continue;
         }
-        const repoPath = repositoryPath(entry.url, options.repository);
-        const slug = imageSlug(repoPath ?? urlPath(entry.url));
-        const screenshot = { caption: entry.caption, url: entry.url, slug };
+        const file = await locate(entry.url, label);
+        if (!file) continue;
+        const screenshot: Screenshot = {
+            ...file,
+            caption: entry.caption,
+            byLanguage: await locateTranslations(entry.byLanguage, label),
+        };
 
-        if (repoPath !== undefined) {
-            const file = resolve(options.root, repoPath);
-            if (!existsSync(file)) {
-                warn(`${label} points at "${repoPath}" of this repository, which does not exist; skipping it`);
-                continue;
-            }
-            screenshots.push({ ...screenshot, file });
-            continue;
-        }
-
-        const file = join(store, `${slug}${extname(urlPath(entry.url)) || '.png'}`);
-        if (!existsSync(file)) {
-            if (options.offline) {
-                warn(`${label} is hosted at ${entry.url}; skipping it because this build is offline`);
-                continue;
-            }
-            try {
-                await mkdir(store, { recursive: true });
-                await writeFile(file, await fetchBinary(entry.url, options.network ?? {}));
-            } catch (error) {
-                warn(`Could not download ${label} from ${entry.url} (${String(error)}); skipping it`);
-                continue;
+        if (entry.dark) {
+            const darkLabel = `The dark rendition of ${label}`;
+            const dark = entry.dark.url ? await locate(entry.dark.url, darkLabel) : undefined;
+            if (!entry.dark.url) warn(`${darkLabel} has no untagged <image>; ignoring it`);
+            if (dark) {
+                screenshot.dark = {
+                    default: dark,
+                    byLanguage: await locateTranslations(entry.dark.byLanguage, darkLabel),
+                };
             }
         }
-        screenshots.push({ ...screenshot, file });
+        screenshots.push(screenshot);
     }
 
     return screenshots;
+}
+
+/**
+ * The image a language sees in a colour scheme: its own translation, else the untagged image; and
+ * for dark, the dark twin's, else the light screenshot's.
+ */
+export function screenshotFile(screenshot: Screenshot, language: string, scheme: 'light' | 'dark'): ScreenshotFile {
+    if (scheme === 'dark' && screenshot.dark) {
+        return pickByLanguage(screenshot.dark.byLanguage, language) ?? screenshot.dark.default;
+    }
+    return pickByLanguage(screenshot.byLanguage, language) ?? screenshot;
+}
+
+/** Every file of a screenshot, each once: what the page has to turn into renditions. */
+export function screenshotFiles(screenshot: Screenshot): ScreenshotFile[] {
+    const files = [
+        screenshot,
+        ...Object.values(screenshot.byLanguage),
+        ...(screenshot.dark ? [screenshot.dark.default, ...Object.values(screenshot.dark.byLanguage)] : []),
+    ];
+    return [...new Map(files.map((file) => [file.slug, file])).values()];
 }

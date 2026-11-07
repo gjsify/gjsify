@@ -93,7 +93,7 @@ export async function loadSiteData(options: LoadOptions): Promise<SiteData> {
     const metainfoPath = resolve(options.root, config.metainfo);
     if (!existsSync(metainfoPath))
         throw new Error(`gjsify.site.metainfo points to "${config.metainfo}", which does not exist`);
-    const metainfo = parseMetainfo(await readFile(metainfoPath, 'utf8'));
+    const metainfo = parseMetainfo(await readFile(metainfoPath, 'utf8'), warn);
 
     const appCatalogs = config.translations
         ? await loadCatalogs(resolve(options.root, config.translations), config.languages)

@@ -260,15 +260,34 @@ export interface SiteConfig extends SiteCommonConfig {
  * One entry of the metainfo `<screenshots>` list, with its artwork located on disk. The same images
  * Flathub shows, so the page is a preview of the store listing.
  */
-export interface Screenshot {
+export interface Screenshot extends ScreenshotFile {
     /** The metainfo caption, translated where the metainfo or a catalogue has a translation. */
     caption: Localized | null;
+    /** The `xml:lang` renditions of the light artwork; the language without one gets the file above. */
+    byLanguage: Record<string, ScreenshotFile>;
+    /** The `environment="…:dark"` twin, when the metainfo has one. It falls back to the light artwork. */
+    dark?: { default: ScreenshotFile; byLanguage: Record<string, ScreenshotFile> };
+}
+
+/** One located image of a screenshot. */
+export interface ScreenshotFile {
     /** The `<image>` URL, kept for reference. */
     url: string;
     /** Absolute path of the artwork: the repository's own file, or the downloaded copy. */
     file: string;
     /** Stem of the published renditions, derived from the URL path; also the key of the image map. */
     slug: string;
+}
+
+/** The `<image>` URLs of one screenshot: the untagged one and its `xml:lang` translations. */
+export interface ImageUrls {
+    url: string;
+    byLanguage: Record<string, string>;
+}
+
+export interface MetainfoScreenshot extends ImageUrls {
+    caption: Localized | null;
+    dark?: ImageUrls;
 }
 
 export interface Release {
@@ -360,8 +379,11 @@ export interface Metainfo {
     summary: Localized;
     developer: { id?: string; name: string };
     description: DescriptionBlock[];
-    /** Metainfo screenshots in document order; `url` is the remote image, kept for reference. */
-    screenshots: Array<{ url: string; caption: Localized | null }>;
+    /**
+     * Metainfo screenshots in document order, dark twins folded into their light partner; `url` is
+     * the untagged remote image, kept for reference.
+     */
+    screenshots: MetainfoScreenshot[];
     releases: Release[];
     branding: Branding;
     urls: AppUrls;

@@ -281,6 +281,37 @@ Two things happen to the artwork:
 The `<picture>` carries AVIF, WebP and PNG, each with a `srcset` of 640px, 1280px and 2560px
 renditions up to the source's own width.
 
+#### Language and colour scheme
+
+The metainfo stays the only source; the standard AppStream 1.0 attributes pick the rendition:
+
+```xml
+<screenshot type="default">
+  <image type="source">https://…/list.png</image>
+  <image type="source" xml:lang="de">https://…/list-de.png</image>
+</screenshot>
+<screenshot environment="gnome:dark">
+  <image type="source">https://…/list-dark.png</image>
+  <image type="source" xml:lang="de">https://…/list-dark-de.png</image>
+</screenshot>
+```
+
+- An `<image xml:lang="…">` is the translation of the untagged image. The `/<lang>/` page shows the
+  image of its language and falls back to the untagged one.
+- A `<screenshot>` whose `environment` ends in `:dark` is the dark twin of a light one: the n-th
+  dark screenshot pairs with the n-th non-dark one, in document order. It is never a slide of its
+  own; one without a partner is dropped with a warning. A dark twin without an image for the
+  page's language uses its untagged image, and a light screenshot without a twin has no dark
+  version.
+- The `<picture>` lists the dark AVIF, WebP and PNG `<source>`s with
+  `media="(prefers-color-scheme: dark)"` first, which is the query the site's theme follows too.
+  No JavaScript is involved, and the full-screen view copies the `<picture>`, so it shows the same
+  rendition.
+- Each rendition is cropped, capped and sized on its own, so the translations and the dark twin
+  may differ in size.
+
+The store-listing module is unaffected: it publishes one default image per light screenshot.
+
 ### Colour
 
 Also nothing to configure: the metainfo's `<branding>` colour for the page's scheme paints the

@@ -7,6 +7,7 @@ import {
     pickByLanguage,
     relatedText,
     relatedUrl,
+    screenshotFile,
     type DescriptionBlock,
     type DownloadTarget,
     type Localized,
@@ -59,6 +60,9 @@ export interface RenderContext {
 
 /** What the download dialog reads: the targets, the catalogue and the locale it formats sizes in. */
 export type DownloadContext = Pick<RenderContext, 'data' | 't' | 'lang'>;
+
+/** What `styles/site.css` follows for the theme; the dark `<source>`s answer the same question. */
+const DARK_MEDIA = '(prefers-color-scheme: dark)';
 
 const FORMAT_TYPES: Record<ImageFormat, string> = { avif: 'image/avif', webp: 'image/webp', png: 'image/png' };
 
@@ -250,24 +254,54 @@ function sizes(image: ProcessedImage): string {
     return `(max-width: 600px) 92vw, min(86vw, ${image.displayWidth}px)`;
 }
 
+/** The processed image a screenshot has for the language being rendered, in one colour scheme. */
+function shown(
+    ctx: Pick<RenderContext, 'images' | 'lang'>,
+    screenshot: Screenshot,
+    scheme: 'light' | 'dark' = 'light',
+): ProcessedImage | undefined {
+    return ctx.images.get(screenshotFile(screenshot, ctx.lang, scheme).slug);
+}
+
 /** What a phone shows for this screenshot: portrait artwork needs a taller track than a landscape window. */
 function portraitOnPhone(ctx: RenderContext, screenshot: Screenshot): boolean {
-    const image = ctx.images.get(screenshot.slug);
+    const image = shown(ctx, screenshot);
     return image !== undefined && image.height > image.width * 1.1;
 }
 
-function picture(ctx: RenderContext, screenshot: Screenshot, alt: string, eager: boolean): string {
-    const image = ctx.images.get(screenshot.slug)!;
-    const shared = { sizes: sizes(image), width: image.width, height: image.height };
-    const sources = (['avif', 'webp'] as const).map(
-        (format) =>
-            `<source${attrs({ type: FORMAT_TYPES[format], srcset: srcset(image.formats[format]), ...shared })}>`,
-    );
+/**
+ * The dark renditions come first: a browser takes the first `<source>` that matches, and the
+ * `prefers-color-scheme` media query is what the site's own theme follows too.
+ */
+export function picture(
+    ctx: Pick<RenderContext, 'images' | 'lang'>,
+    screenshot: Screenshot,
+    alt: string,
+    eager: boolean,
+): string {
+    const image = shown(ctx, screenshot)!;
+    const dark = shown(ctx, screenshot, 'dark')!;
+    const source = (rendition: ProcessedImage, format: ImageFormat, media?: string) =>
+        `<source${attrs({
+            type: FORMAT_TYPES[format],
+            srcset: srcset(rendition.formats[format]),
+            media,
+            sizes: sizes(rendition),
+            width: rendition.width,
+            height: rendition.height,
+        })}>`;
+    const sources: string[] = [];
+    if (dark !== image) {
+        for (const format of ['avif', 'webp', 'png'] as const) sources.push(source(dark, format, DARK_MEDIA));
+    }
+    for (const format of ['avif', 'webp'] as const) sources.push(source(image, format));
     const png = image.formats.png;
     const img = `<img${attrs({
         src: png[png.length - 1]!.url,
         srcset: srcset(png),
-        ...shared,
+        sizes: sizes(image),
+        width: image.width,
+        height: image.height,
         alt,
         loading: eager ? undefined : 'lazy',
         decoding: 'async',
@@ -276,8 +310,11 @@ function picture(ctx: RenderContext, screenshot: Screenshot, alt: string, eager:
 }
 
 /** A window shot brings its own shadow; ours would draw a second one around it. */
-export function frameAttribute(ctx: Pick<RenderContext, 'images'>, screenshot: Screenshot): 'none' | undefined {
-    return ctx.images.get(screenshot.slug)?.frameless === true ? 'none' : undefined;
+export function frameAttribute(
+    ctx: Pick<RenderContext, 'images' | 'lang'>,
+    screenshot: Screenshot,
+): 'none' | undefined {
+    return shown(ctx, screenshot)?.frameless === true ? 'none' : undefined;
 }
 
 /** The screenshots, at the bottom of the brand-coloured masthead. */
