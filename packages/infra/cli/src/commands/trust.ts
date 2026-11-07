@@ -24,6 +24,7 @@ import { discoverWorkspaces, filterWorkspaces } from '@gjsify/workspace';
 import { mergePublishables } from '../utils/publishable-packages.js';
 import type { Command } from '../types/index.js';
 import { hasAnyCredential, loadNpmrc } from '../utils/load-npmrc.js';
+import { OIDC_VERIFY_IN_CI_HINT } from '../utils/npm-oidc.js';
 import { OtpProvider, withOtpRetry } from '../utils/npm-otp.js';
 import {
     classifyTrustList,
@@ -284,7 +285,15 @@ export const trustCommand: Command<unknown, TrustOptions> = {
                 'Failed (re-run `gjsify trust` — it is incremental; usually a lapsed 2FA window or rate-limit):',
             );
             for (const f of failures) console.log(`  ${f}`);
-            process.exit(1);
+            if (!dryRun) {
+                console.log();
+                console.log(OIDC_VERIFY_IN_CI_HINT);
+            }
+            return process.exit(1);
+        }
+        if (!dryRun) {
+            console.log();
+            console.log(OIDC_VERIFY_IN_CI_HINT);
         }
     },
 };

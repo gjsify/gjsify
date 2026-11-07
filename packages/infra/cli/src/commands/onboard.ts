@@ -38,6 +38,7 @@ import { filterWorkspaces, type Workspace } from '@gjsify/workspace';
 import type { Command } from '../types/index.js';
 import { hasAnyCredential, loadNpmrc } from '../utils/load-npmrc.js';
 import { OtpProvider } from '../utils/npm-otp.js';
+import { OIDC_VERIFY_IN_CI_HINT } from '../utils/npm-oidc.js';
 import { writeAroundPrompt } from '../utils/prompt-output.js';
 import { publishWorkspace, type PublishOutcome } from './publish.js';
 import { createTrustRequester } from './trust.js';
@@ -613,6 +614,11 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
                 '  Re-run to pick them up — the sweep is idempotent and skips everything already configured. ' +
                     `A lower --write-concurrency (currently ${writeConcurrency}) provokes the limit less.`,
             );
+        }
+
+        if (!dryRun) {
+            log();
+            log(OIDC_VERIFY_IN_CI_HINT);
         }
 
         finish(results, plans, { asJson, dryRun, failed, root, sources, discovered: all.length });
