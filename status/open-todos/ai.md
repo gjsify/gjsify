@@ -13,10 +13,16 @@ ADR 0127 § 13 step 3, on top of `@gjsify/sherpa-native` and `@gjsify/vad`: the 
 ADR 0127 § 13 step 4. The first second backend, so the first place where `probeBackends`
 from `@gjsify/machine-fit` chooses between two.
 
-### `@gjsify/embeddings` with Stamped's engine moved in
+### Switch Stamped to `@gjsify/embeddings`
 
-ADR 0132 § 10 step 3. Stamped switches to the package afterwards; its `fork` shim goes now that
-ADR 0133 has landed. The first `availability()` that calls `checkFit` (ADR 0136 § 6).
+ADR 0132 § 10 step 3. Blocked on the first npm publish of `@gjsify/embeddings`. Stamped keeps
+its own `gpuGuardDir` and GPU switch; its `fork` shim goes now that ADR 0133 has landed.
+
+### A gjsify-bundled dynamic import of a module with top-level await never settles on GJS
+
+Found moving the llama.cpp engine in: `await import('node-llama-cpp')` in a `--app gjs` bundle
+hangs without an error, while the static import and the same dynamic import bundled for Node
+work. `@gjsify/embeddings/llama` imports node-llama-cpp statically until this is fixed. Issue #2546.
 
 ### Wire `checkFit` into every capability's `availability()`
 

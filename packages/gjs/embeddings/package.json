@@ -1,0 +1,114 @@
+{
+    "name": "@gjsify/embeddings",
+    "version": "0.64.25",
+    "description": "Text embeddings in the WebML CG lifecycle shape: an Embedder with availability(), create({ monitor, signal }) and destroy(), checked Float32Array vectors, and a local llama.cpp engine for GGUF models on Node and GJS.",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "type": "module",
+    "sideEffects": false,
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        },
+        "./engine": {
+            "types": "./lib/types/engine.d.ts",
+            "default": "./lib/esm/engine.js"
+        },
+        "./llama": {
+            "types": "./lib/types/llama.d.ts",
+            "default": "./lib/esm/llama.js"
+        }
+    },
+    "files": [
+        "lib",
+        "!lib/types/**/*.spec.d.ts"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib tmp tsconfig.tsbuildinfo test.gjs.mjs test.node.mjs",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "gjsify tsc",
+        "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs --external node-llama-cpp,@node-llama-cpp/linux-x64,@node-llama-cpp/linux-x64-vulkan,@node-llama-cpp/linux-arm64,@gjsify/napi",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs --external node-llama-cpp,@node-llama-cpp/linux-x64,@node-llama-cpp/linux-x64-vulkan,@node-llama-cpp/linux-arm64,@gjsify/napi",
+        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs",
+        "test:node": "node test.node.mjs"
+    },
+    "keywords": [
+        "embeddings",
+        "semantic-search",
+        "ai",
+        "gguf",
+        "llama.cpp",
+        "webml"
+    ],
+    "dependencies": {
+        "@gjsify/fs": "workspace:^",
+        "@gjsify/machine-fit": "workspace:^",
+        "@gjsify/model-store": "workspace:^",
+        "@gjsify/path": "workspace:^",
+        "@gjsify/process": "workspace:^"
+    },
+    "peerDependencies": {
+        "@gjsify/napi": "^0.64.19",
+        "node-llama-cpp": "^3.22.2",
+        "@node-llama-cpp/linux-arm64": "^3.22.2",
+        "@node-llama-cpp/linux-x64": "^3.22.2",
+        "@node-llama-cpp/linux-x64-vulkan": "^3.22.2"
+    },
+    "peerDependenciesMeta": {
+        "@gjsify/napi": {
+            "optional": true
+        },
+        "node-llama-cpp": {
+            "optional": true
+        },
+        "@node-llama-cpp/linux-arm64": {
+            "optional": true
+        },
+        "@node-llama-cpp/linux-x64": {
+            "optional": true
+        },
+        "@node-llama-cpp/linux-x64-vulkan": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/gjs/embeddings"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/gjs/embeddings#readme",
+    "gjsify": {
+        "tier": 3,
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "none"
+        },
+        "os": {
+            "linux": "supported",
+            "darwin": "partial",
+            "win32": "partial"
+        },
+        "osNotes": {
+            "darwin": "The llama.cpp engine runs on Node only: the GJS route loads node-llama-cpp's Linux prebuilt binaries.",
+            "win32": "The llama.cpp engine runs on Node only: the GJS route loads node-llama-cpp's Linux prebuilt binaries."
+        },
+        "headless": true
+    }
+}
