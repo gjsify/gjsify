@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.64.23](https://github.com/gjsify/gjsify/compare/v0.64.22...v0.64.23) (2026-11-07)
+
+### Features
+
+* **site:** hint at a bundled Safari extension on macOS downloads ([#2559](https://github.com/gjsify/gjsify/issues/2559)) ([291148e](https://github.com/gjsify/gjsify/commit/291148e469431562b68d4e70ce19d4ef6dee7cb0))
+
+### Bug Fixes
+
+* **release:** drop dead AGENTS.md version target ([#2560](https://github.com/gjsify/gjsify/issues/2560)) ([1961a65](https://github.com/gjsify/gjsify/commit/1961a65bbc79947544371a3ff2469ffafc611aab)), closes [#2558](https://github.com/gjsify/gjsify/issues/2558)
+
+### Documentation
+
+* **agents:** slim root AGENTS.md, add docs index ([#2558](https://github.com/gjsify/gjsify/issues/2558)) ([de468d5](https://github.com/gjsify/gjsify/commit/de468d5d985eff41bde98919812cd9bc064e972f))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([ed2c906](https://github.com/gjsify/gjsify/commit/ed2c9068edab2b88980f9593a7e773951792bf6d))
+
 ## [0.64.22](https://github.com/gjsify/gjsify/compare/v0.64.21...v0.64.22) (2026-11-06)
 
 ### Bug Fixes
