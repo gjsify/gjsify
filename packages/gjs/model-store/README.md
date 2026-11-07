@@ -51,6 +51,25 @@ Digests: a downloaded file is hashed while it streams and only renamed into plac
 
 The store never answers `unavailable` itself: that is the capability's call (no engine, or `checkFit` from `@gjsify/machine-fit` says `none`).
 
+## Downloading a file you did not plan for: `downloadVerified`
+
+Not every model comes from a fixed manifest. For a one-off download that still needs streaming verification and an atomic rename, use the standalone helper:
+
+```typescript
+import { downloadVerified } from '@gjsify/model-store';
+
+const { bytes, sha256 } = await downloadVerified({
+    url: 'https://example.org/one-off.bin',
+    dest: '/tmp/one-off.bin',
+    bytes: 2313101,
+    sha256: '6b99cbfd39246b6706f98ec13c7c50c6b299181f2474fa05cbc8046acc274396',
+    headers: { Authorization: 'Bearer token' },
+    monitor: (m) => m.addEventListener('downloadprogress', (e) => console.log(e.loaded)),
+});
+```
+
+`bytes` and `sha256` are optional checks, but the returned values always report what was actually received. The file is written under a temporary name and renamed into place only after the checks pass; failures remove the partial file.
+
 ## License
 
 MIT
