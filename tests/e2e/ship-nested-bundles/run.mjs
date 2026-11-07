@@ -155,7 +155,7 @@ describe('CLI ship nested bundles / helper executables E2E', { timeout: 10 * 60 
             });
             plantFakeAppex(project);
             const result = await shipOk(['ship', 'linux', '--target', 'deb', '--skip-build'], project);
-            assert.match(result.stderr, /nestedBundles\/helperExecutables apply to darwin only — not staged for linux/);
+            assert.match(result.stderr, /nestedBundles apply to darwin only — not staged for linux/);
         });
 
         it('stages gjsify.ship.helperExecutables without Contents/Helpers, prints the notice, exit 0', async () => {
@@ -167,7 +167,7 @@ describe('CLI ship nested bundles / helper executables E2E', { timeout: 10 * 60 
                 ['ship', 'windows', '--target', 'windows-dir', '--skip-build', '--arch', 'x64'],
                 project,
             );
-            assert.match(result.stderr, /nestedBundles\/helperExecutables apply to darwin only — not staged for win32/);
+            assert.match(result.stderr, /helperExecutables apply to darwin only — not staged for win32/);
             const dir = join(project, 'ship', 'out', APP_NAME);
             assert.ok(hasNoPlugins(dir), 'a windows program directory must carry no Contents/PlugIns at all');
         });
@@ -306,6 +306,61 @@ describe('CLI ship nested bundles / helper executables E2E', { timeout: 10 * 60 
             );
             assert.match(entitlements, /com\.apple\.security\.app-sandbox/);
             assert.doesNotMatch(entitlements, /com\.apple\.security\.cs\.allow-jit/);
+        });
+
+        // The ARCHIVE, not the signing directory: a script beside a Mach-O main in
+        // `Contents/MacOS` would keep its signature only in xattrs, which the zip
+        // packer drops, so only a check on the extracted `.app` sees that failure.
+        it('seals an app-provided main executable and the Resources launcher through the zip', async () => {
+            if (!HAS_CODESIGN || !HAS_CC) return;
+            const project = scaffoldNodeApp(mkdtempSync(join(tmpDir, 'main-')), {
+                mainExecutable: { source: 'main-bin' },
+            });
+            const source = join(project, 'main-demo.c');
+            writeFileSync(
+                source,
+                [
+                    '#include <stdio.h>',
+                    '#include <string.h>',
+                    '#include <unistd.h>',
+                    '#include <libgen.h>',
+                    'int main(int argc, char **argv) {',
+                    '    if (argc > 1 && strcmp(argv[1], "--own") == 0) { puts("main handled it"); return 0; }',
+                    '    char path[4096];',
+                    '    snprintf(path, sizeof path, "%s/../Resources/ship-demo-launcher", dirname(argv[0]));',
+                    '    argv[0] = path;',
+                    '    execv(path, argv);',
+                    '    return 127;',
+                    '}',
+                    '',
+                ].join('\n'),
+            );
+            execFileSync('cc', ['-arch', process.arch, '-o', join(project, 'main-bin'), source], { stdio: 'pipe' });
+
+            await shipOk(['ship', 'darwin', '--stage', '--skip-build', '--arch', process.arch], project);
+            await shipOk(
+                ['ship', '--from-stage', join(project, 'ship', 'stage'), '--target', 'macos-app-zip', '--sign', '-'],
+                project,
+            );
+            const zip = execFileSync('find', [join(project, 'ship', 'out'), '-name', '*.zip'], { encoding: 'utf-8' })
+                .trim()
+                .split('\n')[0];
+            assert.ok(zip, 'macos-app-zip produced no .zip');
+            const extracted = mkdtempSync(join(tmpDir, 'unzipped-'));
+            execFileSync('ditto', ['-x', '-k', zip, extracted], { stdio: 'pipe' });
+            const app = join(extracted, `${APP_NAME}.app`);
+
+            execFileSync('codesign', ['--verify', '--deep', '--strict', app], { stdio: 'pipe' });
+            assert.match(
+                execFileSync('file', [join(app, 'Contents', 'MacOS', 'ship-demo')], { encoding: 'utf-8' }),
+                /Mach-O/,
+            );
+            assert.ok(existsSync(join(app, 'Contents', 'Resources', 'ship-demo-launcher')));
+            assert.ok(!existsSync(join(app, 'Contents', 'MacOS', 'ship-demo-launcher')));
+            assert.equal(
+                execFileSync(join(app, 'Contents', 'MacOS', 'ship-demo'), ['--own'], { encoding: 'utf-8' }),
+                'main handled it\n',
+            );
         });
     });
 });

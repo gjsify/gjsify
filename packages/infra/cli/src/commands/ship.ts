@@ -555,6 +555,7 @@ async function assemble(args: ShipOptions): Promise<void> {
         identity: settings,
         nestedBundles: settings.nestedBundles,
         helperExecutables: settings.helperExecutables,
+        mainExecutable: settings.mainExecutableSource,
     });
 
     const stageInputs: StageInputs = {

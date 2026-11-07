@@ -427,6 +427,24 @@ export function auditShip(ctx) {
             }
         }
 
+        // `mainExecutable`: darwin-only `{ source }` — the app's own Mach-O main.
+        if (block.mainExecutable !== undefined) {
+            const me = block.mainExecutable;
+            const at = `${pkg.rel}/package.json: \`gjsify.ship.mainExecutable\``;
+            if (me === null || typeof me !== 'object' || Array.isArray(me)) {
+                failures.push(`${at} must be an object with \`source\`.`);
+            } else {
+                if (typeof me.source !== 'string' || me.source.length === 0) {
+                    failures.push(`${at}.source must be a project-relative path.`);
+                } else if (!existsSync(join(pkg.dir, me.source))) {
+                    failures.push(`${at}.source points at ${me.source}, which does not exist in this package.`);
+                }
+                for (const stray of Object.keys(me)) {
+                    if (stray !== 'source') failures.push(`${at}.${stray} is not a known key. Known: source.`);
+                }
+            }
+        }
+
         for (const [namespace, row] of Object.entries(block.typelibPackages ?? {})) {
             // A half-filled row is worse than none: the format it forgot falls
             // back to the built-in table, which is what did not know the

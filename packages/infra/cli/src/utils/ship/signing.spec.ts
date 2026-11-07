@@ -22,6 +22,10 @@
 //     `--keychain-profile`, which is the property that trap violates.
 
 import { describe, expect, it } from '@gjsify/unit';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
     asciiCodesignIdentifier,
@@ -30,6 +34,8 @@ import {
     resolveNotaryPlan,
     resolveSignPlan,
     SIGNERS,
+    signPayload,
+    ADHOC_IDENTITY,
     type SignPlan,
 } from './signing.js';
 
@@ -377,6 +383,53 @@ export default async () => {
                 resolveNotaryPlan({ flag: 'MY_PROFILE', layoutOs: 'win32', sign: { kind: 'unsupported' } }),
             ).toThrow();
             expect(resolveNotaryPlan({ layoutOs: 'win32', sign: { kind: 'unsupported' } }).kind).toBe('unsupported');
+        });
+    });
+
+    // Needs the real `codesign`; the ordering claim (script signed before the seal) is only
+    // observable there. Skipped silently elsewhere, like every darwin-only spec in this tree.
+    await describe('ship signing: an app-provided main executable with the generated launcher under Resources', async () => {
+        await it('verifies --deep --strict with no signature of its own on the launcher script', async () => {
+            const signer = SIGNERS.darwin;
+            if (process.platform !== 'darwin' || signer === undefined) return;
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-sign-main-'));
+            try {
+                const root = 'Demo.app';
+                const macho = readFileSync('/usr/bin/true');
+                const files: { path: string; mode: number; data: Uint8Array }[] = [
+                    {
+                        path: `${root}/Contents/Info.plist`,
+                        mode: 0o644,
+                        data: Buffer.from(
+                            '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict>' +
+                                '<key>CFBundleExecutable</key><string>demo</string>' +
+                                '<key>CFBundleIdentifier</key><string>org.example.demo</string>' +
+                                '<key>CFBundlePackageType</key><string>APPL</string></dict></plist>',
+                        ),
+                    },
+                    { path: `${root}/Contents/MacOS/demo`, mode: 0o755, data: macho },
+                    {
+                        path: `${root}/Contents/Resources/demo-launcher`,
+                        mode: 0o755,
+                        data: Buffer.from('#!/bin/sh\nexit 0\n'),
+                    },
+                ];
+                await signPayload({
+                    payload: files,
+                    identity: ADHOC_IDENTITY,
+                    signer,
+                    workDir: join(dir, 'signed'),
+                    bundleRoot: root,
+                    entitlementsPath: join(dir, 'e.plist'),
+                    verbose: false,
+                    log: () => undefined,
+                });
+                // A Resources file is sealed by hash; nothing needs an xattr that our packers would drop.
+                const verify = spawnSync('codesign', ['--verify', '--deep', '--strict', join(dir, 'signed', root)]);
+                expect(verify.status).toBe(0);
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
         });
     });
 };

@@ -8,7 +8,9 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { LAYOUTS } from './layout.js';
+import { LAYOUTS, launcherPath, place } from './layout.js';
+import { toPackSettings } from './stage-manifest.js';
+import type { ShipSettings } from './types.js';
 import { signedSubordinatesFor, stageSubordinates } from './nested-bundles.js';
 
 const IDENTITY = { binaryName: 'ship-demo', name: 'Ship Demo' };
@@ -110,6 +112,59 @@ export default async () => {
             expect(
                 signedSubordinatesFor(LAYOUTS.darwin, IDENTITY, { nestedBundles: [], helperExecutables: [] }),
             ).toStrictEqual({ nestedBundles: [], helperExecutables: [] });
+        });
+    });
+
+    await describe('app-provided main executable', async () => {
+        const WITH_MAIN = { ...IDENTITY, hasMainExecutable: true };
+
+        await it('stages the Mach-O at Contents/MacOS/<binaryName> with mode 0755', () => {
+            const result = stageSubordinates({
+                layout: LAYOUTS.darwin,
+                identity: WITH_MAIN,
+                nestedBundles: [],
+                helperExecutables: [],
+                mainExecutable: '/tmp/some-main',
+            });
+            expect(result.files).toStrictEqual([
+                {
+                    path: 'Ship Demo.app/Contents/MacOS/ship-demo',
+                    mode: 0o755,
+                    source: { kind: 'file', path: '/tmp/some-main' },
+                },
+            ]);
+        });
+
+        await it('moves the generated launcher to Resources/<binaryName>-launcher, and only with the setting', () => {
+            expect(place(LAYOUTS.darwin, WITH_MAIN, 'bin/ship-demo')).toBe(
+                'Ship Demo.app/Contents/Resources/ship-demo-launcher',
+            );
+            // Byte-identical default: the launcher stays the bundle's main executable.
+            expect(place(LAYOUTS.darwin, IDENTITY, 'bin/ship-demo')).toBe('Ship Demo.app/Contents/MacOS/ship-demo');
+            expect(place(LAYOUTS.darwin, { ...IDENTITY, hasMainExecutable: false }, 'bin/ship-demo')).toBe(
+                'Ship Demo.app/Contents/MacOS/ship-demo',
+            );
+            // Other layouts ignore the flag.
+            expect(launcherPath(LAYOUTS.linux, WITH_MAIN)).toBe(launcherPath(LAYOUTS.linux, IDENTITY));
+        });
+
+        await it('writes hasMainExecutable to the stage manifest only when set (default stays byte-identical)', () => {
+            const base = { nestedBundles: [], helperExecutables: [], executables: [] } as unknown as ShipSettings;
+            expect('hasMainExecutable' in toPackSettings(base)).toBe(false);
+            expect('hasMainExecutable' in toPackSettings({ ...base, hasMainExecutable: false })).toBe(false);
+            expect(toPackSettings({ ...base, hasMainExecutable: true }).hasMainExecutable).toBe(true);
+        });
+
+        await it('refuses to stage it for a non-darwin layout', () => {
+            expect(() =>
+                stageSubordinates({
+                    layout: LAYOUTS.linux,
+                    identity: IDENTITY,
+                    nestedBundles: [],
+                    helperExecutables: [],
+                    mainExecutable: '/tmp/x',
+                }),
+            ).toThrow(/darwin-only/);
         });
     });
 };

@@ -21,7 +21,7 @@ import { join, posix } from 'node:path';
 
 import { listFilesRecursive } from './discover.js';
 import { stagedMode } from './app-runtime.js';
-import type { Layout, LayoutIdentity } from './layout.js';
+import { mainExecutablePath, type Layout, type LayoutIdentity } from './layout.js';
 import type { PayloadEntry } from './payload.js';
 import type { RecordedNestedBundle } from './release-record.js';
 import type { SignedSubordinate } from './signing.js';
@@ -53,6 +53,8 @@ export function stageSubordinates(input: {
     identity: LayoutIdentity;
     nestedBundles: readonly ShipNestedBundle[];
     helperExecutables: readonly ShipHelperExecutable[];
+    /** Absolute path of the app's own Mach-O main (`gjsify.ship.mainExecutable`), darwin only. */
+    mainExecutable?: string;
 }): StagedSubordinates {
     const dirs = input.layout.dirs(input.identity);
     const files: StagedFile[] = [];
@@ -92,6 +94,20 @@ export function stageSubordinates(input: {
         const path = posix.join(dirs.helpers, helper.name);
         files.push({ path, mode: 0o755, source: { kind: 'file', path: helper.source } });
         helperExecutables.push({ path, entitlements: helper.entitlements });
+    }
+
+    if (input.mainExecutable !== undefined) {
+        if (input.layout.name !== 'darwin') {
+            throw new Error(
+                `gjsify ship: \`gjsify.ship.mainExecutable\` is darwin-only, but the ${input.layout.name} layout was asked ` +
+                    'to stage it — report this as a gjsify bug.',
+            );
+        }
+        files.push({
+            path: mainExecutablePath(input.layout, input.identity),
+            mode: 0o755,
+            source: { kind: 'file', path: input.mainExecutable },
+        });
     }
 
     return { files, nestedBundles, helperExecutables };

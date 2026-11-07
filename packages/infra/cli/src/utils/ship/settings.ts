@@ -11,7 +11,7 @@
 // indistinguishable from a value the user typed and would clobber the config.
 
 import { validateMimeTypes } from './mime.js';
-import { existsSync } from 'node:fs';
+import { closeSync, existsSync, openSync, readSync, statSync } from 'node:fs';
 import { basename, isAbsolute, posix, relative, resolve, sep } from 'node:path';
 
 import type {
@@ -22,6 +22,7 @@ import type {
     ShipAppOptions,
     ShipBundleOptions,
 } from '../../types/config-data.js';
+import { classifyBinary } from './payload.js';
 import { DEFAULT_GJS_FLOOR, DEFAULT_NODE_FLOOR } from './depends.js';
 import { resolveShipFlatpakSettings } from './flatpak-config.js';
 import { assertRelease, normaliseVersion } from './version.js';
@@ -329,14 +330,24 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
         projectDir: input.projectDir,
         layoutOs: input.cli.layoutOs,
     });
-    if (
-        input.cli.layoutOs !== 'darwin' &&
-        ((Array.isArray(ship.nestedBundles) && ship.nestedBundles.length > 0) ||
-            (Array.isArray(ship.helperExecutables) && ship.helperExecutables.length > 0))
-    ) {
-        warnings.push(
-            `gjsify ship: nestedBundles/helperExecutables apply to darwin only — not staged for ${input.cli.layoutOs}`,
-        );
+    const mainExecutableResolved = resolveShipMainExecutable({
+        declared: ship.mainExecutable,
+        projectDir: input.projectDir,
+        layoutOs: input.cli.layoutOs,
+    });
+    if (input.cli.layoutOs !== 'darwin') {
+        const ignored = [
+            ...(Array.isArray(ship.nestedBundles) && ship.nestedBundles.length > 0 ? ['nestedBundles'] : []),
+            ...(Array.isArray(ship.helperExecutables) && ship.helperExecutables.length > 0
+                ? ['helperExecutables']
+                : []),
+            ...(ship.mainExecutable !== undefined ? ['mainExecutable'] : []),
+        ];
+        if (ignored.length > 0) {
+            warnings.push(
+                `gjsify ship: ${ignored.join('/')} apply to darwin only — not staged for ${input.cli.layoutOs}`,
+            );
+        }
     }
 
     const settings: ShipSettings = {
@@ -377,6 +388,9 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
         }),
         nestedBundles: nestedBundlesResolved,
         helperExecutables: helperExecutablesResolved,
+        ...(mainExecutableResolved === undefined
+            ? {}
+            : { mainExecutableSource: mainExecutableResolved, hasMainExecutable: true }),
         outDir: input.cli.outDir ?? ship.outDir ?? 'ship',
         arch: input.cli.arch ?? process.arch,
         app,
@@ -619,6 +633,60 @@ export function resolveShipHelperExecutables(input: {
         };
     });
     return input.layoutOs === 'darwin' ? resolved : [];
+}
+
+/**
+ * `gjsify.ship.mainExecutable` → the app's own prebuilt Mach-O, staged as the
+ * `.app`'s `CFBundleExecutable`. Needed because macOS 27's
+ * `SFSafariExtensionManager` resolves the host app record only for the process
+ * whose executable IS `CFBundleExecutable` (ADR 0024 amendment). Same split as
+ * {@link resolveShipHelperExecutables}: shape on every host, existence and the
+ * Mach-O check on darwin only; ignored (`undefined`) elsewhere.
+ */
+export function resolveShipMainExecutable(input: {
+    declared: unknown;
+    projectDir: string;
+    layoutOs: HostOs;
+}): string | undefined {
+    const { declared } = input;
+    if (declared === undefined) return undefined;
+    if (typeof declared !== 'object' || declared === null || Array.isArray(declared)) {
+        throw new Error('gjsify ship: `gjsify.ship.mainExecutable` must be an object `{ "source" }`.');
+    }
+    const { source, ...unknown } = declared as Record<string, unknown>;
+    const stray = Object.keys(unknown);
+    if (stray.length > 0) {
+        throw new Error(
+            `gjsify ship: \`gjsify.ship.mainExecutable\` has unknown key(s) ${stray.join(', ')}; known: source.`,
+        );
+    }
+    if (typeof source !== 'string' || source === '') {
+        throw new Error(
+            'gjsify ship: `gjsify.ship.mainExecutable.source` must be the project-relative path of a prebuilt Mach-O executable.',
+        );
+    }
+    if (input.layoutOs !== 'darwin') return undefined;
+    const abs = isAbsolute(source) ? source : resolve(input.projectDir, source);
+    if (!existsSync(abs) || !statSync(abs).isFile()) {
+        throw new Error(
+            `gjsify ship: \`gjsify.ship.mainExecutable.source\` ${source} does not exist or is not a file.`,
+        );
+    }
+    const head = Buffer.alloc(4);
+    const fd = openSync(abs, 'r');
+    try {
+        readSync(fd, head, 0, 4, 0);
+    } finally {
+        closeSync(fd);
+    }
+    if (classifyBinary(head) !== 'macho') {
+        throw new Error(
+            `gjsify ship: \`gjsify.ship.mainExecutable.source\` ${source} is not a Mach-O binary (thin or universal). ` +
+                'macOS resolves the host app record only for a native main executable, and the Mac App Store refuses a script; ' +
+                'the generated launcher is staged as `Contents/Resources/<binaryName>-launcher`.',
+        );
+    }
+    return abs;
 }
 
 /** The entry one ship target installs, which key named it, and what it must NOT carry. */

@@ -2056,7 +2056,8 @@ Darwin-only — `Contents/PlugIns` and `Contents/Helpers` have no equivalent on 
 `.deb`/`.rpm`/Flatpak or a Windows program directory. **Addendum, 2026-11-06 (beifahrer#203):**
 on every OTHER layout the two keys are now IGNORED, not refused — `resolveShipNestedBundles`/
 `resolveShipHelperExecutables` resolve a non-empty list to `[]` there, with one notice on stderr
-("nestedBundles/helperExecutables apply to darwin only — not staged for `<os>`"), exit 0. The
+naming the keys that were set ("nestedBundles/helperExecutables apply to darwin only — not
+staged for `<os>`"; `mainExecutable` joins the list since its own amendment), exit 0. The
 original refusal shipped in gjsify 0.64.21 and surfaced in beifahrer as `gjsify ship linux --target deb,rpm` and
 `--target flatpak` failing hard the moment a Mac-only extension was declared — a project with a
 Safari extension could no longer ship for Linux or Windows at all. SHAPE validation (schema, leaf
@@ -2098,3 +2099,39 @@ staging and signing from disagreeing), `signing.spec.ts` (multi-prefix `partitio
 `tests/e2e/ship-nested-bundles` (darwin-only refusal, tree-preserving staging on every host, and —
 where `codesign`/`cc` exist — real signing with inside-out order, per-bundle entitlements, and a
 full `--verify --deep --strict` pass).
+
+## Amendment, 2026-11-07 — `gjsify.ship.mainExecutable`: an app-provided Mach-O as `CFBundleExecutable`
+
+**Why (measured on macOS 27).** `SFSafariExtensionManager.getStateOfSafariExtension` succeeds only
+when the calling process's executable IS the bundle's `CFBundleExecutable`. The same Mach-O fails
+(`SFErrorDomain Code=1`, log "Unable to resolve host app record … -10814") in `Contents/Helpers/`,
+in another `Contents/MacOS/<name>`, outside the bundle, and with an identical codesign identifier.
+At `Contents/MacOS/<CFBundleExecutable>` it succeeds — even when it runs as a child of a Helpers
+process. The generated `sh` launcher as main therefore cannot host that call. The Mac App Store
+also wants a Mach-O main, not a script.
+
+**Setting.** `gjsify.ship.mainExecutable: { "source": "<package-relative path>" }`, darwin-only in
+effect, handled like `helperExecutables`: the shape is validated on every host, the source's
+existence and its Mach-O magic bytes (thin 32/64-bit, both endiannesses, fat) are checked on darwin
+only, and on linux/windows the key is ignored with the same stderr note. A script is refused, with
+the reason in the message.
+
+**Layout.** The source is staged at `Contents/MacOS/<binaryName>` (0755); `CFBundleExecutable` is
+unchanged. The generated launcher moves to `Contents/Resources/<binaryName>-launcher` (0755). It resolves
+everything from its own directory (`$0`), so its body is identical and independent of its file
+name (pinned in `launcher.spec.ts`). Without the setting nothing moves and the stage manifest gains
+no key — output is byte-identical (pinned in `nested-bundles.spec.ts`).
+
+**Contract for the main.** For any argv it does not handle itself, it must
+`execv("<dir of own executable>/../Resources/<binaryName>-launcher", argv)`, passing every argument
+unchanged (argv[0] is then the launcher path). That keeps the app startable exactly as before.
+
+**Signing.** The Mach-O main is signed with the bundle main's flags and entitlements by the generic
+image loop. The launcher lives in `Contents/Resources` rather than beside the main because a script in
+`Contents/MacOS` that is not the main executable is nested code whose signature lives only in an
+xattr, which our payload/zip/dmg packers do not carry (the shipped app would fail
+`codesign --verify --strict` and notarization); a Resource is sealed by hash and needs no signature of
+its own (TN2206). Its body is unchanged: every path resolves from `$0`'s directory and its parent, which
+is `Contents` from `Resources` as well. Further `gjsify.ship.executables` launchers keep their place.
+The stage manifest records `hasMainExecutable` (only when true) so a `--from-stage` finishing host
+derives the same paths.

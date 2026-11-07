@@ -20,6 +20,7 @@ import {
     resolveShipBundle,
     resolveShipExecutables,
     resolveShipHelperExecutables,
+    resolveShipMainExecutable,
     resolveShipNestedBundles,
     resolveShipSettings,
     type SettingsInput,
@@ -633,6 +634,64 @@ export default async () => {
                         layoutOs: 'linux',
                     }),
                 ).toThrow(/must be a list/);
+            });
+        });
+    });
+
+    await describe('resolveShipMainExecutable', async () => {
+        function withFiles<T>(run: (dir: string) => T): T {
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-main-exe-spec-'));
+            try {
+                writeFileSync(join(dir, 'thin'), Buffer.from([0xcf, 0xfa, 0xed, 0xfe, 0, 0, 0, 0]));
+                writeFileSync(join(dir, 'fat'), Buffer.from([0xca, 0xfe, 0xba, 0xbe, 0, 0, 0, 2]));
+                writeFileSync(join(dir, 'script'), '#!/bin/sh\nexit 0\n');
+                mkdirSync(join(dir, 'adir'));
+                return run(dir);
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        }
+        const resolveAt = (dir: string, declared: unknown, layoutOs: 'darwin' | 'linux' | 'win32' = 'darwin') =>
+            resolveShipMainExecutable({ declared, projectDir: dir, layoutOs });
+
+        await it('is undefined without a declaration', () => {
+            withFiles((dir) => expect(resolveAt(dir, undefined)).toBeUndefined());
+        });
+
+        await it('accepts a thin and a universal Mach-O on darwin and returns the absolute path', () => {
+            withFiles((dir) => {
+                expect(resolveAt(dir, { source: 'thin' })).toBe(join(dir, 'thin'));
+                expect(resolveAt(dir, { source: 'fat' })).toBe(join(dir, 'fat'));
+            });
+        });
+
+        await it('refuses a script, saying why', () => {
+            withFiles((dir) => {
+                expect(() => resolveAt(dir, { source: 'script' })).toThrow(/not a Mach-O/);
+            });
+        });
+
+        await it('refuses a missing source and a directory on darwin', () => {
+            withFiles((dir) => {
+                expect(() => resolveAt(dir, { source: 'nope' })).toThrow(/does not exist/);
+                expect(() => resolveAt(dir, { source: 'adir' })).toThrow(/not a file/);
+            });
+        });
+
+        await it('validates the shape on every layout', () => {
+            withFiles((dir) => {
+                for (const os of ['darwin', 'linux', 'win32'] as const) {
+                    expect(() => resolveAt(dir, 'thin', os)).toThrow(/must be an object/);
+                    expect(() => resolveAt(dir, { source: '' }, os)).toThrow(/source/);
+                    expect(() => resolveAt(dir, { source: 'thin', name: 'x' }, os)).toThrow(/unknown key/);
+                }
+            });
+        });
+
+        await it('is ignored off darwin, even when the source is missing or not a Mach-O', () => {
+            withFiles((dir) => {
+                expect(resolveAt(dir, { source: 'nope' }, 'linux')).toBeUndefined();
+                expect(resolveAt(dir, { source: 'script' }, 'win32')).toBeUndefined();
             });
         });
     });
