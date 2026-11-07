@@ -1,4 +1,13 @@
-import type { AppUrls, Branding, DescriptionBlock, Localized, Metainfo, Release } from './types.js';
+import type {
+    AppUrls,
+    Branding,
+    DescriptionBlock,
+    ImageUrls,
+    Localized,
+    Metainfo,
+    MetainfoScreenshot,
+    Release,
+} from './types.js';
 import { child, childrenNamed, parseXml, type XmlElement } from './xml.js';
 
 const XML_LANG = 'xml:lang';
@@ -103,8 +112,44 @@ function parseUrls(component: XmlElement): AppUrls {
     return urls;
 }
 
+/** The `<image>`s of a `<screenshot>`: the untagged one, and the `xml:lang` ones as translations of it. */
+function parseImages(screenshot: XmlElement): ImageUrls {
+    const pick = (images: XmlElement[]) => (images.find((image) => image.attrs.type === 'source') ?? images[0])?.text;
+    const images = childrenNamed(screenshot, 'image');
+    const byLanguage: Record<string, string> = {};
+    for (const language of new Set(images.map((image) => image.attrs[XML_LANG]))) {
+        if (language === undefined) continue;
+        const url = pick(images.filter((image) => image.attrs[XML_LANG] === language));
+        if (url) byLanguage[language] = url;
+    }
+    return { url: pick(images.filter((image) => image.attrs[XML_LANG] === undefined)) ?? '', byLanguage };
+}
+
+/** AppStream's `environment="gnome:dark"`: the screenshot shows the app in its dark style. */
+function isDark(screenshot: XmlElement): boolean {
+    return (screenshot.attrs.environment ?? '').endsWith(':dark');
+}
+
+/**
+ * The n-th dark screenshot is the dark twin of the n-th light one, in document order, and never a
+ * slide of its own. A dark screenshot with no light partner is dropped with a warning.
+ */
+function parseScreenshots(screenshots: XmlElement[], warn: (message: string) => void): MetainfoScreenshot[] {
+    const light = screenshots.filter((screenshot) => !isDark(screenshot));
+    const result: MetainfoScreenshot[] = light.map((screenshot) => ({
+        ...parseImages(screenshot),
+        caption: singleLocalized(screenshot, 'caption') ?? null,
+    }));
+    for (const [index, dark] of screenshots.filter(isDark).entries()) {
+        const partner = result[index];
+        if (partner) partner.dark = parseImages(dark);
+        else warn(`Dark screenshot ${index + 1} of the metainfo has no light screenshot to pair with; dropping it`);
+    }
+    return result;
+}
+
 /** Reads the parts of an AppStream `<component>` the landing page needs. */
-export function parseMetainfo(xml: string): Metainfo {
+export function parseMetainfo(xml: string, warn: (message: string) => void = () => {}): Metainfo {
     const component = parseXml(xml);
     if (component.name !== 'component') throw new Error(`Metainfo root must be <component>, got <${component.name}>`);
 
@@ -117,11 +162,10 @@ export function parseMetainfo(xml: string): Metainfo {
     const developer = child(component, 'developer');
     const developerName = developer ? child(developer, 'name')?.text : undefined;
 
-    const screenshots = childrenNamed(child(component, 'screenshots') ?? component, 'screenshot').map((screenshot) => {
-        const images = childrenNamed(screenshot, 'image');
-        const image = images.find((candidate) => candidate.attrs.type === 'source') ?? images[0];
-        return { url: image?.text ?? '', caption: singleLocalized(screenshot, 'caption') ?? null };
-    });
+    const screenshots = parseScreenshots(
+        childrenNamed(child(component, 'screenshots') ?? component, 'screenshot'),
+        warn,
+    );
 
     const contentRating = child(component, 'content_rating');
     const attributes: Record<string, string> = {};

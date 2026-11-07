@@ -11,6 +11,7 @@ import {
     legalNoticeUrl,
     linkCard,
     localizeOwnUrl,
+    picture,
     privacyUrl,
     relatedSection,
     sepaCard,
@@ -53,10 +54,70 @@ export default async () => {
                 ['window', image(true)],
                 ['phone', image(false)],
             ]);
-            const shot = (slug: string): Screenshot => ({ caption: null, url: '', file: '', slug });
-            expect(frameAttribute({ images }, shot('window'))).toBe('none');
-            expect(frameAttribute({ images }, shot('phone'))).toBeUndefined();
-            expect(frameAttribute({ images }, shot('missing'))).toBeUndefined();
+            const shot = (slug: string): Screenshot => ({ caption: null, url: '', file: '', slug, byLanguage: {} });
+            expect(frameAttribute({ images, lang: 'en' }, shot('window'))).toBe('none');
+            expect(frameAttribute({ images, lang: 'en' }, shot('phone'))).toBeUndefined();
+            expect(frameAttribute({ images, lang: 'en' }, shot('missing'))).toBeUndefined();
+        });
+
+        await it('shows the picture of the page language, with the dark renditions first', async () => {
+            const rendition = (name: string, width: number, height: number): ProcessedImage => ({
+                width,
+                height,
+                displayWidth: width,
+                frameless: false,
+                formats: {
+                    avif: [{ url: `/img/${name}.avif`, width }],
+                    webp: [{ url: `/img/${name}.webp`, width }],
+                    png: [{ url: `/img/${name}.png`, width }],
+                },
+            });
+            const file = (slug: string) => ({ url: '', file: '', slug });
+            const images = new Map([
+                ['en', rendition('en', 800, 600)],
+                ['de', rendition('de', 810, 610)],
+                ['en-dark', rendition('en-dark', 820, 620)],
+            ]);
+            const screenshot: Screenshot = {
+                ...file('en'),
+                caption: null,
+                byLanguage: { de: file('de') },
+                dark: { default: file('en-dark'), byLanguage: {} },
+            };
+
+            const german = picture({ images, lang: 'de' }, screenshot, 'Alt', false);
+            expect(german.includes('src="/img/de.png"')).toBe(true);
+            expect(german.includes('width="810"')).toBe(true);
+            expect(german.includes('/img/en.png')).toBe(false);
+            // The dark twin has no German image, so the untagged dark one stands in.
+            const media = '(prefers-color-scheme: dark)';
+            expect(german.includes(`srcset="/img/en-dark.avif 820w" media="${media}"`)).toBe(true);
+            const order = ['en-dark.avif', 'en-dark.webp', 'en-dark.png', 'de.avif', 'de.webp', 'src="/img/de.png"'];
+            const positions = order.map((needle) => german.indexOf(needle));
+            expect(positions.every((position) => position >= 0)).toBe(true);
+            expect(positions).toStrictEqual([...positions].sort((a, b) => a - b));
+
+            const english = picture({ images, lang: 'en' }, screenshot, 'Alt', false);
+            expect(english.includes('src="/img/en.png"')).toBe(true);
+            expect(english.includes('/img/de.')).toBe(false);
+        });
+
+        await it('adds no dark sources to a screenshot without a dark twin', async () => {
+            const image = {
+                width: 800,
+                height: 600,
+                displayWidth: 800,
+                frameless: false,
+                formats: {
+                    avif: [{ url: '/a.avif', width: 800 }],
+                    webp: [{ url: '/a.webp', width: 800 }],
+                    png: [{ url: '/a.png', width: 800 }],
+                },
+            } as ProcessedImage;
+            const screenshot: Screenshot = { caption: null, url: '', file: '', slug: 'a', byLanguage: {} };
+            const html = picture({ images: new Map([['a', image]]), lang: 'en' }, screenshot, 'Alt', true);
+            expect(html.includes('prefers-color-scheme')).toBe(false);
+            expect(html.includes('loading')).toBe(false);
         });
 
         await it('shows the grouped IBAN, the details and an inline QR code', async () => {

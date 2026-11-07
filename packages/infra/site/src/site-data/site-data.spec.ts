@@ -34,7 +34,7 @@ import { buildAppManifest, loadRelatedApps, parseAppManifest, relatedText, relat
 import { fetchJson } from './network.js';
 import { minimumAge } from './oars.js';
 import { completeLocalized, parseCatalog, resolveLocalized } from './po.js';
-import { imageSlug, repositoryPath, resolveScreenshots } from './screenshots.js';
+import { imageSlug, repositoryPath, resolveScreenshots, screenshotFile, screenshotFiles } from './screenshots.js';
 import { epcPayload, formatIban, isValidBic, isValidIban } from './sepa.js';
 import type { ReleaseAsset } from './types.js';
 
@@ -157,6 +157,87 @@ export default async () => {
             });
         });
 
+        await it('reads xml:lang images and folds a dark screenshot into its light partner', async () => {
+            const warnings: string[] = [];
+            const metainfo = parseMetainfo(
+                `<component><id>a.b</id><name>A</name><screenshots>
+  <screenshot type="default">
+    <image type="source">https://example.org/1.png</image>
+    <image type="source" xml:lang="de">https://example.org/1-de.png</image>
+    <image type="thumbnail" xml:lang="de">https://example.org/1-de-small.png</image>
+    <caption>One</caption>
+  </screenshot>
+  <screenshot><image>https://example.org/2.png</image></screenshot>
+  <screenshot environment="gnome:dark">
+    <image>https://example.org/1-dark.png</image>
+    <image xml:lang="de">https://example.org/1-dark-de.png</image>
+  </screenshot>
+  <screenshot environment="gnome:dark"><image>https://example.org/2-dark.png</image></screenshot>
+  <screenshot environment="gnome:dark"><image>https://example.org/3-dark.png</image></screenshot>
+</screenshots></component>`,
+                (message) => warnings.push(message),
+            );
+            expect(metainfo.screenshots.length).toBe(2);
+            const [first, second] = metainfo.screenshots;
+            expect(first!.url).toBe('https://example.org/1.png');
+            expect(first!.byLanguage).toStrictEqual({ de: 'https://example.org/1-de.png' });
+            expect(first!.dark?.url).toBe('https://example.org/1-dark.png');
+            expect(first!.dark?.byLanguage).toStrictEqual({ de: 'https://example.org/1-dark-de.png' });
+            expect(second!.dark?.url).toBe('https://example.org/2-dark.png');
+            expect(second!.dark?.byLanguage).toStrictEqual({});
+            expect(warnings.length).toBe(1);
+            expect(warnings[0]!.includes('Dark screenshot 3')).toBe(true);
+        });
+
+        await it('picks the file by language and scheme, falling back to the untagged and the light one', async () => {
+            await withFixture(async (root) => {
+                for (const name of ['list-de.png', 'list-dark.png', 'list-dark-de.png']) {
+                    writeFileSync(join(root, 'data', name), PIXEL_PNG);
+                }
+                const raw = 'https://raw.githubusercontent.com/example/notes/main/data/';
+                const metainfo = parseMetainfo(METAINFO);
+                metainfo.screenshots = [
+                    {
+                        url: `${raw}list.png`,
+                        byLanguage: { de: `${raw}list-de.png`, fr: `${raw}missing-fr.png` },
+                        caption: null,
+                        dark: { url: `${raw}list-dark.png`, byLanguage: { de: `${raw}list-dark-de.png` } },
+                    },
+                    {
+                        url: `${raw}editor.png`,
+                        byLanguage: {},
+                        caption: null,
+                        dark: { url: `${raw}gone.png`, byLanguage: {} },
+                    },
+                ];
+                const warnings: string[] = [];
+                const [list, editor] = await resolveScreenshots(metainfo, {
+                    root,
+                    repository: 'example/notes',
+                    warn: (message) => warnings.push(message),
+                });
+                const slug = (language: string, scheme: 'light' | 'dark') =>
+                    screenshotFile(list!, language, scheme).slug;
+                expect(slug('en', 'light')).toBe('data-list');
+                expect(slug('de', 'light')).toBe('data-list-de');
+                expect(slug('de-AT', 'light')).toBe('data-list-de');
+                expect(slug('fr', 'light')).toBe('data-list');
+                expect(slug('en', 'dark')).toBe('data-list-dark');
+                expect(slug('de', 'dark')).toBe('data-list-dark-de');
+                expect(screenshotFiles(list!).map((file) => file.slug)).toStrictEqual([
+                    'data-list',
+                    'data-list-de',
+                    'data-list-dark',
+                    'data-list-dark-de',
+                ]);
+                // A dark twin that cannot be found leaves the screenshot with its light artwork only.
+                expect(editor!.dark).toBeUndefined();
+                expect(screenshotFile(editor!, 'de', 'dark').slug).toBe('data-editor');
+                expect(warnings.some((message) => message.includes('missing-fr.png'))).toBe(true);
+                expect(warnings.some((message) => message.includes('gone.png'))).toBe(true);
+            });
+        });
+
         await it('skips a screenshot it cannot find and says which', async () => {
             await withFixture(async (root) => {
                 rmSync(join(root, 'data/editor.png'));
@@ -176,7 +257,7 @@ export default async () => {
             await withFixture(async (root) => {
                 const warnings: string[] = [];
                 const metainfo = parseMetainfo(METAINFO);
-                metainfo.screenshots = [{ url: 'https://example.org/promo.png', caption: null }];
+                metainfo.screenshots = [{ url: 'https://example.org/promo.png', byLanguage: {}, caption: null }];
                 const shots = await resolveScreenshots(metainfo, {
                     root,
                     repository: 'example/notes',
@@ -192,7 +273,7 @@ export default async () => {
         await it('downloads artwork hosted elsewhere into the cache, so the next offline build finds it', async () => {
             await withFixture(async (root) => {
                 const metainfo = parseMetainfo(METAINFO);
-                metainfo.screenshots = [{ url: 'https://example.org/promo.png', caption: null }];
+                metainfo.screenshots = [{ url: 'https://example.org/promo.png', byLanguage: {}, caption: null }];
                 const options = {
                     root,
                     repository: 'example/notes',

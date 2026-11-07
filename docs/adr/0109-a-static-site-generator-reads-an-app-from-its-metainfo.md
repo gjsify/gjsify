@@ -266,3 +266,24 @@ statement: identical-across-apps is a fact about THIS publisher, not a guarantee
 make for every consumer (a publisher could legitimately run several legal entities, one per app).
 The package stays ignorant of that question; a consumer that wants one canonical text copies the
 same file into each app's `legalNotice.statements`, same as any other cross-repo content it owns.
+
+## Amendment (2026-11-07) — screenshots per language and colour scheme, still from the metainfo
+
+A page showed one image per screenshot, whatever the visitor's language or theme. The metainfo
+already has the standard way to say otherwise, so the site reads it instead of adding a config key:
+
+- `<image xml:lang="de">` inside a `<screenshot>` is the German rendition of that screenshot; the
+  untagged `<image>` is the default.
+- A `<screenshot environment="…:dark">` is the dark rendition. The n-th dark screenshot is the twin
+  of the n-th non-dark one in document order, and never a carousel entry of its own. An unpaired
+  dark screenshot is dropped with a warning.
+
+Resolution falls back from language to the untagged image, and from dark to light. Every file is
+located and processed the same way as before (checkout path, cache, offline warning; crop and
+2560px cap per rendition). The `<picture>` puts the dark `<source>`s with
+`media="(prefers-color-scheme: dark)"` before the light ones; the theme follows that query alone, so
+no script is needed. A missing translation or dark file only falls back, it does not remove the
+screenshot.
+
+**Not changed:** the store-listing module still emits one default image per non-dark screenshot.
+Picking the language-specific image per store locale is possible later and out of scope here.
