@@ -4,7 +4,7 @@
 // ADR this answers: 0026 § 6).
 
 import { describe, expect, it } from '@gjsify/unit';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -34,8 +34,9 @@ export default async () => {
             const dir = scratch();
             try {
                 mkdirSync(join(dir, 'Ext.appex', 'Contents', 'MacOS'), { recursive: true });
+                // No chmod: the bundle executable is 0o755 by position, the same on a
+                // host whose filesystem has no POSIX bits (win32) as on this one.
                 writeFileSync(join(dir, 'Ext.appex', 'Contents', 'MacOS', 'Ext'), 'macho');
-                chmodSync(join(dir, 'Ext.appex', 'Contents', 'MacOS', 'Ext'), 0o755);
                 writeFileSync(join(dir, 'Ext.appex', 'Contents', 'Info.plist'), 'plist');
                 writeFileSync(join(dir, 'helper-bin'), 'swift');
 
