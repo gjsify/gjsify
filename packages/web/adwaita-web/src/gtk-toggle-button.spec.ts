@@ -22,6 +22,14 @@ function record(el: HTMLElement, event: string): unknown[] {
     return details;
 }
 
+/** Collect the `type` of every event dispatched on (or bubbling to) `el`. */
+function recordTypes(el: HTMLElement): string[] {
+    const types: string[] = [];
+    el.addEventListener('toggled', () => types.push('toggled'));
+    el.addEventListener('notify::active', () => types.push('notify::active'));
+    return types;
+}
+
 export const GtkToggleButtonTest = async () => {
     await describe('<gtk-toggle-button> state', async () => {
         await it('starts released, and renders as a gtk-button would', () => {
@@ -68,6 +76,15 @@ export const GtkToggleButtonTest = async () => {
             el.active = true;
             el.active = true;
             expect(notified).toStrictEqual([{ active: true }]);
+            host.remove();
+        });
+
+        await it('toggled fires before notify::active, as on real GTK', () => {
+            const { el, host } = mount({ label: 'Mute' });
+            const types = recordTypes(el);
+            el.active = true;
+            el.button.click();
+            expect(types).toStrictEqual(['toggled', 'notify::active', 'toggled', 'notify::active']);
             host.remove();
         });
 
@@ -164,15 +181,16 @@ export const GtkToggleButtonTest = async () => {
             b.host.remove();
         });
 
-        await it('leaving the group releases the links, and the same group twice notifies once', () => {
+        await it('leaving the group releases the links, and the group is never notified', () => {
             const a = mount({ id: 'once-a', label: 'A' });
             const b = mount({ id: 'once-b', label: 'B' });
+            // `group` is write-only in GTK, so no `notify::group` — the same group twice
+            // and leaving it are both silent.
             const notified = record(b.el, 'notify::group');
             b.el.group = a.el;
             b.el.group = a.el;
-            expect(notified.length).toBe(1);
             b.el.group = null;
-            expect(notified.length).toBe(2);
+            expect(notified.length).toBe(0);
             expect(b.el.hasAttribute('group')).toBe(false);
             // Unlinked, B is clickable off again — the guard is the link, not the element.
             b.el.button.click();
