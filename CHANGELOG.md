@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.64.24](https://github.com/gjsify/gjsify/compare/v0.64.23...v0.64.24) (2026-11-07)
+
+### Features
+
+* **cli:** app-provided darwin main executable ([#2561](https://github.com/gjsify/gjsify/issues/2561)) ([560196e](https://github.com/gjsify/gjsify/commit/560196e6c05135d10acdb77a2d3aaa17d2c98270))
+
 ## [0.64.23](https://github.com/gjsify/gjsify/compare/v0.64.22...v0.64.23) (2026-11-07)
 
 ### Features
