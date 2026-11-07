@@ -161,8 +161,8 @@ export class GtkToggleButton extends GtkButton {
             this._groupNext = null;
             this._groupPrev = null;
         } else {
-            // Already directly before it — the one assignment that changes nothing, and
-            // the reason setting the same group twice notifies once.
+            // Already directly before it: the one assignment that changes nothing, and
+            // the reason setting the same group twice does not relink.
             if (this._groupNext === group) return;
             // NOTE: no unlink from a previous group first, because the C has none
             // (:542-554). `a.group = b; a.group = c;` leaves `b` linked to `a`, which is
@@ -178,7 +178,9 @@ export class GtkToggleButton extends GtkButton {
             group._groupPrev = this;
             this._groupNext = group;
         }
-        this.dispatchEvent(new CustomEvent('notify::group', { bubbles: true }));
+        // `group` is `G_PARAM_WRITABLE` only, so real GTK emits no `notify::group` here
+        // (measured, #2532) and neither does this element — the group is unwatchable,
+        // `toggled` is the observable the author has.
     }
 
     /**
