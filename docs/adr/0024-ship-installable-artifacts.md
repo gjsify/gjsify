@@ -2056,7 +2056,8 @@ Darwin-only — `Contents/PlugIns` and `Contents/Helpers` have no equivalent on 
 `.deb`/`.rpm`/Flatpak or a Windows program directory. **Addendum, 2026-11-06 (beifahrer#203):**
 on every OTHER layout the two keys are now IGNORED, not refused — `resolveShipNestedBundles`/
 `resolveShipHelperExecutables` resolve a non-empty list to `[]` there, with one notice on stderr
-("nestedBundles/helperExecutables apply to darwin only — not staged for `<os>`"), exit 0. The
+naming the keys that were set ("nestedBundles/helperExecutables apply to darwin only — not
+staged for `<os>`"; `mainExecutable` joins the list since its own amendment), exit 0. The
 original refusal shipped in gjsify 0.64.21 and surfaced in beifahrer as `gjsify ship linux --target deb,rpm` and
 `--target flatpak` failing hard the moment a Mac-only extension was declared — a project with a
 Safari extension could no longer ship for Linux or Windows at all. SHAPE validation (schema, leaf
