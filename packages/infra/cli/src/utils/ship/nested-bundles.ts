@@ -75,7 +75,10 @@ export function stageSubordinates(input: {
             const abs = join(bundle.source, ...rel.split(posix.sep));
             files.push({
                 path: posix.join(bundleRoot, rel),
-                mode: stagedMode(rel, abs),
+                // A bundle's own executable is executable whatever the source's mode
+                // says: NTFS carries no POSIX bits, so `stagedMode` reads 0o644 there
+                // and a darwin stage assembled on win32 would ship a dead `.appex`.
+                mode: /^Contents\/MacOS\/[^/]+$/.test(rel) ? 0o755 : stagedMode(rel, abs),
                 source: { kind: 'file', path: abs },
             });
         }
