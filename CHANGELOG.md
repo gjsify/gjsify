@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.64.25](https://github.com/gjsify/gjsify/compare/v0.64.24...v0.64.25) (2026-11-07)
+
+### Features
+
+* **site:** screenshots per language and colour scheme ([#2563](https://github.com/gjsify/gjsify/issues/2563)) ([aa002ba](https://github.com/gjsify/gjsify/commit/aa002baacf8736ced4d03591566cff686e64acde))
+
+### Bug Fixes
+
+* **cli:** nested bundle executable is 0o755 on win32 ([#2562](https://github.com/gjsify/gjsify/issues/2562)) ([ce2635d](https://github.com/gjsify/gjsify/commit/ce2635d4dd91fc6084f15ac6d7f6fc08e941bd04))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([94e1e50](https://github.com/gjsify/gjsify/commit/94e1e50d14a0e413975fa820703660427c69e3d6))
+* update native prebuilds [skip ci] ([766f512](https://github.com/gjsify/gjsify/commit/766f512f47f8b41b8bfde9db80c9b88aa78ace0d))
+
 ## [0.64.24](https://github.com/gjsify/gjsify/compare/v0.64.23...v0.64.24) (2026-11-07)
 
 ### Features

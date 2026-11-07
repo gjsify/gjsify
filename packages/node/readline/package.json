@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/readline",
-    "version": "0.64.24",
+    "version": "0.64.25",
     "description": "Node.js readline module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",
