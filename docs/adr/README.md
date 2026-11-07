@@ -152,7 +152,7 @@ the TODO records the *what's left*.
 | [0130](0130-credits-come-from-the-git-history.md) | `gjsify credits` derives contributor credits from the git history; an overrides file covers supporters and exclusions | Accepted |
 | [0132](0132-ai-capabilities-share-one-shape.md) | AI capabilities share one shape: the web API where one exists, the built-in AI pattern where none does, a remote engine only when the app registers one | Accepted |
 | [0133](0133-fork-and-worker-share-one-ipc-channel.md) | `child_process.fork` and `Worker` share one IPC channel, extracted from `worker_threads` into its own package | Accepted |
-| [0134](0134-https-trusts-the-os-store-through-one-package.md) | HTTPS trusts the OS store on every target, through `@gjsify/tls-trust` and Node's `getCACertificates` vocabulary | Proposed |
+| [0134](0134-https-trusts-the-os-store-through-one-package.md) | HTTPS trusts the OS store on every target, through `@gjsify/tls-trust` and Node's `getCACertificates` vocabulary | Accepted |
 | [0135](0135-store-listings-come-from-the-metainfo.md) | `gjsify webext listing` derives Chrome, Edge and Firefox store listings from the metainfo, the catalogues and the screenshots | Proposed |
 | [0136](0136-machine-fit-checks-memory-and-finds-local-servers.md) | Machine fit rules a model out by memory before download, and local inference servers are found by their own package | Accepted |
 

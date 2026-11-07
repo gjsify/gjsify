@@ -1,6 +1,6 @@
 # 134. HTTPS trusts the OS store on every target, through `@gjsify/tls-trust`
 
-- Status: **Proposed**
+- Status: **Accepted**
 - Date: 2026-11-03
 - Deciders: Pascal Garber
 - Depends on: [ADR 0117 (Android GI namespaces are selected at build time)](0117-android-gi-namespaces-are-selected-at-build-time.md)
