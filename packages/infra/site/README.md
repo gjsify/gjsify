@@ -46,6 +46,7 @@ gjsify site build --runtime node        # build and run on a specific runtime
 | `--drafts` | `build`: include blog posts marked `draft: true`. |
 | `--no-cache` | Ignore the one-hour HTTP response cache. |
 | `--cache-dir <dir>` | Where the response cache and the image renditions live. Default: `<root>/node_modules/.cache/gjsify-site`. |
+| `--release-tag <tag>` | `build`: take the download links from this GitHub release (`releases/tags/<tag>`) instead of `releases/latest`, which can lag a fresh publish by minutes. Default: `$GJSIFY_SITE_RELEASE_TAG`. |
 | `--check` | `i18n`: report what is out of date instead of writing it. |
 | `--runtime <r>` | `gjs` \| `node` \| `bun` \| `deno`. Default: the runtime the CLI itself is on. |
 
@@ -165,6 +166,11 @@ shared package can derive.
 
 `GITHUB_TOKEN` is optional and only raises the API rate limit. When a lookup fails the build
 warns rather than failing: a release API outage is not a reason to have no page.
+
+The build logs which release it used (tag, publish date, asset count) and warns when that release's
+version differs from the version the page shows. A deploy triggered by `release: published` should
+pass `--release-tag "$GITHUB_REF_NAME"` (or set `GJSIFY_SITE_RELEASE_TAG`): `releases/latest` can still
+answer with the previous release for a few minutes.
 
 The same thing from a script:
 
