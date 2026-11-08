@@ -81,11 +81,16 @@ export async function fetchReleaseRecords(
 /**
  * Fetches the latest published (non-draft, non-prerelease) release; `null` when the repository has
  * none yet, which is a state and not an error. `token` raises the rate limit.
+ *
+ * With `tag`, fetches exactly that release instead. `releases/latest` lags a fresh publish by
+ * minutes, so a deploy triggered by the release itself must be able to name it; a pinned tag that
+ * does not exist is an error, not "no release yet".
  */
 export async function fetchLatestRelease(
     repository: string,
     token: string | undefined,
     options: NetworkOptions,
+    tag?: string,
 ): Promise<LatestRelease | null> {
     const headers: Record<string, string> = {
         Accept: 'application/vnd.github+json',
@@ -94,10 +99,17 @@ export async function fetchLatestRelease(
     if (token) headers.Authorization = `Bearer ${token}`;
     try {
         return parseLatestRelease(
-            await fetchJson(`https://api.github.com/repos/${repository}/releases/latest`, headers, options),
+            await fetchJson(
+                `https://api.github.com/repos/${repository}/releases/${tag ? `tags/${encodeURIComponent(tag)}` : 'latest'}`,
+                headers,
+                options,
+            ),
         );
     } catch (error) {
-        if (error instanceof HttpError && error.status === 404) return null;
+        if (error instanceof HttpError && error.status === 404) {
+            if (tag) throw new Error(`GitHub has no release tagged ${tag} in ${repository}`);
+            return null;
+        }
         throw error;
     }
 }

@@ -25,6 +25,9 @@ Options:
   --no-cache         Ignore the one-hour HTTP response cache
   --cache-dir <dir>  Where to keep the response cache and image renditions
                      (default: <root>/node_modules/.cache/gjsify-site)
+  --release-tag <t>  build: take the download links from this GitHub release
+                     instead of \`releases/latest\`, which lags a fresh publish
+                     (default: $GJSIFY_SITE_RELEASE_TAG)
   --check            i18n: report what is out of date instead of writing it
   --store <s>        listing: cws | edge | amo | all (default: all)
   --metainfo <path>  listing: AppStream metainfo, overriding the configured one
@@ -36,7 +39,8 @@ Options:
                      from this module's own location)
   -h, --help         Show this text
 
-Environment: GITHUB_TOKEN raises the GitHub API rate limit.`;
+Environment: GITHUB_TOKEN raises the GitHub API rate limit.
+             GJSIFY_SITE_RELEASE_TAG is the default of --release-tag.`;
 
 /** The value after `--name`, or `undefined` when the flag is absent. */
 function flagValue(flags: readonly string[], name: string): string | undefined {
@@ -62,6 +66,8 @@ async function build(flags: readonly string[]): Promise<number> {
         cacheDir: cacheOption(flags),
         packageDir: flagValue(flags, '--package-dir'),
         githubToken: process.env.GITHUB_TOKEN || undefined,
+        releaseTag: flagValue(flags, '--release-tag') ?? (process.env.GJSIFY_SITE_RELEASE_TAG || undefined),
+        log: (message) => console.log(message),
         warn: (message) => console.warn(`warning: ${message}`),
     });
     console.log(`Built the pages in ${result.languages.length} languages and ${result.screenshots} screenshots`);

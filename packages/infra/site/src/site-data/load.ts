@@ -30,7 +30,10 @@ export interface LoadOptions {
     /** Skip every network call (release assets, stats, screenshots hosted elsewhere). */
     offline?: boolean;
     githubToken?: string;
+    /** Use this release tag instead of `releases/latest`, which lags a fresh publish by minutes. */
+    releaseTag?: string;
     network?: NetworkOptions;
+    log?: (message: string) => void;
     warn?: (message: string) => void;
 }
 
@@ -133,7 +136,7 @@ export async function loadSiteData(options: LoadOptions): Promise<SiteData> {
     if (!options.offline) {
         const network = options.network ?? {};
         const [release, flathub, summary] = await Promise.allSettled([
-            fetchLatestRelease(config.repository, options.githubToken, network),
+            fetchLatestRelease(config.repository, options.githubToken, network, options.releaseTag),
             config.flathub ? fetchFlathubStats(config.flathub, network) : Promise.resolve(undefined),
             config.flathub ? fetchFlathubSummary(config.flathub, network) : Promise.resolve(undefined),
         ]);
@@ -141,6 +144,15 @@ export async function loadSiteData(options: LoadOptions): Promise<SiteData> {
             latestRelease = release.value;
             hasReleases = latestRelease !== null;
             if (latestRelease) {
+                options.log?.(
+                    `Using GitHub release ${latestRelease.tag} (published ${latestRelease.publishedAt || 'unknown'}, ${latestRelease.assets.length} assets)${options.releaseTag ? ' as pinned' : ''}`,
+                );
+                const shown = version || metainfo.releases[0]?.version || '';
+                if (shown && latestRelease.tag.replace(/^v/, '') !== shown) {
+                    warn(
+                        `The release ${latestRelease.tag} does not match the version ${shown} the page shows; download links point to ${latestRelease.tag}${options.releaseTag ? '' : ' (releases/latest may lag a fresh publish; pin it with --release-tag)'}`,
+                    );
+                }
                 // A release record is fetched by every site build, not by a person installing.
                 stats.githubDownloads = latestRelease.assets
                     .filter((asset) => recordedArtifact(asset.name) === undefined)
@@ -149,7 +161,7 @@ export async function loadSiteData(options: LoadOptions): Promise<SiteData> {
             }
         } else {
             warn(
-                `Could not fetch the latest GitHub release (${String(release.reason)}); linking to the releases page instead`,
+                `Could not fetch the ${options.releaseTag ? `GitHub release ${options.releaseTag}` : 'latest GitHub release'} (${String(release.reason)}); linking to the releases page instead`,
             );
         }
         if (flathub.status === 'fulfilled' && flathub.value) {

@@ -119,6 +119,8 @@ export interface SiteBuildOptions extends SiteTarget {
     cacheDir?: string | false;
     /** Raises the GitHub API rate limit. Optional — the public limit is enough for a single build. */
     githubToken?: string;
+    /** Pin the GitHub release the download links come from, instead of `releases/latest`. */
+    releaseTag?: string;
     log?: (message: string) => void;
     warn?: (message: string) => void;
     /**
@@ -402,7 +404,9 @@ async function buildAppSite(build: Build): Promise<SiteBuildResult> {
         screenshotCacheDir: join(cacheDir ?? defaultCacheDir(target.root), 'screenshots'),
         offline: options.offline ?? false,
         githubToken: options.githubToken,
+        releaseTag: options.releaseTag,
         network: cacheDir ? { cacheDir: join(cacheDir, 'http') } : {},
+        log: options.log,
         warn: options.warn,
     });
 

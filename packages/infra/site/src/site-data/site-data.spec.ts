@@ -721,6 +721,86 @@ export default async () => {
         });
     });
 
+    await describe('release pinning', async () => {
+        const API = 'https://api.github.com/repos/example/notes/releases/';
+        const payload = (tag: string) => ({
+            tag_name: tag,
+            published_at: '2026-03-01T10:00:00Z',
+            assets: [
+                {
+                    name: 'notes.flatpak',
+                    browser_download_url: `https://example.org/${tag}/notes.flatpak`,
+                },
+            ],
+        });
+        /** Answers like GitHub during the lag: `latest` still names the previous release. */
+        const lagging = (requested: string[]) => async (url: string) => {
+            requested.push(url);
+            const body =
+                url === `${API}latest` ? payload('v1.1.0') : url === `${API}tags/v1.2.0` ? payload('v1.2.0') : null;
+            return body
+                ? { ok: true, status: 200, json: async () => body }
+                : { ok: false, status: 404, json: async () => ({}) };
+        };
+
+        await it('fetches releases/tags/<tag> when a tag is given and releases/latest otherwise', async () => {
+            const requested: string[] = [];
+            expect(
+                (await fetchLatestRelease('example/notes', undefined, {
+                    fetch: lagging(requested),
+                }))!.tag,
+            ).toBe('v1.1.0');
+            const pinned = await fetchLatestRelease(
+                'example/notes',
+                undefined,
+                { fetch: lagging(requested) },
+                'v1.2.0',
+            );
+            expect(pinned!.tag).toBe('v1.2.0');
+            expect(requested).toStrictEqual([`${API}latest`, `${API}tags/v1.2.0`]);
+        });
+
+        await it('treats a pinned tag GitHub does not know as an error', async () => {
+            await expect(
+                fetchLatestRelease('example/notes', undefined, { fetch: lagging([]) }, 'v9.9.9'),
+            ).rejects.toThrow(/no release tagged v9\.9\.9/);
+        });
+
+        await it('logs the release it used and warns when its version is not the one the page shows', async () => {
+            await withFixture(async (root) => {
+                const logs: string[] = [];
+                const warnings: string[] = [];
+                const data = await loadSiteData({
+                    root,
+                    log: (message) => logs.push(message),
+                    warn: (message) => warnings.push(message),
+                    network: { fetch: lagging([]) },
+                });
+                expect(data.latestRelease!.tag).toBe('v1.1.0');
+                expect(logs.length).toBe(1);
+                expect(logs[0]).toMatch(/v1\.1\.0.*2026-03-01T10:00:00Z.*1 assets/);
+                expect(warnings.filter((message) => /does not match the version 1\.2\.0/.test(message)).length).toBe(1);
+            });
+        });
+
+        await it('uses the pinned release and stays quiet when the versions agree', async () => {
+            await withFixture(async (root) => {
+                const logs: string[] = [];
+                const warnings: string[] = [];
+                const data = await loadSiteData({
+                    root,
+                    releaseTag: 'v1.2.0',
+                    log: (message) => logs.push(message),
+                    warn: (message) => warnings.push(message),
+                    network: { fetch: lagging([]) },
+                });
+                expect(data.latestRelease!.tag).toBe('v1.2.0');
+                expect(logs[0]).toMatch(/v1\.2\.0/);
+                expect(warnings.filter((message) => /does not match/.test(message)).length).toBe(0);
+            });
+        });
+    });
+
     await describe('loadSiteData', async () => {
         await it('degrades to warnings when the network fails', async () => {
             await withFixture(
