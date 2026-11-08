@@ -182,10 +182,7 @@ export async function loadSiteData(options: LoadOptions): Promise<SiteData> {
         : undefined;
     const developer = metainfo.developer.name
         ? metainfo.developer
-        : {
-              id: manifest.gjsify?.flatpak?.developer?.id,
-              name: manifest.gjsify?.flatpak?.developer?.name ?? '',
-          };
+        : { id: manifest.gjsify?.flatpak?.developer?.id, name: manifest.gjsify?.flatpak?.developer?.name ?? '' };
 
     const relatedApps = await loadRelatedApps(config, metainfo.id, {
         offline: options.offline,

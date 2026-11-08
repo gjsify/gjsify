@@ -123,15 +123,7 @@ const asset = (name: string): ReleaseAsset => ({
 /** The `gjsify.site` of a config-validation case: the four required keys plus what it is about. */
 const manifest = (site: Record<string, unknown>) => ({
     version: '1.0.0',
-    gjsify: {
-        site: {
-            metainfo: 'm.xml',
-            base: '/x/',
-            url: 'https://example.org/x',
-            repository: 'o/r',
-            ...site,
-        },
-    },
+    gjsify: { site: { metainfo: 'm.xml', base: '/x/', url: 'https://example.org/x', repository: 'o/r', ...site } },
 });
 
 export default async () => {
@@ -157,10 +149,7 @@ export default async () => {
         await it('takes the metainfo list in order, with its captions', async () => {
             await withFixture(async (root) => {
                 const metainfo = parseMetainfo(METAINFO);
-                const shots = await resolveScreenshots(metainfo, {
-                    root,
-                    repository: 'example/notes',
-                });
+                const shots = await resolveScreenshots(metainfo, { root, repository: 'example/notes' });
                 expect(shots.length).toBe(2);
                 expect(shots.map((shot) => shot.slug)).toStrictEqual(['data-list', 'data-editor']);
                 expect(shots[0]!.file).toBe(join(root, 'data/list.png'));
@@ -191,13 +180,9 @@ export default async () => {
             expect(metainfo.screenshots.length).toBe(2);
             const [first, second] = metainfo.screenshots;
             expect(first!.url).toBe('https://example.org/1.png');
-            expect(first!.byLanguage).toStrictEqual({
-                de: 'https://example.org/1-de.png',
-            });
+            expect(first!.byLanguage).toStrictEqual({ de: 'https://example.org/1-de.png' });
             expect(first!.dark?.url).toBe('https://example.org/1-dark.png');
-            expect(first!.dark?.byLanguage).toStrictEqual({
-                de: 'https://example.org/1-dark-de.png',
-            });
+            expect(first!.dark?.byLanguage).toStrictEqual({ de: 'https://example.org/1-dark-de.png' });
             expect(second!.dark?.url).toBe('https://example.org/2-dark.png');
             expect(second!.dark?.byLanguage).toStrictEqual({});
             expect(warnings.length).toBe(1);
@@ -216,10 +201,7 @@ export default async () => {
                         url: `${raw}list.png`,
                         byLanguage: { de: `${raw}list-de.png`, fr: `${raw}missing-fr.png` },
                         caption: null,
-                        dark: {
-                            url: `${raw}list-dark.png`,
-                            byLanguage: { de: `${raw}list-dark-de.png` },
-                        },
+                        dark: { url: `${raw}list-dark.png`, byLanguage: { de: `${raw}list-dark-de.png` } },
                     },
                     {
                         url: `${raw}editor.png`,
@@ -275,13 +257,7 @@ export default async () => {
             await withFixture(async (root) => {
                 const warnings: string[] = [];
                 const metainfo = parseMetainfo(METAINFO);
-                metainfo.screenshots = [
-                    {
-                        url: 'https://example.org/promo.png',
-                        byLanguage: {},
-                        caption: null,
-                    },
-                ];
+                metainfo.screenshots = [{ url: 'https://example.org/promo.png', byLanguage: {}, caption: null }];
                 const shots = await resolveScreenshots(metainfo, {
                     root,
                     repository: 'example/notes',
@@ -297,13 +273,7 @@ export default async () => {
         await it('downloads artwork hosted elsewhere into the cache, so the next offline build finds it', async () => {
             await withFixture(async (root) => {
                 const metainfo = parseMetainfo(METAINFO);
-                metainfo.screenshots = [
-                    {
-                        url: 'https://example.org/promo.png',
-                        byLanguage: {},
-                        caption: null,
-                    },
-                ];
+                metainfo.screenshots = [{ url: 'https://example.org/promo.png', byLanguage: {}, caption: null }];
                 const options = {
                     root,
                     repository: 'example/notes',
@@ -323,11 +293,7 @@ export default async () => {
                 expect(existsSync(shots[0]!.file)).toBe(true);
 
                 // The second pass finds the cached file and needs no network at all.
-                const offline = await resolveScreenshots(metainfo, {
-                    ...options,
-                    network: {},
-                    offline: true,
-                });
+                const offline = await resolveScreenshots(metainfo, { ...options, network: {}, offline: true });
                 expect(offline.length).toBe(1);
             });
         });
@@ -351,11 +317,7 @@ export default async () => {
                 format: 'zip',
                 arch: 'noarch',
             });
-            expect(classifyAsset(asset('app-1.0.xpi'))).toStrictEqual({
-                os: 'firefox',
-                format: 'xpi',
-                arch: 'noarch',
-            });
+            expect(classifyAsset(asset('app-1.0.xpi'))).toStrictEqual({ os: 'firefox', format: 'xpi', arch: 'noarch' });
             expect(classifyAsset(asset('app-1.0-chrome-mv3.zip'))?.os).toBe('chromium');
         });
 
@@ -388,10 +350,7 @@ export default async () => {
                 schema: 1,
                 artifact: dmg.name,
                 sha256: sha,
-                signature: {
-                    kind: 'identity',
-                    identity: 'Developer ID Application: X (T)',
-                },
+                signature: { kind: 'identity', identity: 'Developer ID Application: X (T)' },
                 notarized: true,
                 ...fields,
             });
@@ -420,13 +379,7 @@ export default async () => {
 
         await it('derives the Safari hint from the release record alone, and fails closed', async () => {
             const withExtensionPoint = (extensionPoint: unknown) => ({
-                nestedBundles: [
-                    {
-                        name: 'Safari.appex',
-                        bundleId: 'eu.jumplink.app.Extension',
-                        extensionPoint,
-                    },
-                ],
+                nestedBundles: [{ name: 'Safari.appex', bundleId: 'eu.jumplink.app.Extension', extensionPoint }],
             });
             expect(hasSafariExtension(withExtensionPoint('com.apple.Safari.web-extension'))).toBe(true);
             // An older record, written before the nested-bundles amendment, has no such key at all.
@@ -442,10 +395,7 @@ export default async () => {
             expect(hasSafariExtension({ nestedBundles: [null, 'nope', 42] })).toBe(false);
             expect(hasSafariExtension({ nestedBundles: [{}] })).toBe(false);
 
-            const zip = {
-                ...asset('App-1.0-macos-arm64.zip'),
-                sha256: 'c'.repeat(64),
-            };
+            const zip = { ...asset('App-1.0-macos-arm64.zip'), sha256: 'c'.repeat(64) };
             const targets = buildDownloadTargets({
                 assets: [zip],
                 records: new Map([[zip.name, withExtensionPoint('com.apple.Safari.web-extension')]]),
@@ -456,9 +406,7 @@ export default async () => {
         });
 
         await it('prefers a Flatpak bundle over an AppImage on Linux, Flathub over both', async () => {
-            const bundled = buildDownloadTargets({
-                assets: [asset('a.AppImage'), asset('a.flatpak')],
-            });
+            const bundled = buildDownloadTargets({ assets: [asset('a.AppImage'), asset('a.flatpak')] });
             expect(bundled.map((target) => [target.format, target.recommended])).toStrictEqual([
                 ['flatpak', true],
                 ['appimage', false],
@@ -481,15 +429,9 @@ export default async () => {
                 flathubSize: 1_832_624,
             });
             expect(fromSummary.find((target) => target.format === 'flathub')?.size).toBe(1_832_624);
-            const fromBundle = buildDownloadTargets({
-                assets: [bundle],
-                flathub: 'eu.example.App',
-            });
+            const fromBundle = buildDownloadTargets({ assets: [bundle], flathub: 'eu.example.App' });
             expect(fromBundle.find((target) => target.format === 'flathub')?.size).toBe(400_000);
-            const neither = buildDownloadTargets({
-                assets: [],
-                flathub: 'eu.example.App',
-            });
+            const neither = buildDownloadTargets({ assets: [], flathub: 'eu.example.App' });
             expect(neither.find((target) => target.format === 'flathub')?.size).toBeUndefined();
             expect(parseFlathubSummary({ download_size: 7, installed_size: 9 }).downloadSize).toBe(7);
             expect(() => parseFlathubSummary({})).toThrow(/Unexpected Flathub summary/);
@@ -511,25 +453,13 @@ export default async () => {
                     releaseAssets: false,
                     downloads: [
                         { platform: 'firefox', format: 'store', available: false },
-                        {
-                            platform: 'firefox',
-                            format: 'source',
-                            url: 'https://example.org/install',
-                        },
-                        {
-                            platform: 'chromium',
-                            format: 'store',
-                            available: false,
-                            label: 'Chrome Web Store',
-                        },
+                        { platform: 'firefox', format: 'source', url: 'https://example.org/install' },
+                        { platform: 'chromium', format: 'store', available: false, label: 'Chrome Web Store' },
                     ],
                 }),
             );
             expect(config.releaseAssets).toBe(false);
-            const targets = buildDownloadTargets({
-                assets: [],
-                configured: config.downloads,
-            });
+            const targets = buildDownloadTargets({ assets: [], configured: config.downloads });
             expect(
                 targets.map((target) => [target.os, target.format, target.available, target.recommended]),
             ).toStrictEqual([
@@ -543,11 +473,7 @@ export default async () => {
                 /downloads\[0\].url/,
             );
             expect(() =>
-                parseSiteConfig(
-                    manifest({
-                        downloads: [{ platform: 'beos', format: 'zip', url: 'https://x' }],
-                    }),
-                ),
+                parseSiteConfig(manifest({ downloads: [{ platform: 'beos', format: 'zip', url: 'https://x' }] })),
             ).toThrow(/downloads\[0\].platform/);
         });
 
@@ -568,22 +494,10 @@ export default async () => {
             const config = parseSiteConfig(
                 manifest({
                     components: [
-                        {
-                            id: 'app',
-                            name: 'Desktop app',
-                            summary: 'Runs on your machine',
-                            match: '^notes[-_]',
-                        },
+                        { id: 'app', name: 'Desktop app', summary: 'Runs on your machine', match: '^notes[-_]' },
                         { id: 'extension', name: 'Browser extension' },
                     ],
-                    downloads: [
-                        {
-                            platform: 'chromium',
-                            format: 'store',
-                            available: false,
-                            component: 'extension',
-                        },
-                    ],
+                    downloads: [{ platform: 'chromium', format: 'store', available: false, component: 'extension' }],
                 }),
             );
             // The match is compiled case-insensitively: release artefacts differ in case per format.
@@ -611,14 +525,7 @@ export default async () => {
                 parseSiteConfig(
                     manifest({
                         components: [{ id: 'app', name: 'Desktop app' }],
-                        downloads: [
-                            {
-                                platform: 'firefox',
-                                format: 'store',
-                                available: false,
-                                component: 'extension',
-                            },
-                        ],
+                        downloads: [{ platform: 'firefox', format: 'store', available: false, component: 'extension' }],
                     }),
                 ),
             ).toThrow(/components: app/);
@@ -687,14 +594,7 @@ export default async () => {
 
         await it('applies the documented defaults', async () => {
             const config = parseSiteConfig({
-                gjsify: {
-                    site: {
-                        metainfo: 'm',
-                        base: 'x',
-                        url: 'https://x',
-                        repository: 'a/b',
-                    },
-                },
+                gjsify: { site: { metainfo: 'm', base: 'x', url: 'https://x', repository: 'a/b' } },
             });
             expect(config.base).toBe('/x/');
             expect(config.url).toBe('https://x/');
@@ -713,19 +613,11 @@ export default async () => {
                 manifest({
                     support: [
                         { kind: 'Sponsor', url: 'https://example.org/s' },
-                        {
-                            kind: 'sepa',
-                            name: 'N',
-                            iban: 'de89 3704 0044 0532 0130 00',
-                            bic: 'cobadeffxxx',
-                        },
+                        { kind: 'sepa', name: 'N', iban: 'de89 3704 0044 0532 0130 00', bic: 'cobadeffxxx' },
                     ],
                 }),
             ).support;
-            expect(link).toStrictEqual({
-                kind: 'Sponsor',
-                url: 'https://example.org/s',
-            });
+            expect(link).toStrictEqual({ kind: 'Sponsor', url: 'https://example.org/s' });
             expect(sepa).toStrictEqual({
                 kind: 'sepa',
                 name: 'N',
@@ -734,31 +626,14 @@ export default async () => {
                 reference: undefined,
             });
             expect(() =>
-                parseSiteConfig(
-                    manifest({
-                        support: [{ kind: 'sepa', name: 'N', iban: 'DE89370400440532013001' }],
-                    }),
-                ),
+                parseSiteConfig(manifest({ support: [{ kind: 'sepa', name: 'N', iban: 'DE89370400440532013001' }] })),
             ).toThrow(/support\[0\]\.iban is not a valid IBAN/);
             expect(() =>
-                parseSiteConfig(
-                    manifest({
-                        support: [{ kind: 'sepa', iban: 'DE89370400440532013000' }],
-                    }),
-                ),
+                parseSiteConfig(manifest({ support: [{ kind: 'sepa', iban: 'DE89370400440532013000' }] })),
             ).toThrow(/support\[0\]\.name/);
             expect(() =>
                 parseSiteConfig(
-                    manifest({
-                        support: [
-                            {
-                                kind: 'sepa',
-                                name: 'N',
-                                iban: 'DE89370400440532013000',
-                                bic: 'XX',
-                            },
-                        ],
-                    }),
+                    manifest({ support: [{ kind: 'sepa', name: 'N', iban: 'DE89370400440532013000', bic: 'XX' }] }),
                 ),
             ).toThrow(/bic is not a valid BIC/);
         });
@@ -766,35 +641,19 @@ export default async () => {
         await it('requires one privacy statement per configured language, and nothing more', async () => {
             expect(
                 parseSiteConfig(
-                    manifest({
-                        languages: ['en', 'de'],
-                        privacy: { statements: { en: 'p.en.md', de: 'p.de.md' } },
-                    }),
+                    manifest({ languages: ['en', 'de'], privacy: { statements: { en: 'p.en.md', de: 'p.de.md' } } }),
                 ).privacy,
-            ).toStrictEqual({
-                statements: { en: 'p.en.md', de: 'p.de.md' },
-                hostingPolicyUrl: undefined,
-            });
+            ).toStrictEqual({ statements: { en: 'p.en.md', de: 'p.de.md' }, hostingPolicyUrl: undefined });
             expect(parseSiteConfig(manifest({})).privacy).toBeUndefined();
             expect(() =>
-                parseSiteConfig(
-                    manifest({
-                        languages: ['en', 'de'],
-                        privacy: { statements: { en: 'p.en.md' } },
-                    }),
-                ),
+                parseSiteConfig(manifest({ languages: ['en', 'de'], privacy: { statements: { en: 'p.en.md' } } })),
             ).toThrow(/privacy\.statements\.de/);
             expect(() => parseSiteConfig(manifest({ privacy: { statements: 'x' } }))).toThrow(
                 /privacy\.statements must be an object/,
             );
             expect(
                 parseSiteConfig(
-                    manifest({
-                        privacy: {
-                            statements: { en: 'p.md' },
-                            hostingPolicyUrl: 'https://host.example/',
-                        },
-                    }),
+                    manifest({ privacy: { statements: { en: 'p.md' }, hostingPolicyUrl: 'https://host.example/' } }),
                 ).privacy?.hostingPolicyUrl,
             ).toBe('https://host.example/');
         });
@@ -810,12 +669,7 @@ export default async () => {
             ).toStrictEqual({ statements: { en: 'l.en.md', de: 'l.de.md' } });
             expect(parseSiteConfig(manifest({})).legalNotice).toBeUndefined();
             expect(() =>
-                parseSiteConfig(
-                    manifest({
-                        languages: ['en', 'de'],
-                        legalNotice: { statements: { en: 'l.en.md' } },
-                    }),
-                ),
+                parseSiteConfig(manifest({ languages: ['en', 'de'], legalNotice: { statements: { en: 'l.en.md' } } })),
             ).toThrow(/legalNotice\.statements\.de/);
             expect(() => parseSiteConfig(manifest({ legalNotice: { statements: 'x' } }))).toThrow(
                 /legalNotice\.statements must be an object/,
@@ -841,11 +695,7 @@ export default async () => {
                         browser_download_url: 'https://x/a.deb',
                         digest: `sha256:${'AB'.repeat(32)}`,
                     },
-                    {
-                        name: 'b.deb',
-                        browser_download_url: 'https://x/b.deb',
-                        digest: 'sha512:00',
-                    },
+                    { name: 'b.deb', browser_download_url: 'https://x/b.deb', digest: 'sha512:00' },
                     { nope: true },
                 ],
             });
@@ -859,26 +709,14 @@ export default async () => {
         });
 
         await it('rejects on HTTP errors', async () => {
-            const failing = async () => ({
-                ok: false,
-                status: 503,
-                json: async () => ({}),
-            });
+            const failing = async () => ({ ok: false, status: 503, json: async () => ({}) });
             await expect(fetchJson('https://x', {}, { fetch: failing })).rejects.toThrow();
         });
 
         await it('treats a repository without a release as a state, not an error', async () => {
-            const notFound = async () => ({
-                ok: false,
-                status: 404,
-                json: async () => ({}),
-            });
+            const notFound = async () => ({ ok: false, status: 404, json: async () => ({}) });
             expect(await fetchLatestRelease('a/b', undefined, { fetch: notFound })).toBeNull();
-            const unavailable = async () => ({
-                ok: false,
-                status: 503,
-                json: async () => ({}),
-            });
+            const unavailable = async () => ({ ok: false, status: 503, json: async () => ({}) });
             await expect(fetchLatestRelease('a/b', undefined, { fetch: unavailable })).rejects.toThrow();
         });
     });
@@ -971,9 +809,7 @@ export default async () => {
                     const data = await loadSiteData({
                         root,
                         warn: (message) => warnings.push(message),
-                        network: {
-                            fetch: async () => Promise.reject(new Error('offline')),
-                        },
+                        network: { fetch: async () => Promise.reject(new Error('offline')) },
                     });
                     expect(data.latestRelease).toBeNull();
                     expect(data.stats.githubDownloads).toBeUndefined();
@@ -1060,18 +896,11 @@ export default async () => {
                 manifest({
                     relatedApps: [
                         'https://example.org/a',
-                        {
-                            url: 'https://example.org/b/',
-                            name: 'B',
-                            summary: 'Bee',
-                            icon: 'https://example.org/b.png',
-                        },
+                        { url: 'https://example.org/b/', name: 'B', summary: 'Bee', icon: 'https://example.org/b.png' },
                     ],
                 }),
             );
-            expect(config.relatedApps[0]).toStrictEqual({
-                url: 'https://example.org/a/',
-            });
+            expect(config.relatedApps[0]).toStrictEqual({ url: 'https://example.org/a/' });
             expect(config.relatedApps[1]!.name).toBe('B');
             expect(parseSiteConfig(manifest({})).relatedApps).toStrictEqual([]);
             expect(() => parseSiteConfig(manifest({ relatedApps: 'x' }))).toThrow(/relatedApps must be a list/);
@@ -1091,10 +920,7 @@ export default async () => {
                 expect(json.summary.de).toBe('Dinge aufschreiben');
                 expect(json.icon).toBe('https://example.org/notes/icon.svg');
                 expect(json.url).toBe('https://example.org/notes/');
-                expect(json.developer).toStrictEqual({
-                    id: 'org.example',
-                    name: 'Example Developer',
-                });
+                expect(json.developer).toStrictEqual({ id: 'org.example', name: 'Example Developer' });
                 expect(typeof parseAppManifest(JSON.parse(JSON.stringify(json)))).toBe('object');
             });
         });
@@ -1137,10 +963,7 @@ export default async () => {
         await it('matches the site itself regardless of letter case', async () => {
             await withFixture(
                 async (root) => {
-                    const data = await loadSiteData({
-                        root,
-                        network: { fetch: serve({}) },
-                    });
+                    const data = await loadSiteData({ root, network: { fetch: serve({}) } });
                     expect(data.relatedApps).toStrictEqual([]);
                 },
                 site(['https://Example.org/NOTES']),
@@ -1154,9 +977,7 @@ export default async () => {
                         root,
                         network: {
                             fetch: serve({
-                                [`${OTHER}app.json`]: manifestFor(OTHER, {
-                                    id: 'org.example.Notes',
-                                }),
+                                [`${OTHER}app.json`]: manifestFor(OTHER, { id: 'org.example.Notes' }),
                             }),
                         },
                     });
@@ -1193,18 +1014,12 @@ export default async () => {
                     const config = parseSiteConfig({ gjsify: { site: site([OTHER]) } });
                     const ok = await loadRelatedApps(config, 'x', {
                         warn,
-                        network: {
-                            cacheDir,
-                            fetch: serve({ [`${OTHER}app.json`]: manifestFor(OTHER) }),
-                        },
+                        network: { cacheDir, fetch: serve({ [`${OTHER}app.json`]: manifestFor(OTHER) }) },
                     });
                     expect(ok.length).toBe(1);
                     const down = await loadRelatedApps(config, 'x', {
                         warn,
-                        network: {
-                            cacheDir,
-                            fetch: async () => Promise.reject(new Error('down')),
-                        },
+                        network: { cacheDir, fetch: async () => Promise.reject(new Error('down')) },
                     });
                     expect(down.map((app) => app.id)).toStrictEqual(['org.example.Other']);
                     expect(warnings).toStrictEqual([]);
@@ -1218,11 +1033,7 @@ export default async () => {
                     expect(none).toStrictEqual([]);
                     expect(warnings.length).toBe(1);
                     expect(warnings[0]).toMatch(/app\.json.*skipping/);
-                    const offline = await loadRelatedApps(config, 'x', {
-                        warn,
-                        offline: true,
-                        network: { cacheDir },
-                    });
+                    const offline = await loadRelatedApps(config, 'x', { warn, offline: true, network: { cacheDir } });
                     expect(offline.length).toBe(1);
                 },
                 site([OTHER]),
@@ -1234,22 +1045,14 @@ export default async () => {
                 async (root) => {
                     const data = await loadSiteData({
                         root,
-                        network: {
-                            fetch: async () => Promise.reject(new Error('no network')),
-                        },
+                        network: { fetch: async () => Promise.reject(new Error('no network')) },
                         offline: true,
                     });
                     expect(data.relatedApps.length).toBe(1);
                     expect(data.relatedApps[0]!.name.en).toBe('Plain');
                     expect(relatedUrl(data.relatedApps[0]!, 'de')).toBe('https://example.org/plain/');
                 },
-                site([
-                    {
-                        url: 'https://example.org/plain/',
-                        name: 'Plain',
-                        summary: 'No app.json',
-                    },
-                ]),
+                site([{ url: 'https://example.org/plain/', name: 'Plain', summary: 'No app.json' }]),
             );
         });
     });

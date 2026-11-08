@@ -214,10 +214,7 @@ async function processScreenshots(
     return new Map(entries);
 }
 
-const ICON_TYPES: Record<string, string> = {
-    '.svg': 'image/svg+xml',
-    '.png': 'image/png',
-};
+const ICON_TYPES: Record<string, string> = { '.svg': 'image/svg+xml', '.png': 'image/png' };
 
 /** The icon inlined, so the card's SVG is self-contained when the pixbuf loader rasterises it. */
 async function iconDataUri(data: SiteData, { root }: SiteTarget): Promise<string | undefined> {
@@ -279,11 +276,7 @@ async function loadBlog(
 ): Promise<BlogBuild | undefined> {
     if (!config.blog) return undefined;
     const dir = resolve(target.root, config.blog.posts);
-    const posts = await loadBlogPosts({
-        dir,
-        languages: config.languages,
-        drafts,
-    });
+    const posts = await loadBlogPosts({ dir, languages: config.languages, drafts });
     for (const file of await blogAssetFiles(dir)) {
         await mkdir(dirname(join(target.out, 'blog', file)), { recursive: true });
         await copyFile(join(dir, file), join(target.out, 'blog', file));
@@ -315,30 +308,18 @@ async function writeBlog(config: SiteCommonConfig, out: string, pages: BlogPages
     const relative = (url: string) => url.slice(config.base.length);
     for (const lang of config.languages) {
         const shell = pages.shell(lang);
-        const feed = {
-            posts: blog.posts,
-            author: pages.author,
-            html: blog.html,
-            iconUrl: pages.iconUrl,
-        };
+        const feed = { posts: blog.posts, author: pages.author, html: blog.html, iconUrl: pages.iconUrl };
         await writePage(
             out,
             `${relative(blogIndexUrl(config, lang))}index.html`,
-            renderBlogIndex(shell, {
-                posts: blog.posts,
-                ogImage: pages.ogImage(lang),
-            }),
+            renderBlogIndex(shell, { posts: blog.posts, ogImage: pages.ogImage(lang) }),
         );
         await writePage(out, relative(blogFeedUrl(config, lang)), renderBlogFeed(shell, feed));
         for (const tag of tagsOf(blog.posts, lang)) {
             await writePage(
                 out,
                 `${relative(tagUrl(config, lang, tag))}index.html`,
-                renderBlogIndex(shell, {
-                    posts: blog.posts,
-                    tag,
-                    ogImage: pages.ogImage(lang),
-                }),
+                renderBlogIndex(shell, { posts: blog.posts, tag, ogImage: pages.ogImage(lang) }),
             );
             await writePage(out, relative(blogFeedUrl(config, lang, tag)), renderBlogFeed(shell, { ...feed, tag }));
             sitemap.push({ [lang]: absoluteUrl(config, tagUrl(config, lang, tag)) });
@@ -355,11 +336,7 @@ async function writeBlog(config: SiteCommonConfig, out: string, pages: BlogPages
                     supportUrl: pages.supportUrl?.(lang),
                 }),
             );
-            const card = ogCardSvg({
-                ...pages.card,
-                name: post.title,
-                summary: postDescription(post),
-            });
+            const card = ogCardSvg({ ...pages.card, name: post.title, summary: postDescription(post) });
             await writeFile(join(out, relative(postOgImage(config, post))), svgToPng(card));
         }
     }
@@ -395,10 +372,7 @@ function writeSitemap(
 
 /** Renders one static page per configured language, plus the language-picking root page. */
 export async function buildSite(options: SiteBuildOptions): Promise<SiteBuildResult> {
-    const target: SiteTarget = {
-        root: resolve(options.root),
-        out: resolve(options.out),
-    };
+    const target: SiteTarget = { root: resolve(options.root), out: resolve(options.out) };
     const cacheDir = options.cacheDir === false ? undefined : (options.cacheDir ?? defaultCacheDir(target.root));
     const self = selfDir(options.packageDir);
     const config = await readConfig(target.root);
@@ -409,15 +383,7 @@ export async function buildSite(options: SiteBuildOptions): Promise<SiteBuildRes
     const catalogs = await loadPageCatalogs(config, target.root, self, options.warn);
     const displayFontUrl = await publishDisplayFont(config, target);
     const blog = await loadBlog(config, target, options.drafts ?? false, options.markdown);
-    const build = {
-        options,
-        target,
-        cacheDir,
-        assets,
-        catalogs,
-        displayFontUrl,
-        blog,
-    };
+    const build = { options, target, cacheDir, assets, catalogs, displayFontUrl, blog };
     return config.kind === 'app' ? buildAppSite(build) : buildDeveloperSite(config, build);
 }
 
@@ -504,9 +470,7 @@ async function buildAppSite(build: Build): Promise<SiteBuildResult> {
             ...(await writeBlog(data.config, target.out, {
                 blog,
                 shell: (lang) => appShell({ ...contextFor(lang), current: 'blog' }),
-                author: {
-                    name: developer || localized(data.app.name, data.config.defaultLanguage),
-                },
+                author: { name: developer || localized(data.app.name, data.config.defaultLanguage) },
                 card,
                 iconUrl,
                 ogImage: (lang) => `${data.config.base}og-${lang}.png`,
@@ -545,11 +509,7 @@ async function buildDeveloperSite(config: DeveloperSiteConfig, build: Build): Pr
     });
     const avatarUrl = await publishAvatar(data, target);
     const background = config.theme.accent?.light ?? '#84bbfd';
-    const card = {
-        background,
-        foreground: readableText(background),
-        iconHref: await avatarDataUri(data, target),
-    };
+    const card = { background, foreground: readableText(background), iconHref: await avatarDataUri(data, target) };
     const privacyStatements = config.privacy ? await loadPrivacyStatements(config.privacy, target.root) : undefined;
     const legalNoticeStatements = config.legalNotice
         ? await loadLegalNoticeStatements(config.legalNotice, target.root)
@@ -680,11 +640,5 @@ export async function syncSiteI18n(options: SiteI18nOptions = {}): Promise<I18nR
 
     const dir = resolve(root, config.pageTranslations);
     if (!check) await mkdir(dir, { recursive: true });
-    return syncCatalogs({
-        dir,
-        languages: config.languages,
-        msgids,
-        check,
-        base: root,
-    });
+    return syncCatalogs({ dir, languages: config.languages, msgids, check, base: root });
 }
