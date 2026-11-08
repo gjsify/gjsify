@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.64.26](https://github.com/gjsify/gjsify/compare/v0.64.25...v0.64.26) (2026-11-08)
+
+### Features
+
+* **adwaita:** declare Gtk.ToggleButton at the seam ([#2532](https://github.com/gjsify/gjsify/issues/2532)) ([99640d0](https://github.com/gjsify/gjsify/commit/99640d04b0455e9f92d577a5cd44c068a0afbcd9)), closes [#2517](https://github.com/gjsify/gjsify/issues/2517)
+* **embeddings:** embedder and llama.cpp engine ([#2545](https://github.com/gjsify/gjsify/issues/2545)) ([3012587](https://github.com/gjsify/gjsify/commit/301258774fb177ba6e97a1494160a86e6bddcf6a))
+* **model-store:** export downloadVerified ([#2565](https://github.com/gjsify/gjsify/issues/2565)) ([7422c34](https://github.com/gjsify/gjsify/commit/7422c3489572ae24596e73f7ea07bf7abe257e77))
+* **site:** pin release tag, log used release ([#2573](https://github.com/gjsify/gjsify/issues/2573)) ([7092434](https://github.com/gjsify/gjsify/commit/7092434135f5f0e2150f8b6cfd9063569cc242d5))
+* **vad:** download models through model-store ([#2564](https://github.com/gjsify/gjsify/issues/2564)) ([db14b0c](https://github.com/gjsify/gjsify/commit/db14b0ca387a0cb930c677b3037b757164e11244))
+
+### Bug Fixes
+
+* **adwaita-web:** drop notify::group on ToggleButton ([#2566](https://github.com/gjsify/gjsify/issues/2566)) ([76087ba](https://github.com/gjsify/gjsify/commit/76087bafbd6ca9e7d952913e30e60ed8ca61e9d4)), closes [#2532](https://github.com/gjsify/gjsify/issues/2532)
+* **cli:** exhaustive onboard publish-failure detail and CI OIDC verification hint ([#2569](https://github.com/gjsify/gjsify/issues/2569)) ([7dc46cc](https://github.com/gjsify/gjsify/commit/7dc46cc0f229a1cb1bfe4971f4e24f37238a2a08))
+
+### Documentation
+
+* **adr:** accept 0134 with system as default ([#2533](https://github.com/gjsify/gjsify/issues/2533)) ([d7dee92](https://github.com/gjsify/gjsify/commit/d7dee92f90dc7ad65d9bf905c214fe02bd25b5bf))
+* **fdroid:** add recipe draft and evidence ([#2568](https://github.com/gjsify/gjsify/issues/2568)) ([1ee059d](https://github.com/gjsify/gjsify/commit/1ee059d79da639bf266816dd680fbca2d993b240))
+* **status:** gate seam migrations on desktop suites ([#2572](https://github.com/gjsify/gjsify/issues/2572)) ([75fa615](https://github.com/gjsify/gjsify/commit/75fa6155a8f1fa0f7e5d70c43418ae41ecac8c0e))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([03c014b](https://github.com/gjsify/gjsify/commit/03c014b213cecca984cd57977ac18e6ada06d5da))
+
 ## [0.64.25](https://github.com/gjsify/gjsify/compare/v0.64.24...v0.64.25) (2026-11-07)
 
 ### Features
