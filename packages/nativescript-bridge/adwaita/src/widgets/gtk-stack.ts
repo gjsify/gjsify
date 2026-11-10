@@ -59,7 +59,7 @@ interface GtkStackValues {
     visibleChild: View | null;
 }
 
-export class GtkStack extends withSignals<typeof GridLayout>(GridLayout, {
+export class GtkStack extends withSignals(GridLayout, {
     GTypeName: 'GtkStack',
     Properties: {
         // Object-kind makes this seam-owned for the same reason `AdwComboRow:selected-item`
