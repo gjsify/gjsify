@@ -51,11 +51,17 @@ function prefix(id: string | undefined): string {
     return id === undefined ? 'Downloading' : `Downloading ${id}`;
 }
 
+/** Anything that can receive byte progress for one download. */
+export interface ProgressReporter {
+    readonly modelId: string;
+    report(receivedBytes: number, totalBytes: number): void;
+}
+
 interface DownloadVerifiedInternalOptions extends DownloadVerifiedOptions {
     /** Identifier used in error messages. Omit for the standalone public function. */
     id?: string;
-    /** Existing progress fanout (e.g. ModelStore's shared one). */
-    progress?: ProgressFanout;
+    /** Existing progress reporter (e.g. ModelStore's aggregate one). */
+    progress?: ProgressReporter;
 }
 
 /** @internal Variant that lets ModelStore keep its existing error wording. */
@@ -82,8 +88,9 @@ export async function downloadVerifiedInternal(
     const partial = `${dest}.part-${randomUUID()}`;
     const fd = openSync(partial, 'w');
     let closed = false;
-    const progress = options.progress ?? new ProgressFanout(options.id ?? url);
-    if (options.progress === undefined && options.monitor !== undefined) progress.add(options.monitor);
+    const fanout = new ProgressFanout(options.id ?? url);
+    const progress = options.progress ?? fanout;
+    if (options.progress === undefined && options.monitor !== undefined) fanout.add(options.monitor);
     try {
         const hash = createHash('sha256');
         let received = 0;

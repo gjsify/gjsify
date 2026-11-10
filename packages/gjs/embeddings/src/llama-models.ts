@@ -37,10 +37,14 @@ export const DEFAULT_EMBEDDING_MODEL = 'embeddinggemma-2-q8_0';
 export const EMBEDDING_MODELS: readonly EmbeddingModelEntry[] = [
     {
         id: DEFAULT_EMBEDDING_MODEL,
-        file: 'embeddinggemma-2-Q8_0.gguf',
-        url: 'https://huggingface.co/ggml-org/embeddinggemma-2-GGUF/resolve/58faf90940886df2d62be555c8765d00dac362c5/embeddinggemma-2-Q8_0.gguf',
-        bytes: 309855456,
-        sha256: '2188ac1deca4b77dffefd603c2776a9d76d9d74ec01841392982ebb840b09135',
+        files: [
+            {
+                file: 'embeddinggemma-2-Q8_0.gguf',
+                url: 'https://huggingface.co/ggml-org/embeddinggemma-2-GGUF/resolve/58faf90940886df2d62be555c8765d00dac362c5/embeddinggemma-2-Q8_0.gguf',
+                bytes: 309855456,
+                sha256: '2188ac1deca4b77dffefd603c2776a9d76d9d74ec01841392982ebb840b09135',
+            },
+        ],
         license: 'Apache-2.0',
         redistributable: true,
         modelId: 'ggml-org/embeddinggemma-2-GGUF:Q8_0',

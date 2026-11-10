@@ -56,7 +56,7 @@ export const DEFAULT_GPU_CONTEXTS = 2;
 export interface LlamaEmbeddingsOptions {
     /** An id from {@link EMBEDDING_MODELS}. */
     readonly model?: string;
-    /** A file the person already has; checked against the manifest's size and digest. */
+    /** A directory containing the model files; checked against the manifest's sizes and digests. */
     readonly modelPath?: string;
     /** Directories the app ships models in, read-only, searched before the cache. */
     readonly appDataDirs?: readonly string[];
@@ -299,12 +299,13 @@ export function createLlamaEmbeddings(nlc: NodeLlamaCpp, options: LlamaEmbedding
         },
 
         async create(createOptions: EngineCreateOptions = {}): Promise<EmbeddingEngine> {
-            const modelPath = await store.install(entry.id, {
+            const resolved = await store.install(entry.id, {
                 path: options.modelPath,
                 monitor: createOptions.monitor,
                 signal: createOptions.signal,
             });
             createOptions.signal?.throwIfAborted();
+            const modelPath = resolved.files[entry.files[0].file];
             let session = await openSession(modelPath, false);
 
             const embedOnce = async (

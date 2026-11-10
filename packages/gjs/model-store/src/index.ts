@@ -1,6 +1,6 @@
 export { modelsRoot, userCacheDir } from './cache-dir.js';
 export { downloadVerified, type DownloadVerifiedOptions, type FetchLike } from './download.js';
-export { validateManifest, type ModelEntry } from './manifest.js';
+export { validateManifest, type ModelEntry, type ModelFile } from './manifest.js';
 export { DownloadProgressEvent, type CreateMonitorCallback } from './progress.js';
 export {
     ModelStore,
@@ -11,5 +11,6 @@ export {
     type ModelAvailability,
     type ModelSource,
     type ModelStoreOptions,
+    type ResolvedModel,
     type ResolveOptions,
 } from './store.js';

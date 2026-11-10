@@ -61,7 +61,8 @@ export default async () => {
         await it('lists the native size first among the truncations', async () => {
             for (const entry of EMBEDDING_MODELS) {
                 expect(entry.truncations[0]).toBe(entry.dimensions);
-                expect(entry.footprintBytes > entry.bytes).toBe(true);
+                const modelBytes = entry.files.reduce((sum, file) => sum + file.bytes, 0);
+                expect(entry.footprintBytes > modelBytes).toBe(true);
             }
         });
 

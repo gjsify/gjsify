@@ -19,9 +19,9 @@ import { hasVadBackend } from './backend.js';
 /**
  * What `available()` answers, as the Web Speech on-device additions spell it:
  *
- *   • `available`    — the file is cached and verified-by-size; use it now.
+ *   • `available`    — all files are cached and verified-by-size; use it now.
  *   • `downloading`  — an `install()` for this id is in flight in this process.
- *   • `downloadable` — the engine is here, the file is not; `install()` fetches it.
+ *   • `downloadable` — the engine is here, the files are not; `install()` fetches them.
  *   • `unavailable`  — no native engine on this host, so no model helps.
  */
 export type VadModelAvailability = ModelAvailability;
@@ -30,7 +30,7 @@ export interface InstallProgress {
     readonly modelId: string;
     /** Bytes written so far. */
     readonly received: number;
-    /** The manifest's size for this model. */
+    /** The manifest's total size for this model. */
     readonly total: number;
 }
 
@@ -41,7 +41,7 @@ export interface InstallOptions {
     signal?: AbortSignal;
     /** Override the global `fetch`. Tests only. */
     fetchImpl?: FetchLike;
-    /** Re-fetch and overwrite a cached file instead of returning it. */
+    /** Re-fetch and overwrite cached files instead of returning them. */
     force?: boolean;
 }
 
@@ -90,12 +90,12 @@ export function installedModels(): string[] {
 }
 
 /**
- * Make `id` usable, fetching it if it is not cached. Resolves to its path.
+ * Make `id` usable, fetching it if it is not cached. Resolves to its model file path.
  *
- * Idempotent and safe to call concurrently: a cached file returns immediately
+ * Idempotent and safe to call concurrently: a cached model returns immediately
  * and two overlapping calls share one download. Rejects when the host has no
- * native engine — `install()` is a commitment to a 2.2 MiB fetch, so it does
- * not quietly succeed into a state where `createVad()` still cannot run.
+ * native engine — `install()` is a commitment to a fetch, so it does not
+ * quietly succeed into a state where `createVad()` still cannot run.
  *
  * EVERY failure is a rejection, including an unknown id: a function that
  * returns a promise and sometimes throws before it has to be awaited needs two
@@ -117,25 +117,27 @@ export function install(id: string = DEFAULT_VAD_MODEL, options: InstallOptions 
         );
     }
     const { onProgress } = options;
-    return store.install(entry.id, {
-        signal: options.signal,
-        force: options.force,
-        fetch: options.fetchImpl,
-        monitor:
-            onProgress === undefined
-                ? undefined
-                : (monitor) =>
-                      monitor.addEventListener('downloadprogress', (event) => {
-                          const { receivedBytes, totalBytes } = event as unknown as {
-                              receivedBytes: number;
-                              totalBytes: number;
-                          };
-                          onProgress({ modelId: entry.id, received: receivedBytes, total: totalBytes });
-                      }),
-    });
+    return store
+        .install(entry.id, {
+            signal: options.signal,
+            force: options.force,
+            fetch: options.fetchImpl,
+            monitor:
+                onProgress === undefined
+                    ? undefined
+                    : (monitor) =>
+                          monitor.addEventListener('downloadprogress', (event) => {
+                              const { receivedBytes, totalBytes } = event as unknown as {
+                                  receivedBytes: number;
+                                  totalBytes: number;
+                              };
+                              onProgress({ modelId: entry.id, received: receivedBytes, total: totalBytes });
+                          }),
+        })
+        .then((resolved) => resolved.files[entry.files[0].file]);
 }
 
-/** Delete the cached file for `id`. `false` when there was nothing to delete. */
+/** Delete the cached files for `id`. `false` when there was nothing to delete. */
 export function uninstall(id: string = DEFAULT_VAD_MODEL): boolean {
     store.require(id);
     try {
@@ -148,7 +150,7 @@ export function uninstall(id: string = DEFAULT_VAD_MODEL): boolean {
 /**
  * Resolve `VadOptions.model` to a path on disk.
  *
- * A value containing a path separator is taken as a path and used as given —
+ * A value containing a path separator is taken as a directory and used as given —
  * that is how a caller points at a model this manifest does not know. Anything
  * else is a manifest id, and it must already be cached: resolving must not
  * start a download behind a synchronous constructor.
@@ -158,10 +160,11 @@ export function resolveModel(model: string = DEFAULT_VAD_MODEL): string {
     const entry = store.require(model);
     const located = store.locate(entry.id);
     if (located === undefined) {
+        const totalBytes = entry.files.reduce((sum, file) => sum + file.bytes, 0);
         throw new Error(
             `VAD model '${entry.id}' is not cached (${store.cachePath(entry.id)}) — await install('${entry.id}') first, ` +
-                `or pass a path to a model file. ${entry.bytes} bytes from ${entry.url}.`,
+                `or pass a directory containing a model file. ${totalBytes} bytes from ${entry.files[0].url}.`,
         );
     }
-    return located.path;
+    return located.files[entry.files[0].file];
 }
