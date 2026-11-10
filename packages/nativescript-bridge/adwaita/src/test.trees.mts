@@ -26,6 +26,7 @@ import { AdwDefaultTranslateNsTest } from './default-translate.spec.js';
 import { AdwAboutDialogDoorsNsTest } from './about-dialog-doors.spec.js';
 import { AdwAboutDialogCreditsNsTest } from './about-dialog-credits.spec.js';
 import { AdwAboutDialogLinksNsTest } from './about-dialog-links.spec.js';
+import { AdwAboutDialogCommentsNsTest } from './about-dialog-comments.spec.js';
 import { AdwCarouselDoorsNsTest } from './carousel-doors.spec.js';
 import { AdwConstructVectorsNsTest } from './construct-vectors.spec.js';
 import { AdwContainersNsTest } from './containers.spec.js';
@@ -91,6 +92,7 @@ run({
     AdwAboutDialogDoorsNsTest,
     AdwAboutDialogCreditsNsTest,
     AdwAboutDialogLinksNsTest,
+    AdwAboutDialogCommentsNsTest,
     AdwCarouselDoorsNsTest,
     AdwConstructVectorsNsTest,
     AdwGObjectDoorNsTest,
