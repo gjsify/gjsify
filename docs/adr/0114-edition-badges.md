@@ -1,9 +1,12 @@
-# 114. Edition badges: open source for every build, purchased on top for store builds
+# 114. Edition badges: open source for every build, purchased on top for paid builds
 
-- Status: **Accepted** (the `@gjsify/distribution` API; UI placement stays open, see Decision 5)
+- Status: **Accepted** (the `@gjsify/distribution` API; UI placement stays open, see Decision 5) —
+  **amended 2026-11-10** by [ADR 0139](0139-support-and-purchase-in-stores.md): the purchase badge is
+  gated by `pricing() === 'paid'`, not by the store channel.
 - Date: 2026-10-14
 - Deciders: Pascal Garber
 - Related: [ADR 0113](0113-distribution-channel-gates-donation-ui.md) (channel, capability table);
+  [ADR 0139](0139-support-and-purchase-in-stores.md) (support paths, store purchases and pricing);
   `packages/framework/distribution/src/index.ts`
 
 ## Context
@@ -22,10 +25,11 @@ claim a purchase.
    Free builds (flathub, web, unknown/dev, deb/rpm/AppImage, Windows installer and portable, macOS
    `.app`) show the open-source badge only.
 
-2. **Capability, not channel name.** `ChannelCapabilities` gains `purchased: boolean`, true only for
-   the two store channels. `@gjsify/distribution` exports `purchased()` and `purchasedFor(channel)`,
-   mirroring `donationsAllowed()` / `donationsAllowedFor()`. Apps call these and never compare the
-   channel name (ADR 0113 § 3).
+2. **Capability, not channel name.** `ChannelCapabilities` carries `support` and `commerce`
+   (ADR 0139 § 1). The "Purchased" badge is shown when `pricing() === 'paid'`, so every free build —
+   including every free store build — shows the open-source badge alone. `@gjsify/distribution`
+   exports `supportPath()`, `pricing()` and the deprecated `purchased()` / `purchasedFor(channel)`
+   shims. Apps call the capability helpers and never compare the channel name (ADR 0113 § 3).
 
 3. **`unknown` never claims a purchase.** An unset channel reports `purchased() === false`. Wrongly
    thanking someone for a purchase they did not make is worse than omitting a thank-you.
@@ -36,6 +40,15 @@ claim a purchase.
 5. **Where the UI lives: open.** For now each app decides the placement (About dialog, a settings
    row). Candidate: a shared helper next to the framework's About helper that renders both badges
    from the two capabilities, once a second app has built its own and the shape is clear.
+
+## Amendment 2026-11-10 — purchased is gated by pricing, not the channel
+
+[ADR 0139](0139-support-and-purchase-in-stores.md) § 5 amends this ADR. The original table made
+`microsoft-store` and `apple-app-store` claim a purchase because those channels were planned to be
+paid-only. The plan changed: every existing app is free in every channel, and store purchases become
+voluntary in-app tips managed by `@gjsify/store`. The "Purchased" badge is therefore shown when
+`pricing() === 'paid'` (the build came from a paid listing), not when `channel` is a store. The
+wording rules in § 4 stay unchanged.
 
 ## Consequences
 

@@ -1,30 +1,41 @@
 # @gjsify/distribution
 
 Where this build is distributed, and what that allows. Pure TypeScript, identical on GJS, Node and
-the browser. The decision record is [ADR 0113](../../../docs/adr/0113-distribution-channel-gates-donation-ui.md).
+the browser. The decision records are
+[ADR 0113](../../../docs/adr/0113-distribution-channel-gates-donation-ui.md),
+[ADR 0114](../../../docs/adr/0114-edition-badges.md) and
+[ADR 0139](../../../docs/adr/0139-support-and-purchase-in-stores.md).
 
 ```ts
-import { channel, donationsAllowed, purchased } from '@gjsify/distribution';
+import { supportPath, pricing } from '@gjsify/distribution';
 
-if (donationsAllowed()) aboutDialog.add_link(_('Support the project'), SUPPORT_URL);
-if (purchased()) showPurchasedBadge();
+if (supportPath() === 'external-link') aboutDialog.add_link(_('Support the project'), SUPPORT_URL);
+if (pricing() === 'paid') showPurchasedBadge();
 ```
 
 ## Channels
 
-| `channel` | Meaning | `donationsAllowed()` | `purchased()` |
-|---|---|---|---|
-| `flathub` | free, Flathub | yes | no |
-| `web` | free download from the project's own site | yes | no |
-| `microsoft-store` | sold or listed in the Microsoft Store | no | yes |
-| `apple-app-store` | sold or listed in the Apple App Store | no | yes |
-| `unknown` | no channel declared (a development build) | no | no |
+| `channel` | Meaning | `supportPath()` | `commerce` | `ownLicensing` |
+|---|---|---|---|---|
+| `flathub` | free, Flathub | `external-link` | `none` | yes |
+| `web` | free download from the project's own site | `external-link` | `none` | yes |
+| `microsoft-store` | listed in the Microsoft Store | `none` | `microsoft` | yes |
+| `apple-app-store` | listed in the Apple App Store | `store-purchase` | `apple` | no |
+| `unknown` | no channel declared (a development build) | `none` | `none` | no |
 
-Edition badges ([ADR 0114](../../../docs/adr/0114-edition-badges.md)): every build shows "Open Source";
-`purchased()` adds the "you supported this project by buying the app" badge. `unknown` never claims a purchase.
+`supportPath()` answers what the channel *permits*. What is actually *offerable* right now
+(registered provider, products loaded, store reachable) is a runtime question for
+`@gjsify/store`'s `resolveSupport()`.
+
+Edition badges ([ADR 0114](../../../docs/adr/0114-edition-badges.md)): every build shows "Open
+Source"; `pricing() === 'paid'` adds the "you supported this project by buying the app" badge.
+`unknown` never claims a purchase.
+
+`donationsAllowed()` / `donationsAllowedFor()` and `purchased()` / `purchasedFor()` are kept as
+`@deprecated` shims and will be removed in the next major version.
 
 Ask the capability, never compare the channel name: a new channel is one row in
-`CHANNEL_CAPABILITIES`, and no app changes. `donationsAllowed()` is a policy answer, not legal advice.
+`CHANNEL_CAPABILITIES`, and no app changes. `supportPath()` is a policy answer, not legal advice.
 
 ## Setting the channel
 
@@ -36,3 +47,9 @@ The metainfo `<url type="donation">` follows the same channel.
 
 An unset channel is `unknown` and shows no donation UI: a donation line in a store build can cost a
 rejection, a missing one in a free build costs a link the maintainer notices.
+
+## Pricing
+
+`pricing()` reads the `__GJSIFY_PRICING__` define (`'free'` | `'paid'`, default `'free'`). A paid
+listing is the one case where thanking the user for a purchase is true by construction; a free
+store download is not a purchase.
