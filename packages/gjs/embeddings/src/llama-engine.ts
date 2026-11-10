@@ -2,7 +2,7 @@
 // Node and on GJS (ADR 0132 § 7: the existing N-API engine moves in as it is).
 // It takes node-llama-cpp as a parameter; `./llama.ts` hands it over.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -225,8 +225,23 @@ function storeFor(options: LlamaEmbeddingsOptions): ModelStore<EmbeddingModelEnt
     );
 }
 
+function assertModelPathIsDirectory(modelPath: string): void {
+    try {
+        if (!statSync(modelPath).isDirectory()) {
+            throw new Error(
+                `llamaEmbeddings: modelPath '${modelPath}' is a file, expected a directory containing the model files`,
+            );
+        }
+    } catch (error) {
+        // A non-existent path is treated as a directory to download into.
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+        throw error;
+    }
+}
+
 /** {@link llamaEmbeddings} with node-llama-cpp passed in. */
 export function createLlamaEmbeddings(nlc: NodeLlamaCpp, options: LlamaEmbeddingsOptions = {}): EmbeddingEngineFactory {
+    if (options.modelPath !== undefined) assertModelPathIsDirectory(options.modelPath);
     const store = storeFor(options);
     const entry = store.require(options.model);
     const dimensions = options.dimensions ?? entry.dimensions;

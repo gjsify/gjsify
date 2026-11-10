@@ -56,7 +56,7 @@ What `Embedder` guarantees for every engine:
 | Option | Default | |
 |---|---|---|
 | `model` | `embeddinggemma-2-q8_0` | an id from `EMBEDDING_MODELS` |
-| `modelPath` | — | a file you already have, checked against the manifest |
+| `modelPath` | — | a directory containing the model files, checked against the manifest's sizes and digests |
 | `dimensions` | the model's native size | one of the model's `truncations` (EmbeddingGemma: 768 or 256) |
 | `gpu` | `auto` | a `GpuSetting`, e.g. `parseGpuSetting(env.MYAPP_GPU)` from `@gjsify/machine-fit` |
 | `gpuGuardDir` | shared by all gjsify GPU engines | where the GPU guard keeps its pin |
