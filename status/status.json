@@ -278,6 +278,11 @@
       "status": "full",
       "note": "Agent (defaultPort, protocol, maxSockets, destroy, options, keepAlive, scheduling), globalAgent, request (URL/options/headers/timeout/methods), get, createServer, Server. Browser slot `partial` (`TLSSocket`/`createSecureContext` cannot exist \u2014 the UA terminates TLS below JS)."
     },
+    "@gjsify/image-generation": {
+      "status": "partial",
+      "missing": "The sd.cpp engine is tested against a fake addon only; no real model has run through this port yet. No default model manifest; every entry is app-side.",
+      "note": "Image generation in the WebML CG lifecycle shape (ADR 0137): ImageGenerator with availability(), create({ monitor, signal }) and destroy(), one generate() at a time, abort and destroy semantics owned once for every engine. ./sdcpp runs diffusion models through stable-diffusion-cpp-node-api on Node and, through @gjsify/napi, on GJS, with model download via @gjsify/model-store, checkFit before download, the GPU-hang guard from @gjsify/machine-fit, and a pure-TypeScript PNG decoder/encoder."
+    },
     "@gjsify/iframe": {
       "status": "full",
       "note": "HTMLIFrameElement, IFrameBridge \u2192 WebKit.WebView, postMessage bridge, navigation (loadUri/loadHtml/goBack/goForward/reload + canGoBack/canGoForward). Ships `/register` for `HTMLIFrameElement` + the `'iframe'` element factory (ADR 0012 \u2014 WebKit stays an optional system dep)."
