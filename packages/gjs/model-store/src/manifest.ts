@@ -38,7 +38,7 @@ export interface ModelEntry {
 const SHA256 = /^[0-9a-f]{64}$/;
 const ID = /^[a-z0-9][a-z0-9._-]*$/;
 // No path separators, no NUL, no colon, and no leading '-' or '.' (which keeps out '.' and '..' too).
-const FILE = /^[^/\\\x00:\-.][^/\\\x00:]*$/;
+const FILE = /^[^/\\:\-.][^/\\:]*$/;
 
 /**
  * Throws on the manifest mistakes that would otherwise surface as a refused
@@ -62,7 +62,7 @@ export function validateManifest(models: readonly ModelEntry[]): void {
         for (const { file, url, bytes, sha256 } of model.files) {
             if (files.has(file)) throw new Error(`Manifest: ${where} lists file '${file}' twice`);
             files.add(file);
-            if (!FILE.test(file)) {
+            if (file.includes('\0') || !FILE.test(file)) {
                 throw new Error(`Manifest: ${where} has file '${file}', which is not a plain file name`);
             }
             if (!SHA256.test(sha256)) throw new Error(`Manifest: ${where} file '${file}' has no lowercase hex sha256`);

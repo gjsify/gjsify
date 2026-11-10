@@ -6,7 +6,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { closeSync, mkdirSync, openSync, renameSync, unlinkSync, writeSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-import { CreateMonitorCallback, ProgressFanout } from './progress.js';
+import { type CreateMonitorCallback, ProgressFanout } from './progress.js';
 
 /** The subset of `fetch` the downloader uses, so a test can inject one. */
 export type FetchLike = (
