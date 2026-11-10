@@ -14,7 +14,12 @@
 // Reference: refs/npm-cli/lib/utils/oidc.js
 // Original: Copyright (c) npm contributors. Artistic-2.0.
 
-import { isTransientStatus, retryDelayMs } from './transient-retry.js';
+import {
+    DEFAULT_TRANSIENT_BASE_MS,
+    DEFAULT_TRANSIENT_RETRIES,
+    fetchWithTransientRetry,
+    type TransientRetryOptions,
+} from './transient-retry.js';
 
 interface OidcExchangeOptions {
     /** Full package name including scope, e.g. `@gjsify/cli`. */
@@ -24,19 +29,31 @@ interface OidcExchangeOptions {
     /** Optional verbose logger — receives single-line strings. */
     log?: (msg: string) => void;
     /**
-     * Max retries on a TRANSIENT exchange failure (5xx / 429 / network error), default 3. A
-     * single npm-side 503 mid-release used to fall straight through to token auth, which in
-     * OIDC-only CI has no token → a 404 that broke the release while the workflow stayed green
-     * (hit on `@gjsify/process` during v0.7.3). Retrying keeps the publish on the OIDC path.
-     * Non-transient statuses (404 "package not found", 401/403 misconfig) are NOT retried, so
-     * `--tolerate-untrusted-new` and the misconfig hints still fire on the first response.
+     * Max retries on a TRANSIENT failure (5xx / 429 / network error) of EITHER request — the GitHub
+     * id_token GET and the npm exchange POST — default 5 (six attempts, ~60 s of patience). A single
+     * 503 mid-release used to fall straight through to token auth, which in OIDC-only CI has no
+     * token → a 404 that broke the release while the workflow stayed green (v0.7.3,
+     * `@gjsify/process`); a GitHub-side 503 on the id_token GET killed three packages of the
+     * v0.64.27 train. Non-transient statuses (404 "package not found", 401/403 misconfig) are NOT
+     * retried, so `--tolerate-untrusted-new` and the misconfig hints still fire on the first response.
      */
     maxRetries?: number;
-    /** Base backoff in ms for transient retries; doubles each attempt (capped 30s, `Retry-After` honored). Default 1000. Tests pass 0. */
+    /** Base backoff in ms, doubling per attempt with jitter (capped, `Retry-After` honored). Default 2000. Tests pass 0. */
     retryBaseMs?: number;
+    /** Injected for tests; defaults to real timers. */
+    sleep?: TransientRetryOptions['sleep'];
+    /** Injected for tests; defaults to `Math.random`. */
+    random?: TransientRetryOptions['random'];
 }
 
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+const retryOptions = (
+    o: Pick<OidcExchangeOptions, 'maxRetries' | 'retryBaseMs' | 'sleep' | 'random'>,
+): TransientRetryOptions => ({
+    retries: o.maxRetries ?? DEFAULT_TRANSIENT_RETRIES,
+    baseMs: o.retryBaseMs ?? DEFAULT_TRANSIENT_BASE_MS,
+    sleep: o.sleep,
+    random: o.random,
+});
 
 export interface OidcExchangeResult {
     /** Short-lived npm token (`Authorization: Bearer <token>`-compatible). */
@@ -111,7 +128,11 @@ export function hasGithubOidcEnv(): boolean {
  * Request a GitHub Actions OIDC ID token for `audience`. Throws `OidcUnavailableError` when the
  * env vars are missing (the caller can fall back to token auth) or GitHub rejects the request.
  */
-export async function fetchGithubOidcToken(audience: string, log?: (msg: string) => void): Promise<string> {
+export async function fetchGithubOidcToken(
+    audience: string,
+    log?: (msg: string) => void,
+    retry: Pick<OidcExchangeOptions, 'maxRetries' | 'retryBaseMs' | 'sleep' | 'random'> = {},
+): Promise<string> {
     const url = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
     const bearer = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
     if (!url || !bearer) {
@@ -135,13 +156,25 @@ export async function fetchGithubOidcToken(audience: string, log?: (msg: string)
 
     log?.(`gjsify oidc: GET ${requestUrl.replace(bearer, '<bearer>')}`);
 
-    const res = await fetch(requestUrl, {
-        method: 'GET',
-        headers: {
-            Accept: 'application/json',
-            Authorization: `Bearer ${bearer}`,
-        },
-    });
+    let res: Response;
+    try {
+        ({ response: res } = await fetchWithTransientRetry(
+            () =>
+                fetch(requestUrl, {
+                    method: 'GET',
+                    headers: {
+                        Accept: 'application/json',
+                        Authorization: `Bearer ${bearer}`,
+                    },
+                }),
+            { ...retryOptions(retry), log: log && ((m) => log(`gjsify oidc: id_token ${m}`)) },
+        ));
+    } catch (netErr) {
+        throw new OidcUnavailableError(
+            `Failed to fetch GitHub OIDC id_token: network error — ${netErr instanceof Error ? netErr.message : String(netErr)}`,
+            'fetch-id-token',
+        );
+    }
 
     if (!res.ok) {
         const text = await res.text().catch(() => '<no body>');
@@ -181,92 +214,77 @@ export async function exchangeOidcForNpmToken(args: OidcExchangeOptions & { idTo
     const exchangeUrl = `${registryClean}/-/npm/v1/oidc/token/exchange/package/${escapedName}`;
     log?.(`gjsify oidc: POST ${exchangeUrl}`);
 
-    const maxRetries = args.maxRetries ?? 3;
-    const retryBaseMs = args.retryBaseMs ?? 1000;
-
-    for (let attempt = 0; ; attempt++) {
-        let res: Response;
-        try {
-            res = await fetch(exchangeUrl, {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${idToken}`,
-                    'Content-Type': 'application/json',
-                    Accept: 'application/json',
-                },
-                // Empty JSON body: the JWT is the proof, no additional claims are needed.
-                body: '{}',
-            });
-        } catch (netErr) {
-            // Network-level failure (DNS, connection reset, TLS): transient.
-            if (attempt < maxRetries) {
-                const delay = retryDelayMs(attempt, retryBaseMs);
-                log?.(
-                    `gjsify oidc: network error for ${packageName} (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms`,
-                );
-                await sleep(delay);
-                continue;
-            }
-            throw new OidcExchangeError(
-                `npm OIDC token exchange network error for ${packageName} after ${attempt + 1} attempt(s): ${netErr instanceof Error ? netErr.message : String(netErr)}`,
-                0,
-                '',
-                packageName,
-                decodeJwtPayload(idToken) ?? undefined,
-            );
-        }
-
-        const text = await res.text().catch(() => '');
-
-        if (!res.ok) {
-            // Only TRANSIENT npm-side failures retry — see `maxRetries`.
-            if (isTransientStatus(res.status) && attempt < maxRetries) {
-                // `Retry-After` wins over the backoff when npm sends one (429/503 during an incident).
-                const delay = retryDelayMs(attempt, retryBaseMs, res.headers.get('retry-after'));
-                log?.(
-                    `gjsify oidc: transient ${res.status} ${res.statusText} for ${packageName} (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms`,
-                );
-                await sleep(delay);
-                continue;
-            }
-            throw new OidcExchangeError(
-                `npm OIDC token exchange failed for ${packageName}: ${res.status} ${res.statusText} — ${text.slice(0, 300)}`,
-                res.status,
-                text,
-                packageName,
-                decodeJwtPayload(idToken) ?? undefined,
-            );
-        }
-
-        let json: { token?: string };
-        try {
-            json = JSON.parse(text) as { token?: string };
-        } catch {
-            throw new OidcExchangeError(
-                `npm OIDC token exchange returned non-JSON body for ${packageName}: ${text.slice(0, 200)}`,
-                res.status,
-                text,
-                packageName,
-            );
-        }
-
-        if (!json.token) {
-            throw new OidcExchangeError(
-                `npm OIDC token exchange returned no \`token\` field for ${packageName}`,
-                res.status,
-                text,
-                packageName,
-            );
-        }
-
-        return json.token;
+    let res: Response;
+    let retried: number;
+    try {
+        ({ response: res, retried } = await fetchWithTransientRetry(
+            () =>
+                fetch(exchangeUrl, {
+                    method: 'POST',
+                    headers: {
+                        Authorization: `Bearer ${idToken}`,
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                    },
+                    // Empty JSON body: the JWT is the proof, no additional claims are needed.
+                    body: '{}',
+                }),
+            { ...retryOptions(args), log: log && ((m) => log(`gjsify oidc: ${m} for ${packageName}`)) },
+        ));
+    } catch (netErr) {
+        // Network-level failure (DNS, connection reset, TLS) that outlived the retry budget.
+        throw new OidcExchangeError(
+            `npm OIDC token exchange network error for ${packageName}: ${netErr instanceof Error ? netErr.message : String(netErr)}`,
+            0,
+            '',
+            packageName,
+            decodeJwtPayload(idToken) ?? undefined,
+        );
     }
+
+    const text = await res.text().catch(() => '');
+
+    if (!res.ok) {
+        // Only transient statuses were retried (404 "package not found" and 401/403 misconfig
+        // surface on the first response, so `--tolerate-untrusted-new` and the hints still fire).
+        throw new OidcExchangeError(
+            `npm OIDC token exchange failed for ${packageName}: ${res.status} ${res.statusText} — ${text.slice(0, 300)}${retried ? ` (after ${retried} retries)` : ''}`,
+            res.status,
+            text,
+            packageName,
+            decodeJwtPayload(idToken) ?? undefined,
+        );
+    }
+
+    let json: { token?: string };
+    try {
+        json = JSON.parse(text) as { token?: string };
+    } catch {
+        throw new OidcExchangeError(
+            `npm OIDC token exchange returned non-JSON body for ${packageName}: ${text.slice(0, 200)}`,
+            res.status,
+            text,
+            packageName,
+        );
+    }
+
+    if (!json.token) {
+        throw new OidcExchangeError(
+            `npm OIDC token exchange returned no \`token\` field for ${packageName}`,
+            res.status,
+            text,
+            packageName,
+            decodeJwtPayload(idToken) ?? undefined,
+        );
+    }
+
+    return json.token;
 }
 
 /** End-to-end: probe env → fetch id-token → exchange for an npm token. */
 export async function getNpmTrustedToken(opts: OidcExchangeOptions): Promise<OidcExchangeResult> {
     const audience = `npm:${new URL(opts.registry).hostname}`;
-    const idToken = await fetchGithubOidcToken(audience, opts.log);
+    const idToken = await fetchGithubOidcToken(audience, opts.log, opts);
     const token = await exchangeOidcForNpmToken({ ...opts, idToken });
     return { token, audience };
 }
