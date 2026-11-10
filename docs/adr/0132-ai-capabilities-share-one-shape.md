@@ -119,15 +119,18 @@ writes its GPU guard marker before the attempt.
    registered; it still raises when none is.
 5. **One model store: `@gjsify/model-store`.** This generalises ADR 0127 § 8 and moves
    `@gjsify/vad`'s cache code into it. Models live under
-   `GLib.get_user_cache_dir()/gjsify/models/<capability>/`, `speech-models/` becomes
-   `models/speech/`, and the first release reads the old path once. Every model has a manifest
-   entry in the package that uses it: upstream URL, digest, size, licence, and whether
-   redistribution is allowed. A model is fetched from upstream, never mirrored, unless its
-   licence allows it. Download progress drives the `monitor` of decision 2, so every app can
-   show the same "548 MB, 40 %". Three sources resolve in order: a path the app configures (a
-   model the person already has on disk), a model the **app** ships read-only in its data dir
-   (Stamped does this; ADR 0127's "never bundled" binds gjsify packages, not apps), then the
-   cache, downloading if allowed. Digests are checked for every source.
+   `GLib.get_user_cache_dir()/gjsify/models/<capability>/<id>/<file>`; `speech-models/` becomes
+   `models/speech/`, and the first release reads the old path once. Each model entry has its own
+   directory so several models can each carry a `tokens.txt` without collision, and an entry may
+   contain multiple verified files placed together. Every model has a manifest entry in the
+   package that uses it: upstream URL, digest, size, licence, and whether redistribution is
+   allowed. A model is fetched from upstream, never mirrored, unless its licence allows it.
+   Download progress drives the `monitor` of decision 2, so every app can show the same
+   "548 MB, 40 %". Three sources resolve in order: a path the app configures (a directory
+   containing the model files the person already has on disk), a model the **app** ships
+   read-only in its data dir (Stamped does this; ADR 0127's "never bundled" binds gjsify
+   packages, not apps), then the cache, downloading if allowed. Digests are checked for every
+   source.
 6. **Machine fit applies to every capability, not only speech.** ADR 0127 § 11–12 stand
    unchanged: `@gjsify/machine-fit` probes, the consumer owns candidates and budgets, an explicit
    setting wins, and nothing probes on battery. This ADR adds two rules. Every GPU engine of
