@@ -302,3 +302,6 @@
 [submodule "refs/gtk-android-builder"]
 	path = refs/gtk-android-builder
 	url = https://github.com/sp1ritCS/gtk-android-builder.git
+[submodule "refs/xdg-desktop-portal"]
+	path = refs/xdg-desktop-portal
+	url = https://github.com/flatpak/xdg-desktop-portal.git
