@@ -14,7 +14,7 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import { hasVadBackend, describeVadBackend } from './backend.js';
 import { DEFAULT_VAD_MODEL } from './model-manifest.js';
-import { available, modelPath } from './models.js';
+import { available, modelDir } from './models.js';
 import { createVad, type SpeechEndEvent, type VadEvent } from './vad.js';
 
 /** Why this suite cannot run here, or `null` when it can. */
@@ -22,7 +22,7 @@ function blocker(): string | null {
     if (!hasVadBackend()) return `no native engine — ${describeVadBackend()}`;
     const state = available(DEFAULT_VAD_MODEL);
     if (state !== 'available') {
-        return `model '${DEFAULT_VAD_MODEL}' is ${state} (${modelPath(DEFAULT_VAD_MODEL)}); install() is not run from tests`;
+        return `model '${DEFAULT_VAD_MODEL}' is ${state} (${modelDir(DEFAULT_VAD_MODEL)}); install() is not run from tests`;
     }
     return null;
 }

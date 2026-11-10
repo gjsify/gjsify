@@ -7,7 +7,7 @@ export {
     installedModels,
     listModels,
     modelCacheDir,
-    modelPath,
+    modelDir,
     resolveModel,
     uninstall,
 } from './models.js';

@@ -15,7 +15,7 @@ import process from 'node:process';
 
 import { _resetVadBackendCache, loadVadBackend, type VadBackend } from './backend.js';
 import { DEFAULT_VAD_MODEL, findVadModel, requireVadModel, VAD_MODELS } from './model-manifest.js';
-import { available, install, listModels, modelCacheDir, modelPath, resolveModel } from './models.js';
+import { available, install, listModels, modelCacheDir, modelDir, resolveModel } from './models.js';
 
 /** Make the probe report a usable engine without loading one. */
 function withFakeBackend<T>(body: () => T): T {
@@ -94,8 +94,8 @@ export default async () => {
     await describe('VAD model cache', async () => {
         await it('caches under gjsify/models/speech/<id>, shared with the other speech packages', async () => {
             expect(modelCacheDir().endsWith('/gjsify/models/speech')).toBe(true);
-            expect(modelPath(DEFAULT_VAD_MODEL).endsWith('/silero-v5')).toBe(true);
-            expect(() => modelPath('nope')).toThrow(RangeError);
+            expect(modelDir(DEFAULT_VAD_MODEL).endsWith('/silero-v5')).toBe(true);
+            expect(() => modelDir('nope')).toThrow(RangeError);
         });
 
         await it('passes a path through resolveModel and refuses an uncached id', async () => {

@@ -61,8 +61,8 @@ export function modelCacheDir(): string {
     return store.cacheDir;
 }
 
-/** Where `id` is cached, whether or not it exists yet. */
-export function modelPath(id: string = DEFAULT_VAD_MODEL): string {
+/** Directory where `id` is cached, whether or not it exists yet. */
+export function modelDir(id: string = DEFAULT_VAD_MODEL): string {
     return store.cachePath(id);
 }
 
