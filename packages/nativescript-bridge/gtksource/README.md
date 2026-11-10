@@ -21,8 +21,12 @@ Shared behaviour and the gaps both halves carry:
   per-line tab stop that GtkSourceView does not tie to `indent-width`. `auto-indent` copies the
   previous line's blanks.
 - The caret line's number is emphasised only under `highlight-current-line` (default false).
+- Text size: the view is a plain `View`, which keeps the CSS `font-size` and applies it to nothing, so
+  the driver does (`setTextSize(COMPLEX_UNIT_SP, …)` on Android, points on iOS). Without a
+  `font-size` it is 14.67 (GNOME's 11 pt at 96 dpi), the size the Adwaita theme derives its prose
+  from; the `EditText` theme default of 18 sp made code 1.23x the prose. The line numbers follow.
 - Android API used (R8): the consuming app must keep `android.widget.EditText`, `android.text.*`
-  spans, `android.graphics.Paint`/`Typeface` in its `native-api-usage.json` whitelist. Shared
+  spans, `android.graphics.Paint`/`Typeface` and `android.util.TypedValue` in its `native-api-usage.json` whitelist. Shared
   widget classes that come with `@gjsify/adwaita-nativescript` add `android.view.View`
   (`setTooltipText`, API 26; duck-typed, no `TooltipCompat`) to that list.
 - `native-editor.android.ts` ran on a device (API 24 and 36) for `extend-selection` and

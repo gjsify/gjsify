@@ -12,6 +12,8 @@ export interface NativeEditorDriver extends EditorDriver {
     /** The view `createNativeView()` returned is live: apply everything remembered so far. */
     attach(nativeView: unknown): void;
     detach(): void;
+    /** The CSS `font-size` the view resolved, `undefined` while none is set: `DEFAULT_FONT_SIZE` then applies. */
+    setFontSize(size: number | undefined): void;
 }
 
 class UnsupportedEditorDriver implements NativeEditorDriver {
@@ -23,6 +25,7 @@ class UnsupportedEditorDriver implements NativeEditorDriver {
     }
     attach(): void {}
     detach(): void {}
+    setFontSize(): void {}
     setText(): void {}
     replaceRange(): void {}
     setSelection(): void {}

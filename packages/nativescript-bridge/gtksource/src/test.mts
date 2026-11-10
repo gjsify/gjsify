@@ -4,7 +4,8 @@
 
 import { run } from '@gjsify/unit';
 
+import { NativeEditorAndroidTest } from './native-editor.android.spec.js';
 import { MultiTapTest } from './multi-tap.spec.js';
 import { TextRangesTest } from './text-ranges.spec.js';
 
-run({ MultiTapTest, TextRangesTest });
+run({ MultiTapTest, NativeEditorAndroidTest, TextRangesTest });

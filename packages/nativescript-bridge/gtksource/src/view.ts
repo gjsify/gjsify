@@ -29,6 +29,7 @@ export class GtkSourceView extends withGtkWidgetLayout(NsView) {
     private readonly hadj = new GtkAdjustment();
     private _direction = 1;
     private readonly gutters = new GutterSet(this);
+    private readonly onFontSizeChange = (): void => this.driver.setFontSize(this.style.fontSize);
 
     constructor() {
         super();
@@ -43,7 +44,10 @@ export class GtkSourceView extends withGtkWidgetLayout(NsView) {
 
     initNativeView(): void {
         super.initNativeView();
+        this.driver.setFontSize(this.style.fontSize);
         this.driver.attach(this.nativeViewProtected);
+        // A plain `View` stores the CSS `font-size` and applies it to nothing, so the driver does.
+        this.style.addEventListener('fontSizeChange', this.onFontSizeChange);
         this.unsubscribe = onAdwaitaColorSchemeChanged(() => this.session.setColorScheme(adwaitaColorScheme()));
         this.session.setColorScheme(adwaitaColorScheme());
     }
@@ -51,6 +55,7 @@ export class GtkSourceView extends withGtkWidgetLayout(NsView) {
     disposeNativeView(): void {
         this.unsubscribe?.();
         this.unsubscribe = null;
+        this.style.removeEventListener('fontSizeChange', this.onFontSizeChange);
         this.driver.detach();
         super.disposeNativeView();
     }
