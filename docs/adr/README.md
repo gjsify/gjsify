@@ -157,6 +157,7 @@ the TODO records the *what's left*.
 | [0136](0136-machine-fit-checks-memory-and-finds-local-servers.md) | Machine fit rules a model out by memory before download, and local inference servers are found by their own package | Accepted |
 | [0137](0137-image-generation-shape.md) | Image generation follows the shared AI shape: `ImageGenerator`, web types for the data, sd.cpp as an in-process engine | Accepted |
 | [0138](0138-one-app-inside-and-outside-a-sandbox.md) | An app is one codebase inside and outside a sandbox: it asks for a capability, never a mechanism, and an own seam is shaped like a portal until an official one exists | Accepted |
+| [0139](0139-support-and-purchase-in-stores.md) | One support path per channel, and store purchases behind one provider interface | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
