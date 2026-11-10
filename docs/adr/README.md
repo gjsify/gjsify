@@ -156,6 +156,7 @@ the TODO records the *what's left*.
 | [0135](0135-store-listings-come-from-the-metainfo.md) | `gjsify webext listing` derives Chrome, Edge and Firefox store listings from the metainfo, the catalogues and the screenshots | Proposed |
 | [0136](0136-machine-fit-checks-memory-and-finds-local-servers.md) | Machine fit rules a model out by memory before download, and local inference servers are found by their own package | Accepted |
 | [0137](0137-image-generation-shape.md) | Image generation follows the shared AI shape: `ImageGenerator`, web types for the data, sd.cpp as an in-process engine | Accepted |
+| [0138](0138-one-app-inside-and-outside-a-sandbox.md) | An app is one codebase inside and outside a sandbox: it asks for a capability, never a mechanism, and an own seam is shaped like a portal until an official one exists | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

@@ -31,6 +31,7 @@ Short form; reasoning in [docs/governance.md](docs/governance.md).
 |declarations: `gjsify.{runtimes,platforms,headless,prebuilds}` are machine-checked per-package declarations
 |manifest-conformance: every declaration-check is a rule in `@gjsify/manifest-conformance`; `field-coverage` fails on unclaimed `gjsify.*` keys
 |status: authored data in `status/`; derivables render to gitignored `STATUS.md` via `npm run status:generate`
+|sandbox: apps ask for a capability, never a mechanism (no raw `org.freedesktop.portal.*`, no `systemctl`, no path assumed readable across processes); one codebase inside and outside a Flatpak/App Sandbox — ADR 0138
 |simplicity: every guard must justify itself; ask what it lets you DELETE
 |polyfills: browser-compat patches belong in packages, not examples
 |root-cause: fix core bugs in the same PR that exposes them — no "known limitation" notes or skip-guards
