@@ -41,6 +41,8 @@ export interface TransientRetryOptions {
     /** Base backoff in ms, doubling per attempt. Default {@link DEFAULT_TRANSIENT_BASE_MS}. Tests pass 0. */
     baseMs?: number;
     sleep?: (ms: number) => Promise<void>;
+    /** [0,1) source for the backoff jitter. Default `Math.random`; tests pass a constant. */
+    random?: () => number;
     log?: (msg: string) => void;
 }
 
@@ -69,6 +71,7 @@ export async function fetchWithTransientRetry(
     const retries = opts.retries ?? DEFAULT_TRANSIENT_RETRIES;
     const baseMs = opts.baseMs ?? DEFAULT_TRANSIENT_BASE_MS;
     const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+    const random = opts.random ?? Math.random;
     for (let attempt = 0; ; attempt++) {
         let response: Response | undefined;
         let failure: unknown;
@@ -82,7 +85,13 @@ export async function fetchWithTransientRetry(
             if (response) return { response, retried: attempt };
             throw failure;
         }
-        const delay = retryDelayMs(attempt, baseMs, response?.headers.get('retry-after'));
+        const retryAfter = response?.headers.get('retry-after');
+        const backoff = retryDelayMs(attempt, baseMs, retryAfter);
+        // Equal jitter (50-100%) on the computed backoff so the ~230 per-package exchanges of a
+        // sweep do not retry in lockstep against the same recovering endpoint. An explicit
+        // `Retry-After` is the server's number and stays exact.
+        const delay =
+            parseRetryAfter(retryAfter) === undefined ? Math.round(backoff * (0.5 + 0.5 * random())) : backoff;
         const what = response
             ? `${response.status} ${response.statusText}`
             : `network error: ${failure instanceof Error ? failure.message : String(failure)}`;

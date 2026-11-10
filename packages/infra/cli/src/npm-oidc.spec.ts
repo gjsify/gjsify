@@ -194,6 +194,102 @@ export default async () => {
         });
     });
 
+    await describe('fetchGithubOidcToken retry (v0.64.27: GitHub 503 killed the publish loop)', async () => {
+        const env = {
+            ACTIONS_ID_TOKEN_REQUEST_URL: 'https://example.com/oidc',
+            ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'gh-bearer',
+        };
+        const clock = () => {
+            const waited: number[] = [];
+            return { waited, sleep: async (ms: number) => void waited.push(ms), random: () => 1 };
+        };
+
+        await it('503, 503, 200 → succeeds after two backoffs, no real sleeping', async () => {
+            let calls = 0;
+            const stub = mockFetch(() => {
+                calls += 1;
+                return calls < 3
+                    ? { status: 503, body: 'upstream connect error or disconnect/reset before headers' }
+                    : { status: 200, body: JSON.stringify({ value: 'jwt-after-retry' }) };
+            });
+            const c = clock();
+            try {
+                await withEnv(env, async () => {
+                    const tok = await fetchGithubOidcToken('npm:registry.npmjs.org', undefined, c);
+                    expect(tok).toBe('jwt-after-retry');
+                    expect(stub.requests.length).toBe(3);
+                    expect(c.waited.join(',')).toBe('2000,4000');
+                });
+            } finally {
+                stub.restore();
+            }
+        });
+
+        await it('persistent 503 → OidcUnavailableError(fetch-id-token) after six attempts', async () => {
+            const stub = mockFetch(() => ({ status: 503, body: 'upstream connect error' }));
+            const c = clock();
+            try {
+                await withEnv(env, async () => {
+                    let thrown: Error | null = null;
+                    try {
+                        await fetchGithubOidcToken('npm:registry.npmjs.org', undefined, c);
+                    } catch (e) {
+                        thrown = e as Error;
+                    }
+                    expect(thrown instanceof OidcUnavailableError).toBe(true);
+                    expect((thrown as OidcUnavailableError).reason).toBe('fetch-id-token');
+                    expect((thrown as Error).message.startsWith('Failed to fetch GitHub OIDC id_token: 503')).toBe(
+                        true,
+                    );
+                    expect(stub.requests.length).toBe(6);
+                    expect(c.waited.length).toBe(5);
+                });
+            } finally {
+                stub.restore();
+            }
+        });
+
+        await it('403 → fails immediately, no retry', async () => {
+            const stub = mockFetch(() => ({ status: 403, body: 'permissions denied' }));
+            const c = clock();
+            try {
+                await withEnv(env, async () => {
+                    let thrown: Error | null = null;
+                    try {
+                        await fetchGithubOidcToken('npm:registry.npmjs.org', undefined, c);
+                    } catch (e) {
+                        thrown = e as Error;
+                    }
+                    expect((thrown as Error).message.includes('403')).toBe(true);
+                    expect(stub.requests.length).toBe(1);
+                    expect(c.waited.length).toBe(0);
+                });
+            } finally {
+                stub.restore();
+            }
+        });
+
+        await it('never logs the bearer or the id_token across retries', async () => {
+            let calls = 0;
+            const stub = mockFetch(() => {
+                calls += 1;
+                return calls < 2
+                    ? { status: 503, body: '{}' }
+                    : { status: 200, body: JSON.stringify({ value: 'secret-jwt' }) };
+            });
+            const lines: string[] = [];
+            try {
+                await withEnv(env, async () => {
+                    await fetchGithubOidcToken('npm:registry.npmjs.org', (m) => lines.push(m), clock());
+                });
+                expect(lines.length > 0).toBe(true);
+                expect(lines.some((l) => l.includes('gh-bearer') || l.includes('secret-jwt'))).toBe(false);
+            } finally {
+                stub.restore();
+            }
+        });
+    });
+
     await describe('exchangeOidcForNpmToken', async () => {
         await it('POSTs to /-/npm/v1/oidc/token/exchange/package/<escaped> with Bearer id-token', async () => {
             const stub = mockFetch(() => ({ status: 200, body: JSON.stringify({ token: 'npm-short-lived' }) }));
@@ -323,6 +419,51 @@ export default async () => {
                 }
                 expect(thrown?.status).toBe(503);
                 expect(stub.requests.length).toBe(3); // initial attempt + 2 retries
+            } finally {
+                stub.restore();
+            }
+        });
+
+        await it('503, 503, 200 on the exchange POST → succeeds with the injected clock', async () => {
+            let calls = 0;
+            const stub = mockFetch(() => {
+                calls += 1;
+                return calls < 3
+                    ? { status: 503, body: '{}' }
+                    : { status: 200, body: JSON.stringify({ token: 'npm-ok' }) };
+            });
+            const waited: number[] = [];
+            try {
+                const tok = await exchangeOidcForNpmToken({
+                    packageName: '@gjsify/a',
+                    registry: 'https://registry.npmjs.org',
+                    idToken: 'jwt',
+                    sleep: async (ms) => void waited.push(ms),
+                    random: () => 1,
+                });
+                expect(tok).toBe('npm-ok');
+                expect(waited.join(',')).toBe('2000,4000');
+            } finally {
+                stub.restore();
+            }
+        });
+
+        await it('persistent 503 on the exchange fails after six attempts with the 503 status', async () => {
+            const stub = mockFetch(() => ({ status: 503, body: '{}' }));
+            try {
+                let thrown: OidcExchangeError | null = null;
+                try {
+                    await exchangeOidcForNpmToken({
+                        packageName: '@gjsify/a',
+                        registry: 'https://registry.npmjs.org',
+                        idToken: 'jwt',
+                        sleep: async () => {},
+                    });
+                } catch (e) {
+                    thrown = e as OidcExchangeError;
+                }
+                expect(thrown?.status).toBe(503);
+                expect(stub.requests.length).toBe(6);
             } finally {
                 stub.restore();
             }
