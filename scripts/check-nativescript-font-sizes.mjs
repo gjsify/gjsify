@@ -39,6 +39,17 @@ const SMALLER_ROW = ['`font-size: smaller` (_lists.scss)', SMALLER];
 
 /** selector -> [libadwaita source, factor of the base]. */
 const RULES = {
+    // `_labels.scss`'s typography utilities. Upstream states these as percentages of the
+    // document font and lets them cascade; NativeScript has no document-level size to
+    // inherit, so the theme ships the products and they belong here like every other
+    // derived size. `.heading` carries only a weight upstream, so it has no row.
+    '.title-1': ['.title-1: 181% (_labels.scss:37)', 1.81],
+    '.title-2': ['.title-2: 136% (_labels.scss:42)', 1.36],
+    '.title-3': ['.title-3: 136% (_labels.scss:47)', 1.36],
+    '.title-4': ['.title-4: 118% (_labels.scss:52)', 1.18],
+    '.body': ['.body: the document font itself (_labels.scss:60)', 1],
+    '.caption': ['.caption: 82% (_labels.scss:72)', 0.82],
+    '.caption-heading': ['.caption-heading: 82% (_labels.scss:66)', 0.82],
     '.adw-preferences-group-title': ['.heading (bold, base size)', 1],
     '.adw-preferences-group-description': ['.body.dimmed', 1],
     '.adw-row-title': BODY,
