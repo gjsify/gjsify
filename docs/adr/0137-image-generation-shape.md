@@ -1,6 +1,6 @@
 # 137. Image generation follows the shared AI shape: `ImageGenerator`, web types for the data, sd.cpp as an in-process engine
 
-- Status: **Proposed**
+- Status: **Accepted**
 - Date: 2026-11-07
 - Deciders: Pascal Garber
 - Related: [ADR 0132](0132-ai-capabilities-share-one-shape.md) (§ 2 the class, § 3 the engine

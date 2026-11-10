@@ -155,7 +155,7 @@ the TODO records the *what's left*.
 | [0134](0134-https-trusts-the-os-store-through-one-package.md) | HTTPS trusts the OS store on every target, through `@gjsify/tls-trust` and Node's `getCACertificates` vocabulary | Accepted |
 | [0135](0135-store-listings-come-from-the-metainfo.md) | `gjsify webext listing` derives Chrome, Edge and Firefox store listings from the metainfo, the catalogues and the screenshots | Proposed |
 | [0136](0136-machine-fit-checks-memory-and-finds-local-servers.md) | Machine fit rules a model out by memory before download, and local inference servers are found by their own package | Accepted |
-| [0137](0137-image-generation-shape.md) | Image generation follows the shared AI shape: `ImageGenerator`, web types for the data, sd.cpp as an in-process engine | Proposed |
+| [0137](0137-image-generation-shape.md) | Image generation follows the shared AI shape: `ImageGenerator`, web types for the data, sd.cpp as an in-process engine | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
