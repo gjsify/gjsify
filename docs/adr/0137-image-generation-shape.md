@@ -61,8 +61,8 @@ What the frame left open is this capability's own surface:
    no global (ADR 0132 § 2); a vendor gjsify does not ship is an app-side factory, not a fork
    of the package.
 3. **Request and result are web types.** `ImageRequest` is
-   `{ prompt, negativePrompt?, width?, height?, steps?, guidance?, seed?, sampler? }` — one
-   image per call; batching is added when a consumer needs it. `ImageResult` carries `blob`,
+   `{ prompt, negativePrompt?, width?, height?, steps?, guidance?, seed?, sampler?, scheduler?, loras?, init? }` — one
+   image per call; batching is added when a consumer needs it. `scheduler` is passed straight to sd.cpp; `loras` is an array of verified file paths with multipliers, fetched app-side through `downloadVerified`. `ImageResult` carries `blob`,
    the PNG exactly as the engine wrote it (no re-encode), plus `width`, `height`, the `seed`
    the engine used (so a liked image can be reproduced) and `modelId`. `Blob` is
    `@gjsify/buffer`'s web global; `decode(result)` returns `canvas2d-core`'s `ImageData` for
@@ -171,3 +171,12 @@ gives the decision, a one-sentence reason, and the consequence:
    rejects unknown names with a clear error listing the valid ones. *Reason:* a new sampler in
    the engine works without a package release. *Consequence:* a misspelled sampler is a
    run-time error, not a compile-time one — the listing error is the mitigation.
+6. **Scheduler, LoRAs and an init image (amendment 2026-11-10).** `ImageRequest` also carries
+   `scheduler?: string`, `loras?: readonly { path: string; multiplier: number }[]` and
+   `init?: InitImage` (img2img: RGB pixels plus a `strength` from 0 to 1), because the first
+   consumer uses all three per call.
+   *Reason:* sd.cpp exposes scheduler choice and per-request LoRA application, both needed by
+   the app's UI. `scheduler` is passed straight to the engine like `sampler`; LoRAs are verified
+   file paths supplied by the app, not store entries, because a person mixes and matches LoRAs
+   per image. *Consequence:* `ImageGenerator` validates that every `path` is non-empty and every
+   `multiplier` is finite; the engine maps them onto its native option shape.
