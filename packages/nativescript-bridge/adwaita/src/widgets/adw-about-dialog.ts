@@ -67,7 +67,7 @@ import { ACTIVATED as ROW_ACTIVATED, AdwActionRow } from './adw-action-row.js';
 import { AdwPreferencesGroup } from './adw-preferences-group.js';
 import { EXTERNAL_LINK_SVG } from './adw-bundled-icons.js';
 import { GtkImage } from './gtk-image.js';
-import { applyTemplateXalign } from './gtk-label.js';
+import { applyTemplateXalign, GtkLabel } from './gtk-label.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
@@ -241,7 +241,13 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
 
         // The subpages. `comments_label` is the one label whose upstream counterpart states an
         // alignment (`xalign 0`); `_makeLabel` states it for every left-aligned body.
-        this._commentsLabel = this._makeLabel('adw-about-dialog-comments', false);
+        // `comments` is Pango markup in libadwaita (`comments_label` has `use-markup`), so the
+        // label is a `GtkLabel`, which draws markup and falls back to plain text on a parse error.
+        const comments = new GtkLabel();
+        comments.add_css_class('adw-about-dialog-comments');
+        comments.textWrap = true;
+        comments.useMarkup = true;
+        this._commentsLabel = comments;
         this._detailsWebsiteRow = this._newRow(labels.websiteRow, EXTERNAL_LINK_SVG);
         const linksGroup = new AdwPreferencesGroup();
         linksGroup.add(this._detailsWebsiteRow);
@@ -670,7 +676,11 @@ export class AdwAboutDialog extends withSignals(GridLayout) {
         show(this._nameLabel, this._applicationName, visibility.appName);
         show(this._versionLabel, this._version, visibility.version);
         show(this._developerLabel, this._developerName, visibility.developerName);
-        show(this._commentsLabel, this._comments, visibility.commentsLabel);
+        (this._commentsLabel as GtkLabel).label = this._comments;
+        // `GtkLabel` re-derives `textAlignment` from its own `xalign` on every render, so the
+        // template's start alignment is stated again after the write.
+        applyTemplateXalign(this._commentsLabel, 0);
+        this._commentsLabel.visibility = visibility.commentsLabel ? 'visible' : 'collapse';
         const shownIf = (view: View, shown: boolean): void => {
             view.visibility = shown ? 'visible' : 'collapse';
         };
