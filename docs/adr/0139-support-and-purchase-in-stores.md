@@ -1,6 +1,6 @@
 # 139. One support path per channel, and store purchases behind one provider interface
 
-- Status: **Proposed**
+- Status: **Accepted** (2026-11-10, all five open questions answered as recommended)
 - Date: 2026-11-10
 - Deciders: Pascal Garber
 - Related: [ADR 0113](0113-distribution-channel-gates-donation-ui.md) (the channel and its capability
@@ -323,7 +323,10 @@ Each step is one PR with its acceptance criterion.
 Steps 1–4 are implementable now and depend on no account and no store. Steps 5–10 are sequenced
 behind the first listing.
 
-## Open questions for the maintainer
+## Decisions on the open questions
+
+The maintainer accepted every recommendation below on 2026-11-10. Steps 1–4 start now; step 5 and the
+account work (question 4) wait on the maintainer, who owns the Partner Center and Apple accounts.
 
 1. **May a free Microsoft Store build show an external support link?** 10.8.2 regulates payments
    collected in the product and says nothing about a link. *Recommendation:* keep `none` and ask
