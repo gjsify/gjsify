@@ -353,6 +353,9 @@ jobs:
           key: napi-libs-v2-${{ hashFiles('gjsify-lock.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
 
       - name: Install the gjsify workspace (published CLI, Node-free)
+        env:
+          # Authenticated fetch of the bootstrap: unauthenticated release downloads are shed first in a GitHub incident.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           B=$(gjs -m install.mjs --fetch-only)
           gjs -m "$B" install --immutable
@@ -684,6 +687,9 @@ jobs:
           key: napi-libs-v2-${{ hashFiles('gjsify-lock.json') }}-${{ hashFiles('packages/*/*/src/**/*.ts', 'packages/*/*/src/**/*.mts', 'packages/*/*/src/**/*.cts') }}
 
       - name: Install the gjsify workspace (published CLI, Node-free)
+        env:
+          # Authenticated fetch of the bootstrap: unauthenticated release downloads are shed first in a GitHub incident.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           B=$(gjs -m install.mjs --fetch-only)
           gjs -m "$B" install --immutable

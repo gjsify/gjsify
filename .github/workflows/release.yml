@@ -224,6 +224,9 @@ jobs:
       # `gjsify-setup` does everywhere else — see the `publish-napi` job for
       # why a bundle in `~/.cache` cannot resolve this tree's packages.
       - name: Install dependencies (gjsify install --immutable)
+        env:
+          # Authenticated fetch of the bootstrap: unauthenticated release downloads are shed first in a GitHub incident.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           B=$(XDG_CACHE_HOME="$PWD/.gjsify-cache" gjs -m install.mjs --fetch-only)
           gjs -m "$B" install --immutable
@@ -2247,6 +2250,9 @@ jobs:
       # of the same defect is fixed in the CLI for every FUTURE release; this
       # line is what unblocks THIS one.
       - name: Install dependencies (gjsify install --immutable)
+        env:
+          # Authenticated fetch of the bootstrap: unauthenticated release downloads are shed first in a GitHub incident.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           B=$(XDG_CACHE_HOME="$PWD/.gjsify-cache" gjs -m install.mjs --fetch-only)
           gjs -m "$B" install --immutable
@@ -2779,6 +2785,9 @@ jobs:
       # skip the `always()` reporter that says why.
       - name: Install dependencies (gjsify install --immutable)
         if: ${{ steps.decide.outputs.publish == 'true' }}
+        env:
+          # Authenticated fetch of the bootstrap: unauthenticated release downloads are shed first in a GitHub incident.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           B=$(XDG_CACHE_HOME="$PWD/.gjsify-cache" gjs -m install.mjs --fetch-only)
           gjs -m "$B" install --immutable
