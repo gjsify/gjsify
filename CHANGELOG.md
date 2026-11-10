@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.64.27](https://github.com/gjsify/gjsify/compare/v0.64.26...v0.64.27) (2026-11-10)
+
+### ⚠ BREAKING CHANGES
+
+* **model-store:** multi-file model entries with per-entry directory (#2575)
+
+### Features
+
+* **model-store:** multi-file model entries with per-entry directory ([#2575](https://github.com/gjsify/gjsify/issues/2575)) ([b00fbd6](https://github.com/gjsify/gjsify/commit/b00fbd637e02ce1c722169f8b0e4d4006eb0f209))
+
+### Bug Fixes
+
+* **nativescript:** draw About comments as markup ([#2578](https://github.com/gjsify/gjsify/issues/2578)) ([37f7f20](https://github.com/gjsify/gjsify/commit/37f7f20cdd218a24c5ab0af4698ee7308dac587b))
+
+### Documentation
+
+* **adr:** accept the image-generation shape ([#2571](https://github.com/gjsify/gjsify/issues/2571)) ([d7a15b2](https://github.com/gjsify/gjsify/commit/d7a15b22e3139f0f902c514aa567780c614c8529))
+
+### Maintenance
+
+* **status:** embeddings is on npm ([#2574](https://github.com/gjsify/gjsify/issues/2574)) ([0440e6f](https://github.com/gjsify/gjsify/commit/0440e6fc5cd9f3c2a7ca0663c3ad4214c1173239))
+* update native prebuilds [skip ci] ([91bb5a6](https://github.com/gjsify/gjsify/commit/91bb5a633671e04e6113bf9280d8a5586d4daf17))
+
 ## [0.64.26](https://github.com/gjsify/gjsify/compare/v0.64.25...v0.64.26) (2026-11-08)
 
 ### Features
