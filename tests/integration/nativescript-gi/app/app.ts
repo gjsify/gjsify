@@ -28,6 +28,7 @@ import { comboRowSpec } from './specs/combo-row.js';
 import { entrySpec } from './specs/entry.js';
 import { checkButtonSpec } from './specs/check-button.js';
 import { toggleButtonSpec } from './specs/toggle-button.js';
+import { gtkStackSpec } from './specs/gtk-stack.js';
 import { spinnerSpec } from './specs/spinner.js';
 import { windowTitleSpec } from './specs/window-title.js';
 import { rowsSpec } from './specs/rows.js';
@@ -122,6 +123,9 @@ async function runSuite(): Promise<void> {
                 // `active` + `toggled` declared over `GtkButton`, itself declared: `clicked` stays
                 // inherited, `toggled` precedes `notify::active`, and `notify::group` never fires.
                 await toggleButtonSpec(engine)();
+                // `visible-child` / `visible-child-name` declared over `GridLayout`: object-kind +
+                // explicitNotify, emission order `notify::visible-child` first.
+                await gtkStackSpec(engine)();
             }
             if (optedIn) await inversionSpec();
             if (optedIn) await foreignParentSpec();
