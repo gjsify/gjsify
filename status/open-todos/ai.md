@@ -15,7 +15,8 @@ from `@gjsify/machine-fit` chooses between two.
 
 ### Switch Stamped to `@gjsify/embeddings`
 
-ADR 0132 § 10 step 3. Blocked on the first npm publish of `@gjsify/embeddings`. Stamped keeps
+ADR 0132 § 10 step 3. Unblocked: the first npm publish of `@gjsify/embeddings` happened
+(0.64.26). Stamped keeps
 its own `gpuGuardDir` and GPU switch; its `fork` shim goes now that ADR 0133 has landed.
 
 ### A gjsify-bundled dynamic import of a module with top-level await never settles on GJS
