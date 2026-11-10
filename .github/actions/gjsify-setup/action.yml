@@ -236,6 +236,9 @@ runs:
     - name: Install dependencies (gjsify install --immutable)
       id: install
       shell: bash
+      env:
+        # Authenticated fetch of the bootstrap: unauthenticated release downloads are shed first in a GitHub incident.
+        GITHUB_TOKEN: ${{ github.token }}
       run: |
         B=$(su testuser -c "XDG_CACHE_HOME='$PWD/.gjsify-cache' gjs -m install.mjs --fetch-only")
         su testuser -c "XDG_CACHE_HOME='$PWD/.gjsify-cache' gjs -m '$B' install --immutable"

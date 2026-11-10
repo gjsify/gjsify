@@ -50,6 +50,8 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
     /** Request counters for the two digest routes the retry cases use. */
     let flakyHits = 0;
     let goneHits = 0;
+    /** Authorization header seen per path by the token cases. */
+    let authSeen = {};
     // Path to the freshly-built gjs bundle we ship as the "bootstrap" asset.
     // In production this would be the GitHub-release-download URL.
     const cliBundlePath = fileURLToPath(new URL('../../../packages/infra/cli/dist/cli.gjs.mjs', import.meta.url));
@@ -166,6 +168,20 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
                     // CDN produced (`HTTP/2 Error: NO_ERROR`) when this was written.
                     if (flakyHits === 1) {
                         req.socket.destroy();
+                        return;
+                    }
+                    res.writeHead(200, { 'content-type': 'text/plain' });
+                    res.end(`${cliBundleSha256}\n`);
+                    return;
+                }
+                // Token cases: `/auth.sha256` redirects to the SAME server under another
+                // hostname, as a release download redirects to another host. Both hops record
+                // the Authorization header they received.
+                if (url === '/auth.sha256' || url === '/auth-final.sha256') {
+                    authSeen[url] = req.headers.authorization ?? null;
+                    if (url === '/auth.sha256') {
+                        res.writeHead(302, { location: `http://localhost:${server.address().port}/auth-final.sha256` });
+                        res.end();
                         return;
                     }
                     res.writeHead(200, { 'content-type': 'text/plain' });
@@ -453,5 +469,40 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
         // Retrying a 404 would only delay the same answer while making a real outage look
         // like a hang — and this is the path a user is told to reach for the opt-out on.
         assert.equal(goneHits, 1, `a 404 must not be retried, saw ${goneHits} request(s)`);
+    });
+
+    // The token travels to github.com / api.github.com only. The mock cannot be those
+    // hosts, so GJSIFY_INSTALL_AUTH_HOSTS names 127.0.0.1 as the "GitHub" host; the
+    // redirect target `localhost` is then the "objects.githubusercontent.com".
+    it('sends the token to an allowed host and drops it on a redirect to another host', async () => {
+        authSeen = {};
+        await runBootstrap(['--tag', '0.0.99-test'], {
+            GITHUB_TOKEN: 'test-token',
+            GJSIFY_INSTALL_AUTH_HOSTS: '127.0.0.1',
+            GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL: `${registryUrl}auth.sha256`,
+        });
+        assert.equal(authSeen['/auth.sha256'], 'Bearer test-token');
+        assert.equal(authSeen['/auth-final.sha256'], null, 'the token followed a cross-host redirect');
+    });
+
+    it('sends no token to a host that is not allowed', async () => {
+        authSeen = {};
+        const r = await runBootstrap(['--tag', '0.0.99-test'], {
+            GITHUB_TOKEN: 'test-token',
+            GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL: `${registryUrl}auth.sha256`,
+        });
+        assert.equal(authSeen['/auth.sha256'], null);
+        assert.doesNotMatch(r.stderr + r.stdout, /test-token/, 'the token was logged');
+    });
+
+    it('sends no Authorization header without a token', async () => {
+        authSeen = {};
+        await runBootstrap(['--tag', '0.0.99-test'], {
+            GITHUB_TOKEN: '',
+            GH_TOKEN: '',
+            GJSIFY_INSTALL_AUTH_HOSTS: '127.0.0.1',
+            GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL: `${registryUrl}auth.sha256`,
+        });
+        assert.equal(authSeen['/auth.sha256'], null);
     });
 });

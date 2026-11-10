@@ -213,23 +213,60 @@ function sleepMs(ms) {
     });
 }
 
-async function fetchOnce(session, url, { forceHttp1 = false } = {}) {
-    const message = Soup.Message.new('GET', url);
-    message.request_headers.append('User-Agent', USER_AGENT);
-    // The failure this retries against announces its own protocol — libsoup reports it
-    // verbatim as `HTTP/2 Error: NO_ERROR`, a stream closed mid-response. Retrying over
-    // HTTP/1.1 sidesteps the multiplexing that produces it, so the first attempt keeps the
-    // faster protocol and every retry drops to the one that cannot fail that way. Guarded:
-    // `set_force_http1` is libsoup 3.4+, and this script must still run on older hosts.
-    if (forceHttp1 && typeof message.set_force_http1 === 'function') message.set_force_http1(true);
-    const bytes = await session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null);
-    const status = message.get_status();
-    if (status !== Soup.Status.OK) {
-        const err = new Error(`HTTP ${status} from ${url}`);
-        err.httpStatus = status;
-        throw err;
+/**
+ * Hosts that may receive the GitHub token. Release downloads redirect to
+ * objects.githubusercontent.com / release-assets.githubusercontent.com, which are
+ * deliberately NOT here. The env override exists so the e2e test can aim it at a mock.
+ */
+const AUTH_HOSTS = (GLib.getenv('GJSIFY_INSTALL_AUTH_HOSTS') || 'github.com,api.github.com').split(',');
+const MAX_REDIRECTS = 5;
+
+/**
+ * The `Authorization` value for `url`, or null. An authenticated request escapes the
+ * unauthenticated rate/timeout tier GitHub sheds first during an incident, but the token
+ * must reach github.com and api.github.com ONLY, over https.
+ */
+function authorizationFor(url, token = GLib.getenv('GITHUB_TOKEN') || GLib.getenv('GH_TOKEN')) {
+    if (!token) return null;
+    const uri = GLib.Uri.parse(url, GLib.UriFlags.NONE);
+    const secure = uri.get_scheme() === 'https' || GLib.getenv('GJSIFY_INSTALL_AUTH_HOSTS');
+    if (!secure || !AUTH_HOSTS.includes(uri.get_host())) return null;
+    return `Bearer ${token}`;
+}
+
+async function fetchOnce(session, startUrl, { forceHttp1 = false } = {}) {
+    // Redirects are followed by hand: libsoup would replay our headers on every hop, and a
+    // redirect to another host must not carry the token. The header is recomputed per hop.
+    let url = startUrl;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+        const message = Soup.Message.new('GET', url);
+        message.set_flags(Soup.MessageFlags.NO_REDIRECT);
+        message.request_headers.append('User-Agent', USER_AGENT);
+        const auth = authorizationFor(url);
+        if (auth) message.request_headers.append('Authorization', auth);
+        // The failure this retries against announces its own protocol — libsoup reports it
+        // verbatim as `HTTP/2 Error: NO_ERROR`, a stream closed mid-response. Retrying over
+        // HTTP/1.1 sidesteps the multiplexing that produces it, so the first attempt keeps the
+        // faster protocol and every retry drops to the one that cannot fail that way. Guarded:
+        // `set_force_http1` is libsoup 3.4+, and this script must still run on older hosts.
+        if (forceHttp1 && typeof message.set_force_http1 === 'function') message.set_force_http1(true);
+        const bytes = await session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null);
+        const status = message.get_status();
+        if ([301, 302, 303, 307, 308].includes(status)) {
+            const location = message.get_response_headers().get_one('Location');
+            if (!location)
+                throw Object.assign(new Error(`HTTP ${status} without Location from ${url}`), { httpStatus: status });
+            url = GLib.Uri.parse(url, GLib.UriFlags.NONE).parse_relative(location, GLib.UriFlags.NONE).to_string();
+            continue;
+        }
+        if (status !== Soup.Status.OK) {
+            const err = new Error(`HTTP ${status} from ${url}`);
+            err.httpStatus = status;
+            throw err;
+        }
+        return bytes.get_data();
     }
-    return bytes.get_data();
+    throw new Error(`Too many redirects from ${startUrl}`);
 }
 
 /**

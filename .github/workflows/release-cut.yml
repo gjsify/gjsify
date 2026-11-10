@@ -129,6 +129,9 @@ jobs:
       # release.yml's publish job. See .github/actions/gjsify-setup for why
       # `latest` and not a pin, and for why `GJSIFY_BOOTSTRAP` is exported.
       - name: Install dependencies (gjsify install --immutable)
+        env:
+          # Authenticated fetch of the bootstrap: unauthenticated release downloads are shed first in a GitHub incident.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           B=$(gjs -m install.mjs --fetch-only)
           gjs -m "$B" install --immutable
@@ -612,6 +615,9 @@ jobs:
           node-version: '26.x'
 
       - name: Install dependencies (gjsify install --immutable)
+        env:
+          # Authenticated fetch of the bootstrap: unauthenticated release downloads are shed first in a GitHub incident.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           B=$(gjs -m install.mjs --fetch-only)
           gjs -m "$B" install --immutable
