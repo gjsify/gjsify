@@ -15,28 +15,30 @@
 // instant (`transition-type.ts`). `hhomogeneous` / `vhomogeneous` / `interpolate-size` size
 // the stack from its children, and a one-cell grid already sizes to the largest of them.
 //
+// ROUTE D: `visible-child` and `visible-child-name` are declared properties. Both are
+// seam-owned — `visible-child` is object-kind, `visible-child-name` is `explicitNotify` —
+// because the measured emission order is `notify::visible-child` FIRST, then
+// `notify::visible-child-name`, and a store-level "it changed, so notify" cannot produce that.
+// The `ViewStackState` subscriber pushes both values silently and then emits the two notifies
+// in order.
+//
 // Reference: refs/gtk gtk/gtkstack.c (GtkStack)
 // Copyright (c) The GTK Team. LGPLv2.1+.
 
-import { GridLayout, ItemSpec, type EventData, type View } from '@nativescript/core';
+import { TYPE_OBJECT } from '@gjsify/adwaita-core';
+import { GridLayout, ItemSpec, type View } from '@nativescript/core';
 
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { GtkStackPage } from './stack-page.js';
 import { StyleClassList, type AdwStyleClassesInput } from './style-classes.js';
-import { withSignals } from './signals.js';
+import { pushDeclared, readDeclaredValue, withSignals, type GObjectNotify } from './signals.js';
 import {
     DEFAULT_STACK_TRANSITION_DURATION,
     GTK_STACK_TRANSITIONS,
     transitionNick,
     type GtkStackTransitionNick,
 } from './transition-type.js';
-import {
-    applyViewStackVisibility,
-    createViewStackState,
-    viewStackNotifyPayload,
-    type AdwViewStackPageInfo,
-    type ViewStackNotifyPayload,
-} from './view-stack-state.js';
+import { applyViewStackVisibility, createViewStackState, type AdwViewStackPageInfo } from './view-stack-state.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
 
 /** Event name emitted when the visible child changes. Mirrors GObject `notify::visible-child`. */
@@ -45,20 +47,73 @@ export const NOTIFY_STACK_VISIBLE_CHILD = 'notify::visible-child';
 /** Mirrors GObject `notify::visible-child-name`; fired together with the one above. */
 export const NOTIFY_STACK_VISIBLE_CHILD_NAME = 'notify::visible-child-name';
 
-/** Payload of both events. `index` is `-1` and `name`/`title` are `''` when nothing is selected. */
-export interface NotifyStackVisibleChildEventData extends EventData, ViewStackNotifyPayload {}
+/**
+ * What a declared property's {@link DeclaredProperty.normalize} reads off the stack. Structural,
+ * because `normalize` is handed a bare `object` while the instance may still be constructing
+ * (the `ComboRowValues` precedent) — and because `_state` is private to the class, which a cast
+ * to `GtkStack` could not reach.
+ */
+interface GtkStackValues {
+    readonly _state: ReturnType<typeof createViewStackState>;
+    visibleChildName: string | null;
+    visibleChild: View | null;
+}
 
-export class GtkStack extends withSignals(GridLayout) {
+export class GtkStack extends withSignals<typeof GridLayout>(GridLayout, {
+    GTypeName: 'GtkStack',
+    Properties: {
+        // Object-kind makes this seam-owned for the same reason `AdwComboRow:selected-item`
+        // is: the NativeScript `View` never enters a real GObject slot. The declared property
+        // is the public door; `ViewStackState` is still the source of truth.
+        //
+        // MEASURED on GTK 4.22: every selection move emits `notify::visible-child` FIRST,
+        // then `notify::visible-child-name`. The property order below IS that order, because
+        // the seam's `emittedSignals` lists declared properties in declaration order.
+        'visible-child': {
+            kind: 'object',
+            valueType: TYPE_OBJECT,
+            explicitNotify: true,
+            blurb: 'The currently visible child',
+            normalize: (value, self) => {
+                const stack = self as GtkStackValues;
+                const child = readDeclaredValue('visible-child', 'object', value) as View | null;
+                if (child === null) return stack.visibleChild;
+                const at = stack._state.pages.findIndex((page) => page.content === child);
+                if (at !== -1) stack._state.setVisibleIndex(at);
+                return stack.visibleChild;
+            },
+        },
+        'visible-child-name': {
+            kind: 'string',
+            explicitNotify: true,
+            default: null,
+            blurb: 'The name of the currently visible child',
+            normalize: (value, self) => {
+                const stack = self as GtkStackValues;
+                const name = readDeclaredValue('visible-child-name', 'string', value) as string | null | undefined;
+                if (name === null || name === undefined) return stack.visibleChildName;
+                stack._state.setVisibleName(name);
+                return stack._state.visibleName || null;
+            },
+        },
+    },
+}) {
     static readonly GTypeName: string = 'GtkStack';
-
-    /** The GTK signals this widget emits through `connect` — read by the shared-tree builder (ADR 0093). */
-    static readonly emittedSignals: readonly string[] = [NOTIFY_STACK_VISIBLE_CHILD, NOTIFY_STACK_VISIBLE_CHILD_NAME];
 
     /**
      * No named placement: a stack's XML children are its pages, in order, as GtkBuildable's
      * untyped `<child>` is. An empty list so the builder refuses an authored slot by name.
      */
     static readonly builderSlots: readonly string[] = [];
+
+    /** `Gtk.Stack:visible-child-name` — the visible page's name; `null` for none or an unnamed page. */
+    declare visibleChildName: string | null;
+
+    /** `Gtk.Stack:visible-child` — the visible page's child, or `null`. */
+    declare visibleChild: View | null;
+
+    /** GJS's `notify('<prop>')` beside NativeScript's `notify({ eventName })`; see the seam. */
+    declare notify: GObjectNotify;
 
     private readonly _state = createViewStackState();
     private readonly _classList = new StyleClassList();
@@ -74,13 +129,12 @@ export class GtkStack extends withSignals(GridLayout) {
         this.addColumn(new ItemSpec(1, 'star'));
         this.addRow(new ItemSpec(1, 'star'));
 
-        this._state.subscribe((change) => {
+        this._state.subscribe(() => {
             applyViewStackVisibility(this._state);
-            const payload = viewStackNotifyPayload(change);
-            for (const eventName of [NOTIFY_STACK_VISIBLE_CHILD, NOTIFY_STACK_VISIBLE_CHILD_NAME]) {
-                const data: NotifyStackVisibleChildEventData = { eventName, object: this, ...payload };
-                this.notify(data);
-            }
+            pushDeclared(this, 'visible-child', this._state.visiblePage?.content ?? null);
+            pushDeclared(this, 'visible-child-name', this._state.visibleName || null);
+            this.notify('visible-child');
+            this.notify('visible-child-name');
         });
 
         applyConstructProps(this, props);
@@ -110,9 +164,17 @@ export class GtkStack extends withSignals(GridLayout) {
      */
     remove(child: View): boolean {
         const page = this._state.pages.find((held) => held.content === child);
-        if (!page || !this._state.removePage(page.name)) return false;
+        if (!page) return false;
+        const wasVisible = this._state.visiblePage?.content === child;
+        if (!this._state.removePage(page.name)) return false;
         this.removeChild(child);
         applyViewStackVisibility(this._state);
+        if (wasVisible) {
+            // `gtk_stack_remove` clears the visible child without re-picking and without
+            // emitting `notify::visible-child` / `notify::visible-child-name`.
+            pushDeclared(this, 'visible-child', null);
+            pushDeclared(this, 'visible-child-name', null);
+        }
         return true;
     }
 
@@ -160,26 +222,7 @@ export class GtkStack extends withSignals(GridLayout) {
         this._place(content);
     }
 
-    // --- selection ---
-
-    /** `Gtk.Stack:visible-child-name` — the visible page's name; `null` for none or an unnamed page. */
-    get visibleChildName(): string | null {
-        return this._state.visibleName || null;
-    }
-
-    set visibleChildName(name: string | null | undefined) {
-        this._state.setVisibleName(name);
-    }
-
-    /** `Gtk.Stack:visible-child` — the visible page's child, or `null`. */
-    get visibleChild(): View | null {
-        return this._state.visiblePage?.content ?? null;
-    }
-
-    set visibleChild(child: View | null) {
-        const at = this._state.pages.findIndex((page) => page.content === child);
-        if (at !== -1) this._state.setVisibleIndex(at);
-    }
+    // --- selection verbs ---
 
     /** `gtk_stack_get_visible_child_name`. */
     get_visible_child_name(): string | null {
