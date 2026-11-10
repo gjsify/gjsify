@@ -63,6 +63,15 @@ export default async () => {
             expect(() => validateManifest([{ ...good, files: [] }])).toThrow(/no files/);
         });
 
+        await it('refuses an unsafe id', async () => {
+            expect(() => validateManifest([{ ...good, id: '' }])).toThrow(/id/);
+            expect(() => validateManifest([{ ...good, id: '.' }])).toThrow(/id/);
+            expect(() => validateManifest([{ ...good, id: '..' }])).toThrow(/id/);
+            expect(() => validateManifest([{ ...good, id: '/abs' }])).toThrow(/id/);
+            expect(() => validateManifest([{ ...good, id: 'a/b' }])).toThrow(/id/);
+            expect(() => validateManifest([{ ...good, id: '-x' }])).toThrow(/id/);
+        });
+
         await it('refuses a file name that would leave the entry directory', async () => {
             expect(() =>
                 validateManifest([
@@ -80,6 +89,29 @@ export default async () => {
                     },
                 ]),
             ).toThrow(/plain file name/);
+            for (const file of ['a/b', 'a\\b', '/abs']) {
+                expect(() =>
+                    validateManifest([
+                        {
+                            ...good,
+                            files: [{ file, url: 'https://example.org/x', bytes: 4, sha256: 'a'.repeat(64) }],
+                        },
+                    ]),
+                ).toThrow(/plain file name/);
+            }
+        });
+
+        await it('refuses unsafe file names', async () => {
+            for (const file of ['-x', '.x', '.hidden', 'x:', 'x\x00y']) {
+                expect(() =>
+                    validateManifest([
+                        {
+                            ...good,
+                            files: [{ file, url: 'https://example.org/x', bytes: 4, sha256: 'a'.repeat(64) }],
+                        },
+                    ]),
+                ).toThrow(/plain file name/);
+            }
         });
 
         await it('refuses a bad digest, size, URL or licence', async () => {

@@ -36,13 +36,15 @@ export interface ModelEntry {
 }
 
 const SHA256 = /^[0-9a-f]{64}$/;
-const FILE = /^[^/\\]+$/;
+const ID = /^[a-z0-9][a-z0-9._-]*$/;
+// No path separators, no NUL, no colon, and no leading '-' or '.' (which keeps out '.' and '..' too).
+const FILE = /^[^/\\\x00:\-.][^/\\\x00:]*$/;
 
 /**
  * Throws on the manifest mistakes that would otherwise surface as a refused
- * download much later: a duplicate id, an empty `files` array, a duplicate file
- * name inside one entry, a malformed digest, a size of zero, a non-https URL,
- * or a file name that would escape the entry directory.
+ * download much later: a duplicate id, an unsafe id, an empty `files` array, a
+ * duplicate file name inside one entry, a malformed digest, a size of zero, a
+ * non-https URL, or a file name that would escape the entry directory.
  */
 export function validateManifest(models: readonly ModelEntry[]): void {
     const ids = new Set<string>();
@@ -50,6 +52,9 @@ export function validateManifest(models: readonly ModelEntry[]): void {
         const where = `model '${model.id}'`;
         if (ids.has(model.id)) throw new Error(`Manifest lists ${where} twice`);
         ids.add(model.id);
+        if (model.id === '.' || model.id === '..' || !ID.test(model.id)) {
+            throw new Error(`Manifest: ${where} has id '${model.id}', which is not a lowercase id`);
+        }
         if (!Array.isArray(model.files) || model.files.length === 0) {
             throw new Error(`Manifest: ${where} has no files`);
         }
@@ -57,7 +62,7 @@ export function validateManifest(models: readonly ModelEntry[]): void {
         for (const { file, url, bytes, sha256 } of model.files) {
             if (files.has(file)) throw new Error(`Manifest: ${where} lists file '${file}' twice`);
             files.add(file);
-            if (!FILE.test(file) || file === '.' || file === '..') {
+            if (!FILE.test(file)) {
                 throw new Error(`Manifest: ${where} has file '${file}', which is not a plain file name`);
             }
             if (!SHA256.test(sha256)) throw new Error(`Manifest: ${where} file '${file}' has no lowercase hex sha256`);

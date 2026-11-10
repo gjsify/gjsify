@@ -167,10 +167,16 @@ export default async () => {
                 const dir = s.cachePath('multi');
                 mkdirSync(dir, { recursive: true });
                 writeFileSync(join(dir, 'encoder.onnx'), payload);
-                const result = await s.install('multi');
+                const events: DownloadProgressEvent[] = [];
+                const result = await s.install('multi', {
+                    monitor: (m) =>
+                        m.addEventListener('downloadprogress', (e) => events.push(e as DownloadProgressEvent)),
+                });
                 expect(calls).toBe(1);
                 expect(readFileSync(result.files['encoder.onnx']).length).toBe(payload.length);
                 expect(readFileSync(result.files['tokens.txt']).length).toBe(tokenPayload.length);
+                expect(events[events.length - 1].loaded).toBe(1);
+                expect(events[events.length - 1].receivedBytes).toBe(payload.length + tokenPayload.length);
             });
         });
 
@@ -235,31 +241,121 @@ export default async () => {
             });
         });
 
-        await it('leaves verified siblings intact and removes only the partial file on failure', async () => {
+        await it('leaves verified siblings intact and removes only the partial file on a mid-stream failure', async () => {
             await withRoot(async (root) => {
                 const s = multiStore(root, {
                     fetch: async (url) => {
-                        if (url.includes('tokens')) return respond(tokenPayload);
-                        return respond(payload, { status: 500 });
+                        if (url.includes('encoder')) return respond(payload);
+                        let sent = 0;
+                        const chunk = 5;
+                        return {
+                            ...respond(tokenPayload),
+                            body: {
+                                getReader: () => ({
+                                    read: async () => {
+                                        if (sent >= 5) throw new Error('mid-stream failure');
+                                        if (sent >= tokenPayload.length) return { done: true };
+                                        const value = tokenPayload.subarray(sent, sent + chunk);
+                                        sent += value.length;
+                                        return { done: false, value };
+                                    },
+                                    cancel: async () => undefined,
+                                }),
+                            },
+                        };
                     },
                 });
                 const dir = s.cachePath('multi');
-                mkdirSync(dir, { recursive: true });
-                writeFileSync(join(dir, 'tokens.txt'), tokenPayload);
-                await expect(s.install('multi')).rejects.toThrow(/HTTP 500/);
-                expect(existsSync(join(dir, 'tokens.txt'))).toBe(true);
-                expect(existsSync(join(dir, 'encoder.onnx'))).toBe(false);
-                expect(readdirSync(dir).some((name) => name.startsWith('.'))).toBe(false);
+                await expect(s.install('multi')).rejects.toThrow(/mid-stream failure/);
+                expect(existsSync(join(dir, 'encoder.onnx'))).toBe(true);
+                expect(readFileSync(join(dir, 'encoder.onnx')).length).toBe(payload.length);
+                expect(existsSync(join(dir, 'tokens.txt'))).toBe(false);
+                expect(readdirSync(dir).some((name) => name.includes('.part-'))).toBe(false);
             });
         });
 
-        await it('uninstalls only the cached directory', async () => {
+        await it('uninstalls only the cached directory and refuses escaped ids', async () => {
             await withRoot(async (root) => {
                 const s = store(root, { fetch: async () => respond(payload) });
                 expect(s.uninstall()).toBe(false);
                 await s.install();
                 expect(s.uninstall()).toBe(true);
                 expect(s.availability()).toBe('downloadable');
+                for (const bad of ['', '.', '..', '/abs', 'a/b']) {
+                    expect(() => s.uninstall(bad)).toThrow();
+                }
+            });
+        });
+
+        await it('reports 0 and 1 when everything is already present', async () => {
+            await withRoot(async (root) => {
+                const s = store(root, { fetch: async () => respond(payload) });
+                await s.install();
+                const events: DownloadProgressEvent[] = [];
+                await s.install('tiny', {
+                    monitor: (m) =>
+                        m.addEventListener('downloadprogress', (e) => events.push(e as DownloadProgressEvent)),
+                });
+                expect(events[0].loaded).toBe(0);
+                expect(events[events.length - 1].loaded).toBe(1);
+            });
+        });
+
+        await it('does not dedupe force downloads or downloads with a different fetch', async () => {
+            await withRoot(async (root) => {
+                let calls = 0;
+                const fetchA = async () => {
+                    calls++;
+                    return respond(payload);
+                };
+                const fetchB = async () => {
+                    calls++;
+                    return respond(payload);
+                };
+                const s = store(root, { fetch: fetchA });
+                await Promise.all([s.install('tiny', { force: true }), s.install('tiny', { force: true })]);
+                expect(calls).toBe(2);
+                s.uninstall('tiny');
+                calls = 0;
+                await Promise.all([s.install('tiny'), s.install('tiny', { fetch: fetchB })]);
+                expect(calls).toBe(2);
+            });
+        });
+
+        await it('keys in-flight dedupe by path as well as id', async () => {
+            await withRoot(async (root) => {
+                const pathA = join(root, 'path-a');
+                const pathB = join(root, 'path-b');
+                mkdirSync(pathA, { recursive: true });
+                mkdirSync(pathB, { recursive: true });
+                writeFileSync(join(pathA, entry.files[0].file), payload);
+                writeFileSync(join(pathB, entry.files[0].file), payload);
+                const s = store(root);
+                const [a, b] = await Promise.all([
+                    s.install('tiny', { path: pathA }),
+                    s.install('tiny', { path: pathB }),
+                ]);
+                expect(a.dir).toBe(pathA);
+                expect(b.dir).toBe(pathB);
+            });
+        });
+
+        await it('cleans up the partial file when aborted between files', async () => {
+            await withRoot(async (root) => {
+                const controller = new AbortController();
+                const s = multiStore(root, {
+                    fetch: async (url) => {
+                        if (url.includes('encoder')) return respond(payload);
+                        controller.abort();
+                        return respond(tokenPayload);
+                    },
+                });
+                const dir = s.cachePath('multi');
+                await expect(s.install('multi', { signal: controller.signal })).rejects.toThrow();
+                expect(existsSync(join(dir, 'encoder.onnx'))).toBe(true);
+                expect(readFileSync(join(dir, 'encoder.onnx')).length).toBe(payload.length);
+                expect(existsSync(join(dir, 'tokens.txt'))).toBe(false);
+                expect(readdirSync(dir).some((name) => name.includes('.part-'))).toBe(false);
             });
         });
     });

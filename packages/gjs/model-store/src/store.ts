@@ -20,7 +20,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { copyFileSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, unlinkSync } from 'node:fs';
 import { open } from 'node:fs/promises';
-import { join } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 
 import { modelsRoot } from './cache-dir.js';
 import { downloadVerifiedInternal, type FetchLike, type ProgressReporter } from './download.js';
@@ -111,6 +111,14 @@ function removeQuietly(path: string): void {
     }
 }
 
+/** Throws when `resolved` escapes `parent` (symlinks, '..' or absolute paths). */
+function assertInside(parent: string, resolved: string): void {
+    const rel = relative(resolve(parent), resolve(resolved));
+    if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) {
+        throw new Error(`ModelStore: resolved path ${resolved} is outside ${parent}`);
+    }
+}
+
 /** Hex SHA-256 of a file, read in 1 MiB slices so a 548 MB model never sits in memory. */
 export async function sha256File(path: string, signal?: AbortSignal): Promise<string> {
     const hash = createHash('sha256');
@@ -135,8 +143,10 @@ function totalBytes(entry: ModelEntry): number {
 }
 
 interface Download {
-    readonly promise: Promise<ResolvedModel>;
+    promise: Promise<ResolvedModel>;
     readonly progress: MultiFileProgress;
+    readonly path: string | undefined;
+    readonly fetch: FetchLike | undefined;
 }
 
 /** Re-broadcasts the SUM of several file downloads through one WebML-shaped monitor. */
@@ -239,7 +249,9 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
 
     /** Where `id` is cached: `<cacheDir>/<id>`. */
     cachePath(id: string = this.defaultModel): string {
-        return join(this.cacheDir, this.require(id).id);
+        const dir = resolve(join(this.cacheDir, this.require(id).id));
+        assertInside(this.cacheDir, dir);
+        return dir;
     }
 
     /** Where one file of `id` is cached. */
@@ -273,8 +285,10 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
         const cached = this.cachePath(entry.id);
         const files = this.#locateFiles(entry, cached);
         if (files !== undefined) return { dir: cached, files, source: 'cache' };
-        if (this.#migrate(entry, cached))
-            return { dir: cached, files: this.#locateFiles(entry, cached)!, source: 'cache' };
+        if (this.#migrate(entry, cached)) {
+            const files = this.#locateFiles(entry, cached);
+            if (files !== undefined) return { dir: cached, files, source: 'cache' };
+        }
         return undefined;
     }
 
@@ -332,8 +346,10 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
             if (!options.force && this.locate(entry.id, options) !== undefined) {
                 const progress = new MultiFileProgress(entry.id, entry);
                 progress.add(options.monitor);
+                const total = totalBytes(entry);
+                progress.report(0, total);
                 return this.resolve(entry.id, options).then((resolved) => {
-                    progress.report(totalBytes(entry), totalBytes(entry));
+                    progress.report(total, total);
                     return resolved;
                 });
             }
@@ -341,21 +357,31 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
             return Promise.reject(error);
         }
 
+        const fetchKey = options.fetch ?? this.#fetch;
         const running = this.#inFlight.get(entry.id);
-        if (running !== undefined) {
+        if (running !== undefined && !options.force && running.path === options.path && running.fetch === fetchKey) {
             running.progress.add(options.monitor);
             return running.promise;
         }
         const progress = new MultiFileProgress(entry.id, entry);
         progress.add(options.monitor);
-        const promise = this.#download(entry, progress, options).finally(() => this.#inFlight.delete(entry.id));
-        this.#inFlight.set(entry.id, { promise, progress });
-        return promise;
+        const flight: Download = {
+            promise: this.#download(entry, progress, options),
+            progress,
+            path: options.path,
+            fetch: fetchKey,
+        };
+        flight.promise = flight.promise.finally(() => {
+            if (this.#inFlight.get(entry.id) === flight) this.#inFlight.delete(entry.id);
+        });
+        this.#inFlight.set(entry.id, flight);
+        return flight.promise;
     }
 
     /** Delete the CACHED directory of `id` — never a configured or app-shipped one. `false` when none was there. */
     uninstall(id: string = this.defaultModel): boolean {
         const path = this.cachePath(id);
+        assertInside(this.cacheDir, path);
         try {
             const entries = readdirSync(path);
             if (entries.length === 0) return false;
@@ -369,9 +395,9 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
     #migrate(entry: E, targetDir: string): boolean {
         for (const dir of this.#legacyDirs()) {
             const oldFiles: Record<string, string> = {};
-            for (const { file } of entry.files) {
+            for (const { file, bytes } of entry.files) {
                 const old = join(dir, file);
-                if (sizeOf(old) === null) break;
+                if (sizeOf(old) !== bytes) break;
                 oldFiles[file] = old;
             }
             if (Object.keys(oldFiles).length !== entry.files.length) continue;
@@ -434,10 +460,15 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
         const dir = this.cachePath(entry.id);
         mkdirSync(dir, { recursive: true });
         const files: Record<string, string> = {};
+        const total = totalBytes(entry);
+        progress.report(0, total);
         for (const file of entry.files) {
             const target = join(dir, file.file);
             files[file.file] = target;
-            if (!options.force && sizeOf(target) === file.bytes) continue;
+            if (!options.force && sizeOf(target) === file.bytes) {
+                progress.update(file.file, file.bytes);
+                continue;
+            }
             await downloadVerifiedInternal({
                 url: file.url,
                 dest: target,
@@ -449,6 +480,7 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
                 id: entry.id,
             });
         }
+        progress.report(total, total);
         return { dir, files };
     }
 }
