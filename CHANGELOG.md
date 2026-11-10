@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.64.28](https://github.com/gjsify/gjsify/compare/v0.64.27...v0.64.28) (2026-11-10)
+
+### Features
+
+* **image-generation:** add @gjsify/image-generation ([#2581](https://github.com/gjsify/gjsify/issues/2581)) ([19f2feb](https://github.com/gjsify/gjsify/commit/19f2feb74fb333df88855f7589f4c1e4de8b64dc))
+* **model-store:** resume partial downloads ([#2580](https://github.com/gjsify/gjsify/issues/2580)) ([d2cdae4](https://github.com/gjsify/gjsify/commit/d2cdae4c7a9a8d0c8d8c882bdf9bb06e01209a47))
+
+### Bug Fixes
+
+* **install:** send GITHUB_TOKEN to github hosts ([#2577](https://github.com/gjsify/gjsify/issues/2577)) ([1d9b454](https://github.com/gjsify/gjsify/commit/1d9b45437ba8e24d8f542c9625e7ecb08949c1ec))
+
+### Documentation
+
+* **adr:** one app inside and outside a sandbox ([#2576](https://github.com/gjsify/gjsify/issues/2576)) ([84f0bb4](https://github.com/gjsify/gjsify/commit/84f0bb4eeb9769f2aafc0fb5f76c23f1528ef580))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([b0f4b34](https://github.com/gjsify/gjsify/commit/b0f4b34defabcfbb856524ae374609530f01f4d0))
+
 ## [0.64.27](https://github.com/gjsify/gjsify/compare/v0.64.26...v0.64.27) (2026-11-10)
 
 ### ⚠ BREAKING CHANGES
