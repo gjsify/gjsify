@@ -73,7 +73,13 @@ const { bytes, sha256 } = await downloadVerified({
 });
 ```
 
-`bytes` and `sha256` are optional checks, but the returned values always report what was actually received. The file is written under a temporary name and renamed into place only after the checks pass; failures remove the partial file.
+`bytes` and `sha256` are optional checks, but the returned values always report what was actually received. The file is written under a temporary name and renamed into place only after the checks pass; verification failures remove the partial file.
+
+## Resuming interrupted downloads
+
+`downloadVerified` keeps a partial file next to the destination (`<dest>.part`) and sends `Range: bytes=<partial>-` on the next call. A `206 Partial Content` response appends to the partial, a `200` response restarts from scratch, and a `416 Range Not Satisfiable` either verifies the already-complete partial or discards it and restarts once. The SHA-256 is computed over the whole file after it is complete. Abort and network errors leave the partial in place so the next call can resume; only a hash/size mismatch deletes it.
+
+Concurrent calls for the same destination are serialized so two writers cannot corrupt the partial file.
 
 ## License
 
