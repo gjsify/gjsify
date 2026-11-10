@@ -2,7 +2,8 @@
 // machine and a temporary store. node-llama-cpp is never loaded here.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -61,7 +62,8 @@ export default async () => {
         await it('lists the native size first among the truncations', async () => {
             for (const entry of EMBEDDING_MODELS) {
                 expect(entry.truncations[0]).toBe(entry.dimensions);
-                expect(entry.footprintBytes > entry.bytes).toBe(true);
+                const modelBytes = entry.files.reduce((sum, file) => sum + file.bytes, 0);
+                expect(entry.footprintBytes > modelBytes).toBe(true);
             }
         });
 
@@ -155,6 +157,57 @@ export default async () => {
             expect(await llamaEmbeddings({ store, probe: freebsd }).availability()).toBe('unavailable');
             const tight = machine({ freemem: 100 * 1024 * 1024 });
             expect(await llamaEmbeddings({ store, probe: tight }).availability()).toBe('unavailable');
+        });
+
+        await it('treats modelPath as a directory, not a file', async () => {
+            const modelDir = mkdtempSync(join(tmpdir(), 'gjsify-embeddings-modelpath-'));
+            const cacheRoot = mkdtempSync(join(tmpdir(), 'gjsify-embeddings-root-'));
+            try {
+                const payload = new TextEncoder().encode('tiny model');
+                const digest = createHash('sha256').update(payload).digest('hex');
+                const tinyEntry: EmbeddingModelEntry = {
+                    id: 'tiny',
+                    files: [
+                        {
+                            file: 'tiny.gguf',
+                            url: 'https://example.org/tiny.gguf',
+                            bytes: payload.length,
+                            sha256: digest,
+                        },
+                    ],
+                    license: 'MIT',
+                    redistributable: true,
+                    modelId: 'tiny',
+                    dimensions: 256,
+                    truncations: [256],
+                    queryTemplate: '{text}',
+                    documentTemplate: '{text}',
+                    emptyTitle: 'none',
+                    contextTokens: 512,
+                    footprintBytes: 1024,
+                };
+                writeFileSync(join(modelDir, 'tiny.gguf'), payload);
+                const tinyStore = new ModelStore<EmbeddingModelEntry>({
+                    capability: 'embeddings',
+                    models: [tinyEntry],
+                    defaultModel: 'tiny',
+                    root: cacheRoot,
+                });
+                const engine = llamaEmbeddings({
+                    store: tinyStore,
+                    modelPath: modelDir,
+                    dimensions: 256,
+                    probe: machine(),
+                });
+                expect(await engine.availability()).toBe('available');
+                const filePath = join(modelDir, 'tiny.gguf');
+                expect(() => llamaEmbeddings({ store: tinyStore, modelPath: filePath, dimensions: 256 })).toThrow(
+                    /directory/,
+                );
+            } finally {
+                rmSync(modelDir, { recursive: true, force: true });
+                rmSync(cacheRoot, { recursive: true, force: true });
+            }
         });
 
         rmSync(root, { recursive: true, force: true });

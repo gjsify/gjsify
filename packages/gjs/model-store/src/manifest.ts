@@ -1,15 +1,13 @@
 // What a capability package records about each model it can fetch (ADR 0132 § 5).
 //
 // The manifest stays IN THE PACKAGE THAT USES THE MODEL, as a TS module: the
-// store knows how to fetch, verify and place a file, never which files exist.
+// store knows how to fetch, verify and place files, never which files exist.
 // Every field below is measured from the real file, and `bytes` + `sha256` are
 // the whole verification — updating a model means re-measuring both.
 
-/** One fetchable model. Capability packages extend it with their own fields. */
-export interface ModelEntry {
-    /** Stable id, unique within one store. */
-    readonly id: string;
-    /** File name inside the cache directory. Upstream's own name, so a hand-placed file matches. */
+/** One file that belongs to a model entry. */
+export interface ModelFile {
+    /** File name inside the entry directory. Upstream's own name, so a hand-placed file matches. */
     readonly file: string;
     /** Where it is fetched from: upstream, never a mirror of ours (ADR 0132 § 5). */
     readonly url: string;
@@ -17,10 +15,18 @@ export interface ModelEntry {
     readonly bytes: number;
     /** SHA-256 of the file, lowercase hex. */
     readonly sha256: string;
+}
+
+/** One fetchable model, made of one or more verified files placed together. */
+export interface ModelEntry {
+    /** Stable id, unique within one store. */
+    readonly id: string;
+    /** The files that make up this model. Non-empty; file names are unique within the entry. */
+    readonly files: readonly ModelFile[];
     /** SPDX id of the MODEL's licence, which is not the package's. */
     readonly license: string;
     /**
-     * Whether the licence allows redistributing the file. An app may ship a
+     * Whether the licence allows redistributing the files. An app may ship a
      * model in its data dir only when this is `true`; the store fetches from
      * `url` either way.
      */
@@ -30,30 +36,43 @@ export interface ModelEntry {
 }
 
 const SHA256 = /^[0-9a-f]{64}$/;
-const FILE = /^[^/\\]+$/;
+const ID = /^[a-z0-9][a-z0-9._-]*$/;
+// No path separators, no NUL, no colon, and no leading '-' or '.' (which keeps out '.' and '..' too).
+const FILE = /^[^/\\:\-.][^/\\:]*$/;
 
 /**
  * Throws on the manifest mistakes that would otherwise surface as a refused
- * download much later: a duplicate id or file, a malformed digest, a size of
- * zero, a non-https URL, or a file name that would escape the cache dir.
+ * download much later: a duplicate id, an unsafe id, an empty `files` array, a
+ * duplicate file name inside one entry, a malformed digest, a size of zero, a
+ * non-https URL, or a file name that would escape the entry directory.
  */
 export function validateManifest(models: readonly ModelEntry[]): void {
     const ids = new Set<string>();
-    const files = new Set<string>();
     for (const model of models) {
         const where = `model '${model.id}'`;
         if (ids.has(model.id)) throw new Error(`Manifest lists ${where} twice`);
-        if (files.has(model.file)) throw new Error(`Manifest: ${where} reuses file '${model.file}'`);
         ids.add(model.id);
-        files.add(model.file);
-        if (!FILE.test(model.file) || model.file === '.' || model.file === '..') {
-            throw new Error(`Manifest: ${where} has file '${model.file}', which is not a plain file name`);
+        if (model.id === '.' || model.id === '..' || !ID.test(model.id)) {
+            throw new Error(`Manifest: ${where} has id '${model.id}', which is not a lowercase id`);
         }
-        if (!SHA256.test(model.sha256)) throw new Error(`Manifest: ${where} has no lowercase hex sha256`);
-        if (!Number.isSafeInteger(model.bytes) || model.bytes <= 0) {
-            throw new Error(`Manifest: ${where} has size ${model.bytes}`);
+        if (!Array.isArray(model.files) || model.files.length === 0) {
+            throw new Error(`Manifest: ${where} has no files`);
         }
-        if (!model.url.startsWith('https://')) throw new Error(`Manifest: ${where} is not fetched over https`);
+        const files = new Set<string>();
+        for (const { file, url, bytes, sha256 } of model.files) {
+            if (files.has(file)) throw new Error(`Manifest: ${where} lists file '${file}' twice`);
+            files.add(file);
+            if (file.includes('\0') || !FILE.test(file)) {
+                throw new Error(`Manifest: ${where} has file '${file}', which is not a plain file name`);
+            }
+            if (!SHA256.test(sha256)) throw new Error(`Manifest: ${where} file '${file}' has no lowercase hex sha256`);
+            if (!Number.isSafeInteger(bytes) || bytes <= 0) {
+                throw new Error(`Manifest: ${where} file '${file}' has size ${bytes}`);
+            }
+            if (!url.startsWith('https://')) {
+                throw new Error(`Manifest: ${where} file '${file}' is not fetched over https`);
+            }
+        }
         if (model.license.length === 0) throw new Error(`Manifest: ${where} names no licence`);
     }
 }

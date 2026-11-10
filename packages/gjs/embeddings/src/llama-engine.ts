@@ -2,7 +2,7 @@
 // Node and on GJS (ADR 0132 § 7: the existing N-API engine moves in as it is).
 // It takes node-llama-cpp as a parameter; `./llama.ts` hands it over.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -56,7 +56,7 @@ export const DEFAULT_GPU_CONTEXTS = 2;
 export interface LlamaEmbeddingsOptions {
     /** An id from {@link EMBEDDING_MODELS}. */
     readonly model?: string;
-    /** A file the person already has; checked against the manifest's size and digest. */
+    /** A directory containing the model files; checked against the manifest's sizes and digests. */
     readonly modelPath?: string;
     /** Directories the app ships models in, read-only, searched before the cache. */
     readonly appDataDirs?: readonly string[];
@@ -225,8 +225,23 @@ function storeFor(options: LlamaEmbeddingsOptions): ModelStore<EmbeddingModelEnt
     );
 }
 
+function assertModelPathIsDirectory(modelPath: string): void {
+    try {
+        if (!statSync(modelPath).isDirectory()) {
+            throw new Error(
+                `llamaEmbeddings: modelPath '${modelPath}' is a file, expected a directory containing the model files`,
+            );
+        }
+    } catch (error) {
+        // A non-existent path is treated as a directory to download into.
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+        throw error;
+    }
+}
+
 /** {@link llamaEmbeddings} with node-llama-cpp passed in. */
 export function createLlamaEmbeddings(nlc: NodeLlamaCpp, options: LlamaEmbeddingsOptions = {}): EmbeddingEngineFactory {
+    if (options.modelPath !== undefined) assertModelPathIsDirectory(options.modelPath);
     const store = storeFor(options);
     const entry = store.require(options.model);
     const dimensions = options.dimensions ?? entry.dimensions;
@@ -299,12 +314,13 @@ export function createLlamaEmbeddings(nlc: NodeLlamaCpp, options: LlamaEmbedding
         },
 
         async create(createOptions: EngineCreateOptions = {}): Promise<EmbeddingEngine> {
-            const modelPath = await store.install(entry.id, {
+            const resolved = await store.install(entry.id, {
                 path: options.modelPath,
                 monitor: createOptions.monitor,
                 signal: createOptions.signal,
             });
             createOptions.signal?.throwIfAborted();
+            const modelPath = resolved.files[entry.files[0].file];
             let session = await openSession(modelPath, false);
 
             const embedOnce = async (

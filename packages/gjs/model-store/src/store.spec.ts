@@ -16,10 +16,27 @@ const digest = createHash('sha256').update(payload).digest('hex');
 
 const entry: ModelEntry = {
     id: 'tiny',
-    file: 'tiny.onnx',
-    url: 'https://example.org/tiny.onnx',
-    bytes: payload.length,
-    sha256: digest,
+    files: [
+        {
+            file: 'tiny.onnx',
+            url: 'https://example.org/tiny.onnx',
+            bytes: payload.length,
+            sha256: digest,
+        },
+    ],
+    license: 'MIT',
+    redistributable: true,
+};
+
+const tokenPayload = new TextEncoder().encode('tokens');
+const tokenDigest = createHash('sha256').update(tokenPayload).digest('hex');
+
+const multiEntry: ModelEntry = {
+    id: 'multi',
+    files: [
+        { file: 'encoder.onnx', url: 'https://example.org/encoder.onnx', bytes: payload.length, sha256: digest },
+        { file: 'tokens.txt', url: 'https://example.org/tokens.txt', bytes: tokenPayload.length, sha256: tokenDigest },
+    ],
     license: 'MIT',
     redistributable: true,
 };
@@ -57,13 +74,23 @@ function store(root: string, extra: { fetch?: FetchLike; appDataDirs?: string[];
     return new ModelStore({ capability: 'speech', models: [entry], root: join(root, 'models'), ...extra });
 }
 
+function multiStore(root: string, extra: { fetch?: FetchLike; appDataDirs?: string[]; legacyDirs?: string[] } = {}) {
+    return new ModelStore({ capability: 'speech', models: [multiEntry], root: join(root, 'models'), ...extra });
+}
+
+function respondFor(url: string): ReturnType<typeof respond> {
+    if (url.includes('tokens')) return respond(tokenPayload);
+    return respond(payload);
+}
+
 export default async () => {
     await describe('ModelStore layout', async () => {
-        await it('caches under <root>/<capability>', async () => {
+        await it('caches under <root>/<capability>/<id>', async () => {
             await withRoot(async (root) => {
                 const s = store(root);
                 expect(s.cacheDir).toBe(join(root, 'models', 'speech'));
-                expect(s.cachePath()).toBe(join(root, 'models', 'speech', 'tiny.onnx'));
+                expect(s.cachePath()).toBe(join(root, 'models', 'speech', 'tiny'));
+                expect(s.cacheFilePath('tiny', 'tiny.onnx')).toBe(join(root, 'models', 'speech', 'tiny', 'tiny.onnx'));
             });
         });
 
@@ -87,19 +114,69 @@ export default async () => {
                 const s = store(root, { fetch: async () => respond(payload) });
                 expect(s.availability()).toBe('downloadable');
                 const fractions: number[] = [];
-                const path = await s.install('tiny', {
+                const result = await s.install('tiny', {
                     monitor: (m) =>
                         m.addEventListener('downloadprogress', (e) =>
                             fractions.push((e as DownloadProgressEvent).loaded),
                         ),
                 });
-                expect(path).toBe(s.cachePath());
+                const path = result.files['tiny.onnx'];
+                expect(path).toBe(s.cacheFilePath('tiny', 'tiny.onnx'));
                 expect(readFileSync(path).length).toBe(payload.length);
                 expect(fractions[0]).toBe(0);
                 expect(fractions[fractions.length - 1]).toBe(1);
                 expect(readdirSync(s.cacheDir).length).toBe(1);
                 expect(s.availability()).toBe('available');
                 expect(s.installed()).toStrictEqual(['tiny']);
+            });
+        });
+
+        await it('downloads a multi-file entry and reports summed progress', async () => {
+            await withRoot(async (root) => {
+                let requestedUrls: string[] = [];
+                const s = multiStore(root, {
+                    fetch: async (_url, init) => {
+                        requestedUrls.push(init.headers?.['X-Test'] ?? String(_url));
+                        return respondFor(String(_url));
+                    },
+                });
+                const events: DownloadProgressEvent[] = [];
+                const result = await s.install('multi', {
+                    monitor: (m) =>
+                        m.addEventListener('downloadprogress', (e) => events.push(e as DownloadProgressEvent)),
+                });
+                expect(Object.keys(result.files).sort()).toStrictEqual(['encoder.onnx', 'tokens.txt']);
+                expect(readFileSync(result.files['encoder.onnx']).length).toBe(payload.length);
+                expect(readFileSync(result.files['tokens.txt']).length).toBe(tokenPayload.length);
+                expect(events[0].receivedBytes).toBe(0);
+                expect(events[events.length - 1].receivedBytes).toBe(payload.length + tokenPayload.length);
+                expect(events[events.length - 1].totalBytes).toBe(payload.length + tokenPayload.length);
+                expect(events[events.length - 1].loaded).toBe(1);
+            });
+        });
+
+        await it('downloads only the missing files of a partially present entry', async () => {
+            await withRoot(async (root) => {
+                let calls = 0;
+                const s = multiStore(root, {
+                    fetch: async (url) => {
+                        calls++;
+                        return respondFor(url);
+                    },
+                });
+                const dir = s.cachePath('multi');
+                mkdirSync(dir, { recursive: true });
+                writeFileSync(join(dir, 'encoder.onnx'), payload);
+                const events: DownloadProgressEvent[] = [];
+                const result = await s.install('multi', {
+                    monitor: (m) =>
+                        m.addEventListener('downloadprogress', (e) => events.push(e as DownloadProgressEvent)),
+                });
+                expect(calls).toBe(1);
+                expect(readFileSync(result.files['encoder.onnx']).length).toBe(payload.length);
+                expect(readFileSync(result.files['tokens.txt']).length).toBe(tokenPayload.length);
+                expect(events[events.length - 1].loaded).toBe(1);
+                expect(events[events.length - 1].receivedBytes).toBe(payload.length + tokenPayload.length);
             });
         });
 
@@ -115,7 +192,8 @@ export default async () => {
                 const first = s.install();
                 expect(s.availability()).toBe('downloading');
                 const [a, b] = await Promise.all([first, s.install()]);
-                expect(a).toBe(b);
+                expect(a.dir).toBe(b.dir);
+                expect(Object.keys(a.files)).toStrictEqual(Object.keys(b.files));
                 expect(calls).toBe(1);
             });
         });
@@ -124,7 +202,7 @@ export default async () => {
             await withRoot(async (root) => {
                 const s = store(root, { fetch: async () => respond(payload, { contentLength: '123' }) });
                 await expect(s.install()).rejects.toThrow(/declares 123 bytes/);
-                expect(existsSync(s.cachePath())).toBe(false);
+                expect(existsSync(s.cacheFilePath('tiny', 'tiny.onnx'))).toBe(false);
             });
         });
 
@@ -133,7 +211,7 @@ export default async () => {
                 const long = new Uint8Array(payload.length + 10);
                 const s = store(root, { fetch: async () => respond(long, { contentLength: null }) });
                 await expect(s.install()).rejects.toThrow(/more than/);
-                expect(readdirSync(s.cacheDir).length).toBe(0);
+                expect(readdirSync(s.cachePath()).length).toBe(0);
             });
         });
 
@@ -142,7 +220,7 @@ export default async () => {
                 const wrong = new Uint8Array(payload.length);
                 const s = store(root, { fetch: async () => respond(wrong) });
                 await expect(s.install()).rejects.toThrow(/sha256/);
-                expect(readdirSync(s.cacheDir).length).toBe(0);
+                expect(readdirSync(s.cachePath()).length).toBe(0);
             });
         });
 
@@ -159,17 +237,125 @@ export default async () => {
                 controller.abort();
                 const s = store(root, { fetch: async () => respond(payload) });
                 await expect(s.install('tiny', { signal: controller.signal })).rejects.toThrow();
-                expect(readdirSync(s.cacheDir).length).toBe(0);
+                expect(readdirSync(s.cachePath()).length).toBe(0);
             });
         });
 
-        await it('uninstalls only the cached file', async () => {
+        await it('leaves verified siblings intact and removes only the partial file on a mid-stream failure', async () => {
+            await withRoot(async (root) => {
+                const s = multiStore(root, {
+                    fetch: async (url) => {
+                        if (url.includes('encoder')) return respond(payload);
+                        let sent = 0;
+                        const chunk = 5;
+                        return {
+                            ...respond(tokenPayload),
+                            body: {
+                                getReader: () => ({
+                                    read: async () => {
+                                        if (sent >= 5) throw new Error('mid-stream failure');
+                                        if (sent >= tokenPayload.length) return { done: true };
+                                        const value = tokenPayload.subarray(sent, sent + chunk);
+                                        sent += value.length;
+                                        return { done: false, value };
+                                    },
+                                    cancel: async () => undefined,
+                                }),
+                            },
+                        };
+                    },
+                });
+                const dir = s.cachePath('multi');
+                await expect(s.install('multi')).rejects.toThrow(/mid-stream failure/);
+                expect(existsSync(join(dir, 'encoder.onnx'))).toBe(true);
+                expect(readFileSync(join(dir, 'encoder.onnx')).length).toBe(payload.length);
+                expect(existsSync(join(dir, 'tokens.txt'))).toBe(false);
+                expect(readdirSync(dir).some((name) => name.includes('.part-'))).toBe(false);
+            });
+        });
+
+        await it('uninstalls only the cached directory and refuses escaped ids', async () => {
             await withRoot(async (root) => {
                 const s = store(root, { fetch: async () => respond(payload) });
                 expect(s.uninstall()).toBe(false);
                 await s.install();
                 expect(s.uninstall()).toBe(true);
                 expect(s.availability()).toBe('downloadable');
+                for (const bad of ['', '.', '..', '/abs', 'a/b']) {
+                    expect(() => s.uninstall(bad)).toThrow();
+                }
+            });
+        });
+
+        await it('reports 0 and 1 when everything is already present', async () => {
+            await withRoot(async (root) => {
+                const s = store(root, { fetch: async () => respond(payload) });
+                await s.install();
+                const events: DownloadProgressEvent[] = [];
+                await s.install('tiny', {
+                    monitor: (m) =>
+                        m.addEventListener('downloadprogress', (e) => events.push(e as DownloadProgressEvent)),
+                });
+                expect(events[0].loaded).toBe(0);
+                expect(events[events.length - 1].loaded).toBe(1);
+            });
+        });
+
+        await it('does not dedupe force downloads or downloads with a different fetch', async () => {
+            await withRoot(async (root) => {
+                let calls = 0;
+                const fetchA = async () => {
+                    calls++;
+                    return respond(payload);
+                };
+                const fetchB = async () => {
+                    calls++;
+                    return respond(payload);
+                };
+                const s = store(root, { fetch: fetchA });
+                await Promise.all([s.install('tiny', { force: true }), s.install('tiny', { force: true })]);
+                expect(calls).toBe(2);
+                s.uninstall('tiny');
+                calls = 0;
+                await Promise.all([s.install('tiny'), s.install('tiny', { fetch: fetchB })]);
+                expect(calls).toBe(2);
+            });
+        });
+
+        await it('keys in-flight dedupe by path as well as id', async () => {
+            await withRoot(async (root) => {
+                const pathA = join(root, 'path-a');
+                const pathB = join(root, 'path-b');
+                mkdirSync(pathA, { recursive: true });
+                mkdirSync(pathB, { recursive: true });
+                writeFileSync(join(pathA, entry.files[0].file), payload);
+                writeFileSync(join(pathB, entry.files[0].file), payload);
+                const s = store(root);
+                const [a, b] = await Promise.all([
+                    s.install('tiny', { path: pathA }),
+                    s.install('tiny', { path: pathB }),
+                ]);
+                expect(a.dir).toBe(pathA);
+                expect(b.dir).toBe(pathB);
+            });
+        });
+
+        await it('cleans up the partial file when aborted between files', async () => {
+            await withRoot(async (root) => {
+                const controller = new AbortController();
+                const s = multiStore(root, {
+                    fetch: async (url) => {
+                        if (url.includes('encoder')) return respond(payload);
+                        controller.abort();
+                        return respond(tokenPayload);
+                    },
+                });
+                const dir = s.cachePath('multi');
+                await expect(s.install('multi', { signal: controller.signal })).rejects.toThrow();
+                expect(existsSync(join(dir, 'encoder.onnx'))).toBe(true);
+                expect(readFileSync(join(dir, 'encoder.onnx')).length).toBe(payload.length);
+                expect(existsSync(join(dir, 'tokens.txt'))).toBe(false);
+                expect(readdirSync(dir).some((name) => name.includes('.part-'))).toBe(false);
             });
         });
     });
@@ -178,46 +364,51 @@ export default async () => {
         await it('prefers a configured path, then the app data dir, then the cache', async () => {
             await withRoot(async (root) => {
                 const appDir = join(root, 'app');
-                mkdirSync(appDir);
-                writeFileSync(join(appDir, entry.file), payload);
-                const own = join(root, 'own.onnx');
-                writeFileSync(own, payload);
+                const appEntryDir = join(appDir, entry.id);
+                mkdirSync(appEntryDir, { recursive: true });
+                writeFileSync(join(appEntryDir, entry.files[0].file), payload);
+                const ownDir = join(root, 'own');
+                mkdirSync(ownDir, { recursive: true });
+                writeFileSync(join(ownDir, entry.files[0].file), payload);
                 const s = store(root, { appDataDirs: [appDir] });
                 expect(s.locate()?.source).toBe('app-data');
-                expect(s.locate('tiny', { path: own })?.source).toBe('configured');
-                expect(await s.resolve('tiny', { path: own })).toBe(own);
-                expect(await s.resolve()).toBe(join(appDir, entry.file));
+                expect(s.locate('tiny', { path: ownDir })?.source).toBe('configured');
+                expect((await s.resolve('tiny', { path: ownDir })).dir).toBe(ownDir);
+                expect((await s.resolve()).files[entry.files[0].file]).toBe(join(appEntryDir, entry.files[0].file));
             });
         });
 
         await it('checks the digest of a non-cache source', async () => {
             await withRoot(async (root) => {
-                const own = join(root, 'own.onnx');
-                writeFileSync(own, new Uint8Array(payload.length));
+                const ownDir = join(root, 'own');
+                mkdirSync(ownDir, { recursive: true });
+                writeFileSync(join(ownDir, entry.files[0].file), new Uint8Array(payload.length));
                 const s = store(root);
-                await expect(s.resolve('tiny', { path: own })).rejects.toThrow(/sha256/);
+                await expect(s.resolve('tiny', { path: ownDir })).rejects.toThrow(/sha256/);
             });
         });
 
-        await it('throws for a configured path that is missing or the wrong size', async () => {
+        await it('throws for a configured path that is missing a file or has the wrong size', async () => {
             await withRoot(async (root) => {
                 const s = store(root);
-                expect(() => s.locate('tiny', { path: join(root, 'missing') })).toThrow(/no file/);
-                writeFileSync(join(root, 'short'), 'x');
-                expect(() => s.locate('tiny', { path: join(root, 'short') })).toThrow(/1 bytes/);
+                expect(() => s.locate('tiny', { path: join(root, 'missing') })).toThrow(/does not contain/);
+                const shortDir = join(root, 'short');
+                mkdirSync(shortDir, { recursive: true });
+                writeFileSync(join(shortDir, entry.files[0].file), 'x');
+                expect(() => s.locate('tiny', { path: shortDir })).toThrow(/does not contain/);
             });
         });
 
         await it('moves a model from a legacy directory into the cache once', async () => {
             await withRoot(async (root) => {
                 const legacy = join(root, 'speech-models');
-                mkdirSync(legacy);
-                writeFileSync(join(legacy, entry.file), payload);
+                mkdirSync(legacy, { recursive: true });
+                writeFileSync(join(legacy, entry.files[0].file), payload);
                 const s = store(root, { legacyDirs: [legacy] });
                 const located = s.locate();
                 expect(located?.source).toBe('cache');
-                expect(located?.path).toBe(s.cachePath());
-                expect(existsSync(join(legacy, entry.file))).toBe(false);
+                expect(located?.dir).toBe(s.cachePath());
+                expect(existsSync(join(legacy, entry.files[0].file))).toBe(false);
             });
         });
 
@@ -229,6 +420,18 @@ export default async () => {
                     },
                 });
                 await expect(s.resolve()).rejects.toThrow(/not installed/);
+            });
+        });
+
+        await it('reports a partially present entry as not ready', async () => {
+            await withRoot(async (root) => {
+                const s = multiStore(root);
+                const dir = s.cachePath('multi');
+                mkdirSync(dir, { recursive: true });
+                writeFileSync(join(dir, 'encoder.onnx'), payload);
+                expect(s.locate('multi')).toBe(undefined);
+                expect(s.availability('multi')).toBe('downloadable');
+                await expect(s.resolve('multi')).rejects.toThrow(/not installed/);
             });
         });
     });

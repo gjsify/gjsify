@@ -35,10 +35,14 @@ const RELEASE = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-mod
 export const VAD_MODELS: readonly VadModelEntry[] = [
     {
         id: 'silero-v5',
-        file: 'silero_vad_v5.onnx',
-        url: `${RELEASE}/silero_vad_v5.onnx`,
-        bytes: 2313101,
-        sha256: '6b99cbfd39246b6706f98ec13c7c50c6b299181f2474fa05cbc8046acc274396',
+        files: [
+            {
+                file: 'silero_vad_v5.onnx',
+                url: `${RELEASE}/silero_vad_v5.onnx`,
+                bytes: 2313101,
+                sha256: '6b99cbfd39246b6706f98ec13c7c50c6b299181f2474fa05cbc8046acc274396',
+            },
+        ],
         license: 'MIT',
         redistributable: true,
         sampleRate: 16000,
@@ -47,10 +51,14 @@ export const VAD_MODELS: readonly VadModelEntry[] = [
     },
     {
         id: 'silero-v4',
-        file: 'silero_vad.onnx',
-        url: `${RELEASE}/silero_vad.onnx`,
-        bytes: 643854,
-        sha256: '9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6',
+        files: [
+            {
+                file: 'silero_vad.onnx',
+                url: `${RELEASE}/silero_vad.onnx`,
+                bytes: 643854,
+                sha256: '9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6',
+            },
+        ],
         license: 'MIT',
         redistributable: true,
         sampleRate: 16000,

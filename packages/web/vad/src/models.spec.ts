@@ -15,7 +15,7 @@ import process from 'node:process';
 
 import { _resetVadBackendCache, loadVadBackend, type VadBackend } from './backend.js';
 import { DEFAULT_VAD_MODEL, findVadModel, requireVadModel, VAD_MODELS } from './model-manifest.js';
-import { available, install, listModels, modelCacheDir, modelPath, resolveModel } from './models.js';
+import { available, install, listModels, modelCacheDir, modelDir, resolveModel } from './models.js';
 
 /** Make the probe report a usable engine without loading one. */
 function withFakeBackend<T>(body: () => T): T {
@@ -62,13 +62,14 @@ export default async () => {
             expect(VAD_MODELS.length > 0).toBe(true);
             expect(findVadModel(DEFAULT_VAD_MODEL)?.id).toBe(DEFAULT_VAD_MODEL);
             expect(new Set(VAD_MODELS.map((m) => m.id)).size).toBe(VAD_MODELS.length);
-            expect(new Set(VAD_MODELS.map((m) => m.file)).size).toBe(VAD_MODELS.length);
         });
 
-        await it('records a size, a lowercase sha256 and a licence for every entry', async () => {
+        await it('records a size, a lowercase sha256 and a licence for every file', async () => {
             for (const model of VAD_MODELS) {
-                expect(model.bytes > 0).toBe(true);
-                expect(/^[0-9a-f]{64}$/.test(model.sha256)).toBe(true);
+                for (const file of model.files) {
+                    expect(file.bytes > 0).toBe(true);
+                    expect(/^[0-9a-f]{64}$/.test(file.sha256)).toBe(true);
+                }
                 expect(model.license.length > 0).toBe(true);
                 expect(model.sampleRate > 0).toBe(true);
                 expect(model.windowSize > 0).toBe(true);
@@ -77,8 +78,10 @@ export default async () => {
 
         await it('fetches from upstream over https, never from a mirror of ours', async () => {
             for (const model of VAD_MODELS) {
-                expect(model.url.startsWith('https://github.com/k2-fsa/sherpa-onnx/releases/')).toBe(true);
-                expect(model.url.endsWith(model.file)).toBe(true);
+                for (const file of model.files) {
+                    expect(file.url.startsWith('https://github.com/k2-fsa/sherpa-onnx/releases/')).toBe(true);
+                    expect(file.url.endsWith(file.file)).toBe(true);
+                }
             }
         });
 
@@ -89,10 +92,10 @@ export default async () => {
     });
 
     await describe('VAD model cache', async () => {
-        await it('caches under gjsify/models/speech, shared with the other speech packages', async () => {
+        await it('caches under gjsify/models/speech/<id>, shared with the other speech packages', async () => {
             expect(modelCacheDir().endsWith('/gjsify/models/speech')).toBe(true);
-            expect(modelPath(DEFAULT_VAD_MODEL).endsWith('/silero_vad_v5.onnx')).toBe(true);
-            expect(() => modelPath('nope')).toThrow(RangeError);
+            expect(modelDir(DEFAULT_VAD_MODEL).endsWith('/silero-v5')).toBe(true);
+            expect(() => modelDir('nope')).toThrow(RangeError);
         });
 
         await it('passes a path through resolveModel and refuses an uncached id', async () => {
@@ -101,11 +104,11 @@ export default async () => {
             expect(resolveModel('./silero.onnx')).toBe('./silero.onnx');
             const entry = requireVadModel('silero-v4');
             if (available('silero-v4') === 'available') {
-                expect(resolveModel('silero-v4').endsWith(entry.file)).toBe(true);
+                expect(resolveModel('silero-v4').endsWith(entry.files[0].file)).toBe(true);
             } else {
                 // The message has to carry the size and the URL — it is what an
                 // app shows when a model is missing.
-                expect(() => resolveModel('silero-v4')).toThrow(new RegExp(String(entry.bytes)));
+                expect(() => resolveModel('silero-v4')).toThrow(new RegExp(String(entry.files[0].bytes)));
             }
         });
 
@@ -158,9 +161,9 @@ export default async () => {
             await withTempCache(() =>
                 withFakeBackend(async () => {
                     const entry = requireVadModel('silero-v4');
-                    const fetchImpl = asFetch(async () => fakeResponse(new Uint8Array(entry.bytes)));
+                    const fetchImpl = asFetch(async () => fakeResponse(new Uint8Array(entry.files[0].bytes)));
                     await expect(install('silero-v4', { fetchImpl })).rejects.toThrow(
-                        new RegExp(`sha256 [0-9a-f]{64}, expected ${entry.sha256}`),
+                        new RegExp(`sha256 [0-9a-f]{64}, expected ${entry.files[0].sha256}`),
                     );
                 }),
             );
