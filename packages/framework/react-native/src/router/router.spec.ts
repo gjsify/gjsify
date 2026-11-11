@@ -1348,7 +1348,16 @@ export default async () => {
                         expect((await settle(() => titleNow() === 'six')) >= 0).toBe(true);
                     },
                     undefined,
-                    [420, 700],
+                    // 480 for the reason the bottom-bar vector below records: a REVEALED
+                    // switcher bar makes the toolbar view request 453 px, and a bin
+                    // narrower than its child's request warns per allocation, which the
+                    // quiet-GTK gate fails the job for. It surfaced here only on
+                    // darwin-arm64 and only once the job's runtime fallback moved —
+                    // the request is the same 453 px either way, so 420 was always one
+                    // allocation away from this. Still far under the ~670 px the six
+                    // labels need, so the bar still reveals and the vector still asks
+                    // what it asked.
+                    [480, 700],
                 );
             });
 
