@@ -85,8 +85,13 @@ export interface SdCppEngineOptions<E extends ImageModelEntry = ImageModelEntry>
 export interface LocalImageModel {
     /** What a gallery records next to the image (`ImageGenerator.modelId`). */
     readonly modelId: string;
-    /** Path of the diffusion checkpoint. */
-    readonly diffusionModel: string;
+    /** Path of the diffusion model, for families that ship it apart from the text encoder and VAE. */
+    readonly diffusionModel?: string;
+    /**
+     * Path of an all-in-one checkpoint (diffusion model, text encoders and VAE in one file, as
+     * SD 1.x / 2.x / XL are usually shared). Use this or `diffusionModel`, not both.
+     */
+    readonly checkpoint?: string;
     /** Path of the VAE, if the model needs a separate one. */
     readonly vae?: string;
     /** Path of the text encoder / LLM, if the model family needs one. */
@@ -185,14 +190,17 @@ export function toNativeOptions(request: ImageRequest, width: number, height: nu
 
 /** Where each role's file is, and the device assignment: what the addon's context takes. */
 interface ModelPaths {
-    readonly diffusionModel: string;
+    readonly diffusionModel?: string;
+    readonly checkpoint?: string;
     readonly vae?: string;
     readonly llm?: string;
     readonly backend?: string;
 }
 
 function contextOptions(paths: ModelPaths): Record<string, unknown> {
-    const options: Record<string, unknown> = { diffusionModelPath: paths.diffusionModel };
+    const options: Record<string, unknown> = {};
+    if (paths.checkpoint) options.modelPath = paths.checkpoint;
+    if (paths.diffusionModel) options.diffusionModelPath = paths.diffusionModel;
     if (paths.vae) options.vaePath = paths.vae;
     if (paths.llm) options.llmPath = paths.llm;
     if (paths.backend) options.backend = paths.backend;
@@ -249,14 +257,16 @@ function storeSource<E extends ImageModelEntry>(options: SdCppEngineOptions<E>):
 }
 
 function missingFiles(model: LocalImageModel): string[] {
-    return [model.diffusionModel, model.vae, model.llm].filter(
+    return [model.diffusionModel, model.checkpoint, model.vae, model.llm].filter(
         (file): file is string => file !== undefined && file !== '' && !existsSync(file),
     );
 }
 
 function localSource(model: LocalImageModel): ModelSource {
     if (!model.modelId) throw new Error('sd.cpp local model needs a modelId');
-    if (!model.diffusionModel) throw new Error(`sd.cpp local model '${model.modelId}' needs a diffusionModel path`);
+    if (!model.diffusionModel === !model.checkpoint) {
+        throw new Error(`sd.cpp local model '${model.modelId}' needs a diffusionModel or a checkpoint path, not both`);
+    }
     return {
         modelId: model.modelId,
         backend: model.backend,
@@ -269,7 +279,13 @@ function localSource(model: LocalImageModel): ModelSource {
             if (missing.length > 0) {
                 throw new Error(`sd.cpp model '${model.modelId}' has missing files: ${missing.join(', ')}`);
             }
-            return { diffusionModel: model.diffusionModel, vae: model.vae, llm: model.llm, backend: model.backend };
+            return {
+                diffusionModel: model.diffusionModel,
+                checkpoint: model.checkpoint,
+                vae: model.vae,
+                llm: model.llm,
+                backend: model.backend,
+            };
         },
     };
 }
