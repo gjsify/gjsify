@@ -188,3 +188,9 @@ gives the decision, a one-sentence reason, and the consequence:
    `unavailable` (never `downloadable`), `create()` names the missing files, and the memory fit
    check runs only when `footprintBytes` is given. Both forms share one engine body behind an
    internal model-source seam.
+8. **All-in-one checkpoints (amendment 2026-11-11).** `LocalImageModel` takes `checkpoint` as an
+   alternative to `diffusionModel`; exactly one is required. *Reason:* sd.cpp reads a file given
+   as `diffusionModelPath` as a bare diffusion model and cannot tell the version of an SD 1.x
+   checkpoint that also holds the text encoder and VAE ("get sd version from file failed"); such
+   a file must go in as `modelPath`. *Consequence:* the caller says which kind of file it has;
+   the engine does not sniff headers.

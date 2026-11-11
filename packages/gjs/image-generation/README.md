@@ -82,7 +82,7 @@ const engine = sdCppImageGeneration({
 });
 ```
 
-`availability()` is `available` when every named file exists and `unavailable` otherwise, never `downloadable`. `create()` throws and names the missing files. `LocalImageModel` takes `modelId` and `diffusionModel` (both required), `vae`, `llm`, `backend`, `defaultWidth` / `defaultHeight` (512 when absent) and `footprintBytes`. The memory check runs only when `footprintBytes` is given.
+`availability()` is `available` when every named file exists and `unavailable` otherwise, never `downloadable`. `create()` throws and names the missing files. `LocalImageModel` takes `modelId` (required), then either `diffusionModel` or `checkpoint` (exactly one; `checkpoint` is an all-in-one file with the text encoders and VAE inside, as most SD 1.x / 2.x / XL checkpoints are), and `vae`, `llm`, `backend`, `defaultWidth` / `defaultHeight` (512 when absent) and `footprintBytes`. The memory check runs only when `footprintBytes` is given.
 
 **The GPU guard.** A Vulkan driver can hang a process instead of failing. Before going to the GPU, the engine leaves a pin in `gpuGuardDir` and removes it when the work finishes. A pin left over from a crash keeps the next run on the CPU and reports it through `onGpuPinned`. `gpu: 'on'` removes the pin.
 

@@ -256,6 +256,17 @@ export default async () => {
             await engine.destroy();
         });
 
+        await it('opens an all-in-one checkpoint as modelPath', async () => {
+            const { addon, contexts } = recordingAddon();
+            const engine = await createSdCppEngine(async () => addon, {
+                local: { modelId: 'mine', checkpoint: model },
+            }).create();
+            await engine.generate({ prompt: 'cat', width: 8, height: 8 });
+            expect(contexts[0].modelPath).toBe(model);
+            expect(contexts[0].diffusionModelPath).toBe(undefined);
+            await engine.destroy();
+        });
+
         await it('defaults to 512x512 and does not need a vae or llm', async () => {
             const { addon, contexts } = recordingAddon();
             const engine = await createSdCppEngine(async () => addon, {
@@ -290,6 +301,11 @@ export default async () => {
             expect(() =>
                 createSdCppEngine(async () => noAddon, { local: { modelId: 'mine', diffusionModel: '' } }),
             ).toThrow(/diffusionModel/);
+            expect(() =>
+                createSdCppEngine(async () => noAddon, {
+                    local: { modelId: 'mine', diffusionModel: model, checkpoint: model },
+                }),
+            ).toThrow(/not both/);
         });
 
         rmSync(root, { recursive: true, force: true });
