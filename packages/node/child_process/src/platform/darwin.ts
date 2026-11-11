@@ -6,14 +6,15 @@
 // Two things differ in practice:
 //
 //   - `detached: true` — macOS ships NO `setsid(1)` binary (it is a util-linux
-//     tool). `detachedPrefix()` therefore returns `null` unless the user
-//     installed one (Homebrew `util-linux` puts it on PATH). DEGRADED CONTRACT:
-//     the child is still spawned and still outlives its parent (GIO sets no
-//     `PR_SET_PDEATHSIG` equivalent), but it stays in the parent's process
-//     group, so terminal-generated signals (SIGINT/SIGHUP from Ctrl-C or a
-//     closing terminal) still reach it. Full session detachment needs
-//     `setsid(2)`, which is unreachable from JS because
-//     `g_subprocess_launcher_set_child_setup()` is not introspectable.
+//     tool). `detachedPrefix()` therefore prefers a `setsid` from PATH if the
+//     user installed one (e.g. Homebrew `util-linux`), otherwise it falls back
+//     to `/usr/bin/perl` (present on every macOS) calling `POSIX::setsid()`
+//     followed by `exec { $ARGV[0] } @ARGV`. The `exec` keeps the pid stable,
+//     so `child.pid` remains the session leader's pid and `process.kill(-pid)`
+//     reaches the whole process group. If even `/usr/bin/perl` is missing the
+//     contract degrades to `null`: the child still spawns and still outlives
+//     its parent (GIO sets no `PR_SET_PDEATHSIG` equivalent), but it stays in
+//     the parent's process group.
 //
 //   - `timeout` — macOS has no GNU `timeout(1)` (Homebrew ships it as
 //     `gtimeout`). This package no longer depends on it at all: `spawnSync`'s
@@ -21,11 +22,44 @@
 //     `communicate_async()` on a private main context (see `../communicate.ts`),
 //     which is portable AND reports the real child pid and kill signal.
 
+import GLib from '@girs/glib-2.0';
 import type Gio from '@girs/gio-2.0';
 
 import { COMMON_SIGNALS, killProcess as posixKillProcess } from './posix.js';
 
-export { applyArgv0, defaultShell, detachedPrefix, shellArgv } from './posix.js';
+export { applyArgv0, defaultShell, shellArgv } from './posix.js';
+
+let _detachedPrefix: string[] | null | undefined;
+
+/**
+ * argv prefix that promotes the child to a new session / process-group leader
+ * (Node's `detached: true`), or `null` when no helper exists here.
+ *
+ * `setsid(2)` itself is unreachable from JS because
+ * `g_subprocess_launcher_set_child_setup()` is hidden from GIR. On Linux we
+ * shell out to `setsid(1)` from PATH; on stock macOS that binary is absent, so
+ * we use the Perl one-liner that ships with the OS. Perl calls `setsid()` and
+ * then replaces itself with the target program via `exec`, so the pid we
+ * capture at spawn time is the pid of the session leader.
+ */
+export function detachedPrefix(): string[] | null {
+    if (_detachedPrefix === undefined) {
+        const setsid = GLib.find_program_in_path('setsid');
+        if (setsid !== null) {
+            _detachedPrefix = [setsid];
+        } else if (GLib.file_test('/usr/bin/perl', GLib.FileTest.IS_EXECUTABLE)) {
+            _detachedPrefix = [
+                '/usr/bin/perl',
+                '-e',
+                'use POSIX (); POSIX::setsid(); exec { $ARGV[0] } @ARGV or die "exec: $!"',
+                '--',
+            ];
+        } else {
+            _detachedPrefix = null;
+        }
+    }
+    return _detachedPrefix;
+}
 
 /**
  * macOS / BSD signal numbers (`/usr/include/sys/signal.h`). Note how far these
