@@ -35,6 +35,11 @@ export const POSIX_PATH_SLICE_EXCEPTIONS = {
         'additionally expo-router’s own file-convention spelling, which is `/` even when the ' +
         'route files sit in a Windows directory tree. Nothing here ever reaches a filesystem: ' +
         'the segments become React Navigation path-config keys.',
+    'packages/gjs/model-store/src/store.ts':
+        'The PATH half of a `https://huggingface.co/<org>/<repo>/resolve/<rev>/<path>` URL, matched ' +
+        'by a regex off a manifest URL. URL pathnames are `/`-separated by RFC 3986 on every host; ' +
+        'the segments are checked for dot segments and then joined onto the hub directory with ' +
+        '`node:path.join`, which is the one-way conversion to a host path.',
     'packages/infra/npm-registry/src/auth.ts':
         'A `URL.pathname`, already normalised to `/` by the URL parser before this code sees it.',
     'packages/node/fs/src/browser/opfs.ts':
