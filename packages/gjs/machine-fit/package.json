@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/machine-fit",
-    "version": "0.64.29",
+    "version": "0.64.30",
     "description": "Will a model run on this machine, and on which backend? A static memory check (RAM, VRAM, unified memory) that can rule a model out before download, plus the probe that decides speed: backends tried against a wall-clock budget, a GPU-hang guard, Vulkan and battery hints. Pure TypeScript on node:* APIs.",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",

@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.64.30](https://github.com/gjsify/gjsify/compare/v0.64.29...v0.64.30) (2026-11-11)
+
+### Features
+
+* **adwaita:** migrate GtkStack to Route D declared properties ([#2584](https://github.com/gjsify/gjsify/issues/2584)) ([fb42585](https://github.com/gjsify/gjsify/commit/fb42585a3e6e40e2cbf4b42a4abbd1fe018dca3d))
+* **site:** extension page from the manifests ([#2592](https://github.com/gjsify/gjsify/issues/2592)) ([cddde22](https://github.com/gjsify/gjsify/commit/cddde225fb61ac8127bc0412b4d079ccf743529b))
+* **store:** add @gjsify/store core package (ADR 0139 step 3) ([#2589](https://github.com/gjsify/gjsify/issues/2589)) ([ff2aa37](https://github.com/gjsify/gjsify/commit/ff2aa37883d6fd54c09bb545e0f272382cb7e1ab))
+
+### Bug Fixes
+
+* **globals:** decode unpadded base64 in atob ([#2590](https://github.com/gjsify/gjsify/issues/2590)) ([9b6679f](https://github.com/gjsify/gjsify/commit/9b6679fc7e87562047d15d14142f5b11f7c3c5b4))
+
+### Documentation
+
+* **status:** image-generation ran a real model ([#2591](https://github.com/gjsify/gjsify/issues/2591)) ([3070f42](https://github.com/gjsify/gjsify/commit/3070f426dfae6637c01674386be5b2a8ac8b883f))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([b60c4c3](https://github.com/gjsify/gjsify/commit/b60c4c3eaa0b25af67a261cfa1a262cde33e86c2))
+
 ## [0.64.29](https://github.com/gjsify/gjsify/compare/v0.64.28...v0.64.29) (2026-11-11)
 
 ### Features
