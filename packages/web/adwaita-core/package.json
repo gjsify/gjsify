@@ -33,6 +33,10 @@
         "./css-length": {
             "types": "./lib/types/css-length.d.ts",
             "default": "./lib/esm/css-length.js"
+        },
+        "./app-scale": {
+            "types": "./lib/types/app-scale.d.ts",
+            "default": "./lib/esm/app-scale.js"
         }
     },
     "files": [

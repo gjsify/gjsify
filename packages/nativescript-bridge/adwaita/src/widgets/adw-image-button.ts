@@ -22,6 +22,7 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { DockLayout, Image } from '@nativescript/core';
+import { scaleDip } from '../app-scale.js';
 import { adoptIntoBin } from './bin-layout.js';
 import { onAdwaitaColorSchemeChanged, themeIconColor } from './color-scheme.js';
 import { DEFAULT_ICON_COLOR } from './icon-path.js';
@@ -114,9 +115,12 @@ export class AdwImageButton extends withSignals(DockLayout) {
         this._render();
     }
 
-    /** The size the glyph draws at right now: `pixelSize` when set, else `iconSize`. */
+    /**
+     * The size the glyph draws at right now: `pixelSize` when set, else `iconSize` — at the
+     * interface scale, for the reason spelled out on `GtkImage._renderedSize`.
+     */
     private get _renderedSize(): number {
-        return iconPixelSize(this._iconSize, this._pixelSize);
+        return scaleDip(iconPixelSize(this._iconSize, this._pixelSize));
     }
 
     /** Resize the icon box and re-rasterise the glyph into it. */

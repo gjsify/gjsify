@@ -34,6 +34,7 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { Image } from '@nativescript/core';
+import { scaleDip } from '../app-scale.js';
 import { onAdwaitaColorSchemeChanged, themeIconColor } from './color-scheme.js';
 import { DEFAULT_ICON_COLOR } from './icon-path.js';
 import { drawIcon, onIconsChanged } from './icon-render.js';
@@ -121,9 +122,15 @@ export class GtkImage extends withSignals(Image) {
         this._render();
     }
 
-    /** The size this image draws at right now: `pixelSize` when set, else `iconSize`. */
+    /**
+     * The size this image draws at right now: `pixelSize` when set, else `iconSize`.
+     *
+     * At the interface scale (`../app-scale.ts`), because no stylesheet reaches an icon's size:
+     * it is a number this code sets. `pixelSize` itself keeps reporting what was assigned, the
+     * way a GTK widget's property is independent of what the theme makes of it.
+     */
     private get _renderedSize(): number {
-        return iconPixelSize(this._iconSize, this._pixelSize);
+        return scaleDip(iconPixelSize(this._iconSize, this._pixelSize));
     }
 
     /** Resize the image box and re-rasterise the glyph into it. */
