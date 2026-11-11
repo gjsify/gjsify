@@ -18,7 +18,7 @@ function readRows(host: HTMLElement): Row[] {
         const link = item.querySelector('a');
         const os = item.dataset.os as TargetPlatform | undefined;
         const arch = item.dataset.arch as TargetArch | undefined;
-        if (!link || !os || !arch) return [];
+        if (!link || !os || !arch || item.dataset.format === 'source') return [];
         return [
             {
                 os,
@@ -138,7 +138,8 @@ class AppDownload extends HTMLElement {
         const cta = this.querySelector<HTMLAnchorElement>('a.download-cta');
         if (!dialog || !cta) return;
         this.dataset.enhanced = 'true';
-        enhanceDialog(dialog, this.querySelector('.download-toggle'));
+        // With no installable target the button itself is the way into the dialog.
+        enhanceDialog(dialog, this.querySelector('.download-toggle') ?? (cta.hash === '#all-downloads' ? cta : null));
 
         const offer = (row: Row): void => {
             cta.href = row.url;

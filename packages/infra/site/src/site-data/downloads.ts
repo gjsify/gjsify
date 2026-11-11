@@ -137,6 +137,8 @@ export const DOWNLOAD_LABELS: Record<string, string> = {
     'firefox:source': 'Build from source',
     'chromium:store': 'Chrome Web Store',
     'chromium:zip': 'Chromium extension',
+    'chromium:zip:chrome': 'Chrome extension',
+    'chromium:zip:edge': 'Edge extension',
     'chromium:source': 'Build from source',
 };
 
@@ -160,6 +162,18 @@ export const FORMAT_LABELS: Record<TargetFormat, string> = {
 /** English label of a download target: the platform's own wording, else the format's, never the raw id. */
 export function defaultLabel(os: TargetPlatform, format: TargetFormat): string {
     return DOWNLOAD_LABELS[`${os}:${format}`] ?? FORMAT_LABELS[format];
+}
+
+/**
+ * A release often carries one archive per Chromium browser, identical in content but named for the
+ * store it goes to. The file name is the only thing that tells them apart, so it picks the label.
+ */
+function assetLabel(kind: { os: TargetPlatform; format: TargetFormat }, name: string): string {
+    if (kind.os === 'chromium' && kind.format === 'zip') {
+        const browser = /edge/i.test(name) ? 'edge' : /chrome/i.test(name) ? 'chrome' : undefined;
+        if (browser) return DOWNLOAD_LABELS[`chromium:zip:${browser}`]!;
+    }
+    return defaultLabel(kind.os, kind.format);
 }
 
 function detectArch(name: string): TargetArch {
@@ -267,7 +281,7 @@ export function buildDownloadTargets(sources: DownloadSources): DownloadTarget[]
         targets.push({
             ...kind,
             component: componentOf(asset.name, components),
-            label: defaultLabel(kind.os, kind.format),
+            label: assetLabel(kind, asset.name),
             url: asset.downloadUrl,
             available: true,
             size: asset.size,
@@ -304,7 +318,17 @@ export function buildDownloadTargets(sources: DownloadSources): DownloadTarget[]
         });
     }
 
-    targets.sort(
+    // An extension release may publish the same file under two names (a store-signed one and a stable alias).
+    const distinct = new Set<string>();
+    const unique = targets.filter((target) => {
+        const key = [target.component, target.os, target.format, target.arch, target.label, target.size].join('|');
+        if (!isBrowserPlatform(target.os) || target.size === undefined || !target.available) return true;
+        if (distinct.has(key)) return false;
+        distinct.add(key);
+        return true;
+    });
+
+    unique.sort(
         (a, b) =>
             rank(order, a.component ?? '') - rank(order, b.component ?? '') ||
             rank(PLATFORM_ORDER, a.os) - rank(PLATFORM_ORDER, b.os) ||
@@ -313,11 +337,11 @@ export function buildDownloadTargets(sources: DownloadSources): DownloadTarget[]
     );
 
     const seen = new Set<string>();
-    for (const target of targets) {
+    for (const target of unique) {
         const key = `${target.component ?? ''}:${target.os}`;
         if (!target.available || seen.has(key)) continue;
         seen.add(key);
         target.recommended = true;
     }
-    return targets;
+    return unique;
 }

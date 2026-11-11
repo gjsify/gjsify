@@ -130,20 +130,24 @@ export default async () => {
             expect(html).toContain('Read and change your data on all websites');
         });
 
-        await it('offers the unavailable store as not yet available and the source as an alternative', async () => {
+        await it('reuses the download dialog with only the extension, as browser tabs, unnumbered', async () => {
             const html = renderExtensionPage(context());
-            expect(html).toContain('Not yet available');
+            expect(html).toContain('<app-download class="download">');
+            expect(html).not.toContain('extension-install');
+            expect(html).toContain('id="os-tab-extension-firefox"');
+            expect(html).toContain('id="os-tab-extension-chromium"');
+            expect(html).toContain('aria-label="Browser"');
+            expect(html).not.toContain('component-step');
             expect(html).toContain('href="https://example.org/firefox-source"');
-            expect(html).toContain('data-browser="firefox"');
         });
 
-        await it('offers a released, signed file as the primary button while the store is unavailable', async () => {
+        await it('puts the first available target of the browser on the button, never a dead store entry', async () => {
             const html = renderExtensionPage(context());
-            expect(html).not.toContain('class="button" href="https://example.org/firefox-xpi"');
+            expect(html).not.toMatch(/download-cta" href="https:\/\/example.org\/firefox-source"/);
+            expect(html).toMatch(/download-cta" href="#all-downloads"/);
             const withXpi = context();
             withXpi.data.downloads.targets.push(target('firefox', 'xpi', true));
-            const page = renderExtensionPage(withXpi);
-            expect(page).toContain('class="button" href="https://example.org/firefox-xpi"');
+            expect(renderExtensionPage(withXpi)).toMatch(/download-cta" href="https:\/\/example.org\/firefox-xpi"/);
         });
 
         await it('says nothing about data collection unless the manifest declares it', async () => {

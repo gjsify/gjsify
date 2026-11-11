@@ -245,9 +245,6 @@ msgstr ""
 msgid "Works in"
 msgstr ""
 
-msgid "Not yet available"
-msgstr ""
-
 msgid "Website"
 msgstr ""
 
@@ -389,6 +386,9 @@ msgstr ""
 msgid "Recommended"
 msgstr ""
 
+msgid "Not yet available"
+msgstr ""
+
 msgid "Apple Silicon is assumed. Pick the Intel build if your Mac has an Intel processor."
 msgstr ""
 
@@ -476,6 +476,9 @@ msgstr ""
 msgid "Browser extension"
 msgstr ""
 
+msgid "Browser extension: {name}"
+msgstr ""
+
 msgid "Categories"
 msgstr ""
 
@@ -555,6 +558,12 @@ msgid "Chrome Web Store"
 msgstr ""
 
 msgid "Chromium extension"
+msgstr ""
+
+msgid "Chrome extension"
+msgstr ""
+
+msgid "Edge extension"
 msgstr ""
 
 msgid "ZIP archive"

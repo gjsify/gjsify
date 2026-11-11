@@ -13,7 +13,7 @@ import {
     appPageMeta,
     appShell,
     blocks,
-    ctaLabel,
+    downloadWidget,
     extensionUrl,
     heroBy,
     localized,
@@ -175,37 +175,10 @@ function installTargets(data: SiteData): Map<ExtensionFamily, DownloadTarget[]> 
     return groups;
 }
 
-/** One browser: the primary button, then what else there is to get (the signed file, the source). */
-function installItem(family: ExtensionFamily, targets: readonly DownloadTarget[], ctx: RenderContext): string {
-    const { t, lang } = ctx;
-    const store = targets.find((target) => target.format === 'store');
-    const primary =
-        targets.find((target) => target.available && target.format === 'store') ??
-        targets.find((target) => target.available && target.format === 'xpi');
-    const shown = primary ?? store ?? targets[0]!;
-    const button = primary
-        ? `<a class="button" href="${esc(primary.url)}">${icon('download')}<span>${esc(ctaLabel(primary, t))}</span></a>`
-        : `<span class="button ext-unavailable" aria-disabled="true">${icon('download')}<span>${esc(ctaLabel(shown, t))}</span><small>${esc(t('Not yet available'))}</small></span>`;
-    const others = targets
-        .filter((target) => target.available && target !== primary)
-        .map((target) => {
-            const size = sizeLabel(target.size, lang);
-            return `<a class="ext-alt" href="${esc(target.url)}">${esc(t(target.label))}${size ? ` <small>${esc(size)}</small>` : ''}</a>`;
-        });
-    return `<li data-browser="${family}">
-${button}
-${others.join('\n')}
-</li>`;
-}
-
+/** The split button and the dialog of the app page, limited to the extension's own downloads. */
 function install(ctx: RenderContext): string {
-    const groups = installTargets(ctx.data);
-    if (groups.size === 0) return '';
-    return `<extension-install class="download ext-install">
-<ul class="ext-install-list">
-${[...groups].map(([family, targets]) => installItem(family, targets, ctx)).join('\n')}
-</ul>
-</extension-install>`;
+    const targets = [...installTargets(ctx.data).values()].flat();
+    return targets.length > 0 ? downloadWidget(ctx, targets) : '';
 }
 
 /** One line per distinct value: a single value when every browser agrees, else each browser named. */
@@ -288,7 +261,7 @@ function needsApp(ctx: RenderContext): string {
     const mark = iconUrl
         ? `<img class="related-icon" src="${esc(iconUrl)}" alt="" width="48" height="48">`
         : `<span class="related-icon related-icon-blank">${icon('package')}</span>`;
-    return `<section class="ext-needs">
+    return `<section class="pair">
 <a class="card" href="${esc(pageUrl(data, lang))}">
 ${mark}
 <span class="related-text"><span class="related-name">${fmt(t('Needs the app {app}'), { app: name })}</span><span class="related-summary">${esc(localized(data.app.summary, lang))}</span></span>
