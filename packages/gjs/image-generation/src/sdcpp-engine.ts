@@ -3,6 +3,8 @@
 // N-API engine moves in as it is). It takes the addon as a parameter; `./sdcpp.ts`
 // hands it over.
 
+import { existsSync } from 'node:fs';
+
 import type { ModelEntry, ModelStore } from '@gjsify/model-store';
 import {
     checkFit,
@@ -52,11 +54,8 @@ export interface ImageModelEntry extends ModelEntry {
     readonly footprintBytes: number;
 }
 
-export interface SdCppEngineOptions<E extends ImageModelEntry = ImageModelEntry> {
-    /** A store that contains the model manifest. */
-    readonly store: ModelStore<E>;
-    /** Model id from the store; `create()` requires one. */
-    readonly model: string;
+/** Fields every sd.cpp engine takes, whatever supplies the model files. */
+export interface SdCppCommonOptions {
     /** The person's GPU switch, e.g. `parseGpuSetting(env.MYAPP_GPU)`. `on` also lifts a pin. */
     readonly gpu?: GpuSetting;
     /**
@@ -69,6 +68,46 @@ export interface SdCppEngineOptions<E extends ImageModelEntry = ImageModelEntry>
     /** The machine `availability()` asks. */
     readonly probe?: MachineProbe;
 }
+
+/** The model comes from a {@link ModelStore}: fetched, verified and placed by the store. */
+export interface SdCppEngineOptions<E extends ImageModelEntry = ImageModelEntry> extends SdCppCommonOptions {
+    /** A store that contains the model manifest. */
+    readonly store: ModelStore<E>;
+    /** Model id from the store; `create()` requires one. */
+    readonly model: string;
+}
+
+/**
+ * A model that already sits on disk, chosen by the person (a checkpoint they downloaded
+ * themselves). Nothing is fetched or verified: the files either exist or the engine is
+ * `unavailable`.
+ */
+export interface LocalImageModel {
+    /** What a gallery records next to the image (`ImageGenerator.modelId`). */
+    readonly modelId: string;
+    /** Path of the diffusion checkpoint. */
+    readonly diffusionModel: string;
+    /** Path of the VAE, if the model needs a separate one. */
+    readonly vae?: string;
+    /** Path of the text encoder / LLM, if the model family needs one. */
+    readonly llm?: string;
+    /** Per-module device assignment, e.g. `te=cpu` — see sd.cpp's docs/backend.md. */
+    readonly backend?: string;
+    /** Size used when a request names none. Default 512x512. */
+    readonly defaultWidth?: number;
+    readonly defaultHeight?: number;
+    /**
+     * Working set at the default size. Optional: without it `availability()` cannot say the
+     * machine is too small, and the model simply tries to load.
+     */
+    readonly footprintBytes?: number;
+}
+
+export interface SdCppLocalOptions extends SdCppCommonOptions {
+    readonly local: LocalImageModel;
+}
+
+export type SdCppOptions<E extends ImageModelEntry = ImageModelEntry> = SdCppEngineOptions<E> | SdCppLocalOptions;
 
 export interface NativeGenerateOptions {
     prompt: string;
@@ -144,21 +183,99 @@ export function toNativeOptions(request: ImageRequest, width: number, height: nu
     return native;
 }
 
-export function toNativeContext(model: ImageModelEntry, files: Record<string, string>): Record<string, unknown> {
-    const options: Record<string, unknown> = { diffusionModelPath: files[model.diffusionModel] };
-    if (model.vae) options.vaePath = files[model.vae];
-    if (model.llm) options.llmPath = files[model.llm];
-    if (model.backend) options.backend = model.backend;
+/** Where each role's file is, and the device assignment: what the addon's context takes. */
+interface ModelPaths {
+    readonly diffusionModel: string;
+    readonly vae?: string;
+    readonly llm?: string;
+    readonly backend?: string;
+}
+
+function contextOptions(paths: ModelPaths): Record<string, unknown> {
+    const options: Record<string, unknown> = { diffusionModelPath: paths.diffusionModel };
+    if (paths.vae) options.vaePath = paths.vae;
+    if (paths.llm) options.llmPath = paths.llm;
+    if (paths.backend) options.backend = paths.backend;
     return options;
 }
 
-function defaultSize(entry: ImageModelEntry): { width: number; height: number } {
-    return { width: entry.defaultWidth, height: entry.defaultHeight };
+export function toNativeContext(model: ImageModelEntry, files: Record<string, string>): Record<string, unknown> {
+    return contextOptions({
+        diffusionModel: files[model.diffusionModel],
+        vae: model.vae ? files[model.vae] : undefined,
+        llm: model.llm ? files[model.llm] : undefined,
+        backend: model.backend,
+    });
 }
 
-function resolveSize(request: ImageRequest, entry: ImageModelEntry): { width: number; height: number } {
-    const { width, height } = defaultSize(entry);
-    return { width: request.width ?? width, height: request.height ?? height };
+const LOCAL_DEFAULT_SIZE = 512;
+
+/** What the engine needs of a model, whether a store supplies it or the person points at files. */
+interface ModelSource {
+    readonly modelId: string;
+    readonly backend: string | undefined;
+    readonly footprintBytes: number | undefined;
+    readonly width: number;
+    readonly height: number;
+    availability(): Promise<Availability>;
+    /** Make the files present (a store downloads here) and say where they are. */
+    prepare(options: EngineCreateOptions): Promise<ModelPaths>;
+}
+
+function storeSource<E extends ImageModelEntry>(options: SdCppEngineOptions<E>): ModelSource {
+    const { store } = options;
+    const entry = store.require(options.model);
+    assertModelFiles(entry);
+    return {
+        modelId: entry.modelId,
+        backend: entry.backend,
+        footprintBytes: entry.footprintBytes,
+        width: entry.defaultWidth,
+        height: entry.defaultHeight,
+        availability: async () => store.availability(entry.id),
+        async prepare(createOptions) {
+            const resolved = await store.install(entry.id, {
+                monitor: createOptions.monitor,
+                signal: createOptions.signal,
+            });
+            return {
+                diffusionModel: resolved.files[entry.diffusionModel],
+                vae: entry.vae ? resolved.files[entry.vae] : undefined,
+                llm: entry.llm ? resolved.files[entry.llm] : undefined,
+                backend: entry.backend,
+            };
+        },
+    };
+}
+
+function missingFiles(model: LocalImageModel): string[] {
+    return [model.diffusionModel, model.vae, model.llm].filter(
+        (file): file is string => file !== undefined && file !== '' && !existsSync(file),
+    );
+}
+
+function localSource(model: LocalImageModel): ModelSource {
+    if (!model.modelId) throw new Error('sd.cpp local model needs a modelId');
+    if (!model.diffusionModel) throw new Error(`sd.cpp local model '${model.modelId}' needs a diffusionModel path`);
+    return {
+        modelId: model.modelId,
+        backend: model.backend,
+        footprintBytes: model.footprintBytes,
+        width: model.defaultWidth ?? LOCAL_DEFAULT_SIZE,
+        height: model.defaultHeight ?? LOCAL_DEFAULT_SIZE,
+        availability: async () => (missingFiles(model).length === 0 ? 'available' : 'unavailable'),
+        async prepare() {
+            const missing = missingFiles(model);
+            if (missing.length > 0) {
+                throw new Error(`sd.cpp model '${model.modelId}' has missing files: ${missing.join(', ')}`);
+            }
+            return { diffusionModel: model.diffusionModel, vae: model.vae, llm: model.llm, backend: model.backend };
+        },
+    };
+}
+
+function resolveSize(request: ImageRequest, source: ModelSource): { width: number; height: number } {
+    return { width: request.width ?? source.width, height: request.height ?? source.height };
 }
 
 let pinReported = false;
@@ -197,18 +314,16 @@ function isCpuOnly(backend: string | undefined): boolean {
 /** {@link sdCppImageGeneration} with the addon loader passed in. */
 export function createSdCppEngine<E extends ImageModelEntry = ImageModelEntry>(
     loadAddon: () => Promise<SdAddon>,
-    options: SdCppEngineOptions<E>,
+    options: SdCppOptions<E>,
 ): ImageEngineFactory {
-    const store = options.store;
-    const entry = store.require(options.model);
-    assertModelFiles(entry);
+    const source = 'local' in options ? localSource(options.local) : storeSource(options);
     const gpuSetting = options.gpu ?? 'auto';
     let guard: GpuGuard | undefined;
     const gpuGuard = (): GpuGuard =>
         (guard ??= createGpuGuard({ dir: options.gpuGuardDir ?? defaultGuardDir('gjsify') }));
 
     const gpuBarred = (): boolean => {
-        if (isCpuOnly(entry.backend)) return true;
+        if (isCpuOnly(source.backend)) return true;
         if (gpuSetting === 'off') return true;
         if (gpuSetting === 'on') {
             gpuGuard().clear();
@@ -230,16 +345,15 @@ export function createSdCppEngine<E extends ImageModelEntry = ImageModelEntry>(
             const probe = options.probe ?? systemProbe();
             if (onBattery(probe)) return 'unavailable';
             if (!hasPrebuiltBins(currentTarget(probe), runningOnGjs())) return 'unavailable';
-            const memory = readMachineMemory(probe);
-            if (checkFit(entry.footprintBytes, memory).placement === 'none') return 'unavailable';
-            return store.availability(entry.id);
+            if (source.footprintBytes !== undefined) {
+                const memory = readMachineMemory(probe);
+                if (checkFit(source.footprintBytes, memory).placement === 'none') return 'unavailable';
+            }
+            return source.availability();
         },
 
         async create(createOptions: EngineCreateOptions = {}): Promise<ImageEngine> {
-            const resolved = await store.install(entry.id, {
-                monitor: createOptions.monitor,
-                signal: createOptions.signal,
-            });
+            const paths = await source.prepare(createOptions);
             createOptions.signal?.throwIfAborted();
 
             let addon: SdAddon | undefined;
@@ -249,7 +363,7 @@ export function createSdCppEngine<E extends ImageModelEntry = ImageModelEntry>(
             const open = async (): Promise<void> => {
                 addon ??= await loadAddon();
                 const cpuOnly = gpuBarred();
-                const modelOptions = toNativeContext(entry, resolved.files);
+                const modelOptions = contextOptions(paths);
                 if (cpuOnly && !modelOptions.backend) {
                     modelOptions.backend = 'cpu';
                 }
@@ -261,7 +375,7 @@ export function createSdCppEngine<E extends ImageModelEntry = ImageModelEntry>(
             if (!context) throw new Error('sd.cpp context did not open');
 
             const generate = async (request: ImageRequest): Promise<ImageResult> => {
-                const { width, height } = resolveSize(request, entry);
+                const { width, height } = resolveSize(request, source);
                 const native = toNativeOptions(request, width, height);
                 const images = await context!.generateImage(native);
                 const image = images[0];
@@ -276,13 +390,13 @@ export function createSdCppEngine<E extends ImageModelEntry = ImageModelEntry>(
                     width: image.width,
                     height: image.height,
                     seed: native.seed,
-                    modelId: entry.modelId,
+                    modelId: source.modelId,
                 };
             };
 
             return {
                 info: SDCPP_ENGINE,
-                modelId: entry.modelId,
+                modelId: source.modelId,
                 get backend(): 'gpu' | 'cpu' {
                     return gpu ? 'gpu' : 'cpu';
                 },

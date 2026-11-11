@@ -72,6 +72,18 @@ The model entry extends `ModelEntry` with sd.cpp-specific roles:
 
 `ImageRequest` carries `prompt`, optional `negativePrompt`, `width`, `height`, `steps`, `guidance`, `seed`, `sampler`, `scheduler`, `loras` and an `init` image for img2img.
 
+### Files the person already has
+
+For a checkpoint the person downloaded themselves, pass `local` instead of `store` and `model`. Nothing is fetched or verified:
+
+```typescript
+const engine = sdCppImageGeneration({
+    local: { modelId: 'my-checkpoint', diffusionModel: '/models/sdxl.safetensors', vae: '/models/vae.safetensors' },
+});
+```
+
+`availability()` is `available` when every named file exists and `unavailable` otherwise, never `downloadable`. `create()` throws and names the missing files. `LocalImageModel` takes `modelId` and `diffusionModel` (both required), `vae`, `llm`, `backend`, `defaultWidth` / `defaultHeight` (512 when absent) and `footprintBytes`. The memory check runs only when `footprintBytes` is given.
+
 **The GPU guard.** A Vulkan driver can hang a process instead of failing. Before going to the GPU, the engine leaves a pin in `gpuGuardDir` and removes it when the work finishes. A pin left over from a crash keeps the next run on the CPU and reports it through `onGpuPinned`. `gpu: 'on'` removes the pin.
 
 ### Bundling for GJS

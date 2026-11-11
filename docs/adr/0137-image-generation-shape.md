@@ -180,3 +180,11 @@ gives the decision, a one-sentence reason, and the consequence:
    file paths supplied by the app, not store entries, because a person mixes and matches LoRAs
    per image. *Consequence:* `ImageGenerator` validates that every `path` is non-empty and every
    `multiplier` is finite; the engine maps them onto its native option shape.
+7. **Local files (amendment 2026-11-11).** The sd.cpp engine takes `{ local: LocalImageModel }`
+   as an alternative to `{ store, model }`: paths to a checkpoint (and optional VAE and LLM)
+   that the person already has. *Reason:* an app that lets people pick their own checkpoints
+   has no manifest to hash; forcing a store entry would mean inventing digests it cannot know.
+   *Consequence:* nothing is fetched or verified, `availability()` is `available` or
+   `unavailable` (never `downloadable`), `create()` names the missing files, and the memory fit
+   check runs only when `footprintBytes` is given. Both forms share one engine body behind an
+   internal model-source seam.

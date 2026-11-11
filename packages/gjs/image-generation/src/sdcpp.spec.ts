@@ -192,6 +192,109 @@ export default async () => {
         rmSync(root, { recursive: true, force: true });
     });
 
+    await describe('local files', async () => {
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-imagegen-local-'));
+        const model = join(root, 'model.safetensors');
+        const vae = join(root, 'vae.safetensors');
+        writeFileSync(model, Buffer.alloc(16));
+        writeFileSync(vae, Buffer.alloc(16));
+
+        /** A fake addon that remembers what the context was opened with. */
+        function recordingAddon(): { addon: SdAddon; contexts: Array<Record<string, unknown>> } {
+            const contexts: Array<Record<string, unknown>> = [];
+            const addon = fakeAddon();
+            const create = addon.StableDiffusionContext.create;
+            addon.StableDiffusionContext.create = async (options) => {
+                contexts.push(options);
+                return create(options);
+            };
+            return { addon, contexts };
+        }
+
+        await it('is available when the files exist, unavailable when one is missing', async () => {
+            const present = createSdCppEngine(async () => noAddon, {
+                local: { modelId: 'mine', diffusionModel: model, vae },
+            });
+            expect(await present.availability()).toBe('available');
+            const absent = createSdCppEngine(async () => noAddon, {
+                local: { modelId: 'mine', diffusionModel: model, vae: join(root, 'gone.safetensors') },
+            });
+            expect(await absent.availability()).toBe('unavailable');
+        });
+
+        await it('checks the memory only when a footprint is given', async () => {
+            const tight = machine({ freemem: 100 * 1024 * 1024 });
+            const unknown = createSdCppEngine(async () => noAddon, {
+                local: { modelId: 'mine', diffusionModel: model },
+                probe: tight,
+            });
+            expect(await unknown.availability()).toBe('available');
+            const measured = createSdCppEngine(async () => noAddon, {
+                local: { modelId: 'mine', diffusionModel: model, footprintBytes: 200 * 1024 * 1024 },
+                probe: tight,
+            });
+            expect(await measured.availability()).toBe('unavailable');
+        });
+
+        await it('opens the context with the given paths and generates at the default size', async () => {
+            const { addon, contexts } = recordingAddon();
+            const engine = await createSdCppEngine(async () => addon, {
+                local: {
+                    modelId: 'mine',
+                    diffusionModel: model,
+                    vae,
+                    backend: 'cpu',
+                    defaultWidth: 32,
+                    defaultHeight: 16,
+                },
+            }).create();
+            const result = await engine.generate({ prompt: 'cat' });
+            expect(contexts).toStrictEqual([{ diffusionModelPath: model, vaePath: vae, backend: 'cpu' }]);
+            expect(result.modelId).toBe('mine');
+            expect(result.width).toBe(32);
+            expect(result.height).toBe(16);
+            await engine.destroy();
+        });
+
+        await it('defaults to 512x512 and does not need a vae or llm', async () => {
+            const { addon, contexts } = recordingAddon();
+            const engine = await createSdCppEngine(async () => addon, {
+                local: { modelId: 'mine', diffusionModel: model },
+                gpu: 'off',
+            }).create();
+            const result = await engine.generate({ prompt: 'cat', width: 8, height: 8 });
+            expect(result.width).toBe(8);
+            expect(contexts[0].vaePath).toBe(undefined);
+            expect(contexts[0].llmPath).toBe(undefined);
+            await engine.destroy();
+        });
+
+        await it('names the missing files when create() runs without them', async () => {
+            const gone = join(root, 'gone.safetensors');
+            const factory = createSdCppEngine(async () => noAddon, {
+                local: { modelId: 'mine', diffusionModel: gone },
+            });
+            let message = '';
+            try {
+                await factory.create();
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message).toContain(gone);
+        });
+
+        await it('refuses a model without id or checkpoint', async () => {
+            expect(() =>
+                createSdCppEngine(async () => noAddon, { local: { modelId: '', diffusionModel: model } }),
+            ).toThrow(/modelId/);
+            expect(() =>
+                createSdCppEngine(async () => noAddon, { local: { modelId: 'mine', diffusionModel: '' } }),
+            ).toThrow(/diffusionModel/);
+        });
+
+        rmSync(root, { recursive: true, force: true });
+    });
+
     await describe('generate with fake addon', async () => {
         const root = mkdtempSync(join(tmpdir(), 'gjsify-imagegen-gen-'));
         const store = makeStore(root);
