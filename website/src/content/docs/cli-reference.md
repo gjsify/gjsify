@@ -99,6 +99,7 @@ gjsify build src/index.ts --watch                               # rebuild on cha
 |---|---|---|---|
 | `[entryPoints..]` | paths | `bundler.input`, else `src/index.ts` | Entry points to bundle. |
 | `--app` | `gjs` \| `node` \| `browser` \| `nativescript` | the host runtime's target | Build target. Under GJS you get `gjs`; under Node, Bun or Deno you get `node`. Bun and Deno consume the same `node` bundle, so they have no target of their own. Override here or with `gjsify.app` in `package.json`. |
+| `--pricing` | `free` \| `paid` | `free` | Distribution pricing. Sets the `__GJSIFY_PRICING__` compile-time define. Override here or with `gjsify.ship.pricing` in `package.json`. |
 | `-o`, `--outfile` | path | from `package.json` | Output file (application mode). |
 | `-d`, `--outdir` | path | from `package.json` | Output directory (library mode). |
 | `--minify` | bool | `true` | Minify the output. Pass `--no-minify` for pretty-printed code. |
@@ -1541,6 +1542,7 @@ The positional names the operating system whose LAYOUT to assemble: `linux`, `da
 | `--expect-target <os>-<arch>` | none | Used with `--from-stage`. Refuses a stage assembled for a different matrix leg, such as `linux-arm64`. Compares against what the stage recorded, not against this host. |
 | `--skip-build` | `false` | Do not run the project's `build` script first. |
 | `--arch <arch>` | this host | Target architecture, in `process.arch` spelling. Labels the artifact and picks the runtime packages; cross-builds nothing. |
+| `--pricing` | `free` \| `paid` | `gjsify.ship.pricing`, else `free` | Distribution pricing. Passed to the project build as `GJSIFY_PRICING` and compiled into `__GJSIFY_PRICING__`. |
 | `--sign <identity>` | `gjsify.ship.sign.<os>.identity` | Sign the payload with this identity, a NAME `codesign` or `signtool` looks the private key up by, never a certificate. `-` signs ad-hoc. Absent means unsigned, which is a legitimate output, and the skip is printed to stderr. darwin and win32 only. |
 | `--notarize <profile>` | none | Submit the signed artifact with `xcrun notarytool submit --keychain-profile <p> --wait`. Needs `--sign`, and runs on darwin only. |
 | `--verbose` | `false` | Print every staged file, the GI namespaces the bundle imports, and every tool invocation. |

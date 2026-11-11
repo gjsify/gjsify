@@ -507,6 +507,12 @@ export interface ConfigDataShip extends AppMetadata {
      * `flathub` when nothing states one. Unset means no donation UI.
      */
     channel?: string;
+    /**
+     * Pricing tier (ADR 0139): `free` or `paid`. Becomes the `__GJSIFY_PRICING__` define that
+     * `@gjsify/distribution` reads. `--pricing` overrides it; the default is `'free'`, so a plain
+     * build drops the paid-listing badge at bundle time.
+     */
+    pricing?: string;
     /** Reverse-DNS app id. Falls back to `gjsify.flatpak.appId`, then `package.json#name`. */
     appId?: string;
     /**

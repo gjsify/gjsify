@@ -39,6 +39,8 @@ export interface CliBuildOptions {
     dialect?: string;
     /** Distribution channel (ADR 0113), becomes the `__GJSIFY_CHANNEL__` define. */
     channel?: string;
+    /** Pricing tier (ADR 0139), becomes the `__GJSIFY_PRICING__` define. Default `free`. */
+    pricing?: string;
     /**
      * Resolve `gi://Ns?version=X` to the target's widget renderer instead of an empty
      * module — `--gi-renderer` (ADR 0034 stage 9). `browser` and `nativescript` targets.

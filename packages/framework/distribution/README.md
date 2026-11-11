@@ -48,6 +48,13 @@ The metainfo `<url type="donation">` follows the same channel.
 An unset channel is `unknown` and shows no donation UI: a donation line in a store build can cost a
 rejection, a missing one in a free build costs a link the maintainer notices.
 
+## Setting the pricing
+
+At build time. `gjsify.ship.pricing` in `package.json` is the project default (`'free'` or
+`'paid'`); `gjsify build --pricing <id>` and `gjsify ship --pricing <id>` override it. The CLI turns
+it into the compile-time define `__GJSIFY_PRICING__`, defaulting to `'free'` so the paid-edition
+badge branch is dropped unless the build explicitly opts in.
+
 ## Pricing
 
 `pricing()` reads the `__GJSIFY_PRICING__` define (`'free'` | `'paid'`, default `'free'`). A paid
