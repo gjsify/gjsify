@@ -20,7 +20,11 @@ if (typeof globalThis.btoa !== 'function') {
 if (typeof globalThis.atob !== 'function') {
     Object.defineProperty(globalThis, 'atob', {
         value: function atob(data: string): string {
-            const bytes = GLib.base64_decode(data);
+            // The web `atob` takes input without `=` padding; GLib drops the last partial byte of it
+            // (an unpadded 64-byte Ed25519 signature decodes to 63 bytes).
+            let text = String(data).replace(/[\t\n\f\r ]/g, '');
+            if (text.length % 4 !== 0 && !text.includes('=')) text += '='.repeat(4 - (text.length % 4));
+            const bytes = GLib.base64_decode(text);
             let result = '';
             for (let i = 0; i < bytes.length; i++) {
                 result += String.fromCharCode(bytes[i]);

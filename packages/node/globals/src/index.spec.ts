@@ -789,6 +789,19 @@ export default async () => {
             expect(typeof encoded).toBe('string');
             expect(atob(encoded)).toBe('Hello, World!');
         });
+
+        await it('atob should decode input without padding in full', async () => {
+            // 64 bytes encode to 86 characters once the "==" is left off, as Signal sends signatures.
+            expect(atob('A'.repeat(86)).length).toBe(64);
+            expect(atob('QQ').length).toBe(1);
+            expect(atob('QUI').length).toBe(2);
+            expect(atob('QUJD').length).toBe(3);
+            expect(atob('QQ==')).toBe('A');
+        });
+
+        await it('atob should ignore ASCII whitespace', async () => {
+            expect(atob('QU\nJD ')).toBe('ABC');
+        });
     });
 
     await describe('URL (global)', async () => {
