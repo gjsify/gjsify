@@ -119,7 +119,6 @@ export {
     shortcutLabelPlatform,
     shortcutLabelRenderPlan,
     // View switching
-    NOTIFY_VISIBLE_CHILD,
     AdwViewSwitcherBase,
     NOTIFY_VIEW_SELECTED,
     DEFAULT_CAROUSEL_PAGE_WIDTH,
@@ -209,7 +208,6 @@ export type {
     ShortcutLabelViewSpec,
     // View switching
     AdwViewStackPageInfo,
-    NotifyVisibleChildEventData,
     AdwViewPage,
     NotifyViewSelectedEventData,
     NotifyPositionEventData,

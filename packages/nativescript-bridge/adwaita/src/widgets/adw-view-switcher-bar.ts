@@ -34,7 +34,7 @@
 import { GridLayout, ItemSpec, Label, StackLayout } from '@nativescript/core';
 import { buildViewSwitcherButtons, viewSwitcherPagesFromStack } from '@gjsify/adwaita-core';
 import { GtkImage } from './gtk-image.js';
-import { AdwViewStack, NOTIFY_VISIBLE_CHILD } from './adw-view-stack.js';
+import { AdwViewStack } from './adw-view-stack.js';
 import { resolveIdReference, type ViewId } from './id-reference.js';
 import { attachRowPressFeedback } from './row-press.js';
 import { createViewSwitcherBarState } from './view-switcher-model.js';
@@ -62,7 +62,7 @@ export class AdwViewSwitcherBar extends withSignals(GridLayout) {
     private _stack: AdwViewStack | null = null;
     /** A `stack` written as an id before the bar was in a loaded tree. */
     private _stackId: string | null = null;
-    private _stackListener: (() => void) | null = null;
+    private _stackHandlerId: number | null = null;
     private readonly _barState = createViewSwitcherBarState();
 
     constructor(props?: ConstructProps<AdwViewSwitcherBar>) {
@@ -158,16 +158,14 @@ export class AdwViewSwitcherBar extends withSignals(GridLayout) {
     }
 
     private _bindStack(): void {
-        if (!this._stack || this._stackListener) return;
-        const listener = () => this._rebuild();
-        this._stack.addEventListener(NOTIFY_VISIBLE_CHILD, listener);
-        this._stackListener = listener;
+        if (!this._stack || this._stackHandlerId !== null) return;
+        this._stackHandlerId = this._stack.connect('notify::visible-child', () => this._rebuild());
     }
 
     private _unbindStack(): void {
-        if (!this._stack || !this._stackListener) return;
-        this._stack.removeEventListener(NOTIFY_VISIBLE_CHILD, this._stackListener);
-        this._stackListener = null;
+        if (!this._stack || this._stackHandlerId === null) return;
+        this._stack.disconnect(this._stackHandlerId);
+        this._stackHandlerId = null;
     }
 
     private _rebuild(): void {

@@ -203,7 +203,9 @@ export const AdwConstructVectorsNsTest = async () => {
             const stack = build({ tag: 'AdwViewStack' }) as unknown as {
                 constructor: { emittedSignals: readonly string[] };
             };
-            expect(stack.constructor.emittedSignals.join()).toBe('notify::visible-child,notify::visible-child-name');
+            expect(stack.constructor.emittedSignals.join()).toBe(
+                'map,unmap,notify::visible-child,notify::visible-child-name',
+            );
         });
         await it('declares the signals Entry, DropDown and Stack emit', () => {
             const emitted = (tag: string) =>

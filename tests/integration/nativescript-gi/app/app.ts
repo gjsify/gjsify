@@ -29,6 +29,7 @@ import { entrySpec } from './specs/entry.js';
 import { checkButtonSpec } from './specs/check-button.js';
 import { toggleButtonSpec } from './specs/toggle-button.js';
 import { gtkStackSpec } from './specs/gtk-stack.js';
+import { adwViewStackSpec } from './specs/adw-view-stack.js';
 import { spinnerSpec } from './specs/spinner.js';
 import { windowTitleSpec } from './specs/window-title.js';
 import { rowsSpec } from './specs/rows.js';
@@ -126,6 +127,8 @@ async function runSuite(): Promise<void> {
                 // `visible-child` / `visible-child-name` declared over `GridLayout`: object-kind +
                 // explicitNotify, emission order `notify::visible-child` first.
                 await gtkStackSpec(engine)();
+                // The Adwaita sibling of GtkStack: same state machine, same emission order.
+                await adwViewStackSpec(engine)();
             }
             if (optedIn) await inversionSpec();
             if (optedIn) await foreignParentSpec();

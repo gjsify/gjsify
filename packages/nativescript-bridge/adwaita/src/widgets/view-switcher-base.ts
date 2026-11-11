@@ -31,7 +31,6 @@ import { buildViewSwitcherButtons } from '@gjsify/adwaita-core';
 import type { AdwInlineViewSwitcherDisplayMode, AdwViewSwitcherPolicy, ViewSwitcherState } from '@gjsify/adwaita-core';
 import { GtkImage } from './gtk-image.js';
 import type { AdwViewStack } from './adw-view-stack.js';
-import { NOTIFY_VISIBLE_CHILD } from './adw-view-stack.js';
 import { attachRowPressFeedback } from './row-press.js';
 import {
     applyViewSwitcherVisibility,
@@ -118,7 +117,7 @@ export abstract class AdwViewSwitcherBase extends withSignals(GridLayout) {
     private _nodes: ButtonNodes[] = [];
     /** The bound `Adw.ViewSwitcher:stack`, or `null` when this switcher carries its own pages. */
     private _stack: AdwViewStack | null = null;
-    private _stackListener: (() => void) | null = null;
+    private _stackHandlerId: number | null = null;
     /**
      * Whether the CONTENT views are this widget's children.
      *
@@ -275,9 +274,8 @@ export abstract class AdwViewSwitcherBase extends withSignals(GridLayout) {
             this._installPages([], true);
             return;
         }
-        const listener = () => this._syncFromStack();
-        stack.addEventListener(NOTIFY_VISIBLE_CHILD, listener);
-        this._stackListener = listener;
+        const handlerId = stack.connect('notify::visible-child', () => this._syncFromStack());
+        this._stackHandlerId = handlerId;
         this._syncFromStack();
     }
 
@@ -291,10 +289,10 @@ export abstract class AdwViewSwitcherBase extends withSignals(GridLayout) {
     }
 
     private _unbindStack(): void {
-        if (this._stack !== null && this._stackListener !== null) {
-            this._stack.removeEventListener(NOTIFY_VISIBLE_CHILD, this._stackListener);
+        if (this._stack !== null && this._stackHandlerId !== null) {
+            this._stack.disconnect(this._stackHandlerId);
         }
-        this._stackListener = null;
+        this._stackHandlerId = null;
         this._stack = null;
     }
 
