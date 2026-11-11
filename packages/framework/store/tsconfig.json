@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+        "module": "ESNext",
+        "target": "ESNext",
+        "moduleResolution": "bundler",
+        "declaration": true,
+        "outDir": "lib/esm",
+        "rootDir": "src",
+        "declarationDir": "lib/types",
+        "composite": true,
+        "skipLibCheck": true,
+        "strict": true,
+        "types": []
+    },
+    "include": [
+        "src/**/*.ts"
+    ],
+    "exclude": [
+        "src/test.mts"
+    ]
+}

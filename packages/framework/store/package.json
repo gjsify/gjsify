@@ -1,0 +1,69 @@
+{
+    "name": "@gjsify/store",
+    "version": "0.64.28",
+    "description": "Store purchase and entitlement interface for gjsify apps (ADR 0139). Pure TypeScript, identical on GJS, Node and the browser.",
+    "type": "module",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        },
+        "./testing": {
+            "types": "./lib/types/testing/index.d.ts",
+            "default": "./lib/esm/testing/index.js"
+        }
+    },
+    "files": [
+        "lib"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib tmp *.tsbuildinfo test.gjs.mjs test.node.mjs",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "gjsify tsc -p tsconfig.build.json",
+        "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "build:test:browser": "gjsify build src/test.browser.mts --app browser --outfile dist/test.browser.mjs",
+        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs",
+        "test:node": "node test.node.mjs"
+    },
+    "keywords": [
+        "gjs",
+        "store",
+        "in-app-purchase",
+        "entitlement"
+    ],
+    "dependencies": {
+        "@gjsify/distribution": "workspace:^"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "polyfill",
+            "browser": "polyfill",
+            "nativescript": "polyfill"
+        },
+        "tier": 2
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/framework/store"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/store#readme"
+}
