@@ -504,6 +504,10 @@ why the page is derived from the metainfo, why the config is a union rather than
 the entry point is a `gjsify` subcommand rather than a `bin` with a shebang, and why GdkPixbuf is
 the only image backend.
 
+## Brand icons
+
+The platform and browser marks (Linux, macOS, Windows, Android, Firefox, Chromium, Edge, Safari) are simplified redrawings in `src/render/icons.ts`, with `simple-icons` (CC0 1.0) as geometry reference for some. The marks belong to their owners and are used only to name the platform.
+
 ## License
 
 MIT
