@@ -278,8 +278,15 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      # Fail-open like the classifier step below: a mirror outage must widen the run to
+      # the full suite, not fail the gate (measured 2026-11-11: security.ubuntu.com
+      # unreachable for hours, `changes` red on every PR). Without gjs, `classify` fails
+      # and its outputs stay unset, which the downstream gates read as "global".
       - name: Install gjs (host-side, for the classifier bundle only)
-        run: sudo apt-get update && sudo apt-get install -y gjs
+        run: |
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 update -qq \
+            && sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=20 install -y -qq gjs \
+            || echo "::warning::gjs did not install; the suite runs unscoped"
       - id: base
         name: Resolve diff base
         run: |
