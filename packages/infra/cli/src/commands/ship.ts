@@ -1886,9 +1886,8 @@ async function runProjectBuild(
         );
     }
     console.log(`${LOG} running the project's build script`);
-    const env: NodeJS.ProcessEnv | undefined = pricing === undefined && channel === undefined
-        ? undefined
-        : { ...process.env };
+    const env: NodeJS.ProcessEnv | undefined =
+        pricing === undefined && channel === undefined ? undefined : { ...process.env };
     if (env !== undefined) {
         if (channel !== undefined) env[CHANNEL_ENV] = channel;
         if (pricing !== undefined) env[PRICING_ENV] = pricing;
