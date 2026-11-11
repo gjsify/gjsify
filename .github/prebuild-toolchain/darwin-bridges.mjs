@@ -110,7 +110,12 @@ export const DARWIN_BRIDGES = /** @type {DarwinBridge[]} */ ([
         rustSibling: false,
         library: 'libgjsifywebkit.dylib',
     },
-    { dir: 'packages/framework/gtk-quartz-native', namespace: 'GjsifyQuartz', klass: 'install_reopen_handler', rustSibling: false },
+    {
+        dir: 'packages/framework/gtk-quartz-native',
+        namespace: 'GjsifyQuartz',
+        klass: 'install_reopen_handler',
+        rustSibling: false,
+    },
     { dir: 'packages/web/gamepad-native', namespace: 'GjsifyGamepad', klass: 'Monitor', rustSibling: false },
 ]);
 
