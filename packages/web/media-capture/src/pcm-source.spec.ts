@@ -120,6 +120,57 @@ export default async () => {
             }
         });
 
+        await it('decodes a file path through decodebin', async () => {
+            ensureGstInit();
+            const { path } = wavFile();
+            try {
+                const pcm = openPcmSource({ file: path });
+                expect(pcm.synthetic).toBe(false);
+                const bytes = await drain(pcm);
+                expect(bytes.length > 31000 && bytes.length <= 32100).toBe(true);
+            } finally {
+                GLib.unlink(path);
+            }
+        });
+
+        await it('decodes an Ogg/Opus file, the container of a chat voice note', async () => {
+            ensureGstInit();
+            const path = GLib.build_filenamev([GLib.get_tmp_dir(), `gjsify-media-capture-${GLib.random_int()}.ogg`]);
+            let encoded: Gst.Element | null = null;
+            try {
+                encoded = Gst.parse_launch(
+                    `audiotestsrc num-buffers=50 samplesperbuffer=960 freq=440 ! audio/x-raw,rate=48000,channels=1 ! opusenc ! oggmux ! filesink location=${path}`,
+                );
+            } catch {
+                console.warn('[media-capture] Ogg/Opus test skipped — opusenc or oggmux is missing');
+                return;
+            }
+            try {
+                encoded!.set_state(Gst.State.PLAYING);
+                const bus = (encoded as Gst.Pipeline).get_bus()!;
+                bus.timed_pop_filtered(10_000_000_000, Gst.MessageType.EOS | Gst.MessageType.ERROR);
+                encoded!.set_state(Gst.State.NULL);
+                const bytes = await drain(openPcmSource({ file: path }));
+                // 50 × 20 ms = 1 s at 16 kHz mono S16LE, give or take the codec's pre-skip
+                expect(bytes.length > 30000 && bytes.length <= 33000).toBe(true);
+            } finally {
+                GLib.unlink(path);
+            }
+        });
+
+        await it('rejects a file that does not exist', async () => {
+            ensureGstInit();
+            const pcm = openPcmSource({ file: '/nonexistent/gjsify-media-capture.ogg' });
+            let message = '';
+            try {
+                await pcm.read();
+            } catch (e) {
+                message = (e as Error).message;
+            }
+            expect(message.includes('openPcmSource')).toBe(true);
+            pcm.stop();
+        });
+
         await it('ends with null after the last chunk', async () => {
             ensureGstInit();
             const pcm = openPcmSource({ source: tone() });
