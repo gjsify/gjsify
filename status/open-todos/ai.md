@@ -3,11 +3,6 @@
      commit + CHANGELOG that closed it). See status/open-todos/README.md for the
      full convention and where to add a new entry. -->
 
-### `@gjsify/speech-recognition` on the streaming zipformer
-
-ADR 0127 § 13 step 3, on top of `@gjsify/sherpa-native` and `@gjsify/vad`: the W3C
-`SpeechRecognition` surface including interim results.
-
 ### `@gjsify/whisper-native` as the accurate-finals backend
 
 ADR 0127 § 13 step 4. The first second backend, so the first place where `probeBackends`

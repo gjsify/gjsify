@@ -357,6 +357,7 @@ export const PACKAGE_DEPS: Record<string, string[]> = {
     '@gjsify/speech-synthesis': ['spiel'],
     '@gjsify/webaudio': ['gstreamer', 'gst-app'],
     '@gjsify/media-capture': ['gstreamer', 'gst-app'],
+    '@gjsify/speech-recognition': ['gstreamer', 'gst-app'],
     '@gjsify/iframe': ['webkitgtk'],
     '@gjsify/canvas2d': ['gdk-pixbuf', 'pango', 'pangocairo', 'cairo'],
     '@gjsify/canvas2d-core': ['gdk-pixbuf', 'pango', 'pangocairo', 'cairo'],
