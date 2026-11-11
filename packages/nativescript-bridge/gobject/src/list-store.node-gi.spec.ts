@@ -62,12 +62,21 @@ export const realGioListStoreSuite = (requireGi: RequireGi) => async () => {
     });
 
     await describe('real Gio.ListStore: what the real store adds (ADR 0105 stage 3)', async () => {
-        // The measurement the `null` rests on. `g_list_store_splice` emits `items-changed`
-        // UNCONDITIONALLY, so the portable rule "an equal model emits NOTHING, as GTK does" is
-        // kept by NOT splicing — never by splicing zeros. In pure JS the two are the same
-        // no-op and nothing could tell them apart; here the difference is one spurious signal
-        // every listener has to re-read the model for.
-        await it('a zero splice is NOT free: the store emits (position, 0, 0) for it', () => {
+        // The measurement the `null` rests on. Up to GLib 2.86 `g_list_store_splice` emitted
+        // `items-changed` unconditionally, so a zero splice produced `(position, 0, 0)`. On GLib
+        // 2.90 the store no longer emits for a zero splice. The portable rule "an equal model emits
+        // NOTHING, as GTK does" is kept by NOT splicing — never by splicing zeros — so the
+        // implementation is unchanged; this test only documents what the linked GLib actually does.
+        await it('a zero splice: the store either emits (position, 0, 0) or stays silent', () => {
+            // Probe the linked GLib first: recent versions optimize a zero splice to no emission.
+            const probeModel = createRealGioListStore(requireGi);
+            probeModel.setModel([{ value: 'a', label: 'A' }]);
+            const probeEmitted: unknown[] = [];
+            const probeOff = probeModel.onItemsChanged((change) => probeEmitted.push(change));
+            (probeModel.store as { splice(p: number, r: number, a: readonly unknown[]): void }).splice(1, 0, []);
+            probeOff();
+            const zeroSpliceEmits = probeEmitted.length > 0;
+
             const model = createRealGioListStore(requireGi);
             model.setModel([{ value: 'a', label: 'A' }]);
 
@@ -77,7 +86,10 @@ export const realGioListStoreSuite = (requireGi: RequireGi) => async () => {
             const viaSetModel = model.setModel([{ value: 'a', label: 'A' }]);
             off();
 
-            expect([emitted, viaSetModel]).toStrictEqual([[{ position: 1, removed: 0, added: 0 }], null]);
+            expect(viaSetModel).toStrictEqual(null);
+            expect(emitted).toStrictEqual(
+                zeroSpliceEmits ? [{ position: 1, removed: 0, added: 0 }] : [],
+            );
         });
 
         await it('holds the portable descriptor through a real GObject property round-trip', () => {

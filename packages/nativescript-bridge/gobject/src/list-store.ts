@@ -12,13 +12,13 @@
 // — while the splice arithmetic, the item vocabulary and the "an equal model changes nothing" rule
 // stay the core's. Nothing here decides; it only applies.
 //
-// THE `null` IS LOAD-BEARING, measured. `g_list_store_splice` emits `items-changed`
-// UNCONDITIONALLY: a `splice(3, 0, [])` on a real store emits `(3, 0, 0)` — a change of nothing,
-// which every listener must then re-read for (measured on node-gi, GLib 2.86). The portable rule
-// "an equal model emits NOTHING, as GTK does" therefore cannot be implemented by splicing with
-// zeros; it is implemented by not calling `splice` at all, which is exactly what
-// `listItemsChanged`'s `null` says. Backing the model with the real store is what makes that
-// visible: in pure JS the no-op and the zero-splice are indistinguishable.
+// THE `null` IS LOAD-BEARING, measured. `g_list_store_splice` used to emit `items-changed`
+// unconditionally up to GLib 2.86: a `splice(3, 0, [])` produced `(3, 0, 0)` — a change of nothing
+// every listener had to re-read for. On GLib 2.90 the store optimizes a zero splice to no
+// emission. Either way, the portable rule "an equal model emits NOTHING, as GTK does" cannot be
+// implemented by splicing with zeros; it is implemented by not calling `splice` at all, which is
+// exactly what `listItemsChanged`'s `null` says. Backing the model with the real store is what
+// makes that visible: in pure JS the no-op and the zero-splice are indistinguishable.
 //
 // WHY THE ITEM IS A GObject AND NOT THE PLAIN DESCRIPTOR. A `GListStore` holds GObjects — its
 // `item-type` is a GType and `g_list_store_splice` type-checks every addition. So each portable
