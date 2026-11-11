@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.64.31](https://github.com/gjsify/gjsify/compare/v0.64.30...v0.64.31) (2026-11-11)
+
+### Features
+
+* **adwaita:** declare AdwViewStack props at seam ([#2594](https://github.com/gjsify/gjsify/issues/2594)) ([4183262](https://github.com/gjsify/gjsify/commit/4183262cfaa422e7e036e5fe9f4f38efeabf4699)), closes [#2584](https://github.com/gjsify/gjsify/issues/2584)
+* **image-generation:** all-in-one checkpoints ([#2597](https://github.com/gjsify/gjsify/issues/2597)) ([306243b](https://github.com/gjsify/gjsify/commit/306243b025717e04ec3c73d97b29645a3f455366))
+* **media-capture:** decode a file path in openPcmSource ([#2603](https://github.com/gjsify/gjsify/issues/2603)) ([17c92a4](https://github.com/gjsify/gjsify/commit/17c92a46338d02341de1e263716c1d9b23f7d3cc))
+* **model-store:** shared catalog, content-addressed blobs, HF cache ([#2604](https://github.com/gjsify/gjsify/issues/2604)) ([84e444e](https://github.com/gjsify/gjsify/commit/84e444e1c1be954a9065345cb762d45641fc1981))
+* **site:** reuse download dialog on extension page ([#2605](https://github.com/gjsify/gjsify/issues/2605)) ([77cf57f](https://github.com/gjsify/gjsify/commit/77cf57f9b2910525290e3c37b35c6de2ac0b67bb))
+* **speech-recognition:** add SpeechRecognition on zipformer ([#2598](https://github.com/gjsify/gjsify/issues/2598)) ([199c884](https://github.com/gjsify/gjsify/commit/199c88428f3395d5b3da65a1b1396d1150d4e074))
+
+### Bug Fixes
+
+* **adwaita-web:** touch layout of adw-clamp and scrolled window ([#2599](https://github.com/gjsify/gjsify/issues/2599)) ([79b16d3](https://github.com/gjsify/gjsify/commit/79b16d3c568b30ec3760dd97f29003020df50bd8))
+
+### Continuous Integration
+
+* fail open when gjs cannot be installed in changes ([#2596](https://github.com/gjsify/gjsify/issues/2596)) ([d5faea7](https://github.com/gjsify/gjsify/commit/d5faea726705300067b06a6e10ea2cf93277d2e1)), closes [#2594](https://github.com/gjsify/gjsify/issues/2594)
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([620e414](https://github.com/gjsify/gjsify/commit/620e414e715f8b4e6403bc7dd981f352f7704cb9))
+
+### Tests
+
+* **gobject:** tolerate GLib 2.90 zero-splice silence ([#2593](https://github.com/gjsify/gjsify/issues/2593)) ([53984fc](https://github.com/gjsify/gjsify/commit/53984fc87cf18490b5beb657267761f4f19546ab))
+
 ## [0.64.30](https://github.com/gjsify/gjsify/compare/v0.64.29...v0.64.30) (2026-11-11)
 
 ### Features
