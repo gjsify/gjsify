@@ -91,6 +91,24 @@ export const GtkScrolledWindowTest = async () => {
         });
     });
 
+    await describe('<gtk-scrolled-window> overlay scrolling', async () => {
+        await it('lays the bars over the content by default, as GTK does', async () => {
+            const { el, host } = mount();
+            await fill(el, 20);
+            expect(el.classList.contains('overlay-scrolling')).toBe(true);
+            expect(bars(el).vertical.classList.contains('overlay-indicator')).toBe(true);
+            host.remove();
+        });
+
+        await it('takes a permanent bar beside the content only on overlay-scrolling="false"', async () => {
+            const { el, host } = mount();
+            el.setAttribute('overlay-scrolling', 'false');
+            await fill(el, 20);
+            expect(el.classList.contains('overlay-scrolling')).toBe(false);
+            host.remove();
+        });
+    });
+
     await describe('<gtk-scrolled-window> its child, before and after connect', async () => {
         const detached = (): { el: GtkScrolledWindow; host: HTMLElement } => {
             const host = document.createElement('div');
