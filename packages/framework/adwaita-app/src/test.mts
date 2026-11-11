@@ -7,6 +7,7 @@ import { run } from '@gjsify/unit';
 import appearanceMappingSuite from './appearance/mapping.spec.js';
 import appIconDirSuite from './app-icon-dir.spec.js';
 import appdataSuite from './appdata.spec.js';
+import dockReopenSuite from './dock-reopen.spec.js';
 import devHooksSuite from './dev-hooks.spec.js';
 import dialogModelSuite from './dialog-model.spec.js';
 import localeDirSuite from './locale-dir.spec.js';
@@ -20,6 +21,7 @@ run({
     appearanceMappingSuite,
     appdataSuite,
     devHooksSuite,
+    dockReopenSuite,
     dialogModelSuite,
     localeDirSuite,
     localeEnvSuite,

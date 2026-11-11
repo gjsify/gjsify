@@ -1,6 +1,6 @@
-# 140. A Dock click reopens the application on macOS: a tiny native bridge adds the missing delegate method
+# 141. A Dock click reopens the application on macOS: a tiny native bridge adds the missing delegate method
 
-- Status: **Proposed**
+- Status: **Accepted**
 - Date: 2026-11-11
 - Deciders: Pascal Garber
 - Related: [ADR 0017](0017-native-package-distribution.md) (per-target native packages),
@@ -83,5 +83,14 @@ stays a manual check (a synthetic Dock event cannot be sent headlessly).
 
 ## Implementation
 
-Not started. Tracked in a GitHub issue; steps: package + meson + `darwin-bridges.mjs` row, prebuild
-leg, call site in the GTK host, spec above, `docs/prebuilds.md` entry.
+`@gjsify/gtk-quartz-native` (GI namespace `GjsifyQuartz`, `packages/framework/gtk-quartz-native`) with its
+arm64/x64 package pair, a `darwin-bridges.mjs` row, a `build-prebuilds-macos` leg (build, `meson test`,
+load test, upload, two download steps), and the call site in `AdwaitaApp._onStartup`
+(`installDockReopen`, `packages/framework/adwaita-app/src/dock-reopen.ts`).
+
+Specs: `test/reopen-handler.m` (meson test: a real `GtkApplicationQuartzDelegate` instance, selector sent with
+`hasVisibleWindows` NO fires `activate`, YES does not; a stand-in class that already has the selector is
+left untouched; unknown class is a no-op), `test/install.gjs.js` (typelib + library load through GI), and
+`dock-reopen.spec.ts` (platform guard, absent bridge, retired bridge).
+
+Not verified here: the windowed Dock click itself (manual), the x64 build, and the CI leg (`ci:macos`).

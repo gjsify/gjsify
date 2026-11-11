@@ -18,6 +18,7 @@ import system from 'system';
 import { type InstallDevtoolsOptions, installDevtools } from '@gjsify/devtools';
 import { type CreateAboutDialogOptions, applyAboutLinks, createAboutDialog } from './about-dialog.js';
 import { addAppIconDir } from './app-icon.js';
+import { installDockReopen } from './dock-reopen.js';
 import { type BundledIconThemeOptions, installBundledIconTheme } from './icon-theme.js';
 import type { AboutInfo } from './types.js';
 
@@ -125,6 +126,7 @@ export class AdwaitaApp extends Adw.Application {
         this._installAppIcon();
         if (this._options.css) this._loadCss(this._options.css);
         this._installDevtools();
+        installDockReopen();
         this._options.onStartup?.(this);
     }
 

@@ -66,6 +66,9 @@
         "@gjsify/devtools": "workspace:^",
         "@gjsify/utils": "workspace:^"
     },
+    "optionalDependencies": {
+        "@gjsify/gtk-quartz-native": "workspace:^"
+    },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/storybook": "workspace:^",
