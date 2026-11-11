@@ -470,6 +470,7 @@ const WEB_API_NODE_NONE = new Set([
     'xmlhttprequest',
     'gamepad',
     'speech-synthesis',
+    'speech-recognition',
     'media-capture',
 ]);
 
