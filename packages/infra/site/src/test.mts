@@ -5,6 +5,8 @@ import { run } from '@gjsify/unit';
 import blogSuite from './render/blog.spec.js';
 import colorSuite from './render/color.spec.js';
 import developerSuite from './render/developer.spec.js';
+import extensionPageSuite from './render/extension.spec.js';
+import extensionSuite from './site-data/extension.spec.js';
 import contentSuite from './site-data/content.spec.js';
 import feedSuite from './render/feed.spec.js';
 import listingSuite from './listing/listing.spec.js';
@@ -28,4 +30,6 @@ run({
     feedSuite,
     blogSuite,
     developerSuite,
+    extensionSuite,
+    extensionPageSuite,
 });

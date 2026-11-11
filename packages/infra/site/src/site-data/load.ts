@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { parseSiteConfig, type RootManifest } from './config.js';
 import { buildDownloadTargets, recordedArtifact } from './downloads.js';
+import { loadExtension } from './extension.js';
 import { fetchFlathubStats, fetchFlathubSummary } from './flathub.js';
 import { fetchLatestRelease, fetchReleaseRecords } from './github.js';
 import { parseMetainfo } from './metainfo.js';
@@ -190,6 +191,10 @@ export async function loadSiteData(options: LoadOptions): Promise<SiteData> {
         warn,
     });
 
+    const extension = config.extension
+        ? await loadExtension(config.extension, options.root, config.languages)
+        : undefined;
+
     const releases: Release[] = metainfo.releases.map((release) => ({
         ...release,
         description: completeBlocks(release.description),
@@ -231,6 +236,7 @@ export async function loadSiteData(options: LoadOptions): Promise<SiteData> {
         },
         stats,
         relatedApps,
+        extension,
         warnings,
     };
 }

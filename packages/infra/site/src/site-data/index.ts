@@ -2,6 +2,7 @@ export * from './blog.js';
 export * from './config.js';
 export * from './developer.js';
 export * from './downloads.js';
+export * from './extension.js';
 export * from './flathub.js';
 export * from './frontmatter.js';
 export * from './github.js';

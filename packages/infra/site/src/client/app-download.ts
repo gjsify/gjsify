@@ -1,13 +1,7 @@
 import { enhanceDialog } from './dialog.js';
-import { detectVisitorPlatform, inGroup, recommendTarget, type Platform, type PlatformHints } from './platform.js';
+import { readHints } from './hints.js';
+import { detectVisitorPlatform, inGroup, recommendTarget, type Platform } from './platform.js';
 import type { TargetArch, TargetPlatform } from '../site-data/types.js';
-
-/** The parts of `navigator.userAgentData` this page uses; it is absent outside Chromium. */
-interface UserAgentData {
-    platform?: string;
-    brands?: Array<{ brand: string }>;
-    getHighEntropyValues?(hints: string[]): Promise<{ architecture?: string; bitness?: string }>;
-}
 
 /** One rendered download row. Everything here was translated at build time. */
 interface Row {
@@ -17,25 +11,6 @@ interface Row {
     url: string;
     cta: string;
     size: string;
-}
-
-async function readHints(): Promise<PlatformHints> {
-    const data = (navigator as Navigator & { userAgentData?: UserAgentData }).userAgentData;
-    const hints: PlatformHints = {
-        platform: data?.platform,
-        userAgent: navigator.userAgent,
-        brands: data?.brands?.map((entry) => entry.brand),
-    };
-    if (data?.getHighEntropyValues) {
-        try {
-            const high = await data.getHighEntropyValues(['architecture', 'bitness']);
-            hints.architecture = high.architecture;
-            hints.bitness = high.bitness;
-        } catch {
-            // The browser may refuse; `detectVisitorPlatform` then falls back to an assumed architecture.
-        }
-    }
-    return hints;
 }
 
 function readRows(host: HTMLElement): Row[] {

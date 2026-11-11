@@ -287,3 +287,20 @@ screenshot.
 
 **Not changed:** the store-listing module still emits one default image per non-dark screenshot.
 Picking the language-specific image per store locale is possible later and out of scope here.
+
+## Amendment 2026-11-05: browser-extension page from the manifests
+
+**Context.** An app can ship a WebExtension whose store listing is a second face of the same product.
+
+**Decision.** `gjsify.site.extension` adds `/<lang>/extension/`, built from the extension's manifests.
+Three choices:
+
+- **The manifest is the source.** It is what the browser shows at install, so the page cannot promise
+  permissions the browser will not ask for.
+- **Built manifests, not source manifests.** The source manifest is per-build input (MV2/MV3, generated
+  fields, `__MSG_` keys); the built one is what ships. A missing build fails the site build.
+- **Built-in permission text.** Standard permission names get a plain-language sentence in the package
+  catalogue; the publisher's own explanation is added per language when configured. Unknown names show
+  the raw name only, so nothing is invented.
+
+Parsing, classification and locale resolution live in `site-data/extension.ts` as a pure module.

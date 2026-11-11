@@ -202,6 +202,7 @@ Lives in the root `package.json`, next to `ship` and `flatpak`.
 | `developerUrl` | The developer's own site, e.g. a [developer site](#developer-sites): the "by <developer>" line under the app name links to it. Optional. |
 | `support`, `legal` | `support`: `{kind, url}` links, or `{kind: "sepa", name, iban, bic?, reference?}`, a bank transfer shown as IBAN plus an EPC QR code. `legal`: `{label, url}` links. Both empty by default: nothing is invented. |
 | `privacy` | `{statements: {<lang>: <path>}, hostingPolicyUrl?}`: a privacy page at `/<lang>/privacy/`, see below. Absent: no such page. |
+| `extension` | `{manifests: {<chromium\|firefox\|edge\|safari>: <path>}, locales?, component?, permissions?}`: a browser-extension page at `/<lang>/extension/`, see below. App sites only. Absent: no such page. |
 | `legalNotice` | `{statements: {<lang>: <path>}}`: a Legal Notice/Impressum page at `/<lang>/legal-notice/`, see below. Absent: no such page. |
 | `blog` | `{posts: <dir>}`: Markdown posts rendered at `/<lang>/blog/`, see [Blog](#blog). Absent: no blog. |
 | `theme` | `{accent?, displayFont?, imageRendering?}`: how the site departs from the default look, see [Theme](#theme). |
@@ -326,6 +327,35 @@ one surface. The text on it is not assumed to be white; the build measures the b
 relative luminance and writes near-black or white into `--band-fg`, whichever the eye can read.
 Everything below the masthead keeps the site's own neutral palette, so a pale brand colour cannot
 make the description unreadable. An app without `<branding>` gets the default blue.
+
+## Extension page
+
+`gjsify.site.extension` adds `/<lang>/extension/`, laid out like an add-on listing in the site's own
+style: icon, name, short description and install buttons, a facts sidebar (collapsing below the header
+on a phone), then screenshots, description, permissions and the browsers it works in. The app page and
+the extension page link to each other.
+
+```json
+"extension": {
+  "manifests": { "chromium": "extension/.output/chrome-mv3/manifest.json", "firefox": "extension/.output/firefox-mv2/manifest.json" },
+  "locales": "extension/_locales",
+  "component": "extension",
+  "permissions": { "nativeMessaging": { "en": "Talks to the desktop app", "de": "Spricht mit der Desktop-App" } }
+}
+```
+
+- `manifests` maps a browser family to a **built** `manifest.json`; a missing file fails the build and
+  names the path. Build the extension first.
+- `locales`: the `_locales` directory. `__MSG_key__` in name and description resolves per page language,
+  falling back to `default_locale`.
+- `component`: the `components[].id` whose download targets become the install buttons. The visitor's
+  browser comes first; an unavailable store reads "Not yet available".
+- `permissions`: your own explanation per permission, in every language. Standard permissions get a
+  built-in plain-language sentence; unknown ones show the raw name, nothing invented.
+- Required permissions (`permissions`, `host_permissions`) and "asked only when needed" ones
+  (`optional_*`) are listed separately; a permission that differs between browsers says which.
+- A Firefox manifest with `data_collection_permissions.required: ["none"]` produces the statement that
+  the extension declares it collects no data, linking the privacy page when configured.
 
 ## Blog
 

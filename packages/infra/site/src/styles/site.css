@@ -1185,6 +1185,245 @@ app-support {
   overflow-wrap: anywhere;
 }
 
+/* Extension page: a store listing in the site's own tokens */
+
+.ext-short {
+  margin: 0.5rem 0 0;
+  max-width: 40rem;
+  opacity: 0.9;
+}
+
+.ext-install {
+  margin-block-start: 1.5rem;
+}
+
+.ext-install-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.ext-install-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+}
+
+/* The first entry is the visitor's browser once the script has reordered; it is the primary button. */
+.ext-install-list li:not(:first-child) .button {
+  padding: 0.4rem 0.9rem;
+  font-size: 0.9rem;
+}
+
+.ext-alt {
+  color: inherit;
+  font-size: 0.85rem;
+}
+
+/* Flat and outlined: nothing here can be clicked, so it must not look like the primary action. */
+.masthead .download .button.ext-unavailable {
+  background: transparent;
+  color: inherit;
+  border: 1px dashed var(--band-line);
+  opacity: 0.8;
+  cursor: default;
+  flex-wrap: wrap;
+}
+
+.ext-unavailable small {
+  font-weight: 400;
+}
+
+.ext-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 17rem;
+  gap: 2rem;
+  align-items: start;
+}
+
+.ext-facts {
+  grid-column: 2;
+  grid-row: 1;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.ext-main {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+
+.ext-facts h2 {
+  margin-block: 0 0.75rem;
+  font-size: 1.05rem;
+}
+
+.ext-facts dl {
+  margin: 0;
+}
+
+.ext-fact + .ext-fact {
+  margin-block-start: 0.75rem;
+}
+
+.ext-fact dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.ext-fact dd {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-wrap: anywhere;
+}
+
+.ext-needs .card {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  text-decoration: none;
+  color: inherit;
+}
+
+.ext-needs .card:hover {
+  background: color-mix(in srgb, var(--fg) 6%, var(--surface));
+}
+
+.ext-needs .link-external {
+  margin-inline-start: auto;
+  flex: none;
+}
+
+.ext-section {
+  margin-block-start: 2rem;
+}
+
+.ext-needs + .ext-section {
+  margin-block-start: 1.5rem;
+}
+
+.ext-section h3 {
+  font-size: 1rem;
+  margin-block: 1.25rem 0.5rem;
+}
+
+.ext-note {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-block: 0 0.5rem;
+}
+
+.ext-perms {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.ext-perm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.65rem 1rem;
+  background: var(--surface);
+}
+
+.ext-perm + .ext-perm {
+  border-top: 1px solid var(--line);
+}
+
+.ext-perm code {
+  align-self: flex-start;
+  font-size: 0.8rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.ext-perm-why,
+.ext-perm-only {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.ext-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ext-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.9rem;
+}
+
+.ext-chip small {
+  color: var(--muted);
+}
+
+.ext-link {
+  margin-block-start: 2rem;
+}
+
+.component-more {
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 760px) {
+  .ext-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+
+  .ext-facts,
+  .ext-main {
+    grid-column: 1;
+  }
+
+  .ext-facts {
+    grid-row: 1;
+  }
+
+  .ext-main {
+    grid-row: 2;
+  }
+
+  .ext-install-list,
+  .ext-install-list li {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ext-install-list .button {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
 /* Footer */
 
 .footer {

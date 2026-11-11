@@ -49,7 +49,7 @@ export interface RenderContext {
     /** Published URL of the app icon, when there is one. */
     iconUrl?: string;
     /** Which page of the app this renders; the language switch and the head follow it. Default `app`. */
-    view?: 'app' | 'support' | 'privacy' | 'legal-notice';
+    view?: 'app' | 'support' | 'privacy' | 'legal-notice' | 'extension';
     /** Root-relative URL of the link-preview card for this language. */
     ogImage?: string;
     /** The blog's latest posts in this language, rendered; only the landing page shows them. */
@@ -132,6 +132,10 @@ export function privacyUrl(data: SiteData, lang: string): string {
     return `${pageUrl(data, lang)}privacy/`;
 }
 
+export function extensionUrl(data: SiteData, lang: string): string {
+    return `${pageUrl(data, lang)}extension/`;
+}
+
 export function legalNoticeUrl(data: SiteData, lang: string): string {
     return `${pageUrl(data, lang)}legal-notice/`;
 }
@@ -141,7 +145,7 @@ export function supportReference(data: SiteData): string {
     return `Support ${data.app.name.source}`;
 }
 
-function blocks(content: DescriptionBlock[], lang: string): string {
+export function blocks(content: DescriptionBlock[], lang: string): string {
     return content
         .map((block) =>
             block.type === 'paragraph'
@@ -151,7 +155,7 @@ function blocks(content: DescriptionBlock[], lang: string): string {
         .join('\n');
 }
 
-function osName(os: TargetPlatform, t: Translate): string {
+export function osName(os: TargetPlatform, t: Translate): string {
     return {
         linux: t('Linux'),
         darwin: t('macOS'),
@@ -207,7 +211,7 @@ function unsignedMark(os: TargetPlatform, t: Translate): string {
     return os === 'darwin' ? t('Not notarized') : t('Unsigned');
 }
 
-function sizeLabel(bytes: number | undefined, lang: string): string {
+export function sizeLabel(bytes: number | undefined, lang: string): string {
     if (!bytes) return '';
     return `${new Intl.NumberFormat(lang, { maximumFractionDigits: 1 }).format(bytes / (1024 * 1024))} MB`;
 }
@@ -318,7 +322,7 @@ export function frameAttribute(
 }
 
 /** The screenshots, at the bottom of the brand-coloured masthead. */
-function screenshotBand(ctx: RenderContext): string {
+export function screenshotBand(ctx: RenderContext): string {
     if (ctx.data.screenshots.length === 0) return '';
     const { t, lang } = ctx;
     const slides = ctx.data.screenshots.map((screenshot, index) => {
@@ -454,7 +458,7 @@ function blockSlug(block: ComponentBlock, index: number): string {
  * order they have to be installed in.
  */
 function componentSection(block: ComponentBlock, slug: string, step: number | undefined, ctx: DownloadContext): string {
-    const { t } = ctx;
+    const { t, data, lang } = ctx;
     const selected = defaultTarget(block.targets)?.os;
     const groups = PLATFORM_ORDER.flatMap((os) => {
         const own = block.targets.filter((target) => target.os === os);
@@ -484,6 +488,7 @@ ${os === 'darwin' ? safariExtensionHints(own, t) : ''}
         ? `<div class="component-head">
 <h3 class="component-title">${step === undefined ? '' : `<span class="component-step">${esc(String(step))}</span>`}<span>${esc(t(block.name))}</span></h3>
 ${block.summary ? `<p class="component-summary">${esc(t(block.summary))}</p>` : ''}
+${data.extension && block.id === data.extension.component ? `<p class="component-more"><a href="${esc(extensionUrl(data, lang))}">${esc(t('About the browser extension'))}</a></p>` : ''}
 </div>`
         : '';
     // An extension's tabs are browsers; naming them "Operating system" would mislead a screen reader.
@@ -622,7 +627,7 @@ export function badges(ctx: Pick<RenderContext, 'data' | 't' | 'lang'>): string 
     return `<ul class="badges" style="--badge-count:${visible}"${odd}>\n${specs.map(badge).join('\n')}\n</ul>`;
 }
 
-function releaseDate(date: string, lang: string): string {
+export function releaseDate(date: string, lang: string): string {
     const parsed = new Date(date);
     return Number.isNaN(parsed.getTime())
         ? date
@@ -775,6 +780,30 @@ function support(ctx: RenderContext): string {
 </section>`;
 }
 
+/** The landing page's pointer to the extension page: the extension is a part of the product, not a download alone. */
+function extensionLink(ctx: RenderContext): string {
+    const { data, lang, t } = ctx;
+    if (!data.extension) return '';
+    const families = [...new Set(data.extension.browsers.map((browser) => browser.family))];
+    const glyph: IconName = families.includes('firefox')
+        ? 'firefox'
+        : families.includes('chromium')
+          ? 'chromium'
+          : 'web';
+    return `<section class="ext-link">
+<h2>${esc(t('Browser extension'))}</h2>
+<ul class="card-list">
+<li>
+<a href="${esc(extensionUrl(data, lang))}">
+<span class="link-icon">${icon(glyph)}</span>
+<span class="link-text"><span class="link-title">${esc(data.extension.browsers[0]?.name[lang] ?? t('Browser extension'))}</span><span class="link-url">${esc(data.extension.browsers[0]?.description[lang] ?? '')}</span></span>
+${icon('chevron-right', { class: 'link-external' })}
+</a>
+</li>
+</ul>
+</section>`;
+}
+
 function tags(ctx: RenderContext): string {
     const { data, t, lang } = ctx;
     const keywords = data.app.keywords.map((keyword) => localized(keyword, lang));
@@ -828,7 +857,7 @@ ${screenshotBand(ctx)}
 /** The title and description of one page; also what the build checks for weak ones. */
 export function pageMeta(
     ctx: Pick<RenderContext, 'data' | 'lang' | 't'>,
-    view: 'app' | 'support' | 'privacy' | 'legal-notice' = 'app',
+    view: View = 'app',
 ): { name: string; title: string; description: string } {
     const { data, lang, t } = ctx;
     const name = localized(data.app.name, lang);
@@ -853,6 +882,14 @@ export function pageMeta(
             name,
             title: `${t('Legal Notice')} – ${name}`,
             description: plain(t('Who publishes {app}, and how to reach them.'), { app: name }),
+        };
+    }
+    if (view === 'extension') {
+        const short = data.extension?.browsers[0]?.description[lang];
+        return {
+            name,
+            title: `${t('Browser extension')} – ${name}`,
+            description: short || plain(t('The browser extension of {app}.'), { app: name }),
         };
     }
     const summary = localized(data.app.summary, lang);
@@ -897,6 +934,7 @@ const VIEW_PATHS: Record<View, string> = {
     support: 'support/',
     privacy: 'privacy/',
     'legal-notice': 'legal-notice/',
+    extension: 'extension/',
 };
 
 function repositoryUrl(data: SiteData): string | undefined {
@@ -936,7 +974,7 @@ export function appShell(
     };
 }
 
-function appPageMeta(ctx: RenderContext, view: View): PageMeta {
+export function appPageMeta(ctx: RenderContext, view: View): PageMeta {
     const { data } = ctx;
     const { title, description } = pageMeta(ctx, view);
     return {
@@ -963,6 +1001,7 @@ export function renderPage(ctx: RenderContext): string {
 ${blocks(data.app.description, lang)}
 </section>
 ${releases(ctx)}
+${extensionLink(ctx)}
 ${ctx.latestPosts ?? ''}
 ${support(ctx)}
 ${links(ctx)}
