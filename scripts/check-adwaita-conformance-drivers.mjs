@@ -242,6 +242,13 @@ const MODULE_REASONS = {
     // SUBSET and the dispatch of a key press are not rows; `accelerators.spec.ts` in core and
     // each port's `application.spec.ts` hold them.
     accelerators: { table: 'APPLICATION_VECTORS' },
+    // The scale state behind `@gjsify/adwaita-nativescript/app-scale`: derive a factor from the
+    // screen width, clamp it, let a stored setting override it, and `scaleDip` for the lengths
+    // TS sets rather than CSS. Exactly ONE renderer consumes it today — the NativeScript port,
+    // which re-exports these pure functions and adds the `Screen` read and the single `addCss` —
+    // so a table now would assert that port's own derivation against itself. `app-scale.spec.ts`
+    // holds it in core; the table is the open item.
+    'app-scale': { gap: NO_TABLE_LEDGER },
     'apple-accent': { gap: NO_TABLE_LEDGER },
     breakpoint: { gap: NO_TABLE_LEDGER },
     // The wiring around `breakpoint.ts`: it applies and restores setters through a renderer's
