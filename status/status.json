@@ -280,7 +280,7 @@
     },
     "@gjsify/image-generation": {
       "status": "partial",
-      "missing": "The sd.cpp engine is tested against a fake addon only; no real model has run through this port yet. No default model manifest; every entry is app-side.",
+      "missing": "Unit tests use a fake addon; the real addon has run one model end to end (an Anima checkpoint through the `local` option on GJS, CPU). No default model manifest; every entry is app-side.",
       "note": "Image generation in the WebML CG lifecycle shape (ADR 0137): ImageGenerator with availability(), create({ monitor, signal }) and destroy(), one generate() at a time, abort and destroy semantics owned once for every engine. ./sdcpp runs diffusion models through stable-diffusion-cpp-node-api on Node and, through @gjsify/napi, on GJS, with model download via @gjsify/model-store (or, with `local`, files the person already has), checkFit before download, the GPU-hang guard from @gjsify/machine-fit, and a pure-TypeScript PNG decoder/encoder."
     },
     "@gjsify/iframe": {
