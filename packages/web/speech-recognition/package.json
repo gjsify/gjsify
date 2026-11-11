@@ -1,0 +1,93 @@
+{
+    "name": "@gjsify/speech-recognition",
+    "version": "0.64.30",
+    "description": "Web Speech recognition API (SpeechRecognition and its event and result classes) for GJS, running fully on the device: a streaming zipformer on sherpa-onnx, fed by @gjsify/media-capture and endpointed by @gjsify/vad. Models are fetched on first use, never bundled.",
+    "type": "module",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        },
+        "./register": {
+            "types": "./lib/types/register.d.ts",
+            "default": "./lib/esm/register.js"
+        },
+        "./globals": "./globals.mjs"
+    },
+    "files": [
+        "lib",
+        "globals.mjs"
+    ],
+    "sideEffects": [
+        "./lib/esm/register.js",
+        "./globals.mjs"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test*.{mts,ts}'",
+        "build:types": "gjsify tsc",
+        "build:test": "gjsify run build:test:gjs",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs"
+    },
+    "keywords": [
+        "gjs",
+        "speech",
+        "speechrecognition",
+        "stt",
+        "asr",
+        "sherpa-onnx",
+        "zipformer"
+    ],
+    "dependencies": {
+        "@gjsify/dom-events": "workspace:^",
+        "@gjsify/media-capture": "workspace:^",
+        "@gjsify/model-store": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/sherpa-native": "workspace:^",
+        "@gjsify/utils": "workspace:^",
+        "@gjsify/vad": "workspace:^"
+    },
+    "devDependencies": {
+        "@girs/gjs": "5.4.0",
+        "@girs/glib-2.0": "5.4.0",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "native",
+            "nativescript": "none"
+        },
+        "os": {
+            "linux": "partial",
+            "darwin": "none",
+            "win32": "none"
+        },
+        "osNotes": {
+            "linux": "Needs the @gjsify/sherpa-native prebuild (linux-x64 only today) and a cached German model. Without them SpeechRecognition.available() answers 'unavailable' and start() fires error service-not-allowed.",
+            "darwin": "@gjsify/sherpa-native is not built for macOS yet, so there is no engine. available() answers 'unavailable'.",
+            "win32": "@gjsify/sherpa-native is not built for Windows yet, so there is no engine. available() answers 'unavailable'."
+        },
+        "tier": 3
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/web/speech-recognition"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/web/speech-recognition#readme"
+}
