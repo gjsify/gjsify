@@ -72,6 +72,16 @@ export default async () => {
             expect(gemma.modelId).toBe('ggml-org/embeddinggemma-2-GGUF:Q8_0');
         });
 
+        await it('keeps the measured file facts of the releases that cached them', async () => {
+            const gemmaFile = gemma.files[0];
+            expect(gemmaFile.file).toBe('embeddinggemma-2-Q8_0.gguf');
+            expect(gemmaFile.bytes).toBe(309855456);
+            expect(gemmaFile.sha256).toBe('2188ac1deca4b77dffefd603c2776a9d76d9d74ec01841392982ebb840b09135');
+            expect(gemmaFile.url).toBe(
+                'https://huggingface.co/ggml-org/embeddinggemma-2-GGUF/resolve/58faf90940886df2d62be555c8765d00dac362c5/embeddinggemma-2-Q8_0.gguf',
+            );
+        });
+
         await it('keeps file facts identical to the shared catalog', async () => {
             for (const entry of EMBEDDING_MODELS) {
                 const catalog = requireCatalogEntry('embeddings', entry.id);

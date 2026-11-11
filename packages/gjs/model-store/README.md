@@ -118,7 +118,8 @@ Entries carry `id`, `files` (`file`, `url`, `bytes`, `sha256`), `license`, `redi
 
 - Flatpak gives every app its own `XDG_CACHE_HOME`, so sharing the cache or blobs across separate Flatpak apps does not happen.
 - Legacy cache files (and plain-file fallbacks when hard-linking fails) are size-checked only, the same as before deduplication was introduced.
-- The Hugging Face source is strictly read-only: `install()`, `uninstall()` and `dedupe()` never create, modify or delete files inside the HF hub directory.
+- Where a filesystem reports no inode or link count (`0`, as GJS does for some), `dedupe()` links nothing and orphan blobs are never removed: both fail safe.
+- The Hugging Face source is strictly read-only: `install()`, `uninstall()` and `dedupe()` never create, modify or delete files inside the HF hub directory. `@gjsify/vad` turns it off, because its synchronous path cannot check a digest.
 
 ## License
 

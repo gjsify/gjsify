@@ -59,7 +59,11 @@ export type ModelAvailability = 'available' | 'downloading' | 'downloadable' | '
 export type ModelSource = 'configured' | 'app-data' | 'cache' | 'huggingface';
 
 export interface LocatedModel {
-    /** Directory containing every file of the entry. */
+    /**
+     * Directory containing every file of the entry. Not for `'huggingface'`: the
+     * hub stores LFS files under their digest and a multi-file entry can span
+     * several directories, so read `files` there.
+     */
     readonly dir: string;
     /** Absolute path for each file name in the entry. */
     readonly files: Record<string, string>;
@@ -294,8 +298,8 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
     readonly #linkSync: (existingPath: string, newPath: string) => void;
     readonly #inFlight = new Map<string, Download>();
     readonly #blobLock = new BlobLock();
-    /** path → `size:mtime:digest` of the file whose digest matched. */
-    readonly #verified = new Map<string, string>();
+    /** path → digest of the file at that `size:mtime` stamp. */
+    readonly #verified = new Map<string, { readonly stamp: string; readonly digest: string }>();
 
     constructor(options: ModelStoreOptions<E>) {
         if (!CAPABILITY.test(options.capability)) {
@@ -547,6 +551,12 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
                     } else {
                         const entryStats = statSync(entryPath);
                         if (entryStats.ino !== blobStats.ino || entryStats.dev !== blobStats.dev) {
+                            // The entry file is verified, the blob is not: a blob of the
+                            // right size but other content must never replace it.
+                            if (blobStats.size !== file.bytes || (await sha256File(blobPath)) !== file.sha256) {
+                                this.#publishBlob(entryPath, file.sha256);
+                                continue;
+                            }
                             const temp = `${entryPath}.dedupe-${randomUUID()}`;
                             try {
                                 this.#link(blobPath, temp);
@@ -643,12 +653,9 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
         const stats = statSync(path);
         const stamp = `${stats.size}:${stats.mtimeMs}`;
         const cached = this.#verified.get(path);
-        if (cached !== undefined) {
-            const [cachedStamp, digest] = cached.split(':', 2) as [string, string];
-            if (cachedStamp === stamp) return digest;
-        }
+        if (cached !== undefined && cached.stamp === stamp) return cached.digest;
         const digest = await sha256File(path, signal);
-        this.#verified.set(path, `${stamp}:${digest}`);
+        this.#verified.set(path, { stamp, digest });
         return digest;
     }
 
@@ -665,7 +672,7 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
                 progress.update(file.file, file.bytes);
                 continue;
             }
-            const linkedFromBlob = await this.#linkFromBlob(file, target);
+            const linkedFromBlob = !options.force && (await this.#linkFromBlob(file, target));
             if (linkedFromBlob) {
                 progress.update(file.file, file.bytes);
                 continue;
@@ -680,13 +687,7 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
                 progress: progress.fileReporter(file.file),
                 id: entry.id,
             });
-            await this.#blobLock.run(async () => {
-                try {
-                    this.#link(target, this.#blobPath(file.sha256));
-                } catch {
-                    // Plain-file fallback: keep the verified download, drop no blob.
-                }
-            });
+            await this.#blobLock.run(async () => this.#publishBlob(target, file.sha256));
         }
         progress.report(total, total);
         return { dir, files };
@@ -696,6 +697,9 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
         return this.#blobLock.run(async () => {
             const blobPath = this.#blobPath(file.sha256);
             if (sizeOf(blobPath) !== file.bytes) return false;
+            // A blob is named by its digest but nothing stops a write through
+            // one of its links, so it is checked before it becomes someone's model.
+            if ((await this.#verifiedDigest(blobPath)) !== file.sha256) return false;
             try {
                 this.#link(blobPath, target);
                 return true;
@@ -703,6 +707,42 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
                 return false;
             }
         });
+    }
+
+    /**
+     * Make `<blobs>/<sha256>` a link to the verified file `source`, replacing a
+     * blob that is there but is another inode (a damaged one). Link-then-rename:
+     * a crash never leaves the blob missing. No hard links here: no blob, and
+     * the entry keeps its plain file.
+     */
+    #publishBlob(source: string, sha256: string): void {
+        const blobPath = this.#blobPath(sha256);
+        const existing = statOrNull(blobPath);
+        const own = statOrNull(source);
+        if (
+            existing !== null &&
+            own !== null &&
+            existing.ino === own.ino &&
+            existing.dev === own.dev &&
+            own.ino !== 0
+        ) {
+            return;
+        }
+        if (existing === null) {
+            try {
+                this.#link(source, blobPath);
+            } catch {
+                // Plain-file fallback: keep the verified download, drop no blob.
+            }
+            return;
+        }
+        const temp = `${blobPath}.new-${randomUUID()}`;
+        try {
+            this.#link(source, temp);
+            renameSync(temp, blobPath);
+        } catch {
+            removeQuietly(temp);
+        }
     }
 
     #locateHf(entry: ModelEntry): LocatedModel | undefined {
@@ -720,12 +760,32 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
         return { dir: commonDir ?? this.#hfHubDir, files, source: 'huggingface' };
     }
 
+    /** A hub path that really lives inside the hub: symlinks are resolved first. */
+    #insideHub(path: string): boolean {
+        if (this.#hfHubDir === undefined) return false;
+        try {
+            const real = realpathSync(path);
+            const rel = relative(realpathSync(this.#hfHubDir), real);
+            return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
+        } catch {
+            return false;
+        }
+    }
+
     #findHfFile(file: ModelFile): string | undefined {
+        const found = this.#findHfFileUnchecked(file);
+        return found !== undefined && this.#insideHub(found) ? found : undefined;
+    }
+
+    #findHfFileUnchecked(file: ModelFile): string | undefined {
         if (this.#hfHubDir === undefined) return undefined;
 
         // (a) URL maps directly to a snapshot path.
         const parsed = parseHfUrl(file.url);
-        if (parsed !== undefined) {
+        if (
+            parsed !== undefined &&
+            !parsed.path.split('/').some((part) => part === '..' || part === '.' || part === '')
+        ) {
             const snapshotPath = join(
                 this.#hfHubDir,
                 `models--${parsed.org}--${parsed.repo}`,
@@ -733,7 +793,6 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
                 parsed.rev,
                 ...parsed.path.split('/'),
             );
-            assertInside(this.#hfHubDir, snapshotPath);
             if (sizeOf(snapshotPath) === file.bytes) return snapshotPath;
         }
 
