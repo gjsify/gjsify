@@ -37,8 +37,8 @@ export { extensionUrl };
 const FAMILY_ICONS: Record<ExtensionFamily, IconName> = {
     firefox: 'firefox',
     chromium: 'chromium',
-    edge: 'web',
-    safari: 'web',
+    edge: 'edge',
+    safari: 'safari',
 };
 
 export function familyName(family: ExtensionFamily, t: Translate): string {

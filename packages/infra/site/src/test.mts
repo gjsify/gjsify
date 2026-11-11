@@ -10,6 +10,7 @@ import extensionSuite from './site-data/extension.spec.js';
 import contentSuite from './site-data/content.spec.js';
 import feedSuite from './render/feed.spec.js';
 import listingSuite from './listing/listing.spec.js';
+import iconsSuite from './render/icons.spec.js';
 import i18nSuite from './render/i18n.spec.js';
 import markdownSuite from './render/markdown.spec.js';
 import pagesSuite from './render/pages.spec.js';
@@ -23,6 +24,7 @@ run({
     pagesSuite,
     colorSuite,
     platformSuite,
+    iconsSuite,
     i18nSuite,
     listingSuite,
     markdownSuite,

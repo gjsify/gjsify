@@ -1957,3 +1957,75 @@ app-support {
     background: none;
   }
 }
+
+/* Brand icons (platforms and browsers). Every part is a `.b1…bN` path filled from `--c1…--c6`.
+ * At rest those are `currentColor`; hovering or focusing the control around the icon (or the icon
+ * itself) switches them to the brand's own colours `--brand-1…6`. The selected OS tab stays plain:
+ * its background is the accent colour, which the marks would clash with. Forced colours and touch
+ * screens without hover keep everything on `currentColor`. */
+.icon-brand {
+  --c1: currentColor;
+  --c2: currentColor;
+  --c3: currentColor;
+  --c4: currentColor;
+  --c5: currentColor;
+  --c6: currentColor;
+}
+
+.icon-brand .b1 { fill: var(--c1); }
+.icon-brand .b2 { fill: var(--c2); }
+.icon-brand .b3 { fill: var(--c3); }
+.icon-brand .b4 { fill: var(--c4); }
+.icon-brand .b5 { fill: var(--c5); }
+.icon-brand .b6 { fill: var(--c6); }
+
+.icon-brand [class^="b"] {
+  transition: fill 150ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-brand [class^="b"] {
+    transition: none;
+  }
+}
+
+.icon-chromium { --brand-1: #ea4335; --brand-2: #34a853; --brand-3: #fbbc04; --brand-4: #4285f4; }
+.icon-firefox { --brand-1: #ff9500; --brand-2: #ff3647; }
+.icon-macos { --brand-1: #61bb46; --brand-2: #fdb827; --brand-3: #f5821f; --brand-4: #e03a3e; --brand-5: #963d97; --brand-6: #009ddc; }
+.icon-windows { --brand-1: #f25022; --brand-2: #7fba00; --brand-3: #00a4ef; --brand-4: #ffb900; }
+.icon-safari { --brand-1: #1b9ef0; --brand-2: #ff3b30; --brand-3: #9a9aa0; }
+.icon-edge { --brand-1: #0a7fd6; --brand-2: #35c1f1; }
+.icon-android { --brand-1: #3ddc84; }
+.icon-linux { --brand-1: #1c1c1c; --brand-2: #f4f4f4; --brand-3: #f5a000; }
+
+/* Marks that are dark by nature need a lighter shade on a dark page. */
+@media (prefers-color-scheme: dark) {
+  .icon-safari { --brand-3: #e8e8e8; }
+  .icon-linux { --brand-1: #8a8a96; }
+}
+
+@media (forced-colors: none) {
+  .icon-brand.is-colour,
+  :is(a, button, .ext-chip, .os-tab):focus-visible .icon-brand,
+  .icon-brand:focus-visible {
+    --c1: var(--brand-1);
+    --c2: var(--brand-2, currentColor);
+    --c3: var(--brand-3, currentColor);
+    --c4: var(--brand-4, currentColor);
+    --c5: var(--brand-5, currentColor);
+    --c6: var(--brand-6, currentColor);
+  }
+
+  @media (hover: hover) {
+    :is(a, button, .ext-chip):hover .icon-brand,
+    .os-tab:not([aria-selected="true"]):hover .icon-brand,
+    .icon-brand.platform:hover {
+      --c1: var(--brand-1);
+      --c2: var(--brand-2, currentColor);
+      --c3: var(--brand-3, currentColor);
+      --c4: var(--brand-4, currentColor);
+      --c5: var(--brand-5, currentColor);
+      --c6: var(--brand-6, currentColor);
+    }
+  }
+}
