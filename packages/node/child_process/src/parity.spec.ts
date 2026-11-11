@@ -19,6 +19,7 @@ import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
+import { isWin32 } from '@gjsify/utils';
 import {
     INTERPRETER,
     SHELL_IS_CMD,
@@ -763,5 +764,35 @@ export default async () => {
                 expect(result.out.trim()).toBe('detached_test');
             }
         });
+
+        await it.failing(
+            'detached child is a session leader and signals its whole group',
+            async () => {
+                // `sh` starts a grandchild in the background and replaces
+                // itself with `sleep`. With a real session leader,
+                // `child.pid` is the process-group id and `kill(-pid)`
+                // reaches both the shell and the grandchild.
+                const child = spawn('sh', ['-c', '( sleep 5 ) & exec sleep 5'], {
+                    detached: true,
+                });
+                // Without `sh` (Windows) the spawn error arrives on a later tick;
+                // unhandled it would be blamed on the NEXT test.
+                child.on('error', () => {});
+                expect(child.pid).toBeDefined();
+                expect(child.pid).toBeGreaterThan(0);
+
+                // Wait long enough for the grandchild to be forked.
+                await new Promise<void>((resolve) => setTimeout(resolve, 200));
+
+                process.kill(-child.pid!, 'SIGTERM');
+
+                const signal = await new Promise<string | null>((resolve) => {
+                    child.on('close', (_code, sig) => resolve(sig));
+                });
+                expect(signal).toBe('SIGTERM');
+            },
+            'POSIX shell semantics (process groups) are not available on Windows',
+            { when: isWin32() },
+        );
     });
 };
