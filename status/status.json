@@ -452,7 +452,7 @@
     },
     "@gjsify/distribution": {
       "status": "full",
-      "note": "Distribution-channel contract (ADR 0113): `channel` (build-time `__GJSIFY_CHANNEL__` define, `unknown` when unset), `donationsAllowed()`, the channel capability table and parser. Pure TS, all-`polyfill` on every runtime."
+      "note": "Distribution-channel contract (ADR 0113, 0139): `channel` (build-time `__GJSIFY_CHANNEL__` define, `unknown` when unset), `supportPath()` / `supportPathFor()`, `pricing()` (build-time `__GJSIFY_PRICING__` define, `free` when unset or unknown), the `CHANNEL_CAPABILITIES` table and parser. Pure TS, all-`polyfill` on every runtime."
     },
     "@gjsify/semver": {
       "status": "full",

@@ -1,18 +1,29 @@
-// @gjsify/distribution — where this build is distributed, and what that allows (ADR 0113, 0114).
+// @gjsify/distribution — where this build is distributed, and what that allows (ADR 0113, 0114, 0139).
 // Pure TS, no platform imports: runs identically on GJS, Node and in a browser.
 
 /** Compile-time define the CLI sets from `--channel` / `gjsify.ship.channel`. Absent in a plain `tsc` or test run. */
 declare const __GJSIFY_CHANNEL__: string | undefined;
 
+/** Compile-time define the CLI sets from `--pricing` / `gjsify.ship.pricing`. Absent means `'free'`. */
+declare const __GJSIFY_PRICING__: string | undefined;
+
 /** The closed set of channels a build can declare, plus `unknown` for a build that declared none. */
 export type Channel = 'flathub' | 'web' | 'microsoft-store' | 'apple-app-store' | 'unknown';
 
+/** How a user may support the project in this channel. */
+export type SupportPath = 'external-link' | 'store-purchase' | 'none';
+
+/** Which store commerce backend this channel has. */
+export type Commerce = 'microsoft' | 'apple' | 'none';
+
 /** What a channel permits. A new capability is a new field here, never a channel-name comparison in an app. */
 export interface ChannelCapabilities {
-    /** May the app show a donation / "support the project" link or prompt. */
-    donations: boolean;
-    /** Was this build bought. Only a store channel claims it; an unset channel never does (ADR 0114). */
-    purchased: boolean;
+    /** How a user may support the project in this channel. */
+    support: SupportPath;
+    /** Which store commerce backend this channel has. */
+    commerce: Commerce;
+    /** May the app unlock itself with its own licence key or account. */
+    ownLicensing: boolean;
 }
 
 /**
@@ -21,11 +32,11 @@ export interface ChannelCapabilities {
  * rejection, a missing one in a free build costs a link the maintainer notices (ADR 0113 § 4).
  */
 export const CHANNEL_CAPABILITIES: Readonly<Record<Channel, ChannelCapabilities>> = {
-    flathub: { donations: true, purchased: false },
-    web: { donations: true, purchased: false },
-    'microsoft-store': { donations: false, purchased: true },
-    'apple-app-store': { donations: false, purchased: true },
-    unknown: { donations: false, purchased: false },
+    flathub: { support: 'external-link', commerce: 'none', ownLicensing: true },
+    web: { support: 'external-link', commerce: 'none', ownLicensing: true },
+    'microsoft-store': { support: 'none', commerce: 'microsoft', ownLicensing: true },
+    'apple-app-store': { support: 'store-purchase', commerce: 'apple', ownLicensing: false },
+    unknown: { support: 'none', commerce: 'none', ownLicensing: false },
 };
 
 /** Every channel a user may declare (everything but `unknown`). */
@@ -38,9 +49,9 @@ export function parseChannel(value: unknown): Channel | undefined {
         : undefined;
 }
 
-/** Whether `candidate` permits donation UI. Pure; the CLI uses it for the metainfo gate. */
-export function donationsAllowedFor(candidate: Channel): boolean {
-    return CHANNEL_CAPABILITIES[candidate].donations;
+/** How a user may support the project in `candidate`. Pure; the CLI uses it for the metainfo gate. */
+export function supportPathFor(candidate: Channel): SupportPath {
+    return CHANNEL_CAPABILITIES[candidate].support;
 }
 
 /**
@@ -51,17 +62,48 @@ export function donationsAllowedFor(candidate: Channel): boolean {
 export const channel: Channel =
     (typeof __GJSIFY_CHANNEL__ === 'undefined' ? undefined : parseChannel(__GJSIFY_CHANNEL__)) ?? 'unknown';
 
-/** Whether this build may show donation UI. Ask this, never compare {@link channel} by name. */
+/** How a user may support the project in this build. Ask this, never compare {@link channel} by name. */
+export function supportPath(): SupportPath {
+    return supportPathFor(channel);
+}
+
+/**
+ * Whether this build came from a paid listing. `__GJSIFY_PRICING__` is set by the CLI from
+ * `gjsify.ship.pricing` (default `'free'`). Unknown values are treated as `'free'`.
+ */
+export function pricing(): 'free' | 'paid' {
+    const value = typeof __GJSIFY_PRICING__ === 'undefined' ? 'free' : __GJSIFY_PRICING__;
+    return value === 'paid' ? 'paid' : 'free';
+}
+
+/**
+ * Whether `candidate` permits an external support link.
+ * @deprecated Use {@link supportPathFor}(candidate) === 'external-link' instead.
+ */
+export function donationsAllowedFor(candidate: Channel): boolean {
+    return supportPathFor(candidate) === 'external-link';
+}
+
+/**
+ * Whether this build may show an external support link.
+ * @deprecated Use {@link supportPath}() === 'external-link' instead.
+ */
 export function donationsAllowed(): boolean {
-    return donationsAllowedFor(channel);
+    return supportPath() === 'external-link';
 }
 
-/** Whether `candidate` is a channel where the app is bought. Pure; mirrors {@link donationsAllowedFor}. */
-export function purchasedFor(candidate: Channel): boolean {
-    return CHANNEL_CAPABILITIES[candidate].purchased;
+/**
+ * Whether `candidate` is a channel where the app is bought.
+ * @deprecated Use {@link pricing}() === 'paid' instead; a free store download is not a purchase.
+ */
+export function purchasedFor(_candidate: Channel): boolean {
+    return pricing() === 'paid';
 }
 
-/** Whether this build was bought, so the UI may thank the buyer. Ask this, never compare {@link channel} by name. */
+/**
+ * Whether this build was bought, so the UI may thank the buyer.
+ * @deprecated Use {@link pricing}() === 'paid' instead; a free store download is not a purchase.
+ */
 export function purchased(): boolean {
-    return purchasedFor(channel);
+    return pricing() === 'paid';
 }

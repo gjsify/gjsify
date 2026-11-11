@@ -61,7 +61,7 @@ export interface AppMetadataInputs {
     /** `'app'` renders a desktop-application component, `'cli'` a console one. */
     kind: 'app' | 'cli';
     metadata: AppMetadata;
-    /** Distribution channel (ADR 0113). `<url type="donation">` is emitted only where it allows donations. */
+    /** Distribution channel (ADR 0113, 0139). `<url type="donation">` is emitted only where `support` is `external-link`. */
     channel?: string;
     /**
      * Config path the validator names in its hints, e.g. `gjsify.flatpak` or
