@@ -27,7 +27,7 @@ for await (const chunk of mic) {
 }
 ```
 
-`source ! audioconvert ! audioresample ! capsfilter ! appsink`. The default source is the capture chain's audio source; `deviceId` selects another, and `source` swaps in any `Gst.Element` (a file, a test tone). `read()` returns the next chunk or `null` at end of stream and rejects on a pipeline error; `stop()` is idempotent. The appsink is polled, never driven by `new-sample`, because that signal fires on GStreamer's streaming thread where GJS refuses to run JS. A reader that falls behind blocks the source (200 buffers deep) instead of losing audio.
+`source ! audioconvert ! audioresample ! capsfilter ! appsink`. The default source is the capture chain's audio source; `deviceId` selects another, `source` swaps in any `Gst.Element` (a test tone, a demuxer with a static pad), and `file` decodes an audio file of any container and codec `decodebin` has a plugin for (an Ogg/Opus voice note, M4A, MP3, WAV): `openPcmSource({ file: '/path/note.ogg' })`. `read()` returns the next chunk or `null` at end of stream and rejects on a pipeline error; `stop()` is idempotent. The appsink is polled, never driven by `new-sample`, because that signal fires on GStreamer's streaming thread where GJS refuses to run JS. A reader that falls behind blocks the source (200 buffers deep) instead of losing audio.
 
 ## The capture chain
 

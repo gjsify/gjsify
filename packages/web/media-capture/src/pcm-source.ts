@@ -21,6 +21,12 @@ export interface PcmSourceOptions {
     deviceId?: string;
     /** Use this element instead of the capture chain — a file, a test tone, a fake. */
     source?: Gst.Element;
+    /**
+     * Decode this audio file instead of capturing: any container and codec GStreamer's `decodebin`
+     * has a plugin for (Ogg/Opus voice notes, M4A, MP3, WAV). A bare `source` element cannot do
+     * this, because a demuxer's output pad appears only once the stream is read.
+     */
+    file?: string;
     /** How often an empty appsink is polled, in ms. Default 10. */
     pollIntervalMs?: number;
 }
@@ -88,20 +94,48 @@ export function openPcmSource(options: PcmSourceOptions = {}): PcmSource {
     if (!(sampleRate > 0)) throw new RangeError(`openPcmSource: invalid sampleRate ${options.sampleRate}`);
     if (format !== 'S16LE' && format !== 'F32LE') throw new TypeError(`openPcmSource: unsupported format ${format}`);
 
-    const source = options.source ?? createAudioSource({ deviceId: options.deviceId });
-    const convert = Gst.ElementFactory.make('audioconvert', null);
-    const resample = Gst.ElementFactory.make('audioresample', null);
-    const capsfilter = Gst.ElementFactory.make('capsfilter', null);
-    const sink = Gst.ElementFactory.make('appsink', null);
-    if (!convert || !resample || !capsfilter || !sink) {
-        throw new Error(
-            'openPcmSource: GStreamer audioconvert, audioresample or appsink is missing (gst-plugins-base)',
-        );
+    const caps = Gst.Caps.from_string(`audio/x-raw,format=${format},rate=${sampleRate},channels=1,layout=interleaved`);
+    let pipeline: Gst.Pipeline;
+    let source: Gst.Element;
+    let sink: Gst.Element | null;
+
+    if (options.file !== undefined) {
+        // One parsed pipeline: `decodebin`'s output pad appears only once the stream is read, and
+        // GStreamer links it itself here, not a signal handler on its streaming thread.
+        const quoted = `"${options.file.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+        pipeline = Gst.parse_launch(
+            `filesrc name=pcmfile location=${quoted} ! decodebin ! audioconvert ! audioresample ! ` +
+                `capsfilter name=pcmcaps ! appsink name=pcmsink`,
+        ) as Gst.Pipeline;
+        source = pipeline.get_by_name('pcmfile')!;
+        sink = pipeline.get_by_name('pcmsink');
+        const capsfilter = pipeline.get_by_name('pcmcaps');
+        if (!source || !sink || !capsfilter) {
+            throw new Error('openPcmSource: GStreamer filesrc, decodebin or appsink is missing (gst-plugins-base)');
+        }
+        (capsfilter as AppSinkProps).caps = caps;
+    } else {
+        pipeline = new Gst.Pipeline();
+        source = options.source ?? createAudioSource({ deviceId: options.deviceId });
+        const convert = Gst.ElementFactory.make('audioconvert', null);
+        const resample = Gst.ElementFactory.make('audioresample', null);
+        const capsfilter = Gst.ElementFactory.make('capsfilter', null);
+        sink = Gst.ElementFactory.make('appsink', null);
+        if (!convert || !resample || !capsfilter || !sink) {
+            throw new Error(
+                'openPcmSource: GStreamer audioconvert, audioresample or appsink is missing (gst-plugins-base)',
+            );
+        }
+        (capsfilter as AppSinkProps).caps = caps;
+        const chain = [source, convert, resample, capsfilter, sink];
+        for (const el of chain) pipeline.add(el);
+        for (let i = 0; i < chain.length - 1; i++) {
+            if (!chain[i].link(chain[i + 1])) {
+                throw new Error(`openPcmSource: cannot link ${chain[i].name} to ${chain[i + 1].name}`);
+            }
+        }
     }
 
-    (capsfilter as AppSinkProps).caps = Gst.Caps.from_string(
-        `audio/x-raw,format=${format},rate=${sampleRate},channels=1,layout=interleaved`,
-    );
     const appsink = sink as AppSinkProps & Gst.Element;
     appsink.emit_signals = false;
     // Not a clock-paced sink: a file or test source finishes as fast as it is read,
@@ -109,15 +143,6 @@ export function openPcmSource(options: PcmSourceOptions = {}): PcmSource {
     appsink.sync = false;
     appsink.max_buffers = MAX_QUEUED_BUFFERS;
     // `drop` stays at its default (false): a reader that falls behind blocks the source, it never loses audio.
-
-    const pipeline = new Gst.Pipeline();
-    const chain = [source, convert, resample, capsfilter, sink];
-    for (const el of chain) pipeline.add(el);
-    for (let i = 0; i < chain.length - 1; i++) {
-        if (!chain[i].link(chain[i + 1])) {
-            throw new Error(`openPcmSource: cannot link ${chain[i].name} to ${chain[i + 1].name}`);
-        }
-    }
 
     const bus = pipeline.get_bus()!;
     const appSink = sink as unknown as Gst.Element & {
