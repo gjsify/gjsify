@@ -476,8 +476,20 @@ deleted: a real `notify::` carries no value, so the value comes off the emitter.
 `gtk-stack.spec.ts` (pure-JS), `gtk-stack-route-d.node-gi.spec.ts` (real GI),
 `specs/gtk-stack.ts` (device).
 
-MIGRATE NEXT: `widgets/adw-view-stack.ts`, the sibling that shares `ViewStackState` and the same
-emission order.
+DONE (`widgets/adw-view-stack.ts`): `visible-child` and `visible-child-name` are declared through
+`withSignals(GridLayout, …)`, the same seam shape as `GtkStack`. `visible-child` is object-kind
+(`valueType: TYPE_OBJECT`) and `visible-child-name` is `explicitNotify`; `ViewStackState` still owns
+the selection and emits `notify::visible-child` FIRST, then `notify::visible-child-name`, matching
+real Adw.ViewStack measured on libadwaita 1.9.4. A repeated or no-match write emits nothing, and
+removing the visible child clears it silently. The custom `NotifyVisibleChildEventData` payload and
+its `NOTIFY_VISIBLE_CHILD` / `NOTIFY_VISIBLE_CHILD_NAME` exports are deleted: `connect('notify::visible-child')`
+replaces them. Internal consumers `view-switcher-base.ts` and `adw-view-switcher-bar.ts` switch to
+`connect`/`disconnect`. `visible-child-name` reads/writes `null` for "no selection", like `GtkStack`.
+Specs: `adw-view-stack.spec.ts` (pure-JS), `adw-view-stack-route-d.node-gi.spec.ts` (real GI),
+`specs/adw-view-stack.ts` (device).
+
+MIGRATE NEXT: `widgets/adw-tab-view.ts`, the next view-switching widget with an object-kind property
+(`selected-page`) and the same need for seam-owned ordering.
 
 RESOLVED (owner, 2026-10-27): `emit('<undeclared>')` throws `No signal '<name>' on object '<class>'`,
 as in GJS, on both legs. `emit` is GObject's only; a NativeScript event goes through

@@ -177,12 +177,97 @@ const measureRealStack = () =>
         noMatch: string[];
     };
 
+// A REAL Adw.ViewStack in its own process: it shares the GType name `AdwViewStack` with the port's.
+const REAL_ADW_VIEW_STACK_SCRIPT = `
+import requireGi from '@gjsify/node-gi/gi';
+const Adw = requireGi('Adw', '1');
+const Gtk = requireGi('Gtk', '4.0');
+Gtk.init();
+
+const record = (stack) => {
+    const seen = [];
+    stack.connect('notify::visible-child', () => seen.push('notify::visible-child'));
+    stack.connect('notify::visible-child-name', () => seen.push('notify::visible-child-name'));
+    return seen;
+};
+
+const addFirst = (() => {
+    const stack = new Adw.ViewStack();
+    const seen = record(stack);
+    stack.add_named(new Gtk.Label(), 'one');
+    return seen;
+})();
+
+const setName = (() => {
+    const stack = new Adw.ViewStack();
+    stack.add_named(new Gtk.Label(), 'one');
+    stack.add_named(new Gtk.Label(), 'two');
+    const seen = record(stack);
+    stack.set_visible_child_name('two');
+    return seen;
+})();
+
+const setChild = (() => {
+    const stack = new Adw.ViewStack();
+    const one = new Gtk.Label();
+    const two = new Gtk.Label();
+    stack.add_named(one, 'one');
+    stack.add_named(two, 'two');
+    const seen = record(stack);
+    stack.set_visible_child(two);
+    return seen;
+})();
+
+const repeated = (() => {
+    const stack = new Adw.ViewStack();
+    const one = new Gtk.Label();
+    const two = new Gtk.Label();
+    stack.add_named(one, 'one');
+    stack.add_named(two, 'two');
+    stack.set_visible_child_name('two');
+    const seen = record(stack);
+    stack.set_visible_child_name('two');
+    stack.set_visible_child(two);
+    return seen;
+})();
+
+const noMatch = (() => {
+    const stack = new Adw.ViewStack();
+    const one = new Gtk.Label();
+    stack.add_named(one, 'one');
+    const seen = record(stack);
+    stack.set_visible_child_name('missing');
+    stack.set_visible_child(new Gtk.Label());
+    return seen;
+})();
+
+console.log(JSON.stringify({ addFirst, setName, setChild, repeated, noMatch }));
+`;
+
+const measureRealAdwViewStack = () =>
+    JSON.parse(
+        // oxlint-disable-next-line gjsify/spawn-node-binary -- this leg only ever runs on Node (see the header)
+        execFileSync(process.execPath, ['--input-type=module', '-e', REAL_ADW_VIEW_STACK_SCRIPT], {
+            cwd: import.meta.dirname,
+            encoding: 'utf8',
+            env: RUN_ENV,
+        }),
+    ) as {
+        addFirst: string[];
+        setName: string[];
+        setChild: string[];
+        repeated: string[];
+        noMatch: string[];
+    };
+
 const { createToggleButtonRouteDNodeGiTest } = await import('./toggle-button-route-d.node-gi.spec.js');
 const { createGtkStackRouteDNodeGiTest } = await import('./gtk-stack-route-d.node-gi.spec.js');
+const { createAdwViewStackRouteDNodeGiTest } = await import('./adw-view-stack-route-d.node-gi.spec.js');
 
 run({
     MenuModelRouteDNodeGiTest,
     CheckButtonRouteDNodeGiTest,
     ToggleButtonRouteDNodeGiTest: createToggleButtonRouteDNodeGiTest(measureRealToggleButton),
     GtkStackRouteDNodeGiTest: createGtkStackRouteDNodeGiTest(measureRealStack),
+    AdwViewStackRouteDNodeGiTest: createAdwViewStackRouteDNodeGiTest(measureRealAdwViewStack),
 });

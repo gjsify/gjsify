@@ -12,6 +12,13 @@
 // `view-stack-state.ts` holds the NS projection onto `View.visibility`. This class is
 // the `GridLayout` wiring only.
 //
+// ROUTE D: `visible-child` and `visible-child-name` are declared properties. Both are
+// seam-owned — `visible-child` is object-kind, `visible-child-name` is `explicitNotify` —
+// because the measured emission order is `notify::visible-child` FIRST, then
+// `notify::visible-child-name`, and a store-level "it changed, so notify" cannot produce
+// that. The `ViewStackState` subscriber pushes both values silently and then emits the
+// two notifies in order.
+//
 // FIDELITY: approximated. NS has no native page stack; pages swap by toggling
 // `visibility` (`collapse`/`visible`) — instant, no cross-fade (the CSS subset has
 // no transition). The page model + selection semantics are faithful.
@@ -19,42 +26,72 @@
 // Reference: refs/libadwaita/src/adw-view-stack.c (Adw.ViewStack)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
+import { TYPE_OBJECT } from '@gjsify/adwaita-core';
 import type { View } from '@nativescript/core';
-import { GridLayout, ItemSpec, type EventData } from '@nativescript/core';
-import {
-    applyViewStackVisibility,
-    createViewStackState,
-    viewStackNotifyPayload,
-    type AdwViewStackPageInfo,
-    type ViewStackNotifyPayload,
-} from './view-stack-state.js';
+import { GridLayout, ItemSpec } from '@nativescript/core';
+import { applyViewStackVisibility, createViewStackState, type AdwViewStackPageInfo } from './view-stack-state.js';
 import { AdwViewStackPage } from './view-stack-page.js';
 import { iconValueKind } from './icon-theme.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
-import { withSignals } from './signals.js';
+import { pushDeclared, readDeclaredValue, withSignals, type GObjectNotify } from './signals.js';
 
 // Re-exported so the widget module stays the one import site for the page type,
 // as `widgets/index.ts` and every consumer already expect.
 export type { AdwViewStackPageInfo };
 
-/** Event name emitted when the visible child changes. Mirrors GObject `notify::visible-child`. */
-export const NOTIFY_VISIBLE_CHILD = 'notify::visible-child';
-
-/** Event name emitted when the visible page's name changes. Mirrors GObject `notify::visible-child-name`. */
-export const NOTIFY_VISIBLE_CHILD_NAME = 'notify::visible-child-name';
-
 /**
- * Payload of the {@link NOTIFY_VISIBLE_CHILD} event. `index` is `-1` and
- * `name`/`title` are `''` when nothing is selected — the state an empty stack, a
- * fully-hidden stack and a removed visible page all land in.
+ * What a declared property's {@link DeclaredProperty.normalize} reads off the stack. Structural,
+ * because `normalize` is handed a bare `object` while the instance may still be constructing
+ * (the `ComboRowValues` precedent) — and because `_state` is private to the class, which a cast
+ * to `AdwViewStack` could not reach.
  */
-export interface NotifyVisibleChildEventData extends EventData, ViewStackNotifyPayload {}
+interface AdwViewStackValues {
+    readonly _state: ReturnType<typeof createViewStackState>;
+    visibleChildName: string | null;
+    visibleChild: View | null;
+}
 
-export class AdwViewStack extends withSignals(GridLayout) {
+export class AdwViewStack extends withSignals(GridLayout, {
+    GTypeName: 'AdwViewStack',
+    Properties: {
+        // Object-kind makes this seam-owned for the same reason `AdwComboRow:selected-item`
+        // is: the NativeScript `View` never enters a real GObject slot. The declared property
+        // is the public door; `ViewStackState` is still the source of truth.
+        //
+        // MEASURED on GTK 4.22 / libadwaita 1.9.4: every selection move emits
+        // `notify::visible-child` FIRST, then `notify::visible-child-name`. The property order
+        // below IS that order, because the seam's `emittedSignals` lists declared properties
+        // in declaration order.
+        'visible-child': {
+            kind: 'object',
+            valueType: TYPE_OBJECT,
+            explicitNotify: true,
+            blurb: 'The currently visible child',
+            normalize: (value, self) => {
+                const stack = self as AdwViewStackValues;
+                const child = readDeclaredValue('visible-child', 'object', value) as View | null;
+                if (child === null) return stack.visibleChild;
+                const at = stack._state.pages.findIndex((page) => page.content === child);
+                if (at !== -1) stack._state.setVisibleIndex(at);
+                return stack.visibleChild;
+            },
+        },
+        'visible-child-name': {
+            kind: 'string',
+            explicitNotify: true,
+            default: null,
+            blurb: 'The name of the currently visible child',
+            normalize: (value, self) => {
+                const stack = self as AdwViewStackValues;
+                const name = readDeclaredValue('visible-child-name', 'string', value) as string | null | undefined;
+                if (name === null || name === undefined) return stack.visibleChildName;
+                stack._state.setVisibleName(name);
+                return stack._state.visibleName || null;
+            },
+        },
+    },
+}) {
     static readonly GTypeName: string = 'AdwViewStack';
-
-    /** The GTK signals this widget emits through `connect` — read by the shared-tree builder (ADR 0093). */
-    static readonly emittedSignals: readonly string[] = [NOTIFY_VISIBLE_CHILD, NOTIFY_VISIBLE_CHILD_NAME];
 
     /**
      * No named placement: a stack's XML children are its pages, in order, as GtkBuildable's
@@ -62,6 +99,15 @@ export class AdwViewStack extends withSignals(GridLayout) {
      * one, so the builder refuses an authored slot by name instead of guessing one.
      */
     static readonly builderSlots: readonly string[] = [];
+
+    /** `Adw.ViewStack:visible-child-name` — the visible page's name; `null` for none or an unnamed page. */
+    declare visibleChildName: string | null;
+
+    /** `Adw.ViewStack:visible-child` — the visible page's child, or `null`. */
+    declare visibleChild: View | null;
+
+    /** GJS's `notify('<prop>')` beside NativeScript's `notify({ eventName })`; see the seam. */
+    declare notify: GObjectNotify;
 
     private readonly _state = createViewStackState();
     /**
@@ -79,15 +125,12 @@ export class AdwViewStack extends withSignals(GridLayout) {
         this.addColumn(new ItemSpec(1, 'star'));
         this.addRow(new ItemSpec(1, 'star'));
 
-        this._state.subscribe((change) => {
+        this._state.subscribe(() => {
             applyViewStackVisibility(this._state);
-            const data: NotifyVisibleChildEventData = {
-                eventName: NOTIFY_VISIBLE_CHILD,
-                object: this,
-                ...viewStackNotifyPayload(change),
-            };
-            this.notify(data);
-            this.notify({ ...data, eventName: NOTIFY_VISIBLE_CHILD_NAME });
+            pushDeclared(this, 'visible-child', this._state.visiblePage?.content ?? null);
+            pushDeclared(this, 'visible-child-name', this._state.visibleName || null);
+            this.notify('visible-child');
+            this.notify('visible-child-name');
         });
 
         applyConstructProps(this, props);
@@ -194,7 +237,9 @@ export class AdwViewStack extends withSignals(GridLayout) {
      */
     remove(child: View | string): boolean {
         const name = typeof child === 'string' ? child : (this._nameOf(child) ?? '');
-        const content = this._state.pages[this._state.indexOfName(name)]?.content;
+        const page = this._state.pages[this._state.indexOfName(name)];
+        const content = page?.content;
+        const wasVisible = this._state.visiblePage?.content === content;
         if (!this._state.removePage(name)) return false;
         if (content) {
             this.removeChild(content);
@@ -202,6 +247,12 @@ export class AdwViewStack extends withSignals(GridLayout) {
             // The stack collapsed this page while another was shown; a page that leaves the stack
             // (to sit in a column, as Learn6502's wide layout does) must not stay hidden.
             content.visibility = 'visible';
+        }
+        if (wasVisible) {
+            // `adw_view_stack_remove` clears the visible child without re-picking and without
+            // emitting `notify::visible-child` / `notify::visible-child-name`.
+            pushDeclared(this, 'visible-child', null);
+            pushDeclared(this, 'visible-child-name', null);
         }
         applyViewStackVisibility(this._state);
         return true;
@@ -260,20 +311,6 @@ export class AdwViewStack extends withSignals(GridLayout) {
         return this._state.setVisibleIndex(n);
     }
 
-    /** The visible page name (`Adw.ViewStack.visible-child-name`), `''` for none. */
-    get visibleChildName(): string {
-        return this._state.visibleName;
-    }
-
-    set visibleChildName(name: string | null | undefined) {
-        this._state.setVisibleName(name);
-    }
-
-    /** The visible page content view, or `null`. */
-    get visibleChild(): View | null {
-        return this._state.visiblePage?.content ?? null;
-    }
-
     /** `adw_view_stack_add_named`. */
     add_named(content: View, name: string | null): AdwViewStackPageInfo {
         return this.add(content, name ?? '');
@@ -281,12 +318,12 @@ export class AdwViewStack extends withSignals(GridLayout) {
 
     /** `adw_view_stack_get_visible_child_name` — `null` when nothing is selected. */
     get_visible_child_name(): string | null {
-        return this._state.visibleIndex < 0 ? null : this._state.visibleName;
+        return this.visibleChildName;
     }
 
     /** `adw_view_stack_set_visible_child_name`. */
     set_visible_child_name(name: string): void {
-        this._state.setVisibleName(name);
+        this.visibleChildName = name;
     }
 
     /** `adw_view_stack_get_visible_child`. */
@@ -296,7 +333,6 @@ export class AdwViewStack extends withSignals(GridLayout) {
 
     /** `adw_view_stack_set_visible_child`; a view that is not a page of this stack selects nothing. */
     set_visible_child(child: View): void {
-        const at = this._state.pages.findIndex((page) => page.content === child);
-        if (at !== -1) this._state.setVisibleIndex(at);
+        this.visibleChild = child;
     }
 }
