@@ -156,7 +156,7 @@ export default async () => {
             expect(resolved.dialect).toBeUndefined();
         });
     });
-});
+};
 
 export async function pricingDefineSuite() {
     await describe('Config.forBuild — pricing define', async () => {
