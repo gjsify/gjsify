@@ -644,7 +644,10 @@ async function assemble(args: ShipOptions): Promise<void> {
               })
             : undefined;
     if (icon !== undefined) console.log(`${LOG} icon: ${iconSizes(icon).join('/')} px, ${icon.source}`);
-    const staged = placeStage(layout, { ...settings, icon, categories: metadata.categories }, planned, [...runtime.files, ...subordinates.files]);
+    const staged = placeStage(layout, { ...settings, icon, categories: metadata.categories }, planned, [
+        ...runtime.files,
+        ...subordinates.files,
+    ]);
     writeStage(stageDir, staged);
     console.log(`${LOG} staged ${staged.length} file(s) for ${layout.name} in ${relative(projectDir, stageDir)}/`);
     if (args.verbose) for (const file of staged) console.log(`${LOG}   ${file.path}`);

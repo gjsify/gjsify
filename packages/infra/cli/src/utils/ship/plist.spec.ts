@@ -121,11 +121,7 @@ export default async () => {
             // renderer, so a key added behind a conditional the fixture does not
             // reach reds here and nowhere else.
             const plist = renderInfoPlist(IDENTITY);
-            for (const key of [
-                'LSMinimumSystemVersion',
-                'NSHighResolutionCapable',
-                'NSHumanReadableCopyright',
-            ]) {
+            for (const key of ['LSMinimumSystemVersion', 'NSHighResolutionCapable', 'NSHumanReadableCopyright']) {
                 expect(plist.includes(key)).toBe(false);
             }
         });
@@ -141,9 +137,9 @@ export default async () => {
             expect(category([])).toBe(null);
             expect(category(undefined)).toBe(null);
             // Never a copyright, whatever the categories.
-            expect(renderInfoPlist({ ...IDENTITY, categories: ['Development'] }).includes('NSHumanReadableCopyright')).toBe(
-                false,
-            );
+            expect(
+                renderInfoPlist({ ...IDENTITY, categories: ['Development'] }).includes('NSHumanReadableCopyright'),
+            ).toBe(false);
         });
 
         await it('names the icon file when given one, and nothing when not', async () => {
