@@ -13,15 +13,19 @@ import { loadAddon } from '@gjsify/napi';
 
 import type { ImageEngineFactory } from './engine.js';
 import { findAddon } from './sdcpp-bin.js';
-import { createSdCppEngine, type ImageModelEntry, type SdAddon, type SdCppEngineOptions } from './sdcpp-engine.js';
+import { createSdCppEngine, type ImageModelEntry, type SdAddon, type SdCppOptions } from './sdcpp-engine.js';
 
 export {
     SDCPP_ENGINE,
     type ImageModelEntry,
+    type LocalImageModel,
     type NativeGenerateOptions,
     type NativeImage,
     type SdAddon,
+    type SdCppCommonOptions,
     type SdCppEngineOptions,
+    type SdCppLocalOptions,
+    type SdCppOptions,
     toNativeContext,
     toNativeOptions,
 } from './sdcpp-engine.js';
@@ -41,9 +45,13 @@ async function loadSdAddon(): Promise<SdAddon> {
     return loadAddon(file) as unknown as SdAddon;
 }
 
-/** The sd.cpp image-generation engine factory, for `ImageGenerator.availability()` and `ImageGenerator.create()`. */
+/**
+ * The sd.cpp image-generation engine factory, for `ImageGenerator.availability()` and
+ * `ImageGenerator.create()`. Pass `{ store, model }` for a fetched model or `{ local }` for
+ * files the person already has.
+ */
 export function sdCppImageGeneration<E extends ImageModelEntry = ImageModelEntry>(
-    options: SdCppEngineOptions<E>,
+    options: SdCppOptions<E>,
 ): ImageEngineFactory {
     return createSdCppEngine(loadSdAddon, options);
 }

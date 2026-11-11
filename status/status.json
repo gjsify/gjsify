@@ -171,7 +171,7 @@
     "@gjsify/embeddings": {
       "status": "partial",
       "missing": "The llama.cpp engine has no automated test against a real model; it was run by hand on Node and GJS, CPU and Vulkan. One model in the manifest (EmbeddingGemma 2, Q8_0). On GJS the engine needs Linux, because it loads node-llama-cpp's Linux prebuilt binaries.",
-      "note": "Text embeddings in the WebML CG lifecycle shape (ADR 0132): Embedder with availability(), create({ monitor, signal }) and destroy(), checked Float32Array vectors, one call at a time, abort and destroy semantics owned once for every engine. ./llama runs GGUF models through node-llama-cpp on Node and, through @gjsify/napi, on GJS, with model download via @gjsify/model-store, checkFit before download and the GPU-hang guard from @gjsify/machine-fit."
+      "note": "Text embeddings in the WebML CG lifecycle shape (ADR 0132): Embedder with availability(), create({ monitor, signal }) and destroy(), checked Float32Array vectors, one call at a time, abort and destroy semantics owned once for every engine. ./llama runs GGUF models through node-llama-cpp on Node and, through @gjsify/napi, on GJS, with model download via @gjsify/model-store (or, with `local`, files the person already has), checkFit before download and the GPU-hang guard from @gjsify/machine-fit."
     },
     "@gjsify/empty": {
       "status": "full",
@@ -281,7 +281,7 @@
     "@gjsify/image-generation": {
       "status": "partial",
       "missing": "The sd.cpp engine is tested against a fake addon only; no real model has run through this port yet. No default model manifest; every entry is app-side.",
-      "note": "Image generation in the WebML CG lifecycle shape (ADR 0137): ImageGenerator with availability(), create({ monitor, signal }) and destroy(), one generate() at a time, abort and destroy semantics owned once for every engine. ./sdcpp runs diffusion models through stable-diffusion-cpp-node-api on Node and, through @gjsify/napi, on GJS, with model download via @gjsify/model-store, checkFit before download, the GPU-hang guard from @gjsify/machine-fit, and a pure-TypeScript PNG decoder/encoder."
+      "note": "Image generation in the WebML CG lifecycle shape (ADR 0137): ImageGenerator with availability(), create({ monitor, signal }) and destroy(), one generate() at a time, abort and destroy semantics owned once for every engine. ./sdcpp runs diffusion models through stable-diffusion-cpp-node-api on Node and, through @gjsify/napi, on GJS, with model download via @gjsify/model-store (or, with `local`, files the person already has), checkFit before download, the GPU-hang guard from @gjsify/machine-fit, and a pure-TypeScript PNG decoder/encoder."
     },
     "@gjsify/iframe": {
       "status": "full",
