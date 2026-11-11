@@ -88,6 +88,32 @@ const { bytes, sha256 } = await downloadVerified({
 
 Concurrent calls for the same destination are serialized so two writers cannot corrupt the partial file.
 
+## The catalog
+
+`@gjsify/model-store/catalog` is the shared home for measured model file facts. A capability package — or an app with its own models — imports an entry and adds the behaviour fields that only it knows about:
+
+```typescript
+import { requireCatalogEntry } from '@gjsify/model-store/catalog';
+
+const vadModel = {
+    ...requireCatalogEntry('speech', 'silero-v5'),
+    sampleRate: 16000,
+    windowSize: 512,
+};
+```
+
+Entries carry `id`, `files` (`file`, `url`, `bytes`, `sha256`), `license`, `redistributable`, `description`, and a `capability` string. The `capability` field is stripped while composing so the resulting `ModelEntry` stays byte-identical to the old per-package manifests.
+
+`catalogFor(capability)`, `findCatalogEntry(capability, id)`, and `requireCatalogEntry(capability, id)` look entries up; `requireCatalogEntry` throws `RangeError` naming the known ids, mirroring `requireVadModel`.
+
+### Adding a model
+
+1. Download the real upstream file.
+2. Measure `bytes` (exact file size) and `sha256` (lowercase hex).
+3. Pin the URL to a fixed revision so a re-upload fails the digest instead of silently changing vectors.
+4. Add the entry to the per-capability module under `packages/gjs/model-store/src/catalog/`.
+5. Add a capability package or app spec that asserts the composed entry's file facts match the catalog.
+
 ## Limitations
 
 - Flatpak gives every app its own `XDG_CACHE_HOME`, so sharing the cache or blobs across separate Flatpak apps does not happen.

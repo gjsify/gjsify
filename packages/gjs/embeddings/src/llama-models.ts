@@ -1,10 +1,10 @@
 // The GGUF embedding models the llama.cpp engine can fetch (ADR 0132 § 5).
 //
-// `bytes` and `sha256` are measured from the pinned upstream file and are the
-// whole verification; updating a model means re-measuring both. The URL pins a
-// revision, so a re-upload under the same name fails the digest instead of
-// changing the vectors under an existing index.
+// The file facts live in `@gjsify/model-store/catalog`; this module composes
+// the embedding-specific runtime behaviour (modelId, dimensions, truncations,
+// prompt templates, contextTokens, footprintBytes) on top.
 
+import { requireCatalogEntry } from '@gjsify/model-store/catalog';
 import type { ModelEntry } from '@gjsify/model-store';
 
 export interface EmbeddingModelEntry extends ModelEntry {
@@ -34,21 +34,12 @@ export interface EmbeddingModelEntry extends ModelEntry {
 
 export const DEFAULT_EMBEDDING_MODEL = 'embeddinggemma-2-q8_0';
 
+const { capability: _capability, ...catalog } = requireCatalogEntry('embeddings', DEFAULT_EMBEDDING_MODEL);
+
 export const EMBEDDING_MODELS: readonly EmbeddingModelEntry[] = [
     {
-        id: DEFAULT_EMBEDDING_MODEL,
-        files: [
-            {
-                file: 'embeddinggemma-2-Q8_0.gguf',
-                url: 'https://huggingface.co/ggml-org/embeddinggemma-2-GGUF/resolve/58faf90940886df2d62be555c8765d00dac362c5/embeddinggemma-2-Q8_0.gguf',
-                bytes: 309855456,
-                sha256: '2188ac1deca4b77dffefd603c2776a9d76d9d74ec01841392982ebb840b09135',
-            },
-        ],
-        license: 'Apache-2.0',
-        redistributable: true,
+        ...catalog,
         modelId: 'ggml-org/embeddinggemma-2-GGUF:Q8_0',
-        description: 'EmbeddingGemma 2, Q8_0 (296 MiB): multilingual, 768 dimensions, truncatable to 256.',
         dimensions: 768,
         truncations: [768, 256],
         queryTemplate: 'task: search result | query: {text}',

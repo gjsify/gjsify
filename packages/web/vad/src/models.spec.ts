@@ -13,6 +13,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import { requireCatalogEntry } from '@gjsify/model-store/catalog';
+
 import { _resetVadBackendCache, loadVadBackend, type VadBackend } from './backend.js';
 import { DEFAULT_VAD_MODEL, findVadModel, requireVadModel, VAD_MODELS } from './model-manifest.js';
 import { available, install, listModels, modelCacheDir, modelDir, resolveModel } from './models.js';
@@ -88,6 +90,16 @@ export default async () => {
         await it('names the known ids when asked for one that does not exist', async () => {
             expect(findVadModel('nope')).toBe(undefined);
             expect(() => requireVadModel('nope')).toThrow(/silero-v5/);
+        });
+
+        await it('keeps file facts identical to the shared catalog', async () => {
+            for (const model of VAD_MODELS) {
+                const catalog = requireCatalogEntry('speech', model.id);
+                expect(model.files).toStrictEqual(catalog.files);
+                expect(model.license).toBe(catalog.license);
+                expect(model.redistributable).toBe(catalog.redistributable);
+                expect(model.description).toBe(catalog.description);
+            }
         });
     });
 

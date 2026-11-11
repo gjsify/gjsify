@@ -1,16 +1,15 @@
 // The Silero models this package knows how to fetch (ADR 0127 decision 8).
 //
+// The file facts live in `@gjsify/model-store/catalog`; this module composes
+// the VAD-specific runtime behaviour (sampleRate, windowSize) on top.
+//
 // A TS MODULE, not a JSON file: `gjsify build` bundles the library into
 // `lib/esm/index.js`, and a JSON import would turn into a path lookup that has
 // to resolve relative to the bundle at runtime — on GJS, inside Flatpak, and
 // from a consumer's own bundle. The manifest is a handful of constants; making
 // them part of the module graph costs nothing and removes the question.
-//
-// EVERY FIELD IS MEASURED. `bytes` and `sha256` were taken from the files that
-// `install()` writes, and they are the whole verification: a truncated download
-// and a mirror serving the wrong revision both fail on them. Updating a model
-// means re-measuring both, never editing one.
 
+import { requireCatalogEntry } from '@gjsify/model-store/catalog';
 import type { ModelEntry } from '@gjsify/model-store';
 
 /** One fetchable Silero VAD model. `id` is what `available()`, `install()` and `VadOptions.model` take. */
@@ -30,41 +29,18 @@ export interface VadModelEntry extends ModelEntry {
  */
 export const DEFAULT_VAD_MODEL = 'silero-v5';
 
-const RELEASE = 'https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models';
+function vadEntry(id: string, sampleRate: number, windowSize: number): VadModelEntry {
+    const { capability: _capability, ...catalog } = requireCatalogEntry('speech', id);
+    return {
+        ...catalog,
+        sampleRate,
+        windowSize,
+    };
+}
 
 export const VAD_MODELS: readonly VadModelEntry[] = [
-    {
-        id: 'silero-v5',
-        files: [
-            {
-                file: 'silero_vad_v5.onnx',
-                url: `${RELEASE}/silero_vad_v5.onnx`,
-                bytes: 2313101,
-                sha256: '6b99cbfd39246b6706f98ec13c7c50c6b299181f2474fa05cbc8046acc274396',
-            },
-        ],
-        license: 'MIT',
-        redistributable: true,
-        sampleRate: 16000,
-        windowSize: 512,
-        description: 'Silero VAD v5 (2.2 MiB) — the default. Takes input/state/sr; 16 kHz, 512-sample windows.',
-    },
-    {
-        id: 'silero-v4',
-        files: [
-            {
-                file: 'silero_vad.onnx',
-                url: `${RELEASE}/silero_vad.onnx`,
-                bytes: 643854,
-                sha256: '9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6',
-            },
-        ],
-        license: 'MIT',
-        redistributable: true,
-        sampleRate: 16000,
-        windowSize: 512,
-        description: 'Silero VAD v4 (0.6 MiB) — smaller and older. Only its 16 kHz branch is covered here.',
-    },
+    vadEntry('silero-v5', 16000, 512),
+    vadEntry('silero-v4', 16000, 512),
 ];
 
 /** The entry for `id`, or `undefined`. `id` may also be `undefined`, meaning {@link DEFAULT_VAD_MODEL}. */

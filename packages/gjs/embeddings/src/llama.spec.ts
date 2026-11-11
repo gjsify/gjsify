@@ -9,6 +9,7 @@ import { join } from 'node:path';
 
 import type { MachineProbe } from '@gjsify/machine-fit';
 import { ModelStore, validateManifest } from '@gjsify/model-store';
+import { requireCatalogEntry } from '@gjsify/model-store/catalog';
 
 import { createLlamaEmbeddings, type LlamaEmbeddingsOptions, type NodeLlamaCpp } from './llama-engine.js';
 import { backendCandidates, currentTarget, hasPrebuiltBins } from './llama-bins.js';
@@ -69,6 +70,16 @@ export default async () => {
 
         await it('keeps the modelId existing indexes recorded', async () => {
             expect(gemma.modelId).toBe('ggml-org/embeddinggemma-2-GGUF:Q8_0');
+        });
+
+        await it('keeps file facts identical to the shared catalog', async () => {
+            for (const entry of EMBEDDING_MODELS) {
+                const catalog = requireCatalogEntry('embeddings', entry.id);
+                expect(entry.files).toStrictEqual(catalog.files);
+                expect(entry.license).toBe(catalog.license);
+                expect(entry.redistributable).toBe(catalog.redistributable);
+                expect(entry.description).toBe(catalog.description);
+            }
         });
     });
 
