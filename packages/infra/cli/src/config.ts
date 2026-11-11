@@ -1,5 +1,6 @@
 import { APP_NAME } from './constants.js';
 import { CHANNEL_ENV, parseDeclaredChannel } from './utils/channel.js';
+import { PRICING_ENV, parseDeclaredPricing } from './utils/pricing.js';
 import { cosmiconfig, type Loader, type Options as LoadOptions } from 'cosmiconfig';
 import { basename, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -423,6 +424,14 @@ export class Config {
         );
         if (channel !== undefined && defineMap.__GJSIFY_CHANNEL__ === undefined) {
             defineMap.__GJSIFY_CHANNEL__ = JSON.stringify(channel);
+        }
+        // flag > env (set by `gjsify ship` for the project's own build) > `gjsify.ship.pricing` > 'free'.
+        const pricing = parseDeclaredPricing(
+            cliArgs.pricing ?? process.env[PRICING_ENV] ?? configData.ship?.pricing,
+            cliArgs.pricing !== undefined ? '--pricing' : 'gjsify.ship.pricing',
+        );
+        if (defineMap.__GJSIFY_PRICING__ === undefined) {
+            defineMap.__GJSIFY_PRICING__ = JSON.stringify(pricing ?? 'free');
         }
         const aliasMap = parseKvPairs(cliArgs.alias ?? [], 'alias');
         if (Object.keys(aliasMap).length) {

@@ -11,7 +11,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Config } from './config.js';
-import type { CliBuildOptions } from './types/index.js';
+import type { CliBuildOptions, ConfigData } from './types/index.js';
 import type { ArgumentsCamelCase } from 'yargs';
 
 /**
@@ -68,6 +68,31 @@ async function resolveDialect(
         return { dialect: data.dialect, app: data.app };
     } catch (error) {
         return { error: (error as Error).message };
+    } finally {
+        process.chdir(prevCwd);
+        rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    }
+}
+
+/**
+ * Resolve `configData.bundler.transform.define` for a given `package.json#gjsify`
+ * block and CLI args, against a throwaway fixture directory.
+ */
+async function resolveDefines(
+    pkgGjsify: Record<string, unknown>,
+    cliArgs: Partial<CliBuildOptions>,
+): Promise<Record<string, string> | undefined> {
+    const dir = mkdtempSync(join(tmpdir(), 'gjsify-config-defines-'));
+    writeFileSync(
+        join(dir, 'package.json'),
+        JSON.stringify({ name: 'fixture', version: '0.0.0', type: 'module', gjsify: pkgGjsify }),
+    );
+    const prevCwd = process.cwd();
+    try {
+        process.chdir(dir);
+        const config = new Config();
+        const data = await config.forBuild(cliArgs as ArgumentsCamelCase<CliBuildOptions>);
+        return (data.bundler as ConfigData['bundler'])?.transform?.define;
     } finally {
         process.chdir(prevCwd);
         rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
@@ -131,4 +156,35 @@ export default async () => {
             expect(resolved.dialect).toBeUndefined();
         });
     });
-};
+});
+
+export async function pricingDefineSuite() {
+    await describe('Config.forBuild — pricing define', async () => {
+        await it("defaults __GJSIFY_PRICING__ to 'free' so a plain build drops the paid badge", async () => {
+            const defines = await resolveDefines({}, {});
+            expect(defines?.__GJSIFY_PRICING__).toBe('"free"');
+        });
+
+        await it('sets __GJSIFY_PRICING__ to paid when --pricing paid is passed', async () => {
+            const defines = await resolveDefines({}, { pricing: 'paid' });
+            expect(defines?.__GJSIFY_PRICING__).toBe('"paid"');
+        });
+
+        await it('reads pricing from gjsify.ship.pricing', async () => {
+            const defines = await resolveDefines({ ship: { pricing: 'paid' } }, {});
+            expect(defines?.__GJSIFY_PRICING__).toBe('"paid"');
+        });
+
+        await it('lets the CLI flag win over gjsify.ship.pricing', async () => {
+            const defines = await resolveDefines({ ship: { pricing: 'paid' } }, { pricing: 'free' });
+            expect(defines?.__GJSIFY_PRICING__).toBe('"free"');
+        });
+
+        await it('lets an explicit --define override the computed value', async () => {
+            const defines = await resolveDefines({ ship: { pricing: 'paid' } }, {
+                define: ['__GJSIFY_PRICING__="custom"'],
+            } as Partial<CliBuildOptions>);
+            expect(defines?.__GJSIFY_PRICING__).toBe('"custom"');
+        });
+    });
+}

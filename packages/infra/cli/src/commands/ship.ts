@@ -24,6 +24,7 @@
 // signature is made where the identity lives (§ A14).
 
 import { CHANNELS, CHANNEL_ENV, parseDeclaredChannel } from '../utils/channel.js';
+import { PRICINGS, PRICING_ENV, parseDeclaredPricing } from '../utils/pricing.js';
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import type { Argv } from 'yargs';
@@ -161,6 +162,7 @@ interface ShipOptions {
     'expect-target'?: string;
     'skip-build': boolean;
     channel?: string;
+    pricing?: string;
     arch?: string;
     sign?: string;
     notarize?: string;
@@ -229,6 +231,13 @@ export const shipCommand: Command<unknown, ShipOptions> = {
                 description:
                     'Distribution channel (ADR 0113). Overrides gjsify.ship.channel; `--target flatpak` implies flathub. ' +
                     'Passed to the project build, and gates the metainfo donation URL.',
+            })
+            .option('pricing', {
+                type: 'string',
+                choices: [...PRICINGS],
+                description:
+                    "Pricing tier (ADR 0139): 'free' or 'paid'. Overrides gjsify.ship.pricing; passed to the project " +
+                    "build. Default 'free'.",
             })
             .option('skip-build', {
                 type: 'boolean',
@@ -437,7 +446,11 @@ async function assemble(args: ShipOptions): Promise<void> {
         parseDeclaredChannel(args.channel, '--channel') ??
         parseDeclaredChannel(ship.channel, 'gjsify.ship.channel') ??
         (formats.some((format) => format.id === 'flatpak') ? 'flathub' : undefined);
-    if (!args['skip-build']) await runProjectBuild(projectDir, channel);
+    const pricing =
+        parseDeclaredPricing(args.pricing, '--pricing') ??
+        parseDeclaredPricing(ship.pricing, 'gjsify.ship.pricing') ??
+        'free';
+    if (!args['skip-build']) await runProjectBuild(projectDir, channel, pricing);
 
     // THE OTHER HALF of the resolution above, and they are one decision: the
     // runtime a target execs and the entry it hands that runtime (#1545). Two
@@ -1860,7 +1873,11 @@ function assertFormatCanRunInterpreter(format: FormatDescriptor, app: 'gjs' | 'n
  * `completion: 'return'` because this handler returns afterwards; on GJS that
  * selects the blocking path rather than arming a main loop only an exit quits.
  */
-async function runProjectBuild(projectDir: string, channel: string | undefined): Promise<void> {
+async function runProjectBuild(
+    projectDir: string,
+    channel: string | undefined,
+    pricing: string | undefined,
+): Promise<void> {
     const pkg = readPackageJson(join(projectDir, 'package.json')) as { scripts?: Record<string, string> } | null;
     if (typeof pkg?.scripts?.build !== 'string') {
         throw new Error(
@@ -1869,11 +1886,18 @@ async function runProjectBuild(projectDir: string, channel: string | undefined):
         );
     }
     console.log(`${LOG} running the project's build script`);
+    const env: NodeJS.ProcessEnv | undefined = pricing === undefined && channel === undefined
+        ? undefined
+        : { ...process.env };
+    if (env !== undefined) {
+        if (channel !== undefined) env[CHANNEL_ENV] = channel;
+        if (pricing !== undefined) env[PRICING_ENV] = pricing;
+    }
     const result = await spawnToCompletion('gjsify', ['run', 'build'], {
         completion: 'return',
         cwd: projectDir,
         stdio: 'inherit',
-        env: channel === undefined ? undefined : { ...process.env, [CHANNEL_ENV]: channel },
+        env,
         notFound: () =>
             new Error(
                 'gjsify ship: `gjsify` is not on PATH, so the project build cannot be run. Build the project ' +

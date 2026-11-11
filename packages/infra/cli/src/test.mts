@@ -12,6 +12,7 @@ import reflectionTransformOrderSuite from './reflection-transform-order.spec.js'
 import cliFailSuite from './cli-fail.spec.js';
 import onboardSuite from './commands/onboard.spec.js';
 import channelSuite from './utils/channel.spec.js';
+import pricingSuite from './utils/pricing.spec.js';
 import cliExitSuite from './utils/cli-exit.spec.js';
 import shipPlanSuite from './utils/ship/plan.spec.js';
 import shipChangelogSuite from './utils/ship/changelog.spec.js';
@@ -137,7 +138,7 @@ import clearTargetsSuite from './utils/clear-targets.spec.js';
 import copyTargetsSuite from './utils/copy-targets.spec.js';
 import flathubManifestSuite from './flathub-manifest.spec.js';
 import pinHintSuite from './pin-hint.spec.js';
-import configSuite from './config.spec.js';
+import configSuite, { pricingDefineSuite } from './config.spec.js';
 import libraryOutputSuite from './utils/library-output.spec.js';
 import suggestSuite from './utils/suggest.spec.js';
 import runtimesSuite from './utils/runtimes.spec.js';
@@ -310,6 +311,7 @@ run(
         cliFailSuite,
         onboardSuite,
         channelSuite,
+        pricingSuite,
         cliExitSuite,
         shipPlanSuite,
         shipChangelogSuite,
@@ -430,6 +432,7 @@ run(
         flathubManifestSuite,
         pinHintSuite,
         configSuite,
+        pricingDefineSuite,
         libraryOutputSuite,
         suggestSuite,
         runtimesSuite,
