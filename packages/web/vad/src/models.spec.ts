@@ -13,6 +13,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import process from 'node:process';
 
+import { requireCatalogEntry } from '@gjsify/model-store/catalog';
+
 import { _resetVadBackendCache, loadVadBackend, type VadBackend } from './backend.js';
 import { DEFAULT_VAD_MODEL, findVadModel, requireVadModel, VAD_MODELS } from './model-manifest.js';
 import { available, install, listModels, modelCacheDir, modelDir, resolveModel } from './models.js';
@@ -88,6 +90,39 @@ export default async () => {
         await it('names the known ids when asked for one that does not exist', async () => {
             expect(findVadModel('nope')).toBe(undefined);
             expect(() => requireVadModel('nope')).toThrow(/silero-v5/);
+        });
+
+        await it('keeps the measured file facts of the releases that cached them', async () => {
+            const facts = VAD_MODELS.map((model) => [
+                model.id,
+                model.files[0].file,
+                model.files[0].bytes,
+                model.files[0].sha256,
+            ]);
+            expect(facts).toStrictEqual([
+                [
+                    'silero-v5',
+                    'silero_vad_v5.onnx',
+                    2313101,
+                    '6b99cbfd39246b6706f98ec13c7c50c6b299181f2474fa05cbc8046acc274396',
+                ],
+                [
+                    'silero-v4',
+                    'silero_vad.onnx',
+                    643854,
+                    '9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6',
+                ],
+            ]);
+        });
+
+        await it('keeps file facts identical to the shared catalog', async () => {
+            for (const model of VAD_MODELS) {
+                const catalog = requireCatalogEntry('speech', model.id);
+                expect(model.files).toStrictEqual(catalog.files);
+                expect(model.license).toBe(catalog.license);
+                expect(model.redistributable).toBe(catalog.redistributable);
+                expect(model.description).toBe(catalog.description);
+            }
         });
     });
 

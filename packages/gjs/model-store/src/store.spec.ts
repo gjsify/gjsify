@@ -3,9 +3,20 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readdirSync,
+    readFileSync,
+    rmSync,
+    statSync,
+    symlinkSync,
+    utimesSync,
+    writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 import type { ModelEntry } from './manifest.js';
 import type { DownloadProgressEvent } from './progress.js';
@@ -28,6 +39,20 @@ const entry: ModelEntry = {
     redistributable: true,
 };
 
+const entry2: ModelEntry = {
+    id: 'tiny-too',
+    files: [
+        {
+            file: 'tiny.onnx',
+            url: 'https://example.org/tiny-too.onnx',
+            bytes: payload.length,
+            sha256: digest,
+        },
+    ],
+    license: 'MIT',
+    redistributable: true,
+};
+
 const tokenPayload = new TextEncoder().encode('tokens');
 const tokenDigest = createHash('sha256').update(tokenPayload).digest('hex');
 
@@ -36,6 +61,40 @@ const multiEntry: ModelEntry = {
     files: [
         { file: 'encoder.onnx', url: 'https://example.org/encoder.onnx', bytes: payload.length, sha256: digest },
         { file: 'tokens.txt', url: 'https://example.org/tokens.txt', bytes: tokenPayload.length, sha256: tokenDigest },
+    ],
+    license: 'MIT',
+    redistributable: true,
+};
+
+const hfEntry: ModelEntry = {
+    id: 'hf-tiny',
+    files: [
+        {
+            file: 'tiny.onnx',
+            url: 'https://huggingface.co/org/repo/resolve/main/model.onnx',
+            bytes: payload.length,
+            sha256: digest,
+        },
+    ],
+    license: 'MIT',
+    redistributable: true,
+};
+
+const hfMultiEntry: ModelEntry = {
+    id: 'hf-multi',
+    files: [
+        {
+            file: 'encoder.onnx',
+            url: 'https://huggingface.co/org/repo/resolve/main/encoder.onnx',
+            bytes: payload.length,
+            sha256: digest,
+        },
+        {
+            file: 'tokens.txt',
+            url: 'https://huggingface.co/org/repo/resolve/main/tokens.txt',
+            bytes: tokenPayload.length,
+            sha256: tokenDigest,
+        },
     ],
     license: 'MIT',
     redistributable: true,
@@ -70,7 +129,15 @@ function withRoot<T>(body: (root: string) => Promise<T>): Promise<T> {
     return body(root).finally(() => rmSync(root, { recursive: true, force: true }));
 }
 
-function store(root: string, extra: { fetch?: FetchLike; appDataDirs?: string[]; legacyDirs?: string[] } = {}) {
+function store(
+    root: string,
+    extra: {
+        fetch?: FetchLike;
+        appDataDirs?: string[];
+        legacyDirs?: string[];
+        link?: (a: string, b: string) => void;
+    } = {},
+) {
     return new ModelStore({ capability: 'speech', models: [entry], root: join(root, 'models'), ...extra });
 }
 
@@ -81,6 +148,14 @@ function multiStore(root: string, extra: { fetch?: FetchLike; appDataDirs?: stri
 function respondFor(url: string): ReturnType<typeof respond> {
     if (url.includes('tokens')) return respond(tokenPayload);
     return respond(payload);
+}
+
+function blobPath(root: string, sha256: string): string {
+    return join(root, 'models', 'blobs', sha256);
+}
+
+function hfHub(root: string): string {
+    return join(root, 'hf-hub');
 }
 
 export default async () => {
@@ -432,6 +507,391 @@ export default async () => {
                 expect(s.locate('multi')).toBe(undefined);
                 expect(s.availability('multi')).toBe('downloadable');
                 await expect(s.resolve('multi')).rejects.toThrow(/not installed/);
+            });
+        });
+    });
+
+    await describe('ModelStore content-addressed dedupe', async () => {
+        await it('creates a blob after the first install', async () => {
+            await withRoot(async (root) => {
+                const s = store(root, { fetch: async () => respond(payload) });
+                await s.install('tiny');
+                expect(existsSync(blobPath(root, digest))).toBe(true);
+                expect(statSync(blobPath(root, digest)).nlink).toBeGreaterThanOrEqual(2);
+            });
+        });
+
+        await it('links from the blob instead of downloading a second id with the same sha', async () => {
+            await withRoot(async (root) => {
+                let calls = 0;
+                const s = new ModelStore({
+                    capability: 'speech',
+                    models: [entry, entry2],
+                    root: join(root, 'models'),
+                    fetch: async () => {
+                        calls++;
+                        return respond(payload);
+                    },
+                });
+                await s.install('tiny');
+                expect(calls).toBe(1);
+                calls = 0;
+                await s.install('tiny-too');
+                expect(calls).toBe(0);
+                const blob = blobPath(root, digest);
+                expect(statSync(s.cacheFilePath('tiny', 'tiny.onnx')).ino).toBe(statSync(blob).ino);
+                expect(statSync(s.cacheFilePath('tiny-too', 'tiny.onnx')).ino).toBe(statSync(blob).ino);
+            });
+        });
+
+        await it('keeps the blob while another id uses it and removes it with the last', async () => {
+            await withRoot(async (root) => {
+                const s = new ModelStore({
+                    capability: 'speech',
+                    models: [entry, entry2],
+                    root: join(root, 'models'),
+                    fetch: async () => respond(payload),
+                });
+                await s.install('tiny');
+                await s.install('tiny-too');
+                const blob = blobPath(root, digest);
+                expect(statSync(blob).nlink).toBe(3);
+                s.uninstall('tiny');
+                expect(existsSync(blob)).toBe(true);
+                expect(statSync(blob).nlink).toBe(2);
+                s.uninstall('tiny-too');
+                expect(existsSync(blob)).toBe(false);
+            });
+        });
+
+        await it('falls back to a plain file when linking throws', async () => {
+            await withRoot(async (root) => {
+                let calls = 0;
+                const s = store(root, {
+                    fetch: async () => {
+                        calls++;
+                        return respond(payload);
+                    },
+                    link: () => {
+                        throw Object.assign(new Error('EXDEV'), { code: 'EXDEV' });
+                    },
+                });
+                await s.install('tiny');
+                expect(calls).toBe(1);
+                expect(existsSync(s.cacheFilePath('tiny', 'tiny.onnx'))).toBe(true);
+                expect(existsSync(blobPath(root, digest))).toBe(false);
+            });
+        });
+
+        await it('dedupe() links two identical legacy plain files and reclaims space', async () => {
+            await withRoot(async (root) => {
+                const s = new ModelStore({
+                    capability: 'speech',
+                    models: [entry, entry2],
+                    root: join(root, 'models'),
+                });
+                const dir1 = s.cachePath('tiny');
+                const dir2 = s.cachePath('tiny-too');
+                mkdirSync(dir1, { recursive: true });
+                mkdirSync(dir2, { recursive: true });
+                writeFileSync(join(dir1, 'tiny.onnx'), payload);
+                writeFileSync(join(dir2, 'tiny.onnx'), payload);
+
+                const result = await s.dedupe();
+                expect(result.linked).toBe(2);
+                expect(result.reclaimedBytes).toBe(payload.length);
+                expect(result.removedOrphans).toBe(0);
+
+                const blob = blobPath(root, digest);
+                expect(existsSync(blob)).toBe(true);
+                expect(statSync(s.cacheFilePath('tiny', 'tiny.onnx')).ino).toBe(statSync(blob).ino);
+                expect(statSync(s.cacheFilePath('tiny-too', 'tiny.onnx')).ino).toBe(statSync(blob).ino);
+            });
+        });
+
+        await it('dedupe() removes orphan blobs and skips files with a mismatched digest', async () => {
+            await withRoot(async (root) => {
+                const s = store(root, { fetch: async () => respond(payload) });
+                await s.install('tiny');
+                s.uninstall('tiny');
+
+                // Recreate the blob as an orphan to exercise orphan cleanup.
+                const blob = blobPath(root, digest);
+                mkdirSync(dirname(blob), { recursive: true });
+                writeFileSync(blob, payload);
+                expect(existsSync(blob)).toBe(true);
+
+                // Corrupt the cache for a fresh plain-file entry.
+                const dir = s.cachePath('tiny');
+                mkdirSync(dir, { recursive: true });
+                writeFileSync(join(dir, 'tiny.onnx'), 'wrong content');
+
+                const result = await s.dedupe();
+                expect(result.removedOrphans).toBe(1);
+                expect(existsSync(blob)).toBe(false);
+                expect(readFileSync(join(dir, 'tiny.onnx'), 'utf8')).toBe('wrong content');
+            });
+        });
+    });
+
+    await describe('ModelStore Hugging Face cache source', async () => {
+        await it('dedupe() never lets a blob of the right size but other content replace a verified file', async () => {
+            await withRoot(async (root) => {
+                const s = store(root);
+                const dir = s.cachePath('tiny');
+                mkdirSync(dir, { recursive: true });
+                writeFileSync(join(dir, 'tiny.onnx'), payload);
+                const blob = blobPath(root, digest);
+                mkdirSync(dirname(blob), { recursive: true });
+                writeFileSync(blob, new Uint8Array(payload.length).fill(66));
+
+                await s.dedupe();
+                expect(readFileSync(join(dir, 'tiny.onnx'))).toStrictEqual(Buffer.from(payload));
+                expect(readFileSync(blob)).toStrictEqual(Buffer.from(payload));
+            });
+        });
+
+        await it('install() does not link a damaged blob into a new entry', async () => {
+            await withRoot(async (root) => {
+                let calls = 0;
+                const s = new ModelStore({
+                    capability: 'speech',
+                    models: [entry, entry2],
+                    root: join(root, 'models'),
+                    fetch: async () => {
+                        calls++;
+                        return respond(payload);
+                    },
+                });
+                const blob = blobPath(root, digest);
+                mkdirSync(dirname(blob), { recursive: true });
+                writeFileSync(blob, new Uint8Array(payload.length).fill(66));
+                await s.install('tiny');
+                expect(calls).toBe(1);
+                expect(readFileSync(s.cacheFilePath('tiny', 'tiny.onnx'))).toStrictEqual(Buffer.from(payload));
+                expect(readFileSync(blob)).toStrictEqual(Buffer.from(payload));
+            });
+        });
+
+        await it('install({ force }) fetches again and repairs the blob', async () => {
+            await withRoot(async (root) => {
+                let calls = 0;
+                const s = store(root, {
+                    fetch: async () => {
+                        calls++;
+                        return respond(payload);
+                    },
+                });
+                await s.install('tiny');
+                const bad = new Uint8Array(payload.length).fill(66);
+                writeFileSync(s.cacheFilePath('tiny', 'tiny.onnx'), bad); // writes through the shared inode
+                await s.install('tiny', { force: true });
+                expect(calls).toBe(2);
+                expect(readFileSync(s.cacheFilePath('tiny', 'tiny.onnx'))).toStrictEqual(Buffer.from(payload));
+                expect(readFileSync(blobPath(root, digest))).toStrictEqual(Buffer.from(payload));
+            });
+        });
+
+        await it('finds a model via url+snapshot path', async () => {
+            await withRoot(async (root) => {
+                const hub = hfHub(root);
+                const snapshotDir = join(hub, 'models--org--repo', 'snapshots', 'main');
+                mkdirSync(snapshotDir, { recursive: true });
+                writeFileSync(join(snapshotDir, 'model.onnx'), payload);
+                const s = new ModelStore({
+                    capability: 'speech',
+                    models: [hfEntry],
+                    root: join(root, 'models'),
+                    huggingFaceCache: hub,
+                });
+                const located = s.locate('hf-tiny');
+                expect(located?.source).toBe('huggingface');
+                expect(located?.files['tiny.onnx']).toBe(join(snapshotDir, 'model.onnx'));
+                expect(s.availability('hf-tiny')).toBe('available');
+            });
+        });
+
+        await it('finds a model via blob-by-sha and prefers a snapshot link', async () => {
+            await withRoot(async (root) => {
+                const hub = hfHub(root);
+                const blobDir = join(hub, 'models--org--repo', 'blobs');
+                const snapshotDir = join(hub, 'models--org--repo', 'snapshots', 'main');
+                mkdirSync(blobDir, { recursive: true });
+                mkdirSync(snapshotDir, { recursive: true });
+                writeFileSync(join(blobDir, digest), payload);
+                symlinkSync(join(blobDir, digest), join(snapshotDir, 'model.onnx'));
+                const s = new ModelStore({
+                    capability: 'speech',
+                    models: [hfEntry],
+                    root: join(root, 'models'),
+                    huggingFaceCache: hub,
+                });
+                const located = s.locate('hf-tiny');
+                expect(located?.source).toBe('huggingface');
+                expect(located?.files['tiny.onnx']).toBe(join(snapshotDir, 'model.onnx'));
+            });
+        });
+
+        await it('finds a model via blob-by-sha when no snapshot link exists', async () => {
+            await withRoot(async (root) => {
+                const hub = hfHub(root);
+                const blobDir = join(hub, 'models--org--repo', 'blobs');
+                mkdirSync(blobDir, { recursive: true });
+                writeFileSync(join(blobDir, digest), payload);
+                const s = new ModelStore({
+                    capability: 'speech',
+                    models: [hfEntry],
+                    root: join(root, 'models'),
+                    huggingFaceCache: hub,
+                });
+                const located = s.locate('hf-tiny');
+                expect(located?.source).toBe('huggingface');
+                expect(located?.files['tiny.onnx']).toBe(join(blobDir, digest));
+            });
+        });
+
+        await it('does not find a HF file with the wrong size', async () => {
+            await withRoot(async (root) => {
+                const hub = hfHub(root);
+                const snapshotDir = join(hub, 'models--org--repo', 'snapshots', 'main');
+                mkdirSync(snapshotDir, { recursive: true });
+                writeFileSync(join(snapshotDir, 'model.onnx'), 'short');
+                const s = new ModelStore({
+                    capability: 'speech',
+                    models: [hfEntry],
+                    root: join(root, 'models'),
+                    huggingFaceCache: hub,
+                });
+                expect(s.locate('hf-tiny')).toBe(undefined);
+                expect(s.availability('hf-tiny')).toBe('downloadable');
+            });
+        });
+
+        await it('does not find a partial HF entry', async () => {
+            await withRoot(async (root) => {
+                const hub = hfHub(root);
+                const snapshotDir = join(hub, 'models--org--repo', 'snapshots', 'main');
+                mkdirSync(snapshotDir, { recursive: true });
+                writeFileSync(join(snapshotDir, 'encoder.onnx'), payload);
+                const s = new ModelStore({
+                    capability: 'speech',
+                    models: [hfMultiEntry],
+                    root: join(root, 'models'),
+                    huggingFaceCache: hub,
+                });
+                expect(s.locate('hf-multi')).toBe(undefined);
+            });
+        });
+
+        await it('verifies the digest of a HF file once per process', async () => {
+            await withRoot(async (root) => {
+                const hub = hfHub(root);
+                const snapshotDir = join(hub, 'models--org--repo', 'snapshots', 'main');
+                mkdirSync(snapshotDir, { recursive: true });
+                writeFileSync(join(snapshotDir, 'model.onnx'), payload);
+                const s = new ModelStore({
+                    capability: 'speech',
+                    models: [hfEntry],
+                    root: join(root, 'models'),
+                    huggingFaceCache: hub,
+                });
+                // A whole-second mtime survives the round trip through utimes exactly.
+                const path = join(snapshotDir, 'model.onnx');
+                utimesSync(path, 1_700_000_000, 1_700_000_000);
+                const first = await s.resolve('hf-tiny');
+                // Same size, same mtime, other bytes: only a remembered digest can still say yes.
+                writeFileSync(path, new Uint8Array(payload.length).fill(65));
+                utimesSync(path, 1_700_000_000, 1_700_000_000);
+                const second = await s.resolve('hf-tiny');
+                expect(first.files['tiny.onnx']).toBe(second.files['tiny.onnx']);
+                // A changed mtime invalidates the memory and the digest is checked again.
+                utimesSync(path, 1_700_000_100, 1_700_000_100);
+                await expect(s.resolve('hf-tiny')).rejects.toThrow();
+            });
+        });
+
+        await it('does not follow a snapshot symlink out of the hub', async () => {
+            await withRoot(async (root) => {
+                const hub = hfHub(root);
+                const snapshotDir = join(hub, 'models--org--repo', 'snapshots', 'main');
+                mkdirSync(snapshotDir, { recursive: true });
+                const outside = join(root, 'outside.onnx');
+                writeFileSync(outside, payload);
+                symlinkSync(outside, join(snapshotDir, 'model.onnx'));
+                const s = new ModelStore({
+                    capability: 'speech',
+                    models: [hfEntry],
+                    root: join(root, 'models'),
+                    huggingFaceCache: hub,
+                });
+                expect(s.locate('hf-tiny')).toBeUndefined();
+                expect(s.availability('hf-tiny')).toBe('downloadable');
+            });
+        });
+
+        await it('ignores a manifest URL with dot segments instead of throwing', async () => {
+            await withRoot(async (root) => {
+                const hub = hfHub(root);
+                mkdirSync(hub, { recursive: true });
+                const bad: ModelEntry = {
+                    ...hfEntry,
+                    id: 'hf-bad',
+                    files: [
+                        { ...hfEntry.files[0], url: 'https://huggingface.co/org/repo/resolve/main/../../../x.onnx' },
+                    ],
+                };
+                const s = new ModelStore({
+                    capability: 'speech',
+                    models: [hfEntry, bad],
+                    root: join(root, 'models'),
+                    huggingFaceCache: hub,
+                });
+                expect(s.locate('hf-bad')).toBeUndefined();
+                expect(s.availability('hf-tiny')).toBe('downloadable');
+            });
+        });
+
+        await it('prefers the cache over the HF source', async () => {
+            await withRoot(async (root) => {
+                const hub = hfHub(root);
+                const snapshotDir = join(hub, 'models--org--repo', 'snapshots', 'main');
+                mkdirSync(snapshotDir, { recursive: true });
+                writeFileSync(join(snapshotDir, 'model.onnx'), payload);
+                const s = new ModelStore({
+                    capability: 'speech',
+                    models: [hfEntry],
+                    root: join(root, 'models'),
+                    huggingFaceCache: hub,
+                });
+                const dir = s.cachePath('hf-tiny');
+                mkdirSync(dir, { recursive: true });
+                writeFileSync(join(dir, 'tiny.onnx'), payload);
+                const located = s.locate('hf-tiny');
+                expect(located?.source).toBe('cache');
+                expect(dirname(located!.files['tiny.onnx'])).toBe(dir);
+            });
+        });
+
+        await it('never writes to the HF cache from install, uninstall or dedupe', async () => {
+            await withRoot(async (root) => {
+                const hub = hfHub(root);
+                const snapshotDir = join(hub, 'models--org--repo', 'snapshots', 'main');
+                mkdirSync(snapshotDir, { recursive: true });
+                writeFileSync(join(snapshotDir, 'model.onnx'), payload);
+                const s = new ModelStore({
+                    capability: 'speech',
+                    models: [hfEntry],
+                    root: join(root, 'models'),
+                    huggingFaceCache: hub,
+                    fetch: async () => respond(payload),
+                });
+                const before = readdirSync(snapshotDir);
+                await s.install('hf-tiny');
+                await s.install('hf-tiny', { force: true });
+                s.uninstall('hf-tiny');
+                await s.dedupe();
+                expect(readdirSync(snapshotDir)).toStrictEqual(before);
+                expect(readFileSync(join(snapshotDir, 'model.onnx')).length).toBe(payload.length);
             });
         });
     });

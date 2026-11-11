@@ -5,6 +5,7 @@ export { DownloadProgressEvent, type CreateMonitorCallback } from './progress.js
 export {
     ModelStore,
     sha256File,
+    type DedupeResult,
     type InstallOptions,
     type LocatedModel,
     type LocateOptions,

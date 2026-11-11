@@ -54,6 +54,9 @@ const store = new ModelStore<VadModelEntry>({
     models: VAD_MODELS,
     defaultModel: DEFAULT_VAD_MODEL,
     legacyDirs: () => [join(userCacheDir(), 'gjsify', 'speech-models')],
+    // `resolveModel` is synchronous and so cannot check a digest; a file from the
+    // Hugging Face hub would reach the ONNX runtime on its size alone.
+    huggingFaceCache: false,
 });
 
 /** `<user cache>/gjsify/models/speech` — shared with the other ADR 0127 packages. */
