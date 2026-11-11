@@ -775,6 +775,9 @@ export default async () => {
                 const child = spawn('sh', ['-c', '( sleep 5 ) & exec sleep 5'], {
                     detached: true,
                 });
+                // Without `sh` (Windows) the spawn error arrives on a later tick;
+                // unhandled it would be blamed on the NEXT test.
+                child.on('error', () => {});
                 expect(child.pid).toBeDefined();
                 expect(child.pid).toBeGreaterThan(0);
 
