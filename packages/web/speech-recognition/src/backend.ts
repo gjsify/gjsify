@@ -99,7 +99,8 @@ export function createSherpaEngine(config: SherpaEngineConfig): RecognizerEngine
     return {
         open() {
             recognizer.open();
-            stream ??= recognizer.create_stream();
+            // GJS does not apply Vala's `= null` default: the nullable argument must be passed.
+            stream ??= recognizer.create_stream(null);
         },
         accept: feed,
         flushTail() {

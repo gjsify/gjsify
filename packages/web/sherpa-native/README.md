@@ -75,7 +75,7 @@ const rec = new GjsifySherpa.OnlineRecognizer({
     encoder: enc, decoder: dec, joiner: join, tokens: tok,
 });
 rec.open();
-const stream = rec.create_stream();
+const stream = rec.create_stream(null); // GJS needs the nullable hotwords argument passed
 stream.accept(16000, samples);
 while (stream.is_ready()) stream.decode();
 const text = stream.get_text();        // also get_json() for timestamps + per-token data
