@@ -434,6 +434,7 @@ ${size ? `<span class="target-size">${esc(size)}</span>` : ''}`;
         'data-unavailable': !target.available,
         'data-unsigned': unsigned,
         'data-cta': target.available ? ctaLabel(target, t) : undefined,
+        'data-format': target.format,
         'data-size': size || undefined,
     })}>
 ${target.available ? `<a href="${esc(target.url)}">\n${inner}\n</a>` : `<span class="target-link">\n${inner}\n</span>`}
@@ -509,11 +510,13 @@ ${sections.join('\n')}
  *
  * The button offers the part that is installed first; the dialog lists every part in that order,
  * so a product made of an app and the extension it pairs with reads as the two steps it is.
+ * `only` limits both to the given targets, which is how the extension's own page reuses it.
  */
-export function downloadWidget(ctx: DownloadContext): string {
+export function downloadWidget(ctx: DownloadContext, only?: readonly DownloadTarget[]): string {
     const { data, t } = ctx;
-    const primary = defaultTarget(primaryTargets(data));
-    if (!primary) {
+    // A source tree is not something the button can install, so a scoped widget never offers it.
+    const primary = defaultTarget(only ? only.filter((target) => target.format !== 'source') : primaryTargets(data));
+    if (!primary && !only) {
         // Nothing downloadable yet: point at the releases, or at the source when there are none.
         const [href, label] = data.downloads.hasReleases
             ? [data.downloads.releasesUrl, t('All releases')]
@@ -522,7 +525,8 @@ export function downloadWidget(ctx: DownloadContext): string {
 <a class="button download-cta" href="${esc(href)}">${icon('download')}<span class="download-label">${esc(label)}</span></a>
 </div>`;
     }
-    const blocks = componentBlocks(data);
+    // A scoped widget is one part of the product on its own page: no heading, no install order.
+    const blocks = only ? [{ id: data.extension?.component ?? '', targets: only }] : componentBlocks(data);
     const named = blocks.filter((block) => block.name).length;
     let step = 0;
     const sections = blocks.map((block, index) =>
@@ -530,8 +534,12 @@ export function downloadWidget(ctx: DownloadContext): string {
     );
     return `<app-download class="download">
 <div class="download-split">
-<a class="button download-cta" href="${esc(primary.url)}"${attrs({ 'data-os': primary.os, 'data-arch': primary.arch })}>${icon('download')}<span class="download-label">${esc(ctaLabel(primary, t))}</span></a>
-<a class="button download-toggle" href="#all-downloads" aria-label="${esc(t('All download options'))}">${icon('chevron-down')}</a>
+${
+    primary
+        ? `<a class="button download-cta" href="${esc(primary.url)}"${attrs({ 'data-os': primary.os, 'data-arch': primary.arch })}>${icon('download')}<span class="download-label">${esc(ctaLabel(primary, t))}</span></a>
+<a class="button download-toggle" href="#all-downloads" aria-label="${esc(t('All download options'))}">${icon('chevron-down')}</a>`
+        : `<a class="button download-cta" href="#all-downloads">${icon('download')}<span class="download-label">${esc(t('All download options'))}</span></a>`
+}
 </div>
 <dialog id="all-downloads" class="download-dialog" aria-labelledby="all-downloads-title">
 <div class="dialog-head">
@@ -780,27 +788,20 @@ function support(ctx: RenderContext): string {
 </section>`;
 }
 
-/** The landing page's pointer to the extension page: the extension is a part of the product, not a download alone. */
-function extensionLink(ctx: RenderContext): string {
+/** The landing page's pointer to the extension page: the counterpart of the extension page's "needs the app" card. */
+function extensionCard(ctx: RenderContext): string {
     const { data, lang, t } = ctx;
     if (!data.extension) return '';
-    const families = [...new Set(data.extension.browsers.map((browser) => browser.family))];
-    const glyph: IconName = families.includes('firefox')
-        ? 'firefox'
-        : families.includes('chromium')
-          ? 'chromium'
-          : 'web';
-    return `<section class="ext-link">
-<h2>${esc(t('Browser extension'))}</h2>
-<ul class="card-list">
-<li>
-<a href="${esc(extensionUrl(data, lang))}">
-<span class="link-icon">${icon(glyph)}</span>
-<span class="link-text"><span class="link-title">${esc(data.extension.browsers[0]?.name[lang] ?? t('Browser extension'))}</span><span class="link-url">${esc(data.extension.browsers[0]?.description[lang] ?? '')}</span></span>
+    const [first] = data.extension.browsers;
+    const families = new Set(data.extension.browsers.map((browser) => browser.family));
+    const glyph: IconName = families.has('firefox') ? 'firefox' : families.has('chromium') ? 'chromium' : 'web';
+    const name = first?.name[lang] ?? t('Browser extension');
+    return `<section class="pair">
+<a class="card" href="${esc(extensionUrl(data, lang))}">
+<span class="related-icon related-icon-blank">${icon(glyph)}</span>
+<span class="related-text"><span class="related-name">${fmt(t('Browser extension: {name}'), { name })}</span>${first?.description[lang] ? `<span class="related-summary">${esc(first.description[lang]!)}</span>` : ''}</span>
 ${icon('chevron-right', { class: 'link-external' })}
 </a>
-</li>
-</ul>
 </section>`;
 }
 
@@ -1000,8 +1001,8 @@ export function renderPage(ctx: RenderContext): string {
 <h2>${esc(localized(data.app.summary, lang))}</h2>
 ${blocks(data.app.description, lang)}
 </section>
+${extensionCard(ctx)}
 ${releases(ctx)}
-${extensionLink(ctx)}
 ${ctx.latestPosts ?? ''}
 ${support(ctx)}
 ${links(ctx)}

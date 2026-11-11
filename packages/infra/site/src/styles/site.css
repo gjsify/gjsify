@@ -1193,52 +1193,6 @@ app-support {
   opacity: 0.9;
 }
 
-.ext-install {
-  margin-block-start: 1.5rem;
-}
-
-.ext-install-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 1rem;
-}
-
-.ext-install-list li {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.25rem 0.75rem;
-}
-
-/* The first entry is the visitor's browser once the script has reordered; it is the primary button. */
-.ext-install-list li:not(:first-child) .button {
-  padding: 0.4rem 0.9rem;
-  font-size: 0.9rem;
-}
-
-.ext-alt {
-  color: inherit;
-  font-size: 0.85rem;
-}
-
-/* Flat and outlined: nothing here can be clicked, so it must not look like the primary action. */
-.masthead .download .button.ext-unavailable {
-  background: transparent;
-  color: inherit;
-  border: 1px dashed var(--band-line);
-  opacity: 0.8;
-  cursor: default;
-  flex-wrap: wrap;
-}
-
-.ext-unavailable small {
-  font-weight: 400;
-}
-
 .ext-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 17rem;
@@ -1286,7 +1240,7 @@ app-support {
   overflow-wrap: anywhere;
 }
 
-.ext-needs .card {
+.pair .card {
   display: flex;
   align-items: center;
   gap: 0.875rem;
@@ -1298,11 +1252,11 @@ app-support {
   color: inherit;
 }
 
-.ext-needs .card:hover {
+.pair .card:hover {
   background: color-mix(in srgb, var(--fg) 6%, var(--surface));
 }
 
-.ext-needs .link-external {
+.pair .link-external {
   margin-inline-start: auto;
   flex: none;
 }
@@ -1311,7 +1265,7 @@ app-support {
   margin-block-start: 2rem;
 }
 
-.ext-needs + .ext-section {
+.pair + .ext-section {
   margin-block-start: 1.5rem;
 }
 
@@ -1384,10 +1338,6 @@ app-support {
   color: var(--muted);
 }
 
-.ext-link {
-  margin-block-start: 2rem;
-}
-
 .component-more {
   margin: 0.25rem 0 0;
   font-size: 0.9rem;
@@ -1410,17 +1360,6 @@ app-support {
 
   .ext-main {
     grid-row: 2;
-  }
-
-  .ext-install-list,
-  .ext-install-list li {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .ext-install-list .button {
-    justify-content: center;
-    width: 100%;
   }
 }
 

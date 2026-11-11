@@ -246,9 +246,6 @@ msgstr "Die Erweiterung erklärt, dass sie keine Daten erhebt."
 msgid "Works in"
 msgstr "Funktioniert in"
 
-msgid "Not yet available"
-msgstr "Noch nicht verfügbar"
-
 msgid "Website"
 msgstr "Webseite"
 
@@ -390,6 +387,9 @@ msgstr "Schließen"
 msgid "Recommended"
 msgstr "Empfohlen"
 
+msgid "Not yet available"
+msgstr "Noch nicht verfügbar"
+
 msgid "Apple Silicon is assumed. Pick the Intel build if your Mac has an Intel processor."
 msgstr "Apple Silicon wird angenommen. Für Macs mit Intel-Prozessor die Intel-Variante wählen."
 
@@ -477,6 +477,9 @@ msgstr "Dieses Projekt unterstützen"
 msgid "Browser extension"
 msgstr "Browser-Erweiterung"
 
+msgid "Browser extension: {name}"
+msgstr "Browser-Erweiterung: {name}"
+
 msgid "Categories"
 msgstr "Kategorien"
 
@@ -557,6 +560,12 @@ msgstr "Chrome Web Store"
 
 msgid "Chromium extension"
 msgstr "Chromium-Erweiterung"
+
+msgid "Chrome extension"
+msgstr "Chrome-Erweiterung"
+
+msgid "Edge extension"
+msgstr "Edge-Erweiterung"
 
 msgid "ZIP archive"
 msgstr "ZIP-Archiv"
