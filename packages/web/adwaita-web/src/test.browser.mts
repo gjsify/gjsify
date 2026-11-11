@@ -108,6 +108,7 @@ import { GtkScaleButtonTest } from './gtk-scale-button.spec.js';
 import { GtkColorDialogButtonTest } from './gtk-color-dialog-button.spec.js';
 import { GtkFontDialogButtonTest } from './gtk-font-dialog-button.spec.js';
 import { AdwBinTest } from './adw-bin.spec.js';
+import { AdwClampTest } from './adw-clamp.spec.js';
 import { AdwClampScrollableTest } from './adw-clamp-scrollable.spec.js';
 import { AdwPreferencesRowTest } from './adw-preferences-row.spec.js';
 import { AdwTabBarTest } from './adw-tab-bar.spec.js';
@@ -258,6 +259,7 @@ run({
     GtkColorDialogButtonTest,
     GtkFontDialogButtonTest,
     AdwBinTest,
+    AdwClampTest,
     AdwClampScrollableTest,
     AdwPreferencesRowTest,
     AdwTabBarTest,

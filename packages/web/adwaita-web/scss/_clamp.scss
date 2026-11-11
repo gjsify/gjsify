@@ -13,5 +13,12 @@
 
 adw-clamp {
   display: block;
+  // The clamp's own margins (`Gtk.Widget:margin-*`) sit INSIDE its allocation in GTK. A plain
+  // `width: 100%` plus a margin overflows the parent by that margin and the parent's scrollport
+  // clips the far edge: a 12px margin on a 402px phone cut the page 12px short on the right.
+  // Fallbacks first: a browser that does not know a value drops that declaration only.
   width: 100%;
+  width: -webkit-fill-available;
+  width: -moz-available;
+  width: stretch;
 }

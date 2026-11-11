@@ -33,11 +33,9 @@
 // with the `gtk-overlay-scrolling` SETTING, which is TRUE by default
 // (gtksettings.c:967-979), and the indicator is the "narrow, auto-hiding" scrollbar
 // `setup_indicator` fades in on every value change and back out `INDICATOR_FADE_OUT_DELAY`
-// after the last one (gtkscrolledwindow.c:191-196, 3807-3847). The settings half is the
-// `(hover: hover)` media query here: whether a pointer that can HOVER exists is what decides
-// between indicators and permanent bars — the sentence GTK's own class documentation puts
-// the other way round ("If no mouse device is present, the scrollbars will overlaid as
-// narrow, auto-hiding indicators over the content", gtkscrolledwindow.c:108-112).
+// after the last one (gtkscrolledwindow.c:191-196, 3807-3847). The setting is not mirrored
+// here: it is TRUE for every device, and a `(hover: hover)` stand-in turned it off on a
+// touch screen, where a permanent bar reserved a 24px gutter that nothing was drawn in.
 //
 // THE EDGE INDICATORS ARE NOT REDRAWN HERE. `AdwScrollShading` already owns the undershoot
 // and overshoot bookkeeping for every scroller in this package — the unclamped position a
@@ -206,7 +204,6 @@ export class GtkScrolledWindow extends WidgetElement {
     private readonly _wroteSizes = new Set<string>();
     private _shading: AdwScrollShading | null = null;
     private _observer: ResizeObserver | null = null;
-    private _hoverable: MediaQueryList | null = null;
     private _fadeTimer: ReturnType<typeof setTimeout> | null = null;
     private _built = false;
     /** What an unbuilt window answers before it has a viewport to read. */
@@ -509,19 +506,12 @@ export class GtkScrolledWindow extends WidgetElement {
             });
             this._shading.connect();
         }
-        // The media query is an OUTSIDE binding: released on the way out and
-        // re-established on every way in, which is the shape
-        // `scripts/check-adwaita-connect-rebind.mjs` holds every element to.
-        this._releaseHoverable();
-        this._hoverable = matchMedia('(hover: hover)');
-        this._hoverable.addEventListener('change', this._onHoverableChange);
         this.addEventListener('keydown', this._onKeyDown);
         this._sync();
     }
 
     disconnectedCallback() {
         this.removeEventListener('keydown', this._onKeyDown);
-        this._releaseHoverable();
     }
 
     attributeChangedCallback(name: string, _old: string | null, value: string | null) {
@@ -558,12 +548,9 @@ export class GtkScrolledWindow extends WidgetElement {
         else this.setAttribute(name, String(Math.max(0, Math.trunc(value))));
     }
 
-    /**
-     * `priv->use_indicators` — the AND of the property with the `gtk-overlay-scrolling`
-     * setting, whose browser spelling is whether a pointer that can hover exists at all.
-     */
+    /** `priv->use_indicators` — the property alone, the `gtk-overlay-scrolling` setting being TRUE. */
     private get _useIndicators(): boolean {
-        return this.overlayScrolling && (this._hoverable?.matches ?? true);
+        return this.overlayScrolling;
     }
 
     /** Everything the pspec's own state decides: the classes, the bars, the sizes. */
@@ -781,15 +768,6 @@ export class GtkScrolledWindow extends WidgetElement {
     private _onIndicatorOut = (event: Event): void => {
         (event.currentTarget as HTMLElement).classList.remove('hovering');
     };
-
-    private _onHoverableChange = (): void => {
-        this._sync();
-    };
-
-    private _releaseHoverable(): void {
-        this._hoverable?.removeEventListener('change', this._onHoverableChange);
-        this._hoverable = null;
-    }
 }
 
 customElements.define('gtk-scrolled-window', GtkScrolledWindow);
