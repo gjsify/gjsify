@@ -121,14 +121,25 @@ export default async () => {
             // renderer, so a key added behind a conditional the fixture does not
             // reach reds here and nowhere else.
             const plist = renderInfoPlist(IDENTITY);
-            for (const key of [
-                'LSMinimumSystemVersion',
-                'NSHighResolutionCapable',
-                'LSApplicationCategoryType',
-                'NSHumanReadableCopyright',
-            ]) {
+            for (const key of ['LSMinimumSystemVersion', 'NSHighResolutionCapable', 'NSHumanReadableCopyright']) {
                 expect(plist.includes(key)).toBe(false);
             }
+        });
+
+        await it('derives LSApplicationCategoryType from the freedesktop categories, first mappable wins', async () => {
+            const category = (categories?: string[]): string | null =>
+                value(renderInfoPlist({ ...IDENTITY, categories }), 'LSApplicationCategoryType');
+            expect(category(['Development'])).toBe('public.app-category.developer-tools');
+            expect(category(['Utility'])).toBe('public.app-category.utilities');
+            expect(category(['AudioVideo', 'Utility'])).toBe('public.app-category.utilities');
+            // Unmappable or absent: no key, never a guess.
+            expect(category(['AudioVideo'])).toBe(null);
+            expect(category([])).toBe(null);
+            expect(category(undefined)).toBe(null);
+            // Never a copyright, whatever the categories.
+            expect(
+                renderInfoPlist({ ...IDENTITY, categories: ['Development'] }).includes('NSHumanReadableCopyright'),
+            ).toBe(false);
         });
 
         await it('names the icon file when given one, and nothing when not', async () => {

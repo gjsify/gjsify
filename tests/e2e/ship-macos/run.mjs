@@ -230,9 +230,9 @@ describe('CLI ship macOS bundle E2E', { timeout: 10 * 60 * 1000 }, () => {
     it('reads Info.plist and PkgInfo back with CPython plistlib', () => {
         const out = oracle('verify-app-plist.py', [bundle, join(stageDir, STAGE_MANIFEST_FILE)]);
         // The count is the oracle's, printed from what it parsed — not a number
-        // this file also knows. Eleven keys, each cited to a file in `refs/node`
+        // this file also knows. Twelve keys, each cited to a file in `refs/node`
         // in `utils/ship/plist.ts`.
-        assert.match(out, /plistlib parsed 12 key\(s\), all agreeing with the stage manifest/);
+        assert.match(out, /plistlib parsed 13 key\(s\), all agreeing with the stage manifest/);
         assert.match(out, /APPL\?\?\?\? \(8 bytes, no terminator\)/);
     });
 

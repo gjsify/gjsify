@@ -97,6 +97,8 @@ export interface LayoutMetadataInput extends LayoutIdentity {
     arch: string;
     /** `'app'` or `'cli'`: whether the layout is owed an icon at all. */
     kind: 'app' | 'cli';
+    /** Freedesktop menu categories from the app metadata — `LSApplicationCategoryType` is derived from them. */
+    categories?: readonly string[];
     /**
      * The app icon's rasters, or `undefined` for a `kind: 'cli'` project.
      *
