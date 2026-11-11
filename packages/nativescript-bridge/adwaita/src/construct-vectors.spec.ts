@@ -214,15 +214,14 @@ export const AdwConstructVectorsNsTest = async () => {
                 )
                     .getViewById('x')
                     .constructor.emittedSignals.join();
-            // Entry and drop-down declare their properties at the seam, so the list each carries
-            // is the seam's own: every widget signal, then the declared signals, then one
-            // `notify::` per declared property, in declaration order — where `GtkStack` below
-            // still hand-rolls a list of its own.
+            // Entry, drop-down and stack declare their properties at the seam, so the list each
+            // carries is the seam's own: every widget signal, then the declared signals, then one
+            // `notify::` per declared property, in declaration order.
             expect(emitted('GtkEntry')).toBe(
                 'map,unmap,changed,activate,notify::text,notify::text-length,notify::max-length,notify::placeholder-text,notify::editable',
             );
             expect(emitted('GtkDropDown')).toBe('map,unmap,notify::model,notify::selected,notify::selected-item');
-            expect(emitted('GtkStack')).toBe('notify::visible-child,notify::visible-child-name');
+            expect(emitted('GtkStack')).toBe('map,unmap,notify::visible-child,notify::visible-child-name');
         });
         await it('declares notify::active on a SwitchRow, so a bidirectional bind can be built', () => {
             const row = build({ tag: 'AdwSwitchRow' }) as unknown as {

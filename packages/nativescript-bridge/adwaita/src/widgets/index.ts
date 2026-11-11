@@ -139,7 +139,6 @@ export {
 } from './scrolled-window-policy.js';
 export type { GtkPolicyNick } from './scrolled-window-policy.js';
 export { GtkStack, NOTIFY_STACK_VISIBLE_CHILD, NOTIFY_STACK_VISIBLE_CHILD_NAME } from './gtk-stack.js';
-export type { NotifyStackVisibleChildEventData } from './gtk-stack.js';
 export { GtkStackPage } from './stack-page.js';
 export {
     DEFAULT_REVEALER_TRANSITION_DURATION,

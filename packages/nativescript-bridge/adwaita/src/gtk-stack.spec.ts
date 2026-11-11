@@ -38,7 +38,7 @@ export const GtkStackNsTest = async () => {
             expect(stack.visibleChild === (one as unknown)).toBe(true);
         });
 
-        await it('visible-child-name switches the page and notifies both properties', () => {
+        await it('visible-child-name switches the page and notifies child, then name', () => {
             const stack = new Gtk.Stack();
             stack.add_named(label(), 'one');
             stack.add_named(label(), 'two');
@@ -50,18 +50,37 @@ export const GtkStackNsTest = async () => {
             const [a, b] = childrenOf(stack);
             expect(a?.visibility).toBe('collapse');
             expect(b?.visibility).toBe('visible');
-            expect(seen.sort()).toStrictEqual(['child', 'name']);
+            expect(seen).toStrictEqual(['child', 'name']);
         });
 
-        await it('visible-child selects by view, and a stranger selects nothing', () => {
+        await it('a repeated or unknown visible-child-name write emits nothing', () => {
+            const stack = new Gtk.Stack();
+            stack.add_named(label(), 'one');
+            stack.add_named(label(), 'two');
+            const seen: string[] = [];
+            stack.connect('notify::visible-child-name', () => seen.push('name'));
+            stack.connect('notify::visible-child', () => seen.push('child'));
+
+            stack.visibleChildName = 'two';
+            stack.visibleChildName = 'two';
+            stack.visibleChildName = 'missing';
+            expect(seen).toStrictEqual(['child', 'name']);
+        });
+
+        await it('visible-child selects by view, emits child then name, and a stranger selects nothing', () => {
             const stack = new Gtk.Stack();
             const [one, two] = [label(), label()];
             stack.add_named(one, 'one');
             stack.add_named(two, 'two');
+            const seen: string[] = [];
+            stack.connect('notify::visible-child-name', () => seen.push('name'));
+            stack.connect('notify::visible-child', () => seen.push('child'));
+
             stack.visibleChild = two;
             expect(stack.visibleChildName).toBe('two');
             stack.visibleChild = label();
             expect(stack.visibleChildName).toBe('two');
+            expect(seen).toStrictEqual(['child', 'name']);
         });
 
         await it('an unnamed page reads visible-child-name as null, as in C', () => {

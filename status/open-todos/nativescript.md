@@ -466,15 +466,18 @@ the reverse-bridge suites under Xvfb (`node-gi.yml`, job `gtk-host-node`) and
 of a real widget needs a display, and the reporter did not read seam-declared properties. Run them
 locally under `scripts/headless-run` before queueing.
 
-MIGRATE NEXT: `widgets/gtk-stack.ts`, then its sibling `widgets/adw-view-stack.ts`. Both are still a
-bare `withSignals(GridLayout)` with a hand-written `static emittedSignals` for
-`notify::visible-child` and `notify::visible-child-name`, which the seam can declare as
-`visible-child` / `visible-child-name` properties; they sit under every navigation and switcher
-widget, so a declared, correctly ordered notify there pays off more than another leaf. The open
-question to measure first is the pair's order and whether setting one notifies the other (GTK's
-`gtk_stack_set_visible_child_name` moves both), plus what `visible-child` — an object, not a scalar
-GType — needs from `withProperties`: it may be the case that only the name is declarable and the
-child stays hand-written, as `child` did for the check button.
+DONE (`widgets/gtk-stack.ts`): `visible-child` and `visible-child-name` are declared through
+`withSignals(GridLayout, …)`. `visible-child` is object-kind (`valueType: TYPE_OBJECT`) and
+`visible-child-name` is `explicitNotify`, so both are seam-owned; `ViewStackState` still owns the
+selection, and its subscriber pushes both values silently then emits `notify::visible-child` FIRST
+and `notify::visible-child-name` second — the order measured on GTK 4.22. A repeated or no-match
+write emits nothing, matching real GTK. The custom `NotifyStackVisibleChildEventData` payload is
+deleted: a real `notify::` carries no value, so the value comes off the emitter. Specs:
+`gtk-stack.spec.ts` (pure-JS), `gtk-stack-route-d.node-gi.spec.ts` (real GI),
+`specs/gtk-stack.ts` (device).
+
+MIGRATE NEXT: `widgets/adw-view-stack.ts`, the sibling that shares `ViewStackState` and the same
+emission order.
 
 RESOLVED (owner, 2026-10-27): `emit('<undeclared>')` throws `No signal '<name>' on object '<class>'`,
 as in GJS, on both legs. `emit` is GObject's only; a NativeScript event goes through
