@@ -5,6 +5,8 @@
 - Deciders: Pascal Garber
 - Amended by [ADR 0136](0136-machine-fit-checks-memory-and-finds-local-servers.md) § 5: read-only
   discovery of local inference servers is the one exception to § 3.
+- Amended by [ADR 0140](0140-models-are-shared-by-content-and-catalog.md): the manifest moves to a
+  shared catalog, models are deduplicated by content, and the Hugging Face cache is a source.
 - Amends [ADR 0121](0121-speech-synthesis-on-gjs-via-libspiel.md) § 4 and
   [ADR 0127](0127-speech-recognition-on-local-engines.md) § 3 and § 8. Both stay in force for
   everything else.

@@ -1,30 +1,49 @@
 // One model store per capability (ADR 0132 § 5): where a model is, whether it
 // is there, and how it gets there.
 //
-// THREE SOURCES, IN ORDER: a path the app configures (a model the person
-// already has), a directory the app ships read-only, then the cache —
-// downloading into it only on `install()`. Plus, once, the directory an older
-// release used: a file found there is moved into the cache and never read
-// from there again.
+// FOUR SOURCES, IN ORDER: a path the app configures (a model the person
+// already has), a directory the app ships read-only, our cache, then the
+// Hugging Face hub cache. The cache downloads into it only on `install()`.
+// Plus, once, the directory an older release used: a file found there is moved
+// into the cache and never read from there again.
 //
 // Every entry lives in its own directory: `<root>/<capability>/<id>/<file>`.
 // That lets several models each carry a `tokens.txt` without collision.
 //
+// CONTENT-ADDRESSED DEDUPLICATION: files with the same SHA-256 are stored once
+// under `<root>/blobs/<sha256>` and hard-linked from each entry directory. If
+// hard-linking is not supported (cross-device, FAT, EPERM) the store falls back
+// to a plain file and keeps no blob for it. `dedupe()` migrates legacy plain
+// files and removes orphan blobs.
+//
 // DIGESTS COVER EVERY SOURCE, but not on every call. A cache file was hashed
 // on the way in and only renamed into place afterwards, so its size is enough
-// to tell it from an interrupted copy. A configured or app-shipped file was
-// never hashed by us, so `resolve()` hashes it once per process and remembers
-// the answer for that size and mtime. `locate()` is the cheap, synchronous
-// half: it checks sizes only and never reads a byte of a model.
+// to tell it from an interrupted copy. A configured, app-shipped or HF-cache
+// file was never hashed by us, so `resolve()` hashes it once per process and
+// remembers the answer for that size and mtime. `locate()` is the cheap,
+// synchronous half: it checks sizes only and never reads a byte of a model.
 
 import { createHash, randomUUID } from 'node:crypto';
-import { copyFileSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, unlinkSync } from 'node:fs';
+import {
+    copyFileSync,
+    linkSync,
+    mkdirSync,
+    readdirSync,
+    realpathSync,
+    renameSync,
+    rmSync,
+    statSync,
+    type Stats,
+    unlinkSync,
+} from 'node:fs';
 import { open } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import process from 'node:process';
 
 import { modelsRoot } from './cache-dir.js';
 import { downloadVerifiedInternal, type FetchLike, type ProgressReporter } from './download.js';
-import { validateManifest, type ModelEntry } from './manifest.js';
+import { validateManifest, type ModelEntry, type ModelFile } from './manifest.js';
 import { ProgressFanout, type CreateMonitorCallback } from './progress.js';
 
 export { type FetchLike };
@@ -37,7 +56,7 @@ export { type FetchLike };
 export type ModelAvailability = 'available' | 'downloading' | 'downloadable' | 'unavailable';
 
 /** Where {@link ModelStore.locate} found a model. */
-export type ModelSource = 'configured' | 'app-data' | 'cache';
+export type ModelSource = 'configured' | 'app-data' | 'cache' | 'huggingface';
 
 export interface LocatedModel {
     /** Directory containing every file of the entry. */
@@ -52,6 +71,15 @@ export interface ResolvedModel {
     readonly dir: string;
     /** Absolute path for each file name in the entry. */
     readonly files: Record<string, string>;
+}
+
+export interface DedupeResult {
+    /** Files newly hard-linked into a blob or replaced by a link to one. */
+    readonly linked: number;
+    /** Bytes reclaimed by replacing duplicate plain files with hard links. */
+    readonly reclaimedBytes: number;
+    /** Blob files removed because no entry referenced them. */
+    readonly removedOrphans: number;
 }
 
 export interface ModelStoreOptions<E extends ModelEntry> {
@@ -70,8 +98,16 @@ export interface ModelStoreOptions<E extends ModelEntry> {
      * the user cache follows a changed `XDG_CACHE_HOME` the way `cacheDir` does.
      */
     readonly legacyDirs?: readonly string[] | (() => readonly string[]);
+    /**
+     * Use the Hugging Face hub cache as a read-only source. `true` (default)
+     * enables it at `$HF_HUB_CACHE`, `$HF_HOME/hub` or `~/.cache/huggingface/hub`.
+     * `false` disables it; a string is the hub directory to use.
+     */
+    readonly huggingFaceCache?: boolean | string;
     /** Override the global `fetch`. */
     readonly fetch?: FetchLike;
+    /** Override `linkSync` for testing cross-device / no-hard-link fallbacks. */
+    readonly link?: (existingPath: string, newPath: string) => void;
 }
 
 export interface LocateOptions {
@@ -93,6 +129,7 @@ export interface InstallOptions extends ResolveOptions {
 }
 
 const CAPABILITY = /^[a-z0-9][a-z0-9-]*$/;
+const HF_URL = /^https:\/\/huggingface\.co\/([^/]+)\/([^/]+)\/resolve\/([^/]+)\/(.+)$/;
 
 function sizeOf(path: string): number | null {
     try {
@@ -117,6 +154,29 @@ function assertInside(parent: string, resolved: string): void {
     if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) {
         throw new Error(`ModelStore: resolved path ${resolved} is outside ${parent}`);
     }
+}
+
+/** Default Hugging Face hub cache directory, honouring the two env vars HF uses. */
+function defaultHfHubDir(): string {
+    const hub = process.env.HF_HUB_CACHE;
+    if (hub !== undefined && hub !== '') return hub;
+    const hfHome = process.env.HF_HOME;
+    if (hfHome !== undefined && hfHome !== '') return join(hfHome, 'hub');
+    return join(homedir(), '.cache', 'huggingface', 'hub');
+}
+
+interface ParsedHfUrl {
+    readonly org: string;
+    readonly repo: string;
+    readonly rev: string;
+    readonly path: string;
+}
+
+function parseHfUrl(url: string): ParsedHfUrl | undefined {
+    const match = HF_URL.exec(url);
+    if (match === null) return undefined;
+    const [, org, repo, rev, path] = match;
+    return { org, repo, rev, path };
 }
 
 /** Hex SHA-256 of a file, read in 1 MiB slices so a 548 MB model never sits in memory. */
@@ -147,6 +207,29 @@ interface Download {
     readonly progress: MultiFileProgress;
     readonly path: string | undefined;
     readonly fetch: FetchLike | undefined;
+}
+
+/** Serialises operations that touch the shared blob directory. */
+class BlobLock {
+    #tail: Promise<void> = Promise.resolve();
+
+    async run<T>(fn: () => Promise<T>): Promise<T> {
+        const previous = this.#tail;
+        let release: () => void;
+        const gate = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        this.#tail = previous.then(
+            () => gate,
+            () => gate,
+        );
+        await previous.catch(() => undefined);
+        try {
+            return await fn();
+        } finally {
+            release!();
+        }
+    }
 }
 
 /** Re-broadcasts the SUM of several file downloads through one WebML-shaped monitor. */
@@ -206,8 +289,11 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
     readonly #root: string | undefined;
     readonly #appDataDirs: readonly string[];
     readonly #legacyDirs: () => readonly string[];
+    readonly #hfHubDir: string | undefined;
     readonly #fetch: FetchLike | undefined;
+    readonly #linkSync: (existingPath: string, newPath: string) => void;
     readonly #inFlight = new Map<string, Download>();
+    readonly #blobLock = new BlobLock();
     /** path → `size:mtime:digest` of the file whose digest matched. */
     readonly #verified = new Map<string, string>();
 
@@ -224,13 +310,31 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
         this.#appDataDirs = options.appDataDirs ?? [];
         const legacy = options.legacyDirs ?? [];
         this.#legacyDirs = typeof legacy === 'function' ? legacy : () => legacy;
+        if (options.huggingFaceCache === false) {
+            this.#hfHubDir = undefined;
+        } else if (typeof options.huggingFaceCache === 'string') {
+            this.#hfHubDir = options.huggingFaceCache;
+        } else {
+            this.#hfHubDir = defaultHfHubDir();
+        }
         this.#fetch = options.fetch;
+        this.#linkSync = options.link ?? linkSync;
         this.require(this.defaultModel);
     }
 
     /** `<root>/<capability>`. Resolved per call, so a changed `XDG_CACHE_HOME` is honoured. */
     get cacheDir(): string {
         return join(this.#root ?? modelsRoot(), this.capability);
+    }
+
+    /** `<root>/blobs` — shared across capabilities. */
+    #blobsDir(): string {
+        return join(this.#root ?? modelsRoot(), 'blobs');
+    }
+
+    /** Path for one SHA-256 blob. */
+    #blobPath(sha256: string): string {
+        return join(this.#blobsDir(), sha256);
     }
 
     find(id: string = this.defaultModel): E | undefined {
@@ -286,9 +390,11 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
         const files = this.#locateFiles(entry, cached);
         if (files !== undefined) return { dir: cached, files, source: 'cache' };
         if (this.#migrate(entry, cached)) {
-            const files = this.#locateFiles(entry, cached);
-            if (files !== undefined) return { dir: cached, files, source: 'cache' };
+            const migrated = this.#locateFiles(entry, cached);
+            if (migrated !== undefined) return { dir: cached, files: migrated, source: 'cache' };
         }
+        const hf = this.#locateHf(entry);
+        if (hf !== undefined) return hf;
         return undefined;
     }
 
@@ -317,7 +423,8 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
 
     /**
      * The verified paths of `id`. Never downloads: rejects when no source has
-     * all files, and when a configured or app-shipped file fails its digest.
+     * all files, and when a configured, app-shipped or HF-cache file fails its
+     * digest.
      */
     async resolve(id: string = this.defaultModel, options: ResolveOptions = {}): Promise<ResolvedModel> {
         const entry = this.require(id);
@@ -378,18 +485,107 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
         return flight.promise;
     }
 
-    /** Delete the CACHED directory of `id` — never a configured or app-shipped one. `false` when none was there. */
+    /**
+     * Delete the CACHED directory of `id` — never a configured, app-shipped or
+     * HF-cache one — and remove orphan blobs it was the last reference to.
+     * `false` when none was there.
+     */
     uninstall(id: string = this.defaultModel): boolean {
         const path = this.cachePath(id);
         assertInside(this.cacheDir, path);
+        let entries: string[];
         try {
-            const entries = readdirSync(path);
+            entries = readdirSync(path);
             if (entries.length === 0) return false;
         } catch {
             return false;
         }
+        const entry = this.require(id);
+        const sha256s = entry.files.map((file) => file.sha256);
         rmSync(path, { recursive: true, force: true });
+        // Synchronous on purpose (the vad package re-exports this signature). The
+        // nlink check makes it safe against a concurrent link: a blob is only
+        // unlinked when no entry file shares it, and a lost race at worst makes
+        // `dedupe()` recreate it.
+        for (const sha256 of sha256s) this.#removeOrphanBlob(sha256);
         return true;
+    }
+
+    /**
+     * Hash every installed cache file, hard-link unique files into the blob
+     * directory, replace duplicate plain files with links to the shared blob,
+     * and remove blobs no entry references. Safe to run while the store is in
+     * use: it serialises against `install()` / `uninstall()`.
+     */
+    async dedupe(): Promise<DedupeResult> {
+        return this.#blobLock.run(async () => {
+            let linked = 0;
+            let reclaimedBytes = 0;
+            let removedOrphans = 0;
+
+            mkdirSync(this.#blobsDir(), { recursive: true });
+
+            for (const entry of this.models) {
+                const entryDir = join(this.cacheDir, entry.id);
+                const located = this.#locateFiles(entry, entryDir);
+                if (located === undefined) continue;
+
+                for (const file of entry.files) {
+                    const entryPath = located[file.file];
+                    const digest = await sha256File(entryPath);
+                    if (digest !== file.sha256) continue; // Legacy or corrupted: leave untouched.
+
+                    const blobPath = this.#blobPath(file.sha256);
+                    const blobStats = statOrNull(blobPath);
+                    if (blobStats === null) {
+                        try {
+                            this.#link(entryPath, blobPath);
+                            linked++;
+                        } catch {
+                            // Hard links unsupported here: leave the plain file.
+                        }
+                    } else {
+                        const entryStats = statSync(entryPath);
+                        if (entryStats.ino !== blobStats.ino || entryStats.dev !== blobStats.dev) {
+                            const temp = `${entryPath}.dedupe-${randomUUID()}`;
+                            try {
+                                this.#link(blobPath, temp);
+                                renameSync(temp, entryPath);
+                                reclaimedBytes += file.bytes;
+                                linked++;
+                            } catch {
+                                removeQuietly(temp);
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (const name of readdirSync(this.#blobsDir())) {
+                if (this.#removeOrphanBlob(name)) removedOrphans++;
+            }
+
+            return { linked, reclaimedBytes, removedOrphans };
+        });
+    }
+
+    #link(existingPath: string, newPath: string): void {
+        mkdirSync(dirname(newPath), { recursive: true });
+        this.#linkSync(existingPath, newPath);
+    }
+
+    #removeOrphanBlob(sha256OrPath: string): boolean {
+        const blobPath = sha256OrPath.includes('/') ? sha256OrPath : this.#blobPath(sha256OrPath);
+        try {
+            const stats = statSync(blobPath);
+            if (stats.isFile() && stats.nlink === 1) {
+                unlinkSync(blobPath);
+                return true;
+            }
+        } catch {
+            // Already gone or not a file.
+        }
+        return false;
     }
 
     #migrate(entry: E, targetDir: string): boolean {
@@ -469,6 +665,11 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
                 progress.update(file.file, file.bytes);
                 continue;
             }
+            const linkedFromBlob = await this.#linkFromBlob(file, target);
+            if (linkedFromBlob) {
+                progress.update(file.file, file.bytes);
+                continue;
+            }
             await downloadVerifiedInternal({
                 url: file.url,
                 dest: target,
@@ -479,8 +680,111 @@ export class ModelStore<E extends ModelEntry = ModelEntry> {
                 progress: progress.fileReporter(file.file),
                 id: entry.id,
             });
+            await this.#blobLock.run(async () => {
+                try {
+                    this.#link(target, this.#blobPath(file.sha256));
+                } catch {
+                    // Plain-file fallback: keep the verified download, drop no blob.
+                }
+            });
         }
         progress.report(total, total);
         return { dir, files };
+    }
+
+    async #linkFromBlob(file: ModelFile, target: string): Promise<boolean> {
+        return this.#blobLock.run(async () => {
+            const blobPath = this.#blobPath(file.sha256);
+            if (sizeOf(blobPath) !== file.bytes) return false;
+            try {
+                this.#link(blobPath, target);
+                return true;
+            } catch {
+                return false;
+            }
+        });
+    }
+
+    #locateHf(entry: ModelEntry): LocatedModel | undefined {
+        if (this.#hfHubDir === undefined) return undefined;
+        const files: Record<string, string> = {};
+        let commonDir: string | undefined;
+        for (const file of entry.files) {
+            const path = this.#findHfFile(file);
+            if (path === undefined || sizeOf(path) !== file.bytes) return undefined;
+            files[file.file] = path;
+            const dir = dirname(path);
+            if (commonDir === undefined) commonDir = dir;
+            else if (commonDir !== dir) commonDir = this.#hfHubDir;
+        }
+        return { dir: commonDir ?? this.#hfHubDir, files, source: 'huggingface' };
+    }
+
+    #findHfFile(file: ModelFile): string | undefined {
+        if (this.#hfHubDir === undefined) return undefined;
+
+        // (a) URL maps directly to a snapshot path.
+        const parsed = parseHfUrl(file.url);
+        if (parsed !== undefined) {
+            const snapshotPath = join(
+                this.#hfHubDir,
+                `models--${parsed.org}--${parsed.repo}`,
+                'snapshots',
+                parsed.rev,
+                ...parsed.path.split('/'),
+            );
+            assertInside(this.#hfHubDir, snapshotPath);
+            if (sizeOf(snapshotPath) === file.bytes) return snapshotPath;
+        }
+
+        // (b) Any models--*/blobs/<sha256> matches; prefer a snapshot link that
+        // keeps the original file name.
+        let foundBlob: string | undefined;
+        try {
+            for (const modelDir of readdirSync(this.#hfHubDir)) {
+                if (!modelDir.startsWith('models--')) continue;
+                const blobPath = join(this.#hfHubDir, modelDir, 'blobs', file.sha256);
+                if (sizeOf(blobPath) === file.bytes) {
+                    foundBlob = blobPath;
+                    break;
+                }
+            }
+        } catch {
+            return undefined;
+        }
+        if (foundBlob === undefined) return undefined;
+        const snapshotPath = this.#hfSnapshotLinkForBlob(foundBlob, file.file);
+        return snapshotPath ?? foundBlob;
+    }
+
+    #hfSnapshotLinkForBlob(blobPath: string, fileName: string): string | undefined {
+        if (this.#hfHubDir === undefined) return undefined;
+        try {
+            for (const modelDir of readdirSync(this.#hfHubDir)) {
+                if (!modelDir.startsWith('models--')) continue;
+                const snapshotsDir = join(this.#hfHubDir, modelDir, 'snapshots');
+                for (const rev of readdirSync(snapshotsDir)) {
+                    const candidate = join(snapshotsDir, rev, fileName);
+                    try {
+                        if (realpathSync(candidate) === blobPath && sizeOf(candidate) === sizeOf(blobPath)) {
+                            return candidate;
+                        }
+                    } catch {
+                        // Not this link.
+                    }
+                }
+            }
+        } catch {
+            // Hub dir not fully populated.
+        }
+        return undefined;
+    }
+}
+
+function statOrNull(path: string): Stats | null {
+    try {
+        return statSync(path);
+    } catch {
+        return null;
     }
 }
