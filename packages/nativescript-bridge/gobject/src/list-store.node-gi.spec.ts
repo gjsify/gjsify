@@ -87,9 +87,7 @@ export const realGioListStoreSuite = (requireGi: RequireGi) => async () => {
             off();
 
             expect(viaSetModel).toStrictEqual(null);
-            expect(emitted).toStrictEqual(
-                zeroSpliceEmits ? [{ position: 1, removed: 0, added: 0 }] : [],
-            );
+            expect(emitted).toStrictEqual(zeroSpliceEmits ? [{ position: 1, removed: 0, added: 0 }] : []);
         });
 
         await it('holds the portable descriptor through a real GObject property round-trip', () => {
