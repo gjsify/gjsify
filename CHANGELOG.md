@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.64.29](https://github.com/gjsify/gjsify/compare/v0.64.28...v0.64.29) (2026-11-11)
+
+### Features
+
+* **cli:** add --pricing and __GJSIFY_PRICING__ ([#2587](https://github.com/gjsify/gjsify/issues/2587)) ([bb83085](https://github.com/gjsify/gjsify/commit/bb83085a0412f5e03d0a4a1cb9159096f443e7ae))
+* **distribution:** support paths, commerce and pricing (ADR 0139 step 1) ([#2586](https://github.com/gjsify/gjsify/issues/2586)) ([ee50910](https://github.com/gjsify/gjsify/commit/ee50910d5992705c6a61298d3fe16cc83df794d8))
+* **image-generation:** sd.cpp engine on local files ([#2588](https://github.com/gjsify/gjsify/issues/2588)) ([69dd9c6](https://github.com/gjsify/gjsify/commit/69dd9c6552809d6e0e4e3ea07d7af57d94393433))
+
+### Bug Fixes
+
+* **publish:** retry OIDC exchange on 5xx ([#2579](https://github.com/gjsify/gjsify/issues/2579)) ([eac9917](https://github.com/gjsify/gjsify/commit/eac99178a5902c1579e7d7b3b8f5d9cf3ef82de5))
+
+### Documentation
+
+* **adr:** decide support and purchase in stores ([#2582](https://github.com/gjsify/gjsify/issues/2582)) ([2dd65f4](https://github.com/gjsify/gjsify/commit/2dd65f4c791ca0b70ba5a5f7cdf3d376529ebaf2))
+
+### Maintenance
+
+* **status:** image-generation is on npm ([#2585](https://github.com/gjsify/gjsify/issues/2585)) ([0986845](https://github.com/gjsify/gjsify/commit/0986845112a03f65ff078b82e394e8b573ba46ca))
+* update native prebuilds [skip ci] ([355a20e](https://github.com/gjsify/gjsify/commit/355a20edaf8b9477f2817e4ef0dd40a385669736))
+
 ## [0.64.28](https://github.com/gjsify/gjsify/compare/v0.64.27...v0.64.28) (2026-11-10)
 
 ### Features

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/embeddings",
-    "version": "0.64.28",
+    "version": "0.64.29",
     "description": "Text embeddings in the WebML CG lifecycle shape: an Embedder with availability(), create({ monitor, signal }) and destroy(), checked Float32Array vectors, and a local llama.cpp engine for GGUF models on Node and GJS.",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",

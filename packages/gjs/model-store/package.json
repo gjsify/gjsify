@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/model-store",
-    "version": "0.64.28",
+    "version": "0.64.29",
     "description": "Where an AI model lives and how it gets there: one store per capability with streaming download, SHA-256 verification, WebML-shaped download progress, and three sources in order (a configured path, an app's read-only data dir, the per-user cache). Pure TypeScript on node:* APIs.",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
