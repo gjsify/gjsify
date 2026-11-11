@@ -17,9 +17,12 @@
 // produced or consumes, or — for the two MECHANISM keys, `ATSApplicationFontsPath`
 // and `CFBundleIconFile` — to Apple's own key reference plus a measurement on a
 // Mac. Keys that are merely plausible — `LSMinimumSystemVersion`,
-// `NSHighResolutionCapable`, `LSApplicationCategoryType`,
-// `NSHumanReadableCopyright` — are not emitted, because nothing a reader here can
-// open contains them.
+// `NSHighResolutionCapable`, `NSHumanReadableCopyright` — are not emitted, because
+// nothing a reader here can open contains them. `LSApplicationCategoryType` is the
+// exception that is DERIVED rather than invented: it is emitted only when the
+// project's own freedesktop `categories` map to an Apple category, and omitted
+// otherwise. `NSHumanReadableCopyright` stays out: the metainfo carries no
+// copyright holder field, and a holder is never made up.
 //
 // AND THE SCOPE OF THAT MEASUREMENT IS PART OF IT, because `grep -r … refs/` is a
 // command that answers cheerfully after reading almost nothing: 89 of the 95
@@ -115,6 +118,30 @@ function assertPlistText(value: string, field: string, configKey: string): strin
     return value;
 }
 
+/**
+ * Freedesktop main category → Apple `LSApplicationCategoryType` UTI. Only the
+ * unambiguous rows: `AudioVideo` (music or video?), `Network` and `Science` have
+ * no single Apple category, so they map to nothing rather than to a guess.
+ */
+const APPLE_CATEGORIES: ReadonlyMap<string, string> = new Map([
+    ['Development', 'public.app-category.developer-tools'],
+    ['Education', 'public.app-category.education'],
+    ['Game', 'public.app-category.games'],
+    ['Graphics', 'public.app-category.graphics-design'],
+    ['Office', 'public.app-category.productivity'],
+    ['System', 'public.app-category.utilities'],
+    ['Utility', 'public.app-category.utilities'],
+]);
+
+/** The first mappable category in the author's order, or `undefined`. */
+export function appleCategoryFor(categories: readonly string[] | undefined): string | undefined {
+    for (const category of categories ?? []) {
+        const mapped = APPLE_CATEGORIES.get(category);
+        if (mapped !== undefined) return mapped;
+    }
+    return undefined;
+}
+
 /** One `<key>…</key><string>…</string>` pair, indented to sit inside the top-level `<dict>`. */
 function stringEntry(key: string, value: string): string {
     return `\t<key>${key}</key>\n\t<string>${xmlText(value)}</string>`;
@@ -199,6 +226,7 @@ export function renderInfoPlist(input: LayoutMetadataInput, fontsPath?: string, 
     const name = assertPlistText(input.name, 'CFBundleName', 'gjsify.ship.name');
     const executable = assertPlistText(input.binaryName, 'CFBundleExecutable', 'gjsify.ship.binaryName');
     const appId = assertPlistText(input.appId, 'CFBundleIdentifier', 'gjsify.ship.appId');
+    const appleCategory = appleCategoryFor(input.categories);
     return [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
@@ -231,6 +259,7 @@ export function renderInfoPlist(input: LayoutMetadataInput, fontsPath?: string, 
         stringEntry('CFBundleSignature', SIGNATURE),
         arrayEntry('CFBundleSupportedPlatforms', ['MacOSX']),
         stringEntry('CFBundleVersion', `${input.version}-${input.release}`),
+        ...(appleCategory === undefined ? [] : [stringEntry('LSApplicationCategoryType', appleCategory)]),
         '</dict>',
         '</plist>',
         '',
