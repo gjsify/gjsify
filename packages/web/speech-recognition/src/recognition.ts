@@ -169,7 +169,7 @@ export class SpeechRecognition extends EventTarget {
 
     /** Stop capturing and discard everything; only `end` follows. */
     abort(): void {
-        if (!this.#active || this.#stopRequested) return;
+        if (!this.#active || this.#aborted) return;
         this.#stopRequested = true;
         this.#aborted = true;
         this.#source?.stop();
@@ -205,6 +205,12 @@ export class SpeechRecognition extends EventTarget {
         if (opts.phrases > 0 && !model.hotwords) {
             return this.#fail('phrases-not-supported', `Model '${model.id}' cannot be biased with phrases`);
         }
+        if (opts.track) {
+            return this.#fail(
+                'audio-capture',
+                'start(track) is not supported yet — call start() for the default microphone',
+            );
+        }
         let engine: RecognizerEngine;
         if (this.#init.engine !== undefined) {
             engine = this.#init.engine(model);
@@ -223,12 +229,6 @@ export class SpeechRecognition extends EventTarget {
                 tokens: files[model.tokens],
                 sampleRate: model.sampleRate,
             });
-        }
-        if (opts.track) {
-            return this.#fail(
-                'audio-capture',
-                'start(track) is not supported yet — call start() for the default microphone',
-            );
         }
         try {
             engine.open();
@@ -257,6 +257,14 @@ export class SpeechRecognition extends EventTarget {
         this.#emit('start');
         try {
             await this.#session(opts, engine, vad, source);
+        } catch (error) {
+            // Before `end`: an error dispatched after it belongs to no session.
+            this.dispatchEvent(
+                new SpeechRecognitionErrorEvent('error', {
+                    error: 'audio-capture',
+                    message: error instanceof Error ? error.message : String(error),
+                }),
+            );
         } finally {
             this.#source = null;
             source.stop();

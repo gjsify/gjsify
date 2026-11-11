@@ -311,6 +311,36 @@ export default async () => {
             recognition.processLocally = true;
         });
 
+        await it('still discards the pending utterance on abort() after stop()', async () => {
+            const { engine, recognition, session } = make({ source: fakeSource(2, true) });
+            engine.script([{ text: 'hallo' }]);
+            recognition.addEventListener('audiostart', () => {
+                recognition.stop();
+                recognition.abort();
+            });
+            recognition.start();
+            await session.ended;
+            expect(session.results.length).toBe(0);
+            expect(session.types.includes('error')).toBe(false);
+        });
+
+        await it('fires an engine failure as error before end, and closes the engine', async () => {
+            const engine = createFakeRecognizerEngine();
+            const failing = {
+                ...engine,
+                accept(): never {
+                    throw new Error('decode failed');
+                },
+                close: () => engine.close(),
+            };
+            const { recognition, session } = make({ engine: failing as unknown as FakeRecognizerEngine });
+            recognition.start();
+            await session.ended;
+            expect(session.types.slice(-2)).toStrictEqual(['error', 'end']);
+            expect(session.errors[0].message).toBe('decode failed');
+            expect(engine.closed).toBe(true);
+        });
+
         await it('supports on<event> handlers', async () => {
             const { recognition, session } = make();
             let ended = false;
