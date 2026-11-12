@@ -98,6 +98,12 @@ export interface LocalImageModel {
     readonly llm?: string;
     /** Per-module device assignment, e.g. `te=cpu` — see sd.cpp's docs/backend.md. */
     readonly backend?: string;
+    /**
+     * Run the diffusion model's attention as flash attention. It needs far less compute memory,
+     * which decides whether a large image (e.g. 1024x1536 on an 8 GB card with a desktop running)
+     * fits at all; the default is the addon's own.
+     */
+    readonly flashAttention?: boolean;
     /** Size used when a request names none. Default 512x512. */
     readonly defaultWidth?: number;
     readonly defaultHeight?: number;
@@ -195,6 +201,7 @@ interface ModelPaths {
     readonly vae?: string;
     readonly llm?: string;
     readonly backend?: string;
+    readonly flashAttention?: boolean;
 }
 
 function contextOptions(paths: ModelPaths): Record<string, unknown> {
@@ -204,6 +211,7 @@ function contextOptions(paths: ModelPaths): Record<string, unknown> {
     if (paths.vae) options.vaePath = paths.vae;
     if (paths.llm) options.llmPath = paths.llm;
     if (paths.backend) options.backend = paths.backend;
+    if (paths.flashAttention !== undefined) options.diffusionFlashAttn = paths.flashAttention;
     return options;
 }
 
@@ -285,6 +293,7 @@ function localSource(model: LocalImageModel): ModelSource {
                 vae: model.vae,
                 llm: model.llm,
                 backend: model.backend,
+                flashAttention: model.flashAttention,
             };
         },
     };
