@@ -1000,12 +1000,16 @@ async function resolveCarriedRuntime(
 }
 
 /**
- * `gjsify.ship.nodeModules`: the npm packages an `--app node` bundle imports and cannot contain,
- * staged beside the bundle with what they need at runtime (`utils/ship/node-modules.ts`).
+ * `gjsify.ship.nodeModules`: the npm packages a bundle imports (`--app node`) or loads an addon
+ * from (`--app gjs`, through `@gjsify/napi`) and cannot contain, staged beside the bundle with
+ * what they need at runtime (`utils/ship/node-modules.ts`).
  *
- * Only for a node payload: a GJS bundle inlines or rewrites them, so one declaration can serve a
- * project that ships GJS on Linux and Node on macOS and Windows. Mutates `runtime` because the
- * files take the same route as the carried interpreter — already stage-relative, past the planner.
+ * Both runtimes need it: a GJS bundle inlines the package's JS, but the Node-API addon behind it
+ * is found at run time relative to the BUNDLE's own location (ADR 0084), so the package's
+ * `package.json` and its prebuilt directory have to sit in a `node_modules/` beside the bundle —
+ * one declaration serves a project that ships GJS on Linux and Node on macOS and Windows.
+ * Mutates `runtime` because the files take the same route as the carried interpreter — already
+ * stage-relative, past the planner.
  */
 function carryNodeModules(
     runtime: StagedAppRuntime,
@@ -1015,7 +1019,7 @@ function carryNodeModules(
     declared: string[] | undefined,
     exclude: string[] | undefined,
 ): void {
-    if (declared === undefined || declared.length === 0 || settings.app !== 'node') return;
+    if (declared === undefined || declared.length === 0) return;
     const closure = resolveNodeModulesClosure(declared, projectDir, {
         target: { os: layout.os, cpu: settings.arch },
         exclude,
