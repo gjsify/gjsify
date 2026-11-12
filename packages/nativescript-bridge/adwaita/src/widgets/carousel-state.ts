@@ -13,7 +13,7 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { CAROUSEL_SETTLE_EPSILON, CarouselState } from '@gjsify/adwaita-core';
-import type { CarouselScrollRequest, CarouselStateChange } from '@gjsify/adwaita-core';
+import type { CarouselScrollRequest } from '@gjsify/adwaita-core';
 
 /**
  * Default page width (DIPs) for the offset math until the consumer sets `pageWidth`.
@@ -120,25 +120,4 @@ export function applyMarkerClasses(markers: readonly { className: string }[], cl
         const next = classes[index];
         if (next !== undefined) marker.className = next;
     });
-}
-
-/** The data half of the `notify::position` event (minus NS's `eventName`/`object`). */
-export interface CarouselNotifyPayload {
-    /** The clamped fractional scroll position. */
-    position: number;
-    /** The number of pages. */
-    nPages: number;
-    /** The page the position settles on, `-1` when the carousel is empty. */
-    page: number;
-    /** `true` for a user navigation (swipe, dot tap, keynav). */
-    interactive: boolean;
-}
-
-/**
- * Project a core change onto the event payload. Kept as a function rather than
- * spreading the change so the internal `reason` discriminator — which names a C
- * notification site, not an NS event — never leaks into consumer code.
- */
-export function carouselNotifyPayload(change: CarouselStateChange): CarouselNotifyPayload {
-    return { position: change.position, nPages: change.nPages, page: change.page, interactive: change.interactive };
 }

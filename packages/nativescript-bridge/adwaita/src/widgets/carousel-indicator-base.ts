@@ -24,7 +24,7 @@
 
 import { GridLayout, ItemSpec, Label, StackLayout } from '@nativescript/core';
 
-import { AdwCarousel, NOTIFY_N_PAGES, NOTIFY_POSITION } from './adw-carousel.js';
+import { AdwCarousel } from './adw-carousel.js';
 import { applyMarkerClasses, indicatorMarkerClasses } from './carousel-state.js';
 import { resolveIdReference, type ViewId } from './id-reference.js';
 import { withSignals } from './signals.js';
@@ -41,6 +41,8 @@ export abstract class AdwCarouselIndicatorBase extends withSignals(GridLayout) {
     private _carousel: AdwCarousel | null = null;
     /** A `carousel` written as an id before the indicator was in a loaded tree. */
     private _carouselId: string | null = null;
+    /** The `notify::position` and `notify::n-pages` handlers on {@link _carousel}. */
+    private _handlerIds: number[] = [];
     private readonly _onChange = (): void => this._render();
 
     /** The class every marker carries — `adw-carousel-dot` or `adw-carousel-line`. */
@@ -81,14 +83,14 @@ export abstract class AdwCarouselIndicatorBase extends withSignals(GridLayout) {
         this._carouselId = null;
         const carousel = value;
         if (carousel === this._carousel) return;
-        if (this._carousel !== null) {
-            this._carousel.removeEventListener(NOTIFY_POSITION, this._onChange);
-            this._carousel.removeEventListener(NOTIFY_N_PAGES, this._onChange);
-        }
+        for (const id of this._handlerIds) this._carousel?.disconnect(id);
+        this._handlerIds = [];
         this._carousel = carousel;
         if (carousel !== null) {
-            carousel.addEventListener(NOTIFY_POSITION, this._onChange);
-            carousel.addEventListener(NOTIFY_N_PAGES, this._onChange);
+            this._handlerIds = [
+                carousel.connect('notify::position', this._onChange),
+                carousel.connect('notify::n-pages', this._onChange),
+            ];
         }
         this._render();
     }

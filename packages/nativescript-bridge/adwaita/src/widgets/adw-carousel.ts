@@ -34,32 +34,21 @@ import type { CarouselScrollRequest } from '@gjsify/adwaita-core';
 import {
     CarouselScrollSync,
     DEFAULT_CAROUSEL_PAGE_WIDTH,
-    carouselNotifyPayload,
     carouselPositionAtOffset,
     carouselScrollOffset,
     createCarouselState,
     normalizeCarouselPageWidth,
-    type CarouselNotifyPayload,
 } from './carousel-state.js';
 import { xmlBoolean, xmlNumber } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
-import { withSignals } from './signals.js';
+import { pushDeclared, readDeclaredValue, withSignals, type GObjectNotify } from './signals.js';
 
 // Re-exported so the widget module stays the one import site, as
 // `widgets/index.ts` and every consumer already expect.
 export { DEFAULT_CAROUSEL_PAGE_WIDTH };
 
-/** Event name emitted when {@link AdwCarousel.position} changes. Mirrors GObject `notify::position`. */
-export const NOTIFY_POSITION = 'notify::position';
-
-/** Event name emitted when the page count changes. Mirrors GObject `notify::n-pages`. */
-export const NOTIFY_N_PAGES = 'notify::n-pages';
-
 /** Event name emitted after a completed scroll. Mirrors the `AdwCarousel::page-changed` signal. */
 export const PAGE_CHANGED = 'page-changed';
-
-/** Payload of the {@link NOTIFY_POSITION} and {@link NOTIFY_N_PAGES} events. */
-export interface NotifyPositionEventData extends EventData, CarouselNotifyPayload {}
 
 /** Payload of the {@link PAGE_CHANGED} event. `index` is `-1` for an empty carousel. */
 export interface PageChangedEventData extends EventData {
@@ -73,8 +62,61 @@ interface ScrollEventData extends EventData {
     scrollY: number;
 }
 
-export class AdwCarousel extends withSignals(GridLayout) {
+/**
+ * What the two declared properties' `normalize` reads off the view. Structural, because
+ * `normalize` is handed a bare `object` while the instance may still be constructing, and
+ * because `_state` is private to the class.
+ */
+interface AdwCarouselValues {
+    readonly _state: ReturnType<typeof createCarouselState>;
+    _scrollToIndex(index: number): void;
+}
+
+export class AdwCarousel extends withSignals(GridLayout, {
+    GTypeName: 'AdwCarousel',
+    Properties: {
+        // Both are READ-ONLY upstream (`G_PARAM_READABLE`, adw-carousel.c:1036-1050). They are
+        // `explicitNotify` because `CarouselState` is the source of truth and its subscriber
+        // pushes the value and emits, so a write the seam would otherwise notify for stays silent.
+        position: {
+            kind: 'double',
+            default: 0,
+            explicitNotify: true,
+            blurb: 'Current scrolling position',
+            // A PORT CONVENIENCE, not upstream's: the write scrolls to the page the value settles
+            // on (`get_page_at_position`, so 0.5 lands on page 0) and the property reads back
+            // wherever the model then is.
+            normalize: (value, self) => {
+                const view = self as AdwCarouselValues;
+                const target = readDeclaredValue('position', 'double', value) as number;
+                if (Number.isFinite(target)) {
+                    const page = view._state.pageAt(target);
+                    if (page >= 0) view._scrollToIndex(page);
+                }
+                return view._state.position;
+            },
+        },
+        'n-pages': {
+            kind: 'uint',
+            default: 0,
+            explicitNotify: true,
+            blurb: 'The number of pages in the carousel',
+            // Read-only by derivation, as `Adw.EntryRow:text-length` is: a write resolves to the
+            // count already held.
+            normalize: (_value, self) => (self as AdwCarouselValues)._state.nPages,
+        },
+    },
+}) {
     static readonly GTypeName: string = 'AdwCarousel';
+
+    /** `Adw.Carousel:position` — the fractional scroll position; 1 matches 1 page. */
+    declare position: number;
+
+    /** `Adw.Carousel:n-pages` — the number of pages. */
+    declare nPages: number;
+
+    /** GJS's `notify('<prop>')` beside NativeScript's `notify({ eventName })`; see the seam. */
+    declare notify: GObjectNotify;
 
     /** The horizontal scroller holding the pages. */
     protected readonly _scroller: ScrollView;
@@ -117,12 +159,11 @@ export class AdwCarousel extends withSignals(GridLayout) {
         });
 
         this._state.subscribe((change) => {
-            const data: NotifyPositionEventData = {
-                eventName: change.reason === 'n-pages' ? NOTIFY_N_PAGES : NOTIFY_POSITION,
-                object: this,
-                ...carouselNotifyPayload(change),
-            };
-            this.notify(data);
+            // A geometry change moves `position` as well, as it always has: C notifies it
+            // unconditionally, so a bound indicator re-reads either way.
+            const name = change.reason === 'n-pages' ? 'n-pages' : 'position';
+            pushDeclared(this, name, name === 'n-pages' ? change.nPages : change.position);
+            this.notify(name);
         });
         this._state.onPageChanged((index) => {
             const data: PageChangedEventData = { eventName: PAGE_CHANGED, object: this, index };
@@ -250,31 +291,6 @@ export class AdwCarousel extends withSignals(GridLayout) {
         return out;
     }
 
-    /** The number of pages. */
-    get nPages(): number {
-        return this._state.nPages;
-    }
-
-    /** The fractional scroll position; 1 matches 1 page. */
-    get position(): number {
-        return this._state.position;
-    }
-
-    /**
-     * Scroll to the page this position settles on.
-     *
-     * `AdwCarousel:position` is READ-ONLY in C (adw-carousel.c:1036-1041) — the
-     * setter is a port convenience, and it resolves the value with the same
-     * `get_page_at_position` rule used everywhere else, so 0.5 lands on page 0
-     * where the old `Math.round` picked page 1.
-     */
-    set position(raw: number | string) {
-        const value = xmlNumber(raw, this.position);
-        if (!Number.isFinite(value)) return;
-        const page = this._state.pageAt(value);
-        if (page >= 0) this._scrollToIndex(page);
-    }
-
     /** The page the current position settles on, `-1` when the carousel is empty. */
     get currentPage(): number {
         return this._state.pageAt(this._state.position);
@@ -316,7 +332,7 @@ export class AdwCarousel extends withSignals(GridLayout) {
      * precondition (adw-carousel.c:1616) — an index of NaN used to set the
      * position to NaN and leave no dot selected.
      */
-    private _scrollToIndex(index: number): void {
+    protected _scrollToIndex(index: number): void {
         this._state.scrollTo(index, { interactive: true });
     }
 
