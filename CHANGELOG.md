@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.64.32](https://github.com/gjsify/gjsify/compare/v0.64.31...v0.64.32) (2026-11-12)
+
+### Features
+
+* **cli:** derive LSApplicationCategoryType in ship Info.plist ([#2601](https://github.com/gjsify/gjsify/issues/2601)) ([f715527](https://github.com/gjsify/gjsify/commit/f71552778c08670d4d329b741474309d559e035d))
+
+### Bug Fixes
+
+* **child_process:** darwin detached setsid fallback ([#2595](https://github.com/gjsify/gjsify/issues/2595)) ([b1ba4ff](https://github.com/gjsify/gjsify/commit/b1ba4ff08196532cf1f7c0f1b9754633a47f2e59))
+
 ## [0.64.31](https://github.com/gjsify/gjsify/compare/v0.64.30...v0.64.31) (2026-11-11)
 
 ### Features

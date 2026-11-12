@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/ipc-channel",
-    "version": "0.64.31",
+    "version": "0.64.32",
     "description": "Message channel between two GJS processes: line framing, structured-clone wire codec, SharedBuffer fd transfer, cross-process MessagePort routing",
     "type": "module",
     "module": "lib/esm/index.js",
