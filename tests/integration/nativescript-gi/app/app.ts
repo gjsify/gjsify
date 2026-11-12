@@ -30,6 +30,7 @@ import { checkButtonSpec } from './specs/check-button.js';
 import { toggleButtonSpec } from './specs/toggle-button.js';
 import { gtkStackSpec } from './specs/gtk-stack.js';
 import { adwViewStackSpec } from './specs/adw-view-stack.js';
+import { adwTabViewSpec } from './specs/adw-tab-view.js';
 import { spinnerSpec } from './specs/spinner.js';
 import { windowTitleSpec } from './specs/window-title.js';
 import { rowsSpec } from './specs/rows.js';
@@ -129,6 +130,8 @@ async function runSuite(): Promise<void> {
                 await gtkStackSpec(engine)();
                 // The Adwaita sibling of GtkStack: same state machine, same emission order.
                 await adwViewStackSpec(engine)();
+                // `selected-page`: object-kind over a headless page record, one notify per move.
+                await adwTabViewSpec(engine)();
             }
             if (optedIn) await inversionSpec();
             if (optedIn) await foreignParentSpec();

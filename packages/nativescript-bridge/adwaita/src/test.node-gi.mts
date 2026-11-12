@@ -260,9 +260,95 @@ const measureRealAdwViewStack = () =>
         noMatch: string[];
     };
 
+// A REAL Adw.TabView in its own process: it shares the GType name `AdwTabView` with the port's.
+const REAL_ADW_TAB_VIEW_SCRIPT = `
+import requireGi from '@gjsify/node-gi/gi';
+const Adw = requireGi('Adw', '1');
+const Gtk = requireGi('Gtk', '4.0');
+Gtk.init();
+
+const record = (view) => {
+    const seen = [];
+    view.connect('notify::selected-page', () => seen.push('notify::selected-page'));
+    return seen;
+};
+
+const addFirst = (() => {
+    const view = new Adw.TabView();
+    const seen = record(view);
+    view.append(new Gtk.Label());
+    return seen;
+})();
+
+const addSecond = (() => {
+    const view = new Adw.TabView();
+    view.append(new Gtk.Label());
+    const seen = record(view);
+    view.append(new Gtk.Label());
+    return seen;
+})();
+
+const setPage = (() => {
+    const view = new Adw.TabView();
+    view.append(new Gtk.Label());
+    const second = view.append(new Gtk.Label());
+    const seen = record(view);
+    view.set_selected_page(second);
+    return seen;
+})();
+
+const repeated = (() => {
+    const view = new Adw.TabView();
+    view.append(new Gtk.Label());
+    const second = view.append(new Gtk.Label());
+    view.set_selected_page(second);
+    const seen = record(view);
+    view.set_selected_page(second);
+    return seen;
+})();
+
+const closeSelected = (() => {
+    const view = new Adw.TabView();
+    const first = view.append(new Gtk.Label());
+    view.append(new Gtk.Label());
+    view.set_selected_page(first);
+    const seen = record(view);
+    view.close_page(first);
+    return seen;
+})();
+
+const closeLast = (() => {
+    const view = new Adw.TabView();
+    const only = view.append(new Gtk.Label());
+    const seen = record(view);
+    view.close_page(only);
+    return { seen, after: view.get_selected_page() === null };
+})();
+
+console.log(JSON.stringify({ addFirst, addSecond, setPage, repeated, closeSelected, closeLast }));
+`;
+
+const measureRealAdwTabView = () =>
+    JSON.parse(
+        // oxlint-disable-next-line gjsify/spawn-node-binary -- this leg only ever runs on Node (see the header)
+        execFileSync(process.execPath, ['--input-type=module', '-e', REAL_ADW_TAB_VIEW_SCRIPT], {
+            cwd: import.meta.dirname,
+            encoding: 'utf8',
+            env: RUN_ENV,
+        }),
+    ) as {
+        addFirst: string[];
+        addSecond: string[];
+        setPage: string[];
+        repeated: string[];
+        closeSelected: string[];
+        closeLast: { seen: string[]; after: boolean };
+    };
+
 const { createToggleButtonRouteDNodeGiTest } = await import('./toggle-button-route-d.node-gi.spec.js');
 const { createGtkStackRouteDNodeGiTest } = await import('./gtk-stack-route-d.node-gi.spec.js');
 const { createAdwViewStackRouteDNodeGiTest } = await import('./adw-view-stack-route-d.node-gi.spec.js');
+const { createAdwTabViewRouteDNodeGiTest } = await import('./adw-tab-view-route-d.node-gi.spec.js');
 
 run({
     MenuModelRouteDNodeGiTest,
@@ -270,4 +356,5 @@ run({
     ToggleButtonRouteDNodeGiTest: createToggleButtonRouteDNodeGiTest(measureRealToggleButton),
     GtkStackRouteDNodeGiTest: createGtkStackRouteDNodeGiTest(measureRealStack),
     AdwViewStackRouteDNodeGiTest: createAdwViewStackRouteDNodeGiTest(measureRealAdwViewStack),
+    AdwTabViewRouteDNodeGiTest: createAdwTabViewRouteDNodeGiTest(measureRealAdwTabView),
 });
