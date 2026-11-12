@@ -499,8 +499,20 @@ takes the page, and also its id, because an XML attribute can carry nothing else
 plus `selectedPage` replace them. Specs: `tab-view.spec.ts` (pure-JS state),
 `adw-tab-view-route-d.node-gi.spec.ts` (real GI), `specs/adw-tab-view.ts` (device).
 
-MIGRATE NEXT: `widgets/adw-carousel.ts`, the last view-switching widget with hand-rolled
-`NOTIFY_POSITION` / `NOTIFY_N_PAGES` events; the remaining `NOTIFY_*` exports follow
+DONE (`widgets/adw-carousel.ts`): `position` (double) and `n-pages` (uint) are declared through
+`withSignals(GridLayout, …)`, both `explicitNotify`; `CarouselState` still owns them and its
+subscriber pushes the value silently, then emits `notify::position` or `notify::n-pages` (a geometry
+change moves `position`, as C notifies it unconditionally). Both are read-only upstream
+(`G_PARAM_READABLE`): `n-pages` is read-only by derivation like `Adw.EntryRow:text-length`, and
+`position` keeps its port-only setter, which scrolls to the page the value settles on. Real
+Adw.Carousel emits `notify::n-pages` once per add/remove and nothing for a reorder. The custom
+`NotifyPositionEventData` payload, `NOTIFY_POSITION` / `NOTIFY_N_PAGES` and `carouselNotifyPayload`
+are deleted: `connect('notify::position')` plus the property replace them; the dots/lines indicators
+switch to `connect`/`disconnect`. Specs: `carousel.spec.ts` (pure-JS state),
+`adw-carousel-route-d.node-gi.spec.ts` (real GI), `specs/adw-carousel.ts` (device).
+
+MIGRATE NEXT: the remaining hand-rolled `NOTIFY_*` exports, e.g. `adw-combo-row.ts` /
+`gtk-drop-down.ts` (`selected`, `selected-item`) or `gtk-entry.ts`
 (`rg "export const NOTIFY_" packages/nativescript-bridge/adwaita/src/widgets`).
 
 RESOLVED (owner, 2026-10-27): `emit('<undeclared>')` throws `No signal '<name>' on object '<class>'`,

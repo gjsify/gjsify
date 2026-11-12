@@ -122,7 +122,6 @@ export {
     AdwViewSwitcherBase,
     NOTIFY_VIEW_SELECTED,
     DEFAULT_CAROUSEL_PAGE_WIDTH,
-    NOTIFY_POSITION,
     // Navigation
     NOTIFY_VISIBLE_PAGE,
     AdwSplitViewBase,
@@ -210,7 +209,6 @@ export type {
     AdwViewStackPageInfo,
     AdwViewPage,
     NotifyViewSelectedEventData,
-    NotifyPositionEventData,
     // Navigation
     NotifyVisiblePageEventData,
     NotifyShowSidebarEventData,

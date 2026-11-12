@@ -668,6 +668,12 @@ const NS_PROPERTY_ALIGNMENT = {
     'adw-carousel.position': {
         own: '`Adw.Carousel:position` exists in the GIR and is READ-ONLY, so it is not a writable slot and not a key here — generated/props.ts emits writable properties only. GTK moves the carousel with `adw_carousel_scroll_to()`, a method; the port drives its own scroll offsets and therefore sets the number (adw-carousel.ts:246-258).',
     },
+    'adw-carousel.n-pages': {
+        own: "`Adw.Carousel:n-pages` is readable and not writable upstream, so generated/props.ts emits no key for it under any spelling — the same read-only-counterpart shape as `adw-carousel.position` above. Route D's seam has no read-only flag, so this port spells it BY DERIVATION, as `adw-entry-row.text-length` does: the declared property's `normalize` ignores whatever was written and returns `CarouselState`'s own page count, so a write settles to the value already held and is dropped as an equal write (adw-carousel.ts, the `n-pages` block). GTK refuses the write, this port absorbs it.",
+    },
+    'adw-carousel.nPages': {
+        own: 'The camel spelling of the derived property above, installed by the same seam for the same declaration: `Adw.Carousel:n-pages` is read-only upstream, AdwCarouselProps therefore has no key under either name, and the value is read off `CarouselState` on every write instead of stored.',
+    },
     'adw-carousel.pageWidth': {
         own: 'GTK sizes carousel pages from the allocation, so there is no page-width property on `Adw.Carousel` to converge towards. The port needs an explicit DIP number because its scroll arithmetic is its own — "Set this to the carousel\'s on-screen width so `scrollToPage` lands cleanly" (adw-carousel.ts:285-289).',
     },

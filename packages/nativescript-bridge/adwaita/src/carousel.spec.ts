@@ -6,7 +6,7 @@
 // module `extends GridLayout`, which evaluates the bare `@nativescript/core` specifier
 // at module-eval. `adw-carousel.ts` is a thin wrapper over exactly the surface below:
 // insert/remove/reorder forward to the state, `scrollToPage` to `state.scrollTo`, every
-// accessor reads the state, the subscription notifies {@link carouselNotifyPayload}, and
+// accessor reads the state, the subscription pushes the declared `position` / `n-pages`, and
 // the `ScrollView` listener feeds offsets through {@link CarouselScrollSync}. A bound
 // indicator marks the carousel's `currentPage` through {@link indicatorMarkerClasses} and
 // {@link applyMarkerClasses}, which {@link carouselDotClasses} spells for a dot indicator.
@@ -16,7 +16,7 @@
 // `pageAt`, which resolves a half-way position DOWN rather than by integer compare.
 import { describe, expect, it } from '@gjsify/unit';
 
-import type { CarouselState } from '@gjsify/adwaita-core';
+import type { CarouselState, CarouselStateChange } from '@gjsify/adwaita-core';
 import type { CarouselPageOp, CarouselRevealOp, CarouselStateSnapshot } from '@gjsify/adwaita-core/conformance';
 import {
     CAROUSEL_NAVIGATE_VECTORS,
@@ -32,13 +32,11 @@ import {
     DEFAULT_CAROUSEL_PAGE_WIDTH,
     applyMarkerClasses,
     carouselDotClasses,
-    carouselNotifyPayload,
     carouselPositionAtOffset,
     carouselScrollOffset,
     createCarouselState,
     indicatorMarkerClasses,
     normalizeCarouselPageWidth,
-    type CarouselNotifyPayload,
 } from './widgets/carousel-state.js';
 
 /**
@@ -290,11 +288,11 @@ export const AdwCarouselNsTest = async () => {
 
         await it('tags a user swipe as interactive', () => {
             const state = seeded(['a', 'b']);
-            const payloads: CarouselNotifyPayload[] = [];
-            state.subscribe((change) => payloads.push(carouselNotifyPayload(change)));
+            const changes: CarouselStateChange[] = [];
+            state.subscribe((change) => changes.push(change));
 
             new CarouselScrollSync().apply(state, 1);
-            expect(payloads).toStrictEqual([{ position: 1, nPages: 2, page: 1, interactive: true }]);
+            expect(changes).toStrictEqual([{ position: 1, nPages: 2, page: 1, interactive: true, reason: 'position' }]);
         });
     });
 
@@ -319,18 +317,6 @@ export const AdwCarouselNsTest = async () => {
             expect(state.scrollTo(99)).toBe(false);
             expect(state.position).toBe(0);
             expect(state.diagnostics).toHaveLength(1);
-        });
-
-        await it('emits a payload that carries no internal discriminator', () => {
-            // The event escapes into consumer code; `reason` names a C
-            // notification site, not a NativeScript event.
-            const state = seeded(['a', 'b']);
-            const payloads: CarouselNotifyPayload[] = [];
-            state.subscribe((change) => payloads.push(carouselNotifyPayload(change)));
-            state.setPosition(1, true);
-
-            expect(payloads).toStrictEqual([{ position: 1, nPages: 2, page: 1, interactive: true }]);
-            expect(Object.keys(payloads[0]!).sort()).toStrictEqual(['interactive', 'nPages', 'page', 'position']);
         });
     });
 };

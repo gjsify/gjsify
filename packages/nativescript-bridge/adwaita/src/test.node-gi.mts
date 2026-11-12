@@ -345,10 +345,78 @@ const measureRealAdwTabView = () =>
         closeLast: { seen: string[]; after: boolean };
     };
 
+// A REAL Adw.Carousel in its own process: it shares the GType name `AdwCarousel` with the port's.
+const REAL_ADW_CAROUSEL_SCRIPT = `
+import requireGi from '@gjsify/node-gi/gi';
+const Adw = requireGi('Adw', '1');
+const Gtk = requireGi('Gtk', '4.0');
+Gtk.init();
+
+const record = (carousel) => {
+    const seen = [];
+    carousel.connect('notify::position', () => seen.push('notify::position'));
+    carousel.connect('notify::n-pages', () => seen.push('notify::n-pages'));
+    return seen;
+};
+
+const addFirst = (() => {
+    const carousel = new Adw.Carousel();
+    const seen = record(carousel);
+    carousel.append(new Gtk.Label());
+    return { seen, nPages: carousel.get_n_pages(), position: carousel.get_position() };
+})();
+
+const addSecond = (() => {
+    const carousel = new Adw.Carousel();
+    carousel.append(new Gtk.Label());
+    const seen = record(carousel);
+    carousel.append(new Gtk.Label());
+    return { seen, nPages: carousel.get_n_pages(), position: carousel.get_position() };
+})();
+
+const removeLast = (() => {
+    const carousel = new Adw.Carousel();
+    carousel.append(new Gtk.Label());
+    const last = new Gtk.Label();
+    carousel.append(last);
+    const seen = record(carousel);
+    carousel.remove(last);
+    return { seen, nPages: carousel.get_n_pages() };
+})();
+
+const reorder = (() => {
+    const carousel = new Adw.Carousel();
+    carousel.append(new Gtk.Label());
+    const last = new Gtk.Label();
+    carousel.append(last);
+    const seen = record(carousel);
+    carousel.reorder(last, 0);
+    return { seen, nPages: carousel.get_n_pages() };
+})();
+
+console.log(JSON.stringify({ addFirst, addSecond, removeLast, reorder }));
+`;
+
+const measureRealAdwCarousel = () =>
+    JSON.parse(
+        // oxlint-disable-next-line gjsify/spawn-node-binary -- this leg only ever runs on Node (see the header)
+        execFileSync(process.execPath, ['--input-type=module', '-e', REAL_ADW_CAROUSEL_SCRIPT], {
+            cwd: import.meta.dirname,
+            encoding: 'utf8',
+            env: RUN_ENV,
+        }),
+    ) as {
+        addFirst: { seen: string[]; nPages: number; position: number };
+        addSecond: { seen: string[]; nPages: number; position: number };
+        removeLast: { seen: string[]; nPages: number };
+        reorder: { seen: string[]; nPages: number };
+    };
+
 const { createToggleButtonRouteDNodeGiTest } = await import('./toggle-button-route-d.node-gi.spec.js');
 const { createGtkStackRouteDNodeGiTest } = await import('./gtk-stack-route-d.node-gi.spec.js');
 const { createAdwViewStackRouteDNodeGiTest } = await import('./adw-view-stack-route-d.node-gi.spec.js');
 const { createAdwTabViewRouteDNodeGiTest } = await import('./adw-tab-view-route-d.node-gi.spec.js');
+const { createAdwCarouselRouteDNodeGiTest } = await import('./adw-carousel-route-d.node-gi.spec.js');
 
 run({
     MenuModelRouteDNodeGiTest,
@@ -357,4 +425,5 @@ run({
     GtkStackRouteDNodeGiTest: createGtkStackRouteDNodeGiTest(measureRealStack),
     AdwViewStackRouteDNodeGiTest: createAdwViewStackRouteDNodeGiTest(measureRealAdwViewStack),
     AdwTabViewRouteDNodeGiTest: createAdwTabViewRouteDNodeGiTest(measureRealAdwTabView),
+    AdwCarouselRouteDNodeGiTest: createAdwCarouselRouteDNodeGiTest(measureRealAdwCarousel),
 });

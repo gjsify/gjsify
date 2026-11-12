@@ -296,14 +296,8 @@ export {
 export type { NsTabPage, NsVisibility } from './tab-view-state.js';
 export { AdwTabPage } from '../values/tab-page.js';
 export type { AdwTabPageProps } from '../values/tab-page.js';
-export {
-    AdwCarousel,
-    DEFAULT_CAROUSEL_PAGE_WIDTH,
-    NOTIFY_N_PAGES,
-    NOTIFY_POSITION,
-    PAGE_CHANGED,
-} from './adw-carousel.js';
-export type { NotifyPositionEventData, PageChangedEventData } from './adw-carousel.js';
+export { AdwCarousel, DEFAULT_CAROUSEL_PAGE_WIDTH, PAGE_CHANGED } from './adw-carousel.js';
+export type { PageChangedEventData } from './adw-carousel.js';
 export { AdwCarouselIndicatorDots } from './adw-carousel-indicator-dots.js';
 export { AdwCarouselIndicatorLines } from './adw-carousel-indicator-lines.js';
 // The carousel's NS-specific projection — scroll offsets, indicator marker classes and the
@@ -314,13 +308,12 @@ export {
     applyMarkerClasses,
     carouselDotClasses,
     indicatorMarkerClasses,
-    carouselNotifyPayload,
     carouselPositionAtOffset,
     carouselScrollOffset,
     createCarouselState,
     normalizeCarouselPageWidth,
 } from './carousel-state.js';
-export type { CarouselNotifyPayload, NsCarouselStateOptions } from './carousel-state.js';
+export type { NsCarouselStateOptions } from './carousel-state.js';
 
 // --- Navigation ---
 export { AdwNavigationPage } from './adw-navigation-page.js';
