@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.64.33](https://github.com/gjsify/gjsify/compare/v0.64.32...v0.64.33) (2026-11-12)
+
+### Features
+
+* **adwaita:** declare AdwTabView selected-page at seam ([#2608](https://github.com/gjsify/gjsify/issues/2608)) ([603d30d](https://github.com/gjsify/gjsify/commit/603d30dc7b5600376fca2b715ecc154cc12b4b31))
+
+### Bug Fixes
+
+* **gtksource-ns:** apply font size to the Android editor ([#2583](https://github.com/gjsify/gjsify/issues/2583)) ([48ed83d](https://github.com/gjsify/gjsify/commit/48ed83dbe097ab1afa52d5456d9a34b92f5e57eb)), closes [#2555](https://github.com/gjsify/gjsify/issues/2555)
+
+### Documentation
+
+* follow the lotsman rename ([#2610](https://github.com/gjsify/gjsify/issues/2610)) ([22b47fc](https://github.com/gjsify/gjsify/commit/22b47fc5090360365d17fd8a733391a7b1f33136))
+
+### Maintenance
+
+* **status:** speech-recognition is on npm ([#2607](https://github.com/gjsify/gjsify/issues/2607)) ([ef931c8](https://github.com/gjsify/gjsify/commit/ef931c82395e3cfe252cde2ed19fbb5712235687))
+* update native prebuilds [skip ci] ([7f3c695](https://github.com/gjsify/gjsify/commit/7f3c69536787c33d5064a655977b8e6bcbe2f8c0))
+
 ## [0.64.32](https://github.com/gjsify/gjsify/compare/v0.64.31...v0.64.32) (2026-11-12)
 
 ### Features
