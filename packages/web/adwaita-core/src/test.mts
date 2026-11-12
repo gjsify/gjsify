@@ -31,6 +31,7 @@ import breakpointBinTestSuite from './breakpoint-bin.spec.js';
 import breakpointDriverTestSuite from './breakpoint-driver.spec.js';
 import accentTestSuite from './accent.spec.js';
 import cssLengthTestSuite from './css-length.spec.js';
+import appScaleTestSuite from './app-scale.spec.js';
 import appleAccentTestSuite from './apple-accent.spec.js';
 import colorSchemeTestSuite from './color-scheme.spec.js';
 import appearanceTestSuite from './appearance.spec.js';
@@ -133,6 +134,7 @@ run({
     breakpointDriverTestSuite,
     accentTestSuite,
     cssLengthTestSuite,
+    appScaleTestSuite,
     appleAccentTestSuite,
     colorSchemeTestSuite,
     appearanceTestSuite,

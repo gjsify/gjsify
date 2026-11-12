@@ -127,11 +127,77 @@ Page.adw-window {
  * (_colors.scss:319) is the same number in both. The scoped rule below still adds the
  * separator's size, colour and padding on top of it, at higher specificity.
  *
- * It is also the first of `_labels.scss`'s utility set to land here; the rest
- * (`.title-1`…`.title-4`, `.accent`/`.success`/`.warning`, `.heading`, `.numeric`, …)
- * is an open entry in status/open-todos/README.md. */
+ * It is also the first of `_labels.scss`'s utility set to land here; the TYPOGRAPHY
+ * half follows directly below. The COLOUR half (`.accent`/`.success`/`.warning`/
+ * `.error`) stays an open entry in status/open-todos/README.md — upstream derives
+ * those from `oklab(from var(--…-bg-color) …)` (_colors.scss:168-193), and the
+ * standalone colour that comes out is not a literal anywhere in the tree, so porting
+ * it means doing the oklab conversion per scheme rather than copying a number. */
 .dimmed {
     opacity: 0.55;
+}
+
+/* `_labels.scss`'s typography ramp (lines 33-84). The percentages are upstream's,
+ * stated against the DOCUMENT font; NativeScript has no document-level font size to
+ * inherit from — every rule in this file carries its own — so they are resolved here
+ * against the same 14.67 base the rest of the theme uses (`.adw-window-title`,
+ * `.adw-button-label`): GTK's 11pt read at 96 dpi, 11 × 96/72 = 14.67.
+ *
+ *   .title-1  181 %  →  26.55      .title-4         118 %  →  17.31
+ *   .title-2  136 %  →  19.95      .caption          82 %  →  12.03
+ *   .title-3  136 %  →  19.95      .caption-heading  82 %  →  12.03
+ *
+ * The products are written UNROUNDED on purpose. `.adw-status-page-title` below is
+ * 26.55, not 27, and a utility class that rounds is a second ramp that drifts from
+ * the first one hundredth at a time. `scripts/check-nativescript-font-sizes.mjs`
+ * recomputes each product from its percentage, so a hand-typed one fails the build.
+ *
+ * NOT PORTED, because the NativeScript CSS subset has no such property: upstream's
+ * `line-height: 140%` on `.body`/`.caption`, and `font-variant-numeric: tabular-nums`
+ * on `.numeric`. A `.numeric` that sets nothing would be a lie, so it is absent
+ * rather than empty. `.document`/`.monospace` are font-family tokens the embedder
+ * supplies (Android resolves a family by the TTF file name), not theme constants.
+ *
+ * `.body` and `.heading` are weight-only upstream; `.body` gains the explicit base
+ * size here for the same reason the percentages are resolved — there is nothing to
+ * inherit it from. */
+.title-1 {
+    font-size: 26.55;
+    font-weight: 800;
+}
+
+.title-2 {
+    font-size: 19.95;
+    font-weight: 800;
+}
+
+.title-3 {
+    font-size: 19.95;
+    font-weight: 700;
+}
+
+.title-4 {
+    font-size: 17.31;
+    font-weight: 700;
+}
+
+.heading {
+    font-weight: 700;
+}
+
+.body {
+    font-size: 14.67;
+    font-weight: 400;
+}
+
+.caption {
+    font-size: 12.03;
+    font-weight: 400;
+}
+
+.caption-heading {
+    font-size: 12.03;
+    font-weight: 700;
 }
 
 /* ===== Rows ===== */

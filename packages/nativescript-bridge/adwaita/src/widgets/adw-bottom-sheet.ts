@@ -67,6 +67,7 @@ import {
     type BottomSheetPanes,
     type NotifyOpenEventData,
 } from './bottom-sheet-state.js';
+import { scaleDip } from '../app-scale.js';
 import { bottomSheetInsetPadding } from './bottom-sheet-insets.js';
 import {
     GRIP_HEIGHT,
@@ -235,7 +236,7 @@ export class AdwBottomSheet extends withSignals(GridLayout) {
         const grip = new StackLayout();
         grip.className = 'adw-bottom-sheet-grip';
         grip.verticalAlignment = 'top';
-        grip.height = GRIP_HEIGHT;
+        grip.height = scaleDip(GRIP_HEIGHT);
         // A view with no listener is not clickable on Android and hands the touch on to the
         // scroll view under it; a tap listener makes it take the touch. The pan lands on the panel.
         grip.addEventListener('tap', () => {});

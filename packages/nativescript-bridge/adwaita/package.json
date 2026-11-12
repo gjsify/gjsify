@@ -30,6 +30,10 @@
             "types": "./lib/types/builder/index.d.ts",
             "default": "./lib/esm/builder/index.js"
         },
+        "./app-scale": {
+            "types": "./lib/types/app-scale.d.ts",
+            "default": "./lib/esm/app-scale.js"
+        },
         "./capabilities": {
             "types": "./lib/types/capabilities.d.ts",
             "default": "./lib/esm/capabilities.js"

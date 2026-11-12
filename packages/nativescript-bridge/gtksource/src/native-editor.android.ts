@@ -23,6 +23,7 @@ import type {
 import type { EditorHost, EditorLayout } from '@gjsify/gtksource-core';
 import { emphasisedLine, gutterWidth, visibleLines } from '@gjsify/gtksource-core';
 import { LineStore } from '@gjsify/gtksource-core';
+import { DEFAULT_FONT_SIZE } from './font-size.js';
 import { MultiTap } from './multi-tap.js';
 
 // `android.R.id.copy`: the NativeScript runtime exposes no `android.R`, reading it throws.
@@ -120,6 +121,7 @@ class AndroidEditorDriver implements NativeEditorDriver, DrawingDriver {
     private selection = { start: 0, end: 0 };
     private lineCount = 1;
     private layout: EditorLayout | null = null;
+    private fontSize: number | undefined;
     private palette: EditorPalette | null = null;
 
     private readonly runs = new LineStore<readonly StyledRun[]>();
@@ -297,6 +299,11 @@ class AndroidEditorDriver implements NativeEditorDriver, DrawingDriver {
         if (this.view && this.layout?.showLineNumbers) this.applyLayout();
     }
 
+    setFontSize(size: number | undefined): void {
+        this.fontSize = size;
+        this.applyLayout();
+    }
+
     setLayout(layout: EditorLayout): void {
         this.layout = layout;
         this.applyLayout();
@@ -417,6 +424,7 @@ class AndroidEditorDriver implements NativeEditorDriver, DrawingDriver {
         const layout = this.layout;
         if (!view || !layout) return;
         view.setTypeface(layout.monospace ? android.graphics.Typeface.MONOSPACE : android.graphics.Typeface.DEFAULT);
+        view.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, this.fontSize ?? DEFAULT_FONT_SIZE);
         const density = this.density(view);
         view.setPadding(
             Math.round(layout.leftMargin * density) + this.gutterPixels(view),

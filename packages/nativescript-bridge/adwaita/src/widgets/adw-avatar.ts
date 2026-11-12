@@ -30,6 +30,7 @@ import { GridLayout, ItemSpec, Label } from '@nativescript/core';
 
 import { avatarIconSize, avatarMaxFontSize } from '@gjsify/adwaita-core';
 
+import { scaleDip } from '../app-scale.js';
 import { avatarColor, avatarInitials } from './avatar-color.js';
 import { AVATAR_DEFAULT_ICON, avatarViewState } from './avatar-view.js';
 import { GtkImage } from './gtk-image.js';
@@ -97,12 +98,15 @@ export class AdwAvatar extends withSignals(GridLayout) {
 
     /** Sync the inline width/height/border-radius/font-size for the current size. */
     private _applySize(): void {
-        this.width = this._size;
-        this.height = this._size;
+        // The diameter at the interface scale (`../app-scale.ts`): a size set in code, which no
+        // stylesheet reaches. `size` keeps reporting the authored number.
+        const size = scaleDip(this._size);
+        this.width = size;
+        this.height = size;
         // border-radius is an inline style: half the diameter makes a circle.
         // NS exposes it on the style object; set via the public `set` to stay
         // within the ambient surface.
-        this.set('borderRadius', this._size / 2);
+        this.set('borderRadius', size / 2);
         // Scale the initials with the diameter — a single CSS rule can't size
         // per-instance, so set fontSize inline. Without this the initials are
         // too small to read at size 32 (action-bar avatar).
@@ -112,8 +116,9 @@ export class AdwAvatar extends withSignals(GridLayout) {
         // — but clamped to libadwaita's cap, which it exceeded above ~54 DIPs
         // (at size 128 it asked for 51px against a 44px cap and the initials
         // spilled out of the circle).
-        this._label.set('fontSize', Math.round(Math.min(this._size * 0.4, avatarMaxFontSize(this._size))));
-        // Half the diameter, as `adw_avatar_set_size` gives its icon child.
+        this._label.set('fontSize', Math.round(Math.min(size * 0.4, avatarMaxFontSize(size))));
+        // Half the diameter, as `adw_avatar_set_size` gives its icon child — the AUTHORED
+        // diameter, because `GtkImage` scales the size it draws at itself.
         this._icon.pixelSize = avatarIconSize(this._size);
     }
 

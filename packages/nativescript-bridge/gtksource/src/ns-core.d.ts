@@ -12,6 +12,8 @@ declare module '@nativescript/core' {
 
     export class Observable {
         notify<T extends EventData>(data: T): void;
+        addEventListener(eventName: string, callback: (data: EventData) => void): void;
+        removeEventListener(eventName: string, callback?: (data: EventData) => void): void;
     }
 
     /** `ViewBase` members a custom leaf view overrides, per `ui/core/view-base`. */
@@ -21,6 +23,12 @@ declare module '@nativescript/core' {
         _context: unknown;
         /** The platform view `createNativeView()` returned; `undefined` before attach and after dispose. */
         nativeViewProtected: unknown;
+        /**
+         * The resolved style; a CSS property notifies `<name>Change` on it, not on the view. `fontSize`
+         * is in DIPs and UNSET until something writes it. A plain `View` stores the CSS `font-size`
+         * here but applies it to nothing — only `TextBase` has a native setter for it.
+         */
+        readonly style: Observable & { fontSize?: number };
         createNativeView(): object;
         initNativeView(): void;
         disposeNativeView(): void;

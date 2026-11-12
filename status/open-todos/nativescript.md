@@ -746,7 +746,7 @@ The slot backfill (all 80 declarable packages), `@gjsify/native-fs-bridge`, the 
 Level 2 (platform file resolution + platform defines) is owned by gjsify. **Level 3 (north-star, L, multi-week):** make `gjsify build --app nativescript` (or the Vite preset) produce a standalone NS-loadable production bundle, replacing `@nativescript/{webpack,vite}` for the JS-bundling step. The NS-runtime subset still to replicate: main-entry + bundle-emit to NS's expected dist layout (≈150 LOC sans HMR), static-copy of `App_Resources`/fonts/assets, the `@NativeClass()` transform (≈43 LOC), optionally app-components/XML page registration (≈278 LOC — skippable for code-only canvas apps) + CSS/theme-core. HMR is the bulk of `@nativescript/vite`'s complexity and is NOT needed to ship (production-only target). **Hard blocker:** NS's CLI bundler dispatch is a hardcoded `webpack|rspack|vite` switch — `bundler: 'gjsify'` needs an upstream NS-CLI PR for a pluggable bundler, OR gjsify masquerades under the `vite` name (current Level-1 path). The spawn contract is discoverable (`node <bundler>/bin build --config=<path>`, `NATIVESCRIPT_BUNDLER_ENV` JSON env, dist copied into APK assets).
 
 
-### The NativeScript theme ships almost none of libadwaita's label utilities
+### The NativeScript theme ships libadwaita's label TYPOGRAPHY but none of its label COLOURS
 
 `scripts/check-nativescript-theme-classes.mjs` now reads the storybook showcase's views
 and templates as well as the bridge's widgets, and it closed three `adw-`-prefixed gaps
@@ -754,18 +754,48 @@ and templates as well as the bridge's widgets, and it closed three `adw-`-prefix
 (`.dimmed`, which had only an ancestor-scoped rule). What it still cannot see is the rest
 of the unprefixed half, and the same showcase is full of it: `carousel.ns.ts` builds each
 page with `className = 'adw-card accent|success|warning'` and labels it `title-1`,
-`bottom-sheet.ns.ts` uses `title-2` — and **not one of those five has a rule** in any of
+`bottom-sheet.ns.ts` uses `title-2` — and **not one of those five had a rule** in any of
 the three stylesheets `app.css` imports, nor in the `@nativescript/theme` core sheet it
-imports first. The pages render at body size in the default colour where the browser twin
-sets `font-size:24pt;font-weight:800` and a 14% accent tint
+imports first. The pages rendered at body size in the default colour where the browser
+twin sets `font-size:24pt;font-weight:800` and a 14% accent tint
 (`carousel.web.ts:12-14,36`), inline, because the web storybook does not use the classes
 either.
 
-`bottom-sheet.ns.ts:43` is the one to read first, because it says the quiet part: "Match
+`bottom-sheet.ns.ts:43` is the one to read first, because it said the quiet part: "Match
 the GTK `.title-2` typography (bold heading) — NS has no typography utility class, so a
-plain bold Label stands in." There is no stand-in. The next three lines set `text` and
-`className = 'title-2'` and nothing else, so the label is neither bold nor larger — a
+plain bold Label stands in." There was no stand-in. The next three lines set `text` and
+`className = 'title-2'` and nothing else, so the label was neither bold nor larger — a
 comment describing a fallback that was never written.
+
+**THE TYPOGRAPHY HALF HAS LANDED.** `theme/adwaita.css` now carries `_labels.scss`'s ramp
+(`.title-1`…`.title-4`, `.heading`, `.body`, `.caption`, `.caption-heading`), so those
+labels are bold and larger without any widget setting a local property. Upstream states
+the ramp as percentages of the document font; the NS CSS subset has no document font to
+inherit from, so the stylesheet ships the products, and the percentage each product came
+from lives in `scripts/check-nativescript-font-sizes.mjs`'s `RULES` next to every other
+derived size in the theme. That gate recomputes the product, so a hand-rounded step fails
+the build — the drift it catches is invisible otherwise (26.55 rounded to 27 is a
+slightly bolder heading, not a broken layout, and it no longer matches
+`.adw-status-page-title`, which is also 26.55).
+
+The ramp's font-WEIGHTS are not gated, only its sizes: `check-nativescript-font-sizes.mjs`
+is a font-size gate by construction and giving it a weight column means a second value on
+all 60 rows. Worth doing when something actually drifts.
+
+`line-height: 140%` and `.numeric`'s `font-variant-numeric` are NOT ported: the NS subset
+has neither property, and `.numeric` is absent rather than empty because a utility that
+sets nothing is a lie. `.document`/`.monospace` are embedder font tokens, not theme
+constants.
+
+**WHAT IS STILL OPEN IS THE COLOUR HALF** — `.accent`, `.success`, `.warning`, `.error`.
+It is not a copy like the ramp was: upstream derives each one as
+`oklab(from var(--…-bg-color) var(--standalone-color-oklab))` (`_colors.scss:168-193`),
+so the standalone colour exists nowhere in the tree as a literal. Porting it means
+running that derivation per scheme — `@gjsify/adwaita-core` already does exactly this for
+the accent (`adwaitaAccentColor`, the `min(l, 0.5)`/`max(l, 0.85)` branches), so the work
+is extending that to the three status roles and then wiring them into
+`accent-theme.ts`-style override tables, because an app can change the accent at runtime
+and `.accent` has to follow it.
 
 Setting the two properties on the Label is NOT the fix, and this is the trap worth
 writing down: NativeScript drops a CSS value for any property a widget set as a LOCAL one

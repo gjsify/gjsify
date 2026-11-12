@@ -63,8 +63,8 @@ Worth a measurement of the two side by side before it is worth the port.
 
 ### adwaita-core modules with no conformance vector table
 
-`breakpoint.ts`, `color-scheme.ts`, `scrolling.ts`, `shortcut-format.ts`,
-`source.ts`, `swipe.ts` and
+`app-scale.ts`, `breakpoint.ts`, `color-scheme.ts`, `scrolling.ts`,
+`shortcut-format.ts`, `source.ts`, `swipe.ts` and
 `toast.ts` export shared behaviour and are covered by nothing in
 `@gjsify/adwaita-core/conformance` — no vector table names them, and no
 conformance file imports them. Three of them are what `packages/web/AGENTS.md`
@@ -90,6 +90,23 @@ renderer grows a swipe — and three widgets upstream already want the same
 tracker (`adw-bottom-sheet.c`, `adw-navigation-view.c`,
 `adw-overlay-split-view.c`), whose web ports currently take `to` as an INPUT
 (`resolveSwipeRelease` in `split-view.ts`) with nothing in the tree computing it.
+
+`app-scale.ts` is the same shape as `swipe.ts` and the same age: the interface
+scale's pure half — `deriveAppScale` (reference width, clamp, phones only),
+`resolveAppScale`, `parseAppScaleSetting`, `scaleDip`, `appScaleChoices`. Today
+exactly ONE renderer consumes it, the NativeScript port, whose
+`@gjsify/adwaita-nativescript/app-scale` adds the `Screen.mainScreen` read and
+the single `Application.addCss` and re-exports the rest unchanged. A table now
+would assert that port's own derivation against itself. The browser has no app
+scale to hold it against either, and arguably never will: a desktop window is
+resized rather than scaled, and the one real driver — a fixed-width phone screen
+whose dp count the app cannot change — does not exist there. What would earn it
+a table is a second renderer with the same problem (a `@gjsify/adwaita-ios` port
+is where it would come from, since `UIScreen` poses the question identically),
+not a browser suite invented to make the count look complete. Held in core by
+`app-scale.spec.ts` meanwhile: the derivation per screen width including the
+measured device, the clamp at both ends, the stored override, the reset to
+automatic, and that the system font scale is not applied a second time.
 
 `shortcut-format.ts` is two formatters, and only half of it is actually
 untabled. `formatAcceleratorLabel` is a thin wrapper over `shortcut-label.ts`'s

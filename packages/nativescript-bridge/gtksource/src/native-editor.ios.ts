@@ -44,6 +44,7 @@ import type { EditorPalette, GutterMetrics, RunStyle, StyledRun } from '@gjsify/
 import { emphasisedLine, gutterWidth, visibleLines } from '@gjsify/gtksource-core';
 import { LineStore } from '@gjsify/gtksource-core';
 import type { NativeEditorDriver } from './native-editor.js';
+import { DEFAULT_FONT_SIZE } from './font-size.js';
 import { EditQueue, argbComponents, clampRange, lineAtOffset, lineExtent, lineStartOffsets } from './text-ranges.js';
 
 declare const UITextView: ObjCClass<UITextViewNative>;
@@ -128,7 +129,6 @@ const TRAIT_BOLD = 1 << 1;
 const STROKE_SINGLE = 1;
 /** `UIFontWeightRegular`. */
 const FONT_WEIGHT_REGULAR = 0;
-const DEFAULT_FONT_SIZE = 14;
 /** The container width that refuses to wrap; `CGFLOAT_MAX` makes TextKit's own arithmetic overflow. */
 const UNBOUNDED = 1e7;
 /**
@@ -295,6 +295,7 @@ class IosEditorDriver implements NativeEditorDriver, DrawingDriver, EditReporter
     private selection = { start: 0, end: 0 };
     private lineCount = 1;
     private layout: EditorLayout | null = null;
+    private fontSize: number | undefined;
     private palette: EditorPalette | null = null;
 
     private readonly runs = new LineStore<readonly StyledRun[]>();
@@ -419,6 +420,11 @@ class IosEditorDriver implements NativeEditorDriver, DrawingDriver, EditReporter
         if (this.view && this.layout?.showLineNumbers) this.applyLayout();
     }
 
+    setFontSize(size: number | undefined): void {
+        this.fontSize = size;
+        this.applyLayout();
+    }
+
     setLayout(layout: EditorLayout): void {
         this.layout = layout;
         this.applyLayout();
@@ -535,7 +541,7 @@ class IosEditorDriver implements NativeEditorDriver, DrawingDriver, EditReporter
         const view = this.view;
         const layout = this.layout;
         if (!view || !layout) return;
-        const size = view.font?.pointSize ?? DEFAULT_FONT_SIZE;
+        const size = this.fontSize ?? view.font?.pointSize ?? DEFAULT_FONT_SIZE;
         this.baseFont = layout.monospace
             ? UIFont.monospacedSystemFontOfSizeWeight(size, FONT_WEIGHT_REGULAR)
             : UIFont.systemFontOfSize(size);

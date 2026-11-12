@@ -53,6 +53,7 @@ export interface AndroidEditText {
     getSelectionEnd(): number;
     getExtendedPaddingTop(): number;
     getTextSize(): number;
+    setTextSize(unit: number, size: number): void;
     getTypeface(): unknown;
     getResources(): { getDisplayMetrics(): { density: number } };
     getKeyListener(): unknown;
@@ -111,6 +112,9 @@ export interface AndroidNamespace {
             UnderlineSpan: new () => unknown;
             StrikethroughSpan: new () => unknown;
         };
+    };
+    util: {
+        TypedValue: { COMPLEX_UNIT_SP: number };
     };
     view: {
         Gravity: { TOP: number; START: number };
