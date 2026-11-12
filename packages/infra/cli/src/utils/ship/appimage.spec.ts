@@ -605,6 +605,20 @@ export default async () => {
             expect(at('bin/ship-demo')).toBe(undefined);
         });
 
+        await it('carries a `gjsify.ship.formats.appimage` file at the path the launcher looks in', async () => {
+            // The AppDir half of `gjsify.ship.formats.appimage`. `planOverlay` emits these
+            // prefix-relative, as `lib/<binaryName>/gi/<basename>` — the directory the shared
+            // launcher puts on `GI_TYPELIB_PATH` behind `if [ -d … ]` — and they take the SAME
+            // `usr/` prefix as everything else, so the launcher's computed prefix finds them.
+            // Nothing in this packer knows about the key, which is the claim: an entry is an entry.
+            const typelib = { path: 'lib/ship-demo/gi/Gda-6.0.typelib', mode: 0o755, data: bytes('typelib') };
+            const withFormatFiles = appDirPayload(packSettings(), payload([typelib]), ['gjs (>= 1.86)']);
+            const staged = withFormatFiles.find((entry) => entry.path === 'usr/lib/ship-demo/gi/Gda-6.0.typelib');
+            expect(staged?.mode).toBe(0o755);
+            // NOT at the AppDir root, where `GI_TYPELIB_PATH` does not point.
+            expect(withFormatFiles.some((entry) => entry.path === typelib.path)).toBe(false);
+        });
+
         await it('keeps the payload’s modes, so the launcher is executable in the image', async () => {
             // squashfs stores modes, and an AppImage whose launcher is 0644 mounts
             // fine and refuses to start. The entries carry the plan's modes through

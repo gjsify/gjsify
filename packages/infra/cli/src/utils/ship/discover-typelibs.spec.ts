@@ -20,6 +20,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { discoverPayload } from './discover.js';
+import { FORMATS } from './formats.js';
 import type { HostOs } from './types.js';
 import type { ConfigDataShip } from '../../types/config-data.js';
 
@@ -213,10 +214,45 @@ export default async () => {
             }
         });
 
-        await it('refuses a format that has no overlay to carry the files', () => {
-            expect(() => formatFilesOf({ formats: { appimage: { bundledTypelibs: ['gi'] } } } as never)).toThrow(
-                'formats.appimage',
-            );
+        await it('resolves them for the AppImage too, which carries files and declares none', () => {
+            // The format whose two questions differ: `FORMATS.appimage.depends` is `null` — there
+            // is no field to name a package in — while its payload goes through `planOverlay` like
+            // every other format's and lands under the AppDir's `usr/`. Keyed on
+            // `FormatFilesId`, not on `DistroFormatId`, which is what makes this entry legal.
+            const found = formatFilesOf({
+                formats: { appimage: { bundledTypelibs: ['gi'], extraFiles: { 'lib/x/p.so': 'provider.so' } } },
+            } as ConfigDataShip);
+            expect(found.formatFiles.appimage?.typelibFiles.map((f) => basename(f)).sort()).toStrictEqual([
+                'Foo-1.typelib',
+                'libfoo.so',
+            ]);
+            expect(basename(found.formatFiles.appimage?.extraFiles['lib/x/p.so'] ?? '')).toBe('provider.so');
+            // Still ONE format's, the point of the key: the `.deb` beside it carries none of this.
+            expect(found.formatFiles.deb).toBe(undefined);
+            expect(found.typelibFiles).toStrictEqual([]);
+        });
+
+        await it('refuses a format that has nothing to carry the files', () => {
+            // A Flatpak's payload is assembled by `flatpak-builder` from the manifest, not from an
+            // overlay this planner writes, so these files would be dropped without a word.
+            let message = '';
+            try {
+                formatFilesOf({ formats: { flatpak: { bundledTypelibs: ['gi'] } } } as never);
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message).toContain('formats.flatpak');
+            expect(message).toContain('Known: deb, rpm, appimage.');
+        });
+
+        await it('does NOT give the AppImage a `depends` entry', () => {
+            // The other half of the split, pinned where it can be read next to the half above: an
+            // AppImage carries its libraries and has nowhere to declare one, so `gjsify.ship.depends`
+            // stays `deb`/`rpm`. Adding a key to that type fails to BUILD on this literal — which is
+            // the same guard `Record<DistroFormatId, …>` gives every table in `depends.ts`.
+            const keys: Record<keyof NonNullable<ConfigDataShip['depends']>, true> = { deb: true, rpm: true };
+            expect(Object.keys(keys).sort()).toStrictEqual(['deb', 'rpm']);
+            expect(FORMATS.appimage.depends).toBe(null);
         });
     });
 };

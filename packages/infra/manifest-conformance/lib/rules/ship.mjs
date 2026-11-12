@@ -128,6 +128,20 @@ const SIGN_OSES = new Set(['darwin', 'win32']);
 const APP_OSES = new Set(['linux', 'darwin', 'win32']);
 const APP_RUNTIMES = new Set(['gjs', 'node']);
 
+/**
+ * The formats `gjsify.ship.formats` may be keyed on — the CLI's `FORMAT_FILES_IDS`
+ * (`packages/infra/cli/src/utils/ship/discover.ts`), restated here because this package reads
+ * package.json files without loading the CLI.
+ *
+ * NOT the formats that have a `Depends:` field, which is the neighbouring and narrower question
+ * `gjsify.ship.depends` is keyed on (`deb`, `rpm`). An AppImage declares no dependency and still
+ * carries files: its payload goes through the same overlay, under the AppDir's `usr/`.
+ *
+ * An ARRAY and not a `Set`, because the refusal prints the list and the order it prints is this
+ * one.
+ */
+const FORMAT_FILES_IDS = ['deb', 'rpm', 'appimage'];
+
 export function auditShip(ctx) {
     const failures = [];
     let declared = 0;
@@ -287,18 +301,20 @@ export function auditShip(ctx) {
             }
         }
 
-        // `formats`: per-format files. Only deb and rpm have an overlay to carry them, so another
-        // key would be dropped without a word.
+        // `formats`: per-format files. Only the formats assembled from an overlay have anywhere to
+        // carry them, so another key would be dropped without a word. The list is the CLI's
+        // `FORMAT_FILES_IDS` (utils/ship/discover.ts) — a package.json reaching that refusal at pack
+        // time should have failed here, where the manifest is.
         const formats = block.formats;
         if (formats !== undefined) {
             if (formats === null || typeof formats !== 'object' || Array.isArray(formats)) {
                 failures.push(`${pkg.rel}/package.json: \`gjsify.ship.formats\` must be an object keyed by format.`);
             } else {
                 for (const [id, options] of Object.entries(formats)) {
-                    if (id !== 'deb' && id !== 'rpm') {
+                    if (!FORMAT_FILES_IDS.includes(id)) {
                         failures.push(
                             `${pkg.rel}/package.json: \`gjsify.ship.formats.${id}\` is not a format that carries its ` +
-                                `own files. Known: deb, rpm.`,
+                                `own files. Known: ${FORMAT_FILES_IDS.join(', ')}.`,
                         );
                     } else if (options === null || typeof options !== 'object' || Array.isArray(options)) {
                         failures.push(`${pkg.rel}/package.json: \`gjsify.ship.formats.${id}\` must be an object.`);

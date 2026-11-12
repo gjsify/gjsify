@@ -15,7 +15,7 @@ import {
     type DiscoveredPayload,
     type ShipPackageManifest,
 } from './settings.js';
-import type { HostOs, ShipSettings } from './types.js';
+import type { FormatFilesId, HostOs, ShipSettings } from './types.js';
 
 const ICON_EXTENSIONS = ['.svg', '.png'];
 
@@ -44,6 +44,23 @@ const FONT_EXTENSIONS = ['.ttf', '.otf', '.ttc', '.otc'];
  * inside `@gjsify/gtk-runtime-<target>` and not this host's.
  */
 const WEB_FONT_EXTENSIONS = ['.woff', '.woff2', '.eot'];
+
+/**
+ * The keys `gjsify.ship.formats` takes, in the order the refusal lists them.
+ *
+ * Spelled as a `Record<FormatFilesId, …>` and read back with `Object.keys` rather than as a
+ * literal list, for the reason `depends.ts`'s tables give: a member added to {@link FormatFilesId}
+ * and not here fails to BUILD, where a list would merely refuse the new key at run time, in a
+ * project that declared it correctly.
+ */
+const FORMAT_FILES_IDS = Object.keys({ deb: null, rpm: null, appimage: null } satisfies Record<
+    FormatFilesId,
+    null
+>) as FormatFilesId[];
+
+function isFormatFilesId(id: string): id is FormatFilesId {
+    return (FORMAT_FILES_IDS as string[]).includes(id);
+}
 
 export interface DiscoverInput {
     projectDir: string;
@@ -106,9 +123,9 @@ export function discoverPayload(input: DiscoverInput): DiscoveredPayload {
 }
 
 /**
- * `gjsify.ship.formats`, resolved to absolute paths. A key other than `deb`/`rpm` is refused: a
- * format that is not a distro package has no overlay to carry the files, so they would be
- * dropped without a word.
+ * `gjsify.ship.formats`, resolved to absolute paths. A key outside {@link FORMAT_FILES_IDS} is
+ * refused: a format whose payload is not assembled from an overlay has nowhere to put the files,
+ * so they would be dropped without a word.
  */
 function discoverFormatFiles(
     projectDir: string,
@@ -116,13 +133,14 @@ function discoverFormatFiles(
     layoutOs: HostOs | undefined,
 ): ShipSettings['formatFiles'] {
     const out: ShipSettings['formatFiles'] = {};
-    // deb and rpm exist on the Linux layout only. Looking for their files while assembling a macOS or
+    // All three exist on the Linux layout only. Looking for their files while assembling a macOS or
     // Windows target would fail on a directory that only the Linux build produces.
     if (layoutOs !== undefined && layoutOs !== 'linux') return out;
     for (const [id, options] of Object.entries(ship.formats ?? {})) {
-        if (id !== 'deb' && id !== 'rpm') {
+        if (!isFormatFilesId(id)) {
             throw new Error(
-                `gjsify ship: \`gjsify.ship.formats.${id}\` is not a format that carries its own files. Known: deb, rpm.`,
+                `gjsify ship: \`gjsify.ship.formats.${id}\` is not a format that carries its own files. ` +
+                    `Known: ${FORMAT_FILES_IDS.join(', ')}.`,
             );
         }
         out[id] = {
