@@ -641,7 +641,7 @@ export interface ConfigDataShip extends AppMetadata {
      */
     bundledTypelibs?: string[] | ShipBundledTypelibsOptions;
     /**
-     * npm packages the `--app node` bundle imports but cannot contain, by NAME — e.g.
+     * npm packages the bundle imports or loads an addon from but cannot contain, by NAME — e.g.
      * `["node-llama-cpp"]`.
      *
      * An `--app node` build keeps every Node-API addon package external (an addon finds its
@@ -654,8 +654,10 @@ export interface ConfigDataShip extends AppMetadata {
      * per-platform addon package is chosen: `gjsify install --os <os> --cpu <cpu>` before `ship`.
      * A required one that is missing is an error.
      *
-     * Ignored for a GJS payload, so one declaration serves a project that ships GJS on Linux and
-     * Node on macOS and Windows. `@gjsify/node-gi` is not listed here; `ship` carries it itself.
+     * Applies to a GJS payload too: its bundle loads an addon through `@gjsify/napi` from the
+     * package's own directory, found relative to the bundle at run time, so one declaration serves
+     * a project that ships GJS on Linux and Node on macOS and Windows. `@gjsify/node-gi` is not
+     * listed here; `ship` carries it itself.
      */
     nodeModules?: string[];
     /**

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
-// npm packages an `--app node` bundle imports but cannot contain: found, then staged as a TREE.
+// npm packages a bundle imports (`--app node`) or loads an addon from (`--app gjs`) but cannot
+// contain: found, then staged as a TREE.
 //
 // WHY THIS EXISTS. `rolldown-plugin-gjsify`'s `nodeNativeExternalPlugin` keeps every Node-API
 // addon package EXTERNAL in an `--app node` bundle, because an addon finds its `.node` relative
