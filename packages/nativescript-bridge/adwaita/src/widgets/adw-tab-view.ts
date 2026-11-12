@@ -31,7 +31,7 @@
 
 import { GridLayout, ItemSpec, Label, StackLayout, type EventData, type View } from '@nativescript/core';
 import { windowCloseSymbolic } from '@gjsify/adwaita-icons/ui';
-import { tabIconState } from '@gjsify/adwaita-core';
+import { TYPE_OBJECT, tabIconState } from '@gjsify/adwaita-core';
 import type { AdwTabPageSpec, TabViewPagesChange } from '@gjsify/adwaita-core';
 import { GtkImage } from './gtk-image.js';
 import { AdwImageButton } from './adw-image-button.js';
@@ -42,15 +42,13 @@ import {
     tabBarVisibility,
     tabCloseVisibilities,
     tabLabelText,
-    tabViewNotifyPayload,
     type NsTabPage,
-    type TabViewNotifyPayload,
 } from './tab-view-state.js';
 import type { AdwViewPage } from './view-switcher-base.js';
 import { AdwTabPage } from '../values/tab-page.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
-import { withSignals } from './signals.js';
+import { pushDeclared, readDeclaredValue, withSignals, type GObjectNotify } from './signals.js';
 
 // Re-exported so the widget module stays the one import site for the page type,
 // as `widgets/index.ts` and every consumer already expect.
@@ -66,17 +64,11 @@ export type { NsTabPage };
  */
 const pageHandle = (page: NsTabPage | string): string => (typeof page === 'string' ? page : page.id);
 
-/** Event name emitted when the selected page changes. Mirrors `notify::selected-page`. */
-export const NOTIFY_SELECTED_PAGE = 'notify::selected-page';
-
 /** Event name emitted for every page-list change (attach / detach / reorder / pin / update). */
 export const PAGES_CHANGED = 'pages-changed';
 
 /** Event name emitted for every close ATTEMPT, before the verdict is applied. */
 export const CLOSE_PAGE = 'close-page';
-
-/** Payload of {@link NOTIFY_SELECTED_PAGE}. */
-export interface NotifySelectedPageEventData extends EventData, TabViewNotifyPayload {}
 
 /** Payload of {@link PAGES_CHANGED} — the core's page-list change, verbatim. */
 export interface PagesChangedEventData extends EventData, TabViewPagesChange {}
@@ -98,8 +90,52 @@ interface TabChip {
     close: AdwImageButton;
 }
 
-export class AdwTabView extends withSignals(GridLayout) {
+/**
+ * What `selected-page`'s {@link DeclaredProperty.normalize} reads off the view. Structural,
+ * because `normalize` is handed a bare `object` while the instance may still be constructing,
+ * and because `_state` is private to the class.
+ */
+interface AdwTabViewValues {
+    readonly _state: ReturnType<typeof createTabViewState>;
+    selectedPage: NsTabPage | null;
+}
+
+export class AdwTabView extends withSignals(GridLayout, {
+    GTypeName: 'AdwTabView',
+    Properties: {
+        // Object-kind makes this seam-owned for the same reason `AdwViewStack:visible-child`
+        // is: a page is a headless record (`tab-view-state.ts`), never a real GObject slot.
+        // The declared property is the public door; `TabViewState` is still the source of truth.
+        'selected-page': {
+            kind: 'object',
+            valueType: TYPE_OBJECT,
+            explicitNotify: true,
+            blurb: 'The currently selected page',
+            normalize: (value, self) => {
+                const view = self as AdwTabViewValues;
+                // THE ID IS ACCEPTED BESIDE THE PAGE, BECAUSE AN XML ATTRIBUTE CAN CARRY NOTHING
+                // ELSE: `<AdwTabView selectedPage="inbox">` is the only way markup can declare a
+                // starting tab, and `readDeclaredValue` refuses every other string for an
+                // object property. The core refuses an id this view does not hold, with the
+                // diagnostic C raises.
+                if (typeof value === 'string') view._state.setSelectedPage(value);
+                else {
+                    const page = readDeclaredValue('selected-page', 'object', value) as NsTabPage | null;
+                    // A null write is C's `ADW_IS_TAB_PAGE` warning, which the core records.
+                    view._state.setSelectedPage(page);
+                }
+                return view._state.selectedPage;
+            },
+        },
+    },
+}) {
     static readonly GTypeName: string = 'AdwTabView';
+
+    /** `Adw.TabView:selected-page` — the selected page, `null` when the view is empty. */
+    declare selectedPage: NsTabPage | null;
+
+    /** GJS's `notify('<prop>')` beside NativeScript's `notify({ eventName })`; see the seam. */
+    declare notify: GObjectNotify;
 
     private readonly _state = createTabViewState({ onClosePage: (page) => this._requestClose(page) });
     private readonly _bar: StackLayout;
@@ -147,14 +183,10 @@ export class AdwTabView extends withSignals(GridLayout) {
         this._contentArea = contentArea;
 
         this._state.subscribePages((change) => this._onPagesChange(change));
-        this._state.subscribe((change) => {
+        this._state.subscribe(() => {
             this._applySelection();
-            const data: NotifySelectedPageEventData = {
-                eventName: NOTIFY_SELECTED_PAGE,
-                object: this,
-                ...tabViewNotifyPayload(change),
-            };
-            this.notify(data);
+            pushDeclared(this, 'selected-page', this._state.selectedPage);
+            this.notify('selected-page');
         });
 
         applyConstructProps(this, props);
@@ -185,37 +217,6 @@ export class AdwTabView extends withSignals(GridLayout) {
     /** Index of the selected page, `-1` when the view is empty — never 0 for an empty view. */
     get selectedIndex(): number {
         return this._state.selectedIndex;
-    }
-
-    /**
-     * The selected page (`Adw.TabView:selected-page`), `null` when the view is empty.
-     *
-     * THE PAGE, NOT ITS POSITION (ADR 0048). `Adw.TabView` is the one widget in this port
-     * whose counterpart selects by OBJECT rather than by name or by ordinal, and the model
-     * has held that object all along — this getter is the door onto it.
-     *
-     * READS THE PAGE, WRITES THE ID: the setter below takes the id this port uses as its
-     * page handle, because that is what an XML attribute can carry. TypeScript allows the
-     * two halves to differ, so `view.selectedPage = view.selectedPage` is a type error
-     * rather than a silent one — which is the intended reading, not an oversight.
-     */
-    get selectedPage(): NsTabPage | null {
-        return this._state.selectedPage;
-    }
-
-    set selectedPage(id: string | null) {
-        // THE ID, BECAUSE AN XML ATTRIBUTE CAN CARRY NOTHING ELSE: `<AdwTabView
-        // selectedPage="inbox">` is the only way markup can declare a starting tab. The page
-        // METHODS take either spelling — `close_page(page)` and `set_page_pinned(page, …)`
-        // resolve an `NsTabPage` down to its id — so a caller holding the page object never
-        // has to go through the id; a setter has one parameter and this is the one markup
-        // needs. The web twin takes the page OBJECT because its DOM has one and its
-        // attribute carries the id separately; ADR 0034 § 1 converges the NAME, not the shape.
-        //
-        // The core refuses an id this view does not hold, with the diagnostic C raises —
-        // and because a caller here cannot hand over another view's page object, the
-        // cross-view confusion the web twin has to guard against cannot arise.
-        this._state.setSelectedPage(id);
     }
 
     isClosing(id: string): boolean {

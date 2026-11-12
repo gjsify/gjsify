@@ -8,7 +8,7 @@
 // accessor forwards to the state this file creates, the page-list subscription
 // inserts/removes/moves one chip, and the selection subscription runs
 // {@link applyTabViewVisibility} + {@link tabCloseVisibilities} and notifies
-// {@link tabViewNotifyPayload}. Nothing here is a mock of the widget.
+// `selected-page`. Nothing here is a mock of the widget.
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { TabViewVector, TabViewVectorPagesChange, TabViewVectorSelection } from '@gjsify/adwaita-core/conformance';
@@ -35,7 +35,6 @@ import {
     tabLabelText,
     tabPageVisibilities,
     tabTooltipText,
-    tabViewNotifyPayload,
     type NsVisibility,
 } from './widgets/tab-view-state.js';
 
@@ -71,9 +70,14 @@ function runVector(vector: TabViewVector): VectorRun {
     const state = createTabViewState(handlers);
     const selections: TabViewVectorSelection[] = [];
     const pagesChanges: TabViewVectorPagesChange[] = [];
-    // The widget's own subscriptions, verbatim: it projects the change through
-    // `tabViewNotifyPayload` before it reaches a consumer.
-    state.subscribe((change) => selections.push(tabViewNotifyPayload(change)));
+    state.subscribe((change) =>
+        selections.push({
+            selectedId: change.selectedId,
+            selectedIndex: change.selectedIndex,
+            previousId: change.previousId,
+            interactive: change.interactive,
+        }),
+    );
     state.subscribePages((change) => pagesChanges.push({ ...change }));
 
     seedTabViewPages(state, vector.pages);
@@ -169,25 +173,6 @@ export default async () => {
             applyTabViewVisibility(state);
             expect(state.selectedId).toBe('headless');
             expect(tabPageVisibilities(state)).toStrictEqual(['visible']);
-        });
-
-        await it('emits a payload that carries no live model object', () => {
-            // The event escapes into consumer code; handing out the record would
-            // let a listener mutate the view's own page.
-            const state = createTabViewState();
-            const payloads: TabViewVectorSelection[] = [];
-            state.subscribe((change) => payloads.push(tabViewNotifyPayload(change)));
-            state.appendPage({ id: 'a', title: 'Alpha', content: fakeView() });
-
-            expect(payloads).toStrictEqual([
-                { selectedId: 'a', selectedIndex: 0, previousId: null, interactive: false },
-            ]);
-            expect(Object.keys(payloads[0]!).sort()).toStrictEqual([
-                'interactive',
-                'previousId',
-                'selectedId',
-                'selectedIndex',
-            ]);
         });
     });
 

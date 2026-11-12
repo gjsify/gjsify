@@ -20,7 +20,7 @@
 
 import type { View } from '@nativescript/core';
 import { TabViewState, tabCloseVisible, tabTooltip, tabsRevealed } from '@gjsify/adwaita-core';
-import type { AdwTabPageState, TabViewHandlers, TabViewSelectionChange } from '@gjsify/adwaita-core';
+import type { AdwTabPageState, TabViewHandlers } from '@gjsify/adwaita-core';
 
 /** One page of an `AdwTabView`, as a renderer reads it. */
 export type NsTabPage = AdwTabPageState<View>;
@@ -105,29 +105,4 @@ export function tabLabelText(page: NsTabPage): string {
  */
 export function tabTooltipText(page: NsTabPage): string {
     return tabTooltip(page);
-}
-
-/** The data half of the `notify::selected-page` event (minus NS's `eventName`/`object`). */
-export interface TabViewNotifyPayload {
-    /** Id of the newly-selected page, `null` when the view is empty. */
-    selectedId: string | null;
-    /** Its index, `-1` when the view is empty. */
-    selectedIndex: number;
-    /** The previously-selected id, `null` when there was none. */
-    previousId: string | null;
-    /** `false` for a model-driven pick (auto-select, close successor), `true` otherwise. */
-    interactive: boolean;
-}
-
-/**
- * Project a core change onto the event payload. A function rather than a spread so a
- * live model object cannot leak into an event a consumer holds on to.
- */
-export function tabViewNotifyPayload(change: TabViewSelectionChange): TabViewNotifyPayload {
-    return {
-        selectedId: change.selectedId,
-        selectedIndex: change.selectedIndex,
-        previousId: change.previousId,
-        interactive: change.interactive,
-    };
 }

@@ -282,8 +282,8 @@ export { AdwInlineViewSwitcher } from './adw-inline-view-switcher.js';
 // MODEL — the pinned partition, the parent-aware close successor, the two-phase
 // close protocol and the ordering rules — is headless (`@gjsify/adwaita-core`,
 // ADR 0004), with the NS-specific projection in `tab-view-state.ts`.
-export { AdwTabView, CLOSE_PAGE, NOTIFY_SELECTED_PAGE, PAGES_CHANGED } from './adw-tab-view.js';
-export type { ClosePageEventData, NotifySelectedPageEventData, PagesChangedEventData } from './adw-tab-view.js';
+export { AdwTabView, CLOSE_PAGE, PAGES_CHANGED } from './adw-tab-view.js';
+export type { ClosePageEventData, PagesChangedEventData } from './adw-tab-view.js';
 export {
     applyTabViewVisibility,
     createTabViewState,
@@ -292,9 +292,8 @@ export {
     tabLabelText,
     tabPageVisibilities,
     tabTooltipText,
-    tabViewNotifyPayload,
 } from './tab-view-state.js';
-export type { NsTabPage, NsVisibility, TabViewNotifyPayload } from './tab-view-state.js';
+export type { NsTabPage, NsVisibility } from './tab-view-state.js';
 export { AdwTabPage } from '../values/tab-page.js';
 export type { AdwTabPageProps } from '../values/tab-page.js';
 export {
