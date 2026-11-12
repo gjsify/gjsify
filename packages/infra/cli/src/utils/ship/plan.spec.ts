@@ -338,6 +338,40 @@ export default async () => {
             }
         });
 
+        await it('does the same for the appimage, whose files reach the AppDir through the overlay', async () => {
+            // THE THIRD KEY `gjsify.ship.formats` takes, and it needed no staging mechanism of its
+            // own: this plan is prefix-relative like every other format's, and the appimage branch
+            // maps it through `appDirPayload`, which puts the whole prefix under `usr/` (its own
+            // suite asserts that half). What used to block it was the key check in `discover.ts`
+            // and this function's cast, not the path.
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-overlay-appimage-'));
+            try {
+                for (const name of ['Gda-6.0.typelib', 'p.so']) writeFileSync(join(dir, name), name);
+                const withFormat = {
+                    ...settings(),
+                    formatFiles: {
+                        appimage: {
+                            typelibFiles: [join(dir, 'Gda-6.0.typelib')],
+                            extraFiles: { 'lib/hello/gda/lib/providers/p.so': join(dir, 'p.so') },
+                        },
+                    },
+                };
+                const files = (await planOverlay(withFormat, FORMATS.appimage, inputs({ licenseText: 'MIT\n' }))).map(
+                    (f) => f.path,
+                );
+                // `lib/<binaryName>/gi/` — where the shared launcher's guarded block looks, and
+                // under the AppDir that is `usr/lib/hello/gi/`, which is what the launcher computes
+                // from its own resolved path.
+                expect(files.includes('lib/hello/gi/Gda-6.0.typelib')).toBe(true);
+                expect(files.includes('lib/hello/gda/lib/providers/p.so')).toBe(true);
+                // Still that format ALONE: the `.deb` has no entry and carries nothing of it.
+                const debFiles = await planOverlay(withFormat, FORMATS.deb, inputs({ licenseText: 'MIT\n' }));
+                expect(debFiles.some((f) => /gda/i.test(f.path))).toBe(false);
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        });
+
         await it('refuses a format file that escapes the prefix', async () => {
             const bad = { ...settings(), formatFiles: { deb: { typelibFiles: [], extraFiles: { '../x': '/p/x' } } } };
             expect(await rejection(planOverlay(bad, FORMATS.deb, inputs({ licenseText: 'MIT\n' })))).toContain(

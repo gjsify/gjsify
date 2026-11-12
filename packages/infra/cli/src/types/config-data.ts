@@ -666,18 +666,23 @@ export interface ConfigDataShip extends AppMetadata {
      */
     nodeModulesExclude?: string[];
     /**
-     * Additions for ONE package format — `deb` or `rpm` — on top of everything above.
+     * Additions for ONE format — `deb`, `rpm` or `appimage` — on top of everything above.
      *
      * Exists for a library the distros disagree about: one that Fedora ships and Ubuntu does
      * not, where the `.rpm` should use the system copy and only the `.deb` needs to carry
      * its own. `bundledTypelibs` and `extraFiles` are staged for every format of a
      * layout, so there is no way to say "the `.deb` only" with them.
      *
-     * What a format carries here is read back off its package like any other staged file, so a
+     * The AppImage is here for the same question answered from the other end: it carries its
+     * libraries unconditionally, since nothing on the host is declared for it, so a library the
+     * distro packages should take from the system belongs in its `formats.appimage` and in
+     * neither package.
+     *
+     * What a format carries here is read back off its artifact like any other staged file, so a
      * namespace bundled this way no longer becomes a `Depends:` entry of THAT package — and
      * still does in the other format's.
      */
-    formats?: Partial<Record<'deb' | 'rpm', ShipFormatOptions>>;
+    formats?: Partial<Record<'deb' | 'rpm' | 'appimage', ShipFormatOptions>>;
     /**
      * Directory holding COMPILED gettext catalogues in the layout `bindtextdomain` reads —
      * `<lang>/LC_MESSAGES/<domain>.mo` — e.g. `"dist/locale"`, which is what
@@ -873,7 +878,7 @@ export interface ShipBundleOptions {
     win32?: string;
 }
 
-/** One entry of `gjsify.ship.formats`: the staged files only that package format carries. */
+/** One entry of `gjsify.ship.formats`: the staged files only that format carries. */
 export interface ShipFormatOptions {
     /**
      * Directories whose `*.typelib` and shared libraries this format carries, staged flat into
@@ -885,6 +890,10 @@ export interface ShipFormatOptions {
      * Destination (relative to the install prefix) → source file, like
      * {@link ConfigDataShip.extraFiles} but for this format only, e.g. a plugin directory the
      * bundled library finds by a path baked in at build time.
+     *
+     * The prefix is the format's own: `/usr` for a `.deb`/`.rpm`, and `usr/` inside the AppDir
+     * for an AppImage — the same substitution every other staged path goes through, so one
+     * destination spelling serves all three.
      */
     extraFiles?: Record<string, string>;
 }

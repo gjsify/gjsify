@@ -102,6 +102,27 @@ export type FormatId =
  */
 export type DistroFormatId = Extract<FormatId, 'deb' | 'rpm'>;
 
+/**
+ * The formats that carry FILES of their own (`gjsify.ship.formats.<id>`).
+ *
+ * Deliberately NOT {@link DistroFormatId}, and the two were one type until an
+ * AppImage needed a library the distro packages must not carry. The questions
+ * differ: `DistroFormatId` asks whether the artifact has a *dependency field* to
+ * write a package name into, this one asks whether it has an *overlay* to put a
+ * file in. An AppImage answers no to the first — `depends: null`, because it
+ * takes its interpreter from the host with nowhere to declare it — and yes to
+ * the second: `planOverlay` runs for every format, and the appimage branch maps
+ * the result through `appDirPayload`, which prefixes it with `usr/`.
+ *
+ * Widening `DistroFormatId` instead would have reached `extraDepends`,
+ * `typelibPackages`, `NODE_PACKAGE`, `SCHEMA_COMPILER_PACKAGE` and
+ * `deriveDepends` — every one of them a `Record` that would then demand an
+ * `appimage` package name for a field that does not exist.
+ *
+ * `Extract<…>` for {@link DistroFormatId}'s reason: it cannot outlive `FormatId`.
+ */
+export type FormatFilesId = Extract<FormatId, 'deb' | 'rpm' | 'appimage'>;
+
 /** An operating system in the repo-wide `process.platform` spelling (root AGENTS.md § Runtime & platform model). */
 export type HostOs = 'linux' | 'darwin' | 'win32';
 
@@ -594,10 +615,10 @@ export interface ShipSettings extends PackSettings {
      */
     typelibFiles: string[];
     /**
-     * What ONLY one package format carries (`gjsify.ship.formats`), resolved to absolute paths.
+     * What ONLY one format carries (`gjsify.ship.formats`), resolved to absolute paths.
      * Staged into that format's overlay, not the shared payload — which is the whole point.
      */
-    formatFiles: Partial<Record<DistroFormatId, { typelibFiles: string[]; extraFiles: Record<string, string> }>>;
+    formatFiles: Partial<Record<FormatFilesId, { typelibFiles: string[]; extraFiles: Record<string, string> }>>;
     /**
      * Compiled gettext catalogues (`gjsify.ship.localeDir`), each keeping its
      * `<lang>/LC_MESSAGES/<domain>.mo` path so `share/locale/` comes out in the layout

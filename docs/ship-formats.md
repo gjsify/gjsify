@@ -437,12 +437,25 @@ entirely on macOS for `Contents/Resources/native` — deliberately NOT Apple's
 and refuses the bundle seal, and which the relocated GTK closure fills with three — and the
 launcher's own NAME changes on Windows (`<binaryName>.cmd`). What is the OS's and what is the app's:
 
-`gjsify.ship.formats.<deb|rpm>` (`bundledTypelibs`, `extraFiles`) is the same payload for ONE package
+`gjsify.ship.formats.<deb|rpm|appimage>` (`bundledTypelibs`, `extraFiles`) is the same payload for ONE
 format: its files join that format's overlay, typelibs flattened into `lib/<name>/gi/`, and the shared
 launcher adds the GI paths behind `if [ -d "$prefix"/lib/<name>/gi ]`. It exists for a library built
 against one distro's sonames (an Ubuntu-built library may need `libxml2.so.16`, Fedora has `.so.2`), which
 the other format must not carry. A namespace staged this way is host-provided for that format only, so
-only that format's derived `Depends` drops the `gir1.2-…` package. AppImage and Flatpak read no `formats`.
+only that format's derived `Depends` drops the `gir1.2-…` package.
+
+**The key is `FormatFilesId`, not `DistroFormatId`, and the AppImage is why the two are different
+types.** "Has a `Depends:` field" and "has an overlay to put a file in" read as one question while
+only `.deb` and `.rpm` answer yes to both. The AppImage answers no and yes: `depends` is `null` —
+there is nowhere to write a package name, so `gjsify.ship.depends.appimage` stays an error — while
+`planOverlay` runs for it like for every other format and `appDirPayload` maps the result under the
+AppDir's `usr/`, so a `formats.appimage` file lands at `usr/lib/<name>/gi/` with no staging
+mechanism of its own. That is the direction a distro package cannot serve: an AppImage carries its
+libraries unconditionally, so a library the `.deb` and `.rpm` should take from the system belongs in
+`formats.appimage` and in neither package. **Flatpak reads no `formats`** — `flatpak-builder`
+assembles its payload from the manifest, not from this overlay, so the key is refused there rather
+than dropped in silence (`Known: deb, rpm, appimage.`, checked twice: `discoverFormatFiles` at pack
+time and `manifest-conformance`'s `ship` rule on the package.json).
 
 A `*-native` bridge's own SHARED LIBRARY dependency is not derived: `Gjsify*` typelibs are dropped from
 `Depends`, and nothing maps the system library they link. `node:sqlite` links the system `libsqlite3`,

@@ -11,7 +11,7 @@ import { SHARE } from './share-dirs.js';
 import { readFile } from 'node:fs/promises';
 import { basename, extname, posix } from 'node:path';
 
-import type { FormatDescriptor, FormatId, ShipSettings, StagedFile } from './types.js';
+import type { FormatDescriptor, FormatFilesId, FormatId, ShipSettings, StagedFile } from './types.js';
 
 /** Everything the planner needs that it cannot derive from the settings alone. */
 export interface StageInputs {
@@ -250,11 +250,13 @@ export async function planOverlay(
     }
 
     // `gjsify.ship.formats.<id>`: files only THIS format carries (a library built against the
-    // distro's own sonames cannot ship in the other format). Typelibs land beside the bundle in
-    // `gi/`, where the launcher's guarded block finds them.
+    // distro's own sonames cannot ship in the other format, and one an AppImage must carry
+    // unconditionally should not be in either package). Typelibs land beside the bundle in `gi/`,
+    // where the launcher's guarded block finds them — under the AppDir that is `usr/lib/<name>/gi`,
+    // since `appDirPayload` maps this whole plan through the same prefix.
     // READ here, as the changelog is compressed here: a stage manifest carries rendered bytes only
     // (`--from-stage` rehydrates the overlay from the sidecar and never touches the project).
-    const own = settings.formatFiles[format.id as 'deb' | 'rpm'];
+    const own = settings.formatFiles[format.id as FormatFilesId];
     for (const file of own?.typelibFiles ?? []) {
         files.push({
             path: posix.join('lib', settings.binaryName, 'gi', basename(file)),
