@@ -31,6 +31,7 @@ import { toggleButtonSpec } from './specs/toggle-button.js';
 import { gtkStackSpec } from './specs/gtk-stack.js';
 import { adwViewStackSpec } from './specs/adw-view-stack.js';
 import { adwTabViewSpec } from './specs/adw-tab-view.js';
+import { adwCarouselSpec } from './specs/adw-carousel.js';
 import { spinnerSpec } from './specs/spinner.js';
 import { windowTitleSpec } from './specs/window-title.js';
 import { rowsSpec } from './specs/rows.js';
@@ -132,6 +133,8 @@ async function runSuite(): Promise<void> {
                 await adwViewStackSpec(engine)();
                 // `selected-page`: object-kind over a headless page record, one notify per move.
                 await adwTabViewSpec(engine)();
+                // `position` / `n-pages`: both read-only upstream, pushed from `CarouselState`.
+                await adwCarouselSpec(engine)();
             }
             if (optedIn) await inversionSpec();
             if (optedIn) await foreignParentSpec();
