@@ -1,5 +1,5 @@
 // E2E regression test: a spawned child holds the GJS process only until it has
-// closed (lotse#13). Before, `spawn()` armed the loop with the UNCOUNTED
+// closed (lotsman#13). Before, `spawn()` armed the loop with the UNCOUNTED
 // `ensureMainLoop()`, so the hook parked in `g_main_loop_run()` for good once the
 // entry settled — even for a plain `sh -c 'echo hi'` that exited on its own —
 // and a consumer had to end every command with `setTimeout(process.exit, 50)`.

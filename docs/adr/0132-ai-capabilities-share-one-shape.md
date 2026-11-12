@@ -20,8 +20,8 @@
 
 Three apps built on gjsify now run machine-learning models, and each has drawn its own seam:
 
-- [Lotse](https://github.com/JumpLink/lotse) speaks and listens. Its ADR 0009 defines
-  `SpeechToText` and `TextToSpeech` interfaces in `@lotse/core`, with local engines (Spiel,
+- [Lotsman](https://github.com/JumpLink/lotsman) speaks and listens. Its ADR 0009 defines
+  `SpeechToText` and `TextToSpeech` interfaces in `@lotsman/core`, with local engines (Spiel,
   later whisper.cpp) and cloud engines (Mistral, a configurable TTS server URL), and its
   ADR 0010 § 6 makes the cloud "the last candidate, never a silent fallback".
 - [Stamped](https://github.com/correctiv/stamped) embeds a mail corpus for semantic search.
@@ -103,7 +103,7 @@ writes its GPU guard marker before the attempt.
    gjsify ships the interface and the OpenAI-compatible client of decision 4, and no
    provider-specific code. The instance reports which engine it runs on
    (`engine`: name plus `local` / `remote`), so a surface can say "the cloud is listening"
-   (Lotse ADR 0010 § 6) without knowing engine internals.
+   (Lotsman ADR 0010 § 6) without knowing engine internals.
 4. **gjsify still contacts no service on its own, but it now ships the remote engine.** This
    amends ADR 0121 § 4 and ADR 0127 § 3. "Remote" means gjsify as a **client**: a remote engine
    sends the request to a server someone else runs (Ollama on the desktop next door, a LocalAI
@@ -113,7 +113,7 @@ writes its GPU guard marker before the attempt.
    `LanguageModel` (decision 1). One base URL and a key reach a self-hosted server and the
    compatible hosted providers alike; gjsify keeps no list of them. They exist only when an app **registers** one with a
    base URL and a credential; nothing is registered by default, and gjsify stores no key (the app
-   passes it, e.g. from libsecret as Lotse ADR 0009 § 6 does). Selection follows the Web Speech
+   passes it, e.g. from libsecret as Lotsman ADR 0009 § 6 does). Selection follows the Web Speech
    rule everywhere: `processLocally: true` forbids every remote engine; otherwise a registered
    remote engine is a candidate **after** every local one, used only when no local engine fits
    (decision 6). With no remote engine registered, the behaviour is exactly ADR 0127's.
@@ -171,8 +171,8 @@ writes its GPU guard marker before the attempt.
   a prebuild per new bridge), on top of ADR 0127's six. The arrows point one way: capability →
   model-store, machine-fit, engines. `openai-compatible` depends on capability `/engine` subpaths,
   never the reverse.
-- Lotse's `SpeechToText` / `TextToSpeech`, Stamped's `Embedder` and the image-generation app's
-  `ImageEngine` become thin adapters, then go away. The cloud rule of Lotse ADR 0010 § 6 is
+- Lotsman's `SpeechToText` / `TextToSpeech`, Stamped's `Embedder` and the image-generation app's
+  `ImageEngine` become thin adapters, then go away. The cloud rule of Lotsman ADR 0010 § 6 is
   enforced in gjsify instead of in each app.
 - The "no cloud in gjsify" sentence of ADR 0121 and ADR 0127 becomes "no cloud unless the app
   registers one". The code that talks to a network now lives in gjsify and must be reviewed as

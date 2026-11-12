@@ -24,7 +24,7 @@ and the on-device additions to the spec (`processLocally`, `available()`, `insta
 gjsify has no cloud account to spend and no wish for one, so the question is not "which service"
 but "which local engine, reached how".
 
-The need is measured. [Lotse](https://github.com/JumpLink/lotse) asks for a spoken conversation
+The need is measured. [Lotsman](https://github.com/JumpLink/lotsman) asks for a spoken conversation
 mode (its ADR 0009 and ADR 0010) with a budget of **500 ms from end of speech to text**, and its
 `docs/voice/spracherkennung.md` records what the candidates actually do on this hardware
 (2026-10-28 to 30, i9-10900K, RX 6600). Vulkan times are given for an idle GPU and for a GPU on
@@ -74,7 +74,7 @@ every single reply, and a separate turn detector deciding whether a pause actual
 2. **A term list is spelled the standard way.** Contextual biasing uses the spec's `phrases`
    (`SpeechRecognitionPhrase` with a `boost`), not a gjsify-only option, and maps to
    whisper.cpp's initial prompt and sherpa-onnx's hotwords. `boost` is advisory — an engine that
-   has no weight takes the phrase and ignores the number. This is what answers Lotse ADR 0010
+   has no weight takes the phrase and ignores the number. This is what answers Lotsman ADR 0010
    decision 9's term list, and what makes `gjsify` transcribable at all.
 3. **`processLocally` is always true, and model download is expressed through the spec's
    on-device additions**: `SpeechRecognition.available()` reports whether this language can run
@@ -124,7 +124,7 @@ every single reply, and a separate turn detector deciding whether a pause actual
     return the first that fits, plus a recommendation.
 12. **The probe is the only evidence that counts, and the tables stay with the consumer.**
     `machine-fit` knows how to probe, never what to probe: the candidate list and the budget come
-    from the caller, so `@gjsify/speech-recognition` owns the engine candidates and Lotse or
+    from the caller, so `@gjsify/speech-recognition` owns the engine candidates and Lotsman or
     Stamped owns its budget. Because a GPU free at install time can be computing later, the probe
     runs when the consumer starts using the engine (recognition: at `start()` of a session, with
     a cached result reused only while it is fresh), not once at install. An explicit setting or
@@ -159,7 +159,7 @@ every single reply, and a separate turn detector deciding whether a pause actual
   models, which are not all permissive. Every model entry in the manifest records its licence,
   and a model whose licence forbids redistribution is fetched from upstream, never mirrored.
 - The `machine-fit` extraction touches a repo outside this one. It is not blocked on this ADR and
-  does not block it: per Lotse ADR 0010 it waits until stage 2 needs a choice between backends,
+  does not block it: per Lotsman ADR 0010 it waits until stage 2 needs a choice between backends,
   which is step 5 here.
 - Accuracy on this workstation is capped at roughly 7 % WER by the best local model that fits in
   the budget. An app that needs better has to wait for better local models, not for this package.

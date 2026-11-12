@@ -62,7 +62,7 @@ The VAD (300 ms of silence) is the primary finalizer, so a final result lands ro
 
 ## Latency budget and engine candidates
 
-[Lotse](https://github.com/JumpLink/lotse) needs a spoken conversation mode with **500 ms from end of speech to text**. Its measurements on an i9-10900K / RX 6600 (2026-10-28 to 30), as recorded in ADR 0127:
+[Lotsman](https://github.com/JumpLink/lotsman) needs a spoken conversation mode with **500 ms from end of speech to text**. Its measurements on an i9-10900K / RX 6600 (2026-10-28 to 30), as recorded in ADR 0127:
 
 | Engine / model | WER | end-to-end | footprint |
 |---|---|---|---|
