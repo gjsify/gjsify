@@ -488,8 +488,20 @@ replaces them. Internal consumers `view-switcher-base.ts` and `adw-view-switcher
 Specs: `adw-view-stack.spec.ts` (pure-JS), `adw-view-stack-route-d.node-gi.spec.ts` (real GI),
 `specs/adw-view-stack.ts` (device).
 
-MIGRATE NEXT: `widgets/adw-tab-view.ts`, the next view-switching widget with an object-kind property
-(`selected-page`) and the same need for seam-owned ordering.
+DONE (`widgets/adw-tab-view.ts`): `selected-page` is declared through `withSignals(GridLayout, …)`,
+object-kind (`valueType: TYPE_OBJECT`) and `explicitNotify`; `TabViewState` still owns the selection
+and the subscriber pushes the page silently, then emits `notify::selected-page`. Real Adw.TabView
+(libadwaita 1.9.4) emits it once per selection move (first append, `set_selected_page`, close of the
+selected page, close of the last page) and nothing on a later append or a repeated write. The setter
+takes the page, and also its id, because an XML attribute can carry nothing else. The custom
+`NotifySelectedPageEventData` payload (`selectedId` / `previousId` / `interactive`) and the
+`NOTIFY_SELECTED_PAGE` export are deleted, with `tabViewNotifyPayload`: `connect('notify::selected-page')`
+plus `selectedPage` replace them. Specs: `tab-view.spec.ts` (pure-JS state),
+`adw-tab-view-route-d.node-gi.spec.ts` (real GI), `specs/adw-tab-view.ts` (device).
+
+MIGRATE NEXT: `widgets/adw-carousel.ts`, the last view-switching widget with hand-rolled
+`NOTIFY_POSITION` / `NOTIFY_N_PAGES` events; the remaining `NOTIFY_*` exports follow
+(`rg "export const NOTIFY_" packages/nativescript-bridge/adwaita/src/widgets`).
 
 RESOLVED (owner, 2026-10-27): `emit('<undeclared>')` throws `No signal '<name>' on object '<class>'`,
 as in GJS, on both legs. `emit` is GObject's only; a NativeScript event goes through
