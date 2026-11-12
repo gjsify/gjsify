@@ -1,5 +1,5 @@
 // E2E regression test: `for await (const chunk of process.stdin)` works on GJS
-// (lotse#13). Node's stdin is a Readable and so async-iterable; gjsify's
+// (lotsman#13). Node's stdin is a Readable and so async-iterable; gjsify's
 // `ProcessReadStream` was a bare EventEmitter and threw "process.stdin is not
 // iterable". The fixture reads piped stdin to its end, the idiom every
 // "read all of stdin" CLI uses.

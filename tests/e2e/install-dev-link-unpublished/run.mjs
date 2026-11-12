@@ -6,8 +6,8 @@
 // consequence nobody had measured: a linked package the registry does not have AT
 // ALL made the resolve itself fail, so no install could run while the link
 // existed, however correct the symlinks were. Measured against the real registry
-// with lotse linked into a consumer: `Package not found in registry: @lotse/core
-// (https://registry.npmjs.org/%40lotse/core)`, exit 1 — and linking a private
+// with lotsman linked into a consumer: `Package not found in registry: @lotsman/core
+// (https://registry.npmjs.org/%40lotsman/core)`, exit 1 — and linking a private
 // sibling repo under development is the ordinary case, not an exotic one.
 //
 // The fix tolerates a `PackageNotFoundError` for a LINKED name in `resolveDeps`'s

@@ -1164,7 +1164,7 @@ async function resolveDeps(
                 // is required — and this one is not missing. What is genuinely absent
                 // is the linked package's own dependency subtree, since the walk never
                 // saw a manifest for it; the consumer declares what it needs itself
-                // (for `@girs/*` that is the peer-plus-dev-pin shape in lotse's widget
+                // (for `@girs/*` that is the peer-plus-dev-pin shape in lotsman's widget
                 // package), and a real gap surfaces as an unresolved import, not as a
                 // silently incomplete tree.
                 if (linkedNames?.has(edge.name) && e instanceof PackageNotFoundError) {
