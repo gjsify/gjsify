@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.64.34](https://github.com/gjsify/gjsify/compare/v0.64.33...v0.64.34) (2026-11-12)
+
+### Features
+
+* **adwaita:** declare AdwCarousel position at seam ([#2609](https://github.com/gjsify/gjsify/issues/2609)) ([28e820e](https://github.com/gjsify/gjsify/commit/28e820e005aab64fbe8b5859f26bce9641998016))
+* **cli:** accept appimage in gjsify.ship.formats ([#2614](https://github.com/gjsify/gjsify/issues/2614)) ([e745866](https://github.com/gjsify/gjsify/commit/e745866a5902e9a1d3ed8f8cfb24711bb2e2ba44))
+* **cli:** ship nodeModules for GJS payloads ([#2615](https://github.com/gjsify/gjsify/issues/2615)) ([f5932f6](https://github.com/gjsify/gjsify/commit/f5932f69eae761a036de1bd6b3946aeaf78dd6bc)), closes [#2439](https://github.com/gjsify/gjsify/issues/2439)
+
+### Maintenance
+
+* **release:** clear the @gjsify/store bootstrap entry ([#2611](https://github.com/gjsify/gjsify/issues/2611)) ([bd26046](https://github.com/gjsify/gjsify/commit/bd26046380a70978751f2f9527eedb6205177e49))
+* **status:** store is on npm ([#2612](https://github.com/gjsify/gjsify/issues/2612)) ([e77fd0d](https://github.com/gjsify/gjsify/commit/e77fd0df4347e98e3de54eaebdfc0c98d0607f1d))
+* update native prebuilds [skip ci] ([0261969](https://github.com/gjsify/gjsify/commit/02619696fa29f29fea22f8d7b3fd34f8aaeac8cf))
+
 ## [0.64.33](https://github.com/gjsify/gjsify/compare/v0.64.32...v0.64.33) (2026-11-12)
 
 ### Features
