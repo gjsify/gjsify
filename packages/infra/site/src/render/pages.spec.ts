@@ -6,6 +6,7 @@ import {
     badges,
     ctaLabel,
     downloadWidget,
+    extensionCard,
     frameAttribute,
     heroBy,
     legalNoticeUrl,
@@ -280,6 +281,49 @@ export default async () => {
             const data = { config: { base: '/app/', url: 'https://example.org/app/' } } as unknown as SiteData;
             expect(privacyUrl(data, 'en')).toBe('/app/en/privacy/');
             expect(privacyUrl(data, 'de')).toBe('/app/de/privacy/');
+        });
+
+        await it('links the landing page to the extension page, and renders nothing without one', async () => {
+            const browser = (family: 'firefox' | 'chromium') => ({
+                family,
+                name: { en: 'Pair Ext', de: 'Paar-Erweiterung' },
+                description: { en: 'Talks to the app', de: 'Spricht mit der App' },
+            });
+            const data = (extension: unknown) => ({ config: { base: '/app/' }, extension }) as unknown as SiteData;
+            const ctx = (extension: unknown, lang: string) =>
+                ({ data: data(extension), t, lang }) as unknown as Parameters<typeof extensionCard>[0];
+
+            expect(extensionCard(ctx(undefined, 'en'))).toBe('');
+
+            const html = extensionCard(ctx({ browsers: [browser('chromium'), browser('firefox')] }, 'de'));
+            expect(html).toMatch(/<a class="card" href="\/app\/de\/extension\/">/);
+            expect(html).toMatch(/Browser extension: Paar-Erweiterung/);
+            expect(html).toMatch(/related-summary">Spricht mit der App</);
+            expect(extensionCard(ctx({ browsers: [browser('firefox')] }, 'en'))).toMatch(
+                /href="\/app\/en\/extension\/"/,
+            );
+        });
+
+        await it('limits the download widget to the given targets, without a tab strip of operating systems', async () => {
+            const own = [target('firefox', 'xpi', 'extension'), target('chromium', 'store', 'extension')];
+            const base = downloadData(
+                [
+                    { id: 'app', name: 'Desktop app' },
+                    { id: 'extension', name: 'Browser extension' },
+                ],
+                [target('linux', 'deb', 'app'), target('darwin', 'zip', 'app'), ...own],
+            );
+            // The scoped part takes its slug from the extension's component id.
+            const data = { ...base, extension: { component: 'extension' } } as unknown as SiteData;
+            const html = downloadWidget({ data, t, lang: 'en' }, own);
+            expect(html).toMatch(/id="os-group-extension-firefox"/);
+            expect(html).toMatch(/id="os-group-extension-chromium"/);
+            expect(html).not.toMatch(/linux|darwin|Desktop app/);
+            // One part on its own page: no heading, no step number, and no "Operating system" strip.
+            expect(html).not.toMatch(/component-head|component-step/);
+            expect(html).not.toMatch(/aria-label="Operating system"/);
+            expect([...html.matchAll(/class="os-tabs"/g)].length).toBe(1);
+            expect(html).toMatch(/aria-label="Browser"/);
         });
 
         await it('addresses the legal-notice page under the app page, per language', async () => {
