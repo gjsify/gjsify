@@ -103,7 +103,7 @@ the TODO records the *what's left*.
 | [0082](0082-format-check-warns-on-skipped-files.md) | `gjsify format --check` warns about files skipped by oxfmt-native | Accepted |
 | [0083](0083-os-axis-derived-data.md) | OS axis second derivation signal — `gjsify.osDerived` for build outputs that encode platform-specific data | Proposed |
 | [0084](0084-an-addon-is-found-by-package-identity.md) | A GJS bundle finds its addon by package IDENTITY, resolved at run time | Accepted |
-| [0077](0077-browser-extensions-are-a-project-shape-not-a-runtime.md) | Browser extensions are a project shape gjsify builds (`gjsify webext`), not a new runtime or `--app` target | Accepted |
+| [0077](0077-browser-extensions-are-a-project-shape-not-a-runtime.md) | Browser extensions are a project shape gjsify builds (`gjsify webext`), not a new runtime or `--app` target (amended: the two store APIs as documented, and their own credential table) | Accepted |
 | [0078](0078-the-desktop-appearance-reaches-a-web-page-through-a-handoff.md) | The desktop's accent reaches a web page through a server handoff, snapped the way libadwaita snaps it | Accepted |
 | [0085](0085-gi-namespaces-are-acquired-after-the-prologue.md) | A `--app gjs` bundle acquires its GI namespaces AFTER the prologue, by lowering the static `gi://` imports to awaited dynamic ones | Proposed |
 | [0086](0086-a-format-derives-its-runtime-from-the-packages-that-exist.md) | A format's runtime capability is DERIVED from the runtime packages that exist, and a project may override it per (OS, format) — amends ADR 0024 § 4 | Proposed |

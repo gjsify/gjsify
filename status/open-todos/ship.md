@@ -465,3 +465,26 @@ ship 26.5 KiB and a startup call to apps with no icons. The day a template draws
 change is one line: `runAdwaitaApp` already defaults this on, and a hand-built application
 calls `installBundledIconTheme()`.
 
+
+### Credential TRANSPORT has two callers coming and no shared implementation
+
+ADR 0126 is Accepted and unbuilt: as of 2026-11-13 there is no `utils/ship/credentials.ts`
+beside `signing.ts`, no `credentials` subcommand in `commands/ship.ts`, and no `gh secret set`
+anywhere in `packages/infra/cli/src` — so its `upload` verb, the one that pushes a named value
+into a repository secret with the value on the child's **stdin** and never in argv, exists only
+as prose.
+
+The second caller now exists on paper too. ADR 0077 § Amendment 1 decided that
+`webext submit`'s store credentials get their OWN env-only table in
+`utils/webext/stores/`, for reasons that are about the TABLE (keyed per store, not per
+`HostOs`; no `install` counterpart; a smaller blast radius) and not about transport. Pushing a
+named value to a repository secret is identical work for both, and the stdin rule is the part
+that must not be re-derived by the second implementation — a value that reaches argv is
+readable in a process list, and that is the whole point of the rule.
+
+So: when ADR 0126's `upload` is built, build the `gh secret set` call as a helper that takes
+(name, value, repo) and knows nothing about which table named it, and let the store table call
+the same helper. Doing it the other way round — implementing it inside `ship credentials` and
+extracting it when `webext submit` needs it — is the sequence that produces two uploaders, one
+of which forgets stdin. Until either is built, `webext submit`'s secrets are set by hand.
+
