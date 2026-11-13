@@ -229,6 +229,7 @@ export async function loadSiteData(options: LoadOptions): Promise<SiteData> {
                 records,
                 flathub: config.flathub,
                 flathubSize,
+                flatpark: config.flatpark,
                 webAppUrl: config.webApp ? `${config.base}${config.webApp.replace(/^\//, '')}` : undefined,
             }),
             releasesUrl: `https://github.com/${config.repository}/releases`,

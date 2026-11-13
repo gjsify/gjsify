@@ -92,13 +92,15 @@ export function isBrowserPlatform(platform: TargetPlatform): platform is 'firefo
 /**
  * Best format first, per OS. The first target in this order is the recommended one.
  *
- * A Flatpak bundle outranks the AppImage on Linux: it runs sandboxed on the shared GNOME runtime
+ * Flathub is the store with review and the runtime's own updates, so it leads; FlatPark, the
+ * community hub that installs the vendor's own release, follows it. A Flatpak bundle outranks the
+ * AppImage on Linux: it runs sandboxed on the shared GNOME runtime
  * and updates with that runtime through the system's Flatpak installation, while an AppImage runs
  * against the host's typelibs and needs FUSE. Flathub stays ahead of both, as the same Flatpak
  * with store updates.
  */
 const FORMAT_RANK: Record<TargetPlatform, readonly TargetFormat[]> = {
-    linux: ['flathub', 'flatpak', 'appimage', 'deb', 'rpm'],
+    linux: ['flathub', 'flatpark', 'flatpak', 'appimage', 'deb', 'rpm'],
     darwin: ['dmg', 'zip'],
     win32: ['msi', 'zip'],
     android: ['apk'],
@@ -120,6 +122,7 @@ const ARCH_RANK: Record<TargetPlatform, readonly TargetArch[]> = {
 
 export const DOWNLOAD_LABELS: Record<string, string> = {
     'linux:flathub': 'Flathub',
+    'linux:flatpark': 'FlatPark',
     'linux:flatpak': 'Flatpak bundle',
     'linux:appimage': 'AppImage',
     'linux:deb': 'Debian package',
@@ -145,6 +148,7 @@ export const DOWNLOAD_LABELS: Record<string, string> = {
 /** Fallback for a platform and format pair `DOWNLOAD_LABELS` does not name, e.g. `linux:source`. */
 export const FORMAT_LABELS: Record<TargetFormat, string> = {
     flathub: 'Flathub',
+    flatpark: 'FlatPark',
     flatpak: 'Flatpak bundle',
     appimage: 'AppImage',
     deb: 'Debian package',
@@ -227,6 +231,8 @@ export interface DownloadSources {
     flathub?: string;
     /** Bytes the Flathub install transfers, from its summary endpoint. */
     flathubSize?: number;
+    /** FlatPark application id, when the app is listed there. */
+    flatpark?: string;
     /** Root-relative URL of the live web build. */
     webAppUrl?: string;
     /** `gjsify.site.downloads`: targets no release asset supplies, e.g. a store page. */
@@ -270,6 +276,19 @@ export function buildDownloadTargets(sources: DownloadSources): DownloadTarget[]
             url: `https://flathub.org/apps/${sources.flathub}`,
             available: true,
             size: storeSize(sources),
+            recommended: false,
+        });
+    }
+
+    if (sources.flatpark) {
+        targets.push({
+            os: 'linux',
+            arch: 'noarch',
+            format: 'flatpark',
+            component: primaryComponent,
+            label: defaultLabel('linux', 'flatpark'),
+            url: `https://flatpark.org/apps/${sources.flatpark}/`,
+            available: true,
             recommended: false,
         });
     }

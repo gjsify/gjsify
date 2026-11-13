@@ -236,6 +236,7 @@ function prettyUrl(url: string): string {
  */
 export function ctaLabel(target: DownloadTarget, t: Translate): string {
     if (target.format === 'flathub') return t('Install from Flathub');
+    if (target.format === 'flatpark') return t('Install from FlatPark');
     if (target.format === 'source') return t('Build from source');
     if (target.os === 'web' && target.format === 'web') return t('Try in browser');
     if (isBrowserPlatform(target.os)) {
@@ -423,7 +424,7 @@ function targetItem(target: DownloadTarget, ctx: DownloadContext): string {
     ]
         .filter(Boolean)
         .join(' · ');
-    const inner = `<span class="target-icon">${icon(target.format === 'flathub' || target.format === 'store' ? 'package' : 'download')}</span>
+    const inner = `<span class="target-icon">${icon(target.format === 'flathub' || target.format === 'flatpark' || target.format === 'store' ? 'package' : 'download')}</span>
 <span class="target-text"><span class="target-name">${esc(t(target.label))}</span>${meta ? `<span class="target-meta">${esc(meta)}</span>` : ''}</span>
 ${size ? `<span class="target-size">${esc(size)}</span>` : ''}`;
     return `<li${attrs({
@@ -713,6 +714,8 @@ function links(ctx: RenderContext): string {
     });
     if (data.config.flathub)
         items.unshift(linkCard(`https://flathub.org/apps/${data.config.flathub}`, 'Flathub', 'package'));
+    if (data.config.flatpark)
+        items.push(linkCard(`https://flatpark.org/apps/${data.config.flatpark}/`, 'FlatPark', 'package'));
     if (items.length === 0) return '';
     return `<section class="links">
 <h2>${esc(t('Links'))}</h2>

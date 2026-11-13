@@ -341,6 +341,9 @@ msgstr ""
 msgid "Install from Flathub"
 msgstr ""
 
+msgid "Install from FlatPark"
+msgstr ""
+
 msgid "Build from source"
 msgstr ""
 
@@ -513,6 +516,9 @@ msgid "See the hosting provider's notice"
 msgstr ""
 
 msgid "Flathub"
+msgstr ""
+
+msgid "FlatPark"
 msgstr ""
 
 msgid "Flatpak bundle"
