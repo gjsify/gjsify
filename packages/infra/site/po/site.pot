@@ -341,6 +341,9 @@ msgstr ""
 msgid "Install from Flathub"
 msgstr ""
 
+msgid "Install from FlatPark"
+msgstr ""
+
 msgid "Build from source"
 msgstr ""
 

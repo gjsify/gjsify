@@ -421,6 +421,29 @@ export default async () => {
             ]);
         });
 
+        await it('recommends Flathub, then FlatPark, then the own Flatpak bundle, and nothing Flatpak when none exists', async () => {
+            const bundle = [asset('a.flatpak'), asset('a.deb')];
+            const recommended = (sources: Parameters<typeof buildDownloadTargets>[0]) =>
+                buildDownloadTargets(sources)
+                    .filter((target) => target.recommended)
+                    .map((target) => target.format);
+
+            expect(recommended({ assets: bundle, flathub: 'eu.example.App', flatpark: 'eu.example.App' })).toStrictEqual([
+                'flathub',
+            ]);
+            expect(recommended({ assets: bundle, flatpark: 'eu.example.App' })).toStrictEqual(['flatpark']);
+            expect(recommended({ assets: bundle })).toStrictEqual(['flatpak']);
+
+            const all = buildDownloadTargets({ assets: bundle, flathub: 'eu.example.App', flatpark: 'eu.example.App' });
+            expect(all.map((target) => target.format)).toStrictEqual(['flathub', 'flatpark', 'flatpak', 'deb']);
+            expect(all.find((target) => target.format === 'flatpark')?.url).toBe(
+                'https://flatpark.org/apps/eu.example.App/',
+            );
+
+            const none = buildDownloadTargets({ assets: [asset('a.msi')] });
+            expect(none.some((target) => target.os === 'linux')).toBe(false);
+        });
+
         await it("sizes the store target from Flathub's own number, else the Flatpak bundle", async () => {
             const bundle = { ...asset('a.flatpak'), size: 400_000 };
             const fromSummary = buildDownloadTargets({
