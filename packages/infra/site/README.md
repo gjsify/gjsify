@@ -506,7 +506,7 @@ the only image backend.
 
 ## Brand icons
 
-The platform and browser marks (Linux, macOS, Windows, Android, Firefox, Chromium, Edge, Safari) are simplified redrawings in `src/render/icons.ts`, with `simple-icons` (CC0 1.0) as geometry reference for some. The marks belong to their owners and are used only to name the platform.
+The platform and browser marks (Linux, macOS, Windows, Android, Firefox, Chromium, Edge, Safari) are simplified redrawings in `src/render/icons.ts`, with `simple-icons` (CC0 1.0) as geometry reference for some. The Firefox fox is Fontisto's `firefox` (MIT, © Kenan Gündoğan) and the Edge wave is Font Awesome 7 Free's `edge` brand icon (CC BY 4.0, © Fonticons, Inc., <https://fontawesome.com/license/free>). The marks belong to their owners and are used only to name the platform.
 
 ## License
 
