@@ -278,6 +278,85 @@ function resolveStagedPackage(specifier: string, options: ResolveRuntimeOptions)
     return resolveInstalledPackage(specifier, opts);
 }
 
+/** The facade `@gjsify/adwaita-app` lists as an optionalDependency (ADR 0141). */
+export const QUARTZ_BRIDGE_FACADE = '@gjsify/gtk-quartz-native';
+
+/** The bridge's GI typelib and library, as both per-target companions name them. */
+export const QUARTZ_BRIDGE_TYPELIB = 'GjsifyQuartz-1.0.typelib';
+export const QUARTZ_BRIDGE_LIBRARY = 'libgjsifyquartz.dylib';
+
+/** The per-target companion carrying the bridge's prebuild. Only darwin targets have one. */
+export function quartzBridgePackageName(target: GtkRuntimeTarget): string {
+    return `${QUARTZ_BRIDGE_FACADE}-${target}`;
+}
+
+/** The Dock-reopen bridge's prebuild, once found. */
+export interface ResolvedQuartzBridge {
+    source: string;
+    typelibPath: string;
+    libraryPath: string;
+}
+
+/**
+ * Locate the Dock-reopen bridge (`GjsifyQuartz`, ADR 0141) for `target`.
+ *
+ * `null` = the app does not have the dependency, and the bundle stays as it was.
+ * `{ unpopulated }` = the app has it but this target's companion is not installed
+ * (npm installs the optionalDependency of the HOST's arch only) or holds no
+ * prebuild — reported, never fatal: the bridge is an optional fix.
+ *
+ * Found from the project, else through `@gjsify/adwaita-app` (the package that
+ * declares it) — the companion is an optionalDependency of the facade, which is
+ * an optionalDependency of adwaita-app, so a strict layout (pnpm) hides it from
+ * the project root but not from its parent.
+ */
+export function resolveQuartzBridge(
+    target: GtkRuntimeTarget,
+    options: ResolveRuntimeOptions = {},
+): ResolvedQuartzBridge | { unpopulated: string } | null {
+    if (!target.startsWith('darwin-')) return null;
+    const companion = quartzBridgePackageName(target);
+    const dirOf = (specifier: string, from: ResolveRuntimeOptions): string | null => {
+        const entry = resolveStagedPackage(`${specifier}/package.json`, from);
+        return entry === null ? null : dirname(entry);
+    };
+
+    let companionDir = dirOf(companion, options);
+    let facadeDir: string | null = null;
+    if (companionDir === null) {
+        facadeDir = dirOf(QUARTZ_BRIDGE_FACADE, options);
+        if (facadeDir === null) {
+            const adwaitaEntry = resolveStagedPackage('@gjsify/adwaita-app', options);
+            const adwaitaDir = adwaitaEntry === null ? null : packageRootOf(adwaitaEntry);
+            if (adwaitaDir !== null) facadeDir = dirOf(QUARTZ_BRIDGE_FACADE, { ...options, cwd: adwaitaDir });
+        }
+        if (facadeDir !== null) companionDir = dirOf(companion, { ...options, cwd: facadeDir });
+    }
+    if (companionDir === null) {
+        return facadeDir === null ? null : { unpopulated: `${companion} is not installed` };
+    }
+    const prebuilds = join(companionDir, 'prebuilds', target);
+    const typelibPath = join(prebuilds, QUARTZ_BRIDGE_TYPELIB);
+    const libraryPath = join(prebuilds, QUARTZ_BRIDGE_LIBRARY);
+    if (!existsSync(typelibPath) || !existsSync(libraryPath)) {
+        return {
+            unpopulated: `${companion} holds no prebuilds/${target}/{${QUARTZ_BRIDGE_TYPELIB},${QUARTZ_BRIDGE_LIBRARY}}`,
+        };
+    }
+    return { source: companion, typelibPath, libraryPath };
+}
+
+/** The nearest directory above `file` holding a `package.json`. */
+function packageRootOf(file: string): string | null {
+    let dir = dirname(file);
+    for (;;) {
+        if (existsSync(join(dir, 'package.json'))) return dir;
+        const parent = dirname(dir);
+        if (parent === dir) return null;
+        dir = parent;
+    }
+}
+
 /** node-gi's JavaScript, as package-relative paths. */
 export interface ResolvedNodeGiPackage {
     source: string;
@@ -517,6 +596,28 @@ export function stageAppRuntime(input: StageAppRuntimeInput): StagedAppRuntime {
         }
         launcher.gtkRuntimeDir = paths.gtkDir;
         found.push(`GTK closure from ${gtk.source}`);
+
+        // The Dock-reopen bridge goes INTO the closure's own typelib and library
+        // directories (ADR 0141 § Node hosts). node-gi already puts exactly those
+        // two on GI's typelib and library search paths when the bundled GTK is the
+        // chosen one (`activateBundledGtkRuntime`, `activateGiLibraryPath`), so the
+        // launcher needs no new variable and `installDockReopen` finds the pair.
+        const bridge = resolveQuartzBridge(input.target, discoveryOptions(input));
+        if (bridge !== null && 'unpopulated' in bridge) {
+            missing.push(`Dock-click reopen bridge not carried — ${bridge.unpopulated}`);
+        } else if (bridge !== null) {
+            files.push({
+                path: posix.join(paths.gtkDir, 'girepository-1.0', QUARTZ_BRIDGE_TYPELIB),
+                mode: 0o644,
+                source: { kind: 'file', path: bridge.typelibPath },
+            });
+            files.push({
+                path: posix.join(paths.gtkDir, nativeSubdirOf(input.target), QUARTZ_BRIDGE_LIBRARY),
+                mode: 0o755,
+                source: { kind: 'file', path: bridge.libraryPath },
+            });
+            found.push(`Dock-click reopen bridge from ${bridge.source}`);
+        }
     } else {
         // The native subdirectory is `bin` on win32 and `lib` everywhere else,
         // exactly as `resolveGtkRuntimeBundle()` probes for it. Naming `lib/`
@@ -568,6 +669,10 @@ export function stageAppRuntime(input: StageAppRuntimeInput): StagedAppRuntime {
     }
 
     return { files, launcher, found, missing };
+}
+
+function nativeSubdirOf(target: GtkRuntimeTarget): string {
+    return target.startsWith('win32-') ? 'bin' : 'lib';
 }
 
 /**
