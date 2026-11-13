@@ -12,6 +12,7 @@ export type TargetArch = 'x86_64' | 'arm64' | 'noarch';
 
 export type TargetFormat =
     | 'flathub'
+    | 'flatpark'
     | 'flatpak'
     | 'appimage'
     | 'deb'
@@ -254,6 +255,8 @@ export interface SiteConfig extends SiteCommonConfig {
     metainfo: string;
     repository: string;
     flathub?: string;
+    /** FlatPark app id (https://flatpark.org), when the app is listed there. */
+    flatpark?: string;
     webApp?: string;
     /** Directory holding the app's `<lang>.po` catalogues, used when the metainfo lacks a translation. */
     translations?: string;

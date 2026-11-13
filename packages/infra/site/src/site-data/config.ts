@@ -117,6 +117,7 @@ const withSlash = (url: string) => (url.endsWith('/') ? url : `${url}/`);
 const PLATFORMS: readonly TargetPlatform[] = ['linux', 'darwin', 'win32', 'android', 'web', 'firefox', 'chromium'];
 const FORMATS: readonly TargetFormat[] = [
     'flathub',
+    'flatpark',
     'flatpak',
     'appimage',
     'deb',
@@ -417,6 +418,7 @@ export function parseSiteConfig(manifest: RootManifest): SiteConfig {
         metainfo: requireString(raw, 'metainfo'),
         repository: requireString(raw, 'repository'),
         flathub: optionalString(raw, 'flathub'),
+        flatpark: optionalString(raw, 'flatpark'),
         webApp: optionalString(raw, 'webApp'),
         translations: optionalString(raw, 'translations'),
         icon: optionalString(raw, 'icon'),
