@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/speech-recognition",
-    "version": "0.64.37",
+    "version": "0.64.39",
     "description": "Web Speech recognition API (SpeechRecognition and its event and result classes) for GJS, running fully on the device: a streaming zipformer on sherpa-onnx, fed by @gjsify/media-capture and endpointed by @gjsify/vad. Models are fetched on first use, never bundled.",
     "type": "module",
     "module": "lib/esm/index.js",

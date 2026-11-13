@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.64.39](https://github.com/gjsify/gjsify/compare/v0.64.37...v0.64.39) (2026-11-13)
+
+### Features
+
+* **site:** recommend FlatPark after Flathub ([#2625](https://github.com/gjsify/gjsify/issues/2625)) ([fbff65b](https://github.com/gjsify/gjsify/commit/fbff65b88da5ccc5507c8ba96b79948e1c50bf90))
+
+### Bug Fixes
+
+* **ci:** give gtk-quartz-native test dyld fallback ([#2621](https://github.com/gjsify/gjsify/issues/2621)) ([66af25f](https://github.com/gjsify/gjsify/commit/66af25f47972308faddfcb54cf6e4b93d4c82e14)), closes [#2602](https://github.com/gjsify/gjsify/issues/2602)
+
+### Maintenance
+
+* release v0.64.38 ([e2483ac](https://github.com/gjsify/gjsify/commit/e2483ac801cdb98798127ecee8bb6a92a89a0b82))
+* update native prebuilds [skip ci] ([2108f03](https://github.com/gjsify/gjsify/commit/2108f0332b510e6b9133d636466ba469f012fe9d))
+* update native prebuilds [skip ci] ([408bffc](https://github.com/gjsify/gjsify/commit/408bffc442a2d71e606b11fb2700ffc781c3cb85))
+
+### Tests
+
+* **e2e:** exempt quartz test dep from find_library ([#2624](https://github.com/gjsify/gjsify/issues/2624)) ([970c8f7](https://github.com/gjsify/gjsify/commit/970c8f78ad7f227f48de39b02ac61ebd015ae4aa)), closes [#2602](https://github.com/gjsify/gjsify/issues/2602) [#2602](https://github.com/gjsify/gjsify/issues/2602)
+
+## [0.64.38](https://github.com/gjsify/gjsify/compare/v0.64.37...v0.64.38) (2026-11-13)
+
+### Features
+
+* **site:** recommend FlatPark after Flathub ([#2625](https://github.com/gjsify/gjsify/issues/2625)) ([fbff65b](https://github.com/gjsify/gjsify/commit/fbff65b88da5ccc5507c8ba96b79948e1c50bf90))
+
+### Bug Fixes
+
+* **ci:** give gtk-quartz-native test dyld fallback ([#2621](https://github.com/gjsify/gjsify/issues/2621)) ([66af25f](https://github.com/gjsify/gjsify/commit/66af25f47972308faddfcb54cf6e4b93d4c82e14)), closes [#2602](https://github.com/gjsify/gjsify/issues/2602)
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([2108f03](https://github.com/gjsify/gjsify/commit/2108f0332b510e6b9133d636466ba469f012fe9d))
+* update native prebuilds [skip ci] ([408bffc](https://github.com/gjsify/gjsify/commit/408bffc442a2d71e606b11fb2700ffc781c3cb85))
+
+### Tests
+
+* **e2e:** exempt quartz test dep from find_library ([#2624](https://github.com/gjsify/gjsify/issues/2624)) ([970c8f7](https://github.com/gjsify/gjsify/commit/970c8f78ad7f227f48de39b02ac61ebd015ae4aa)), closes [#2602](https://github.com/gjsify/gjsify/issues/2602) [#2602](https://github.com/gjsify/gjsify/issues/2602)
+
 ## [0.64.37](https://github.com/gjsify/gjsify/compare/v0.64.36...v0.64.37) (2026-11-13)
 
 ### Bug Fixes
