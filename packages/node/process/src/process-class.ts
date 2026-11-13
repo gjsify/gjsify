@@ -9,7 +9,15 @@ import { detectArch, detectPlatform, detectPpid, detectVersionInfo, getPid } fro
 import { chdir, getArgv, getCwd, getEnvProxy, getExecPath, getExecArgv } from './internal/env.js';
 import { exitProcess } from './internal/exit.js';
 import { hrtime as hrtimeImpl, hrtimeBigint } from './internal/hrtime.js';
-import { cpuUsage, killPid, memoryUsage, readUmask, type CpuUsage, type MemoryUsage } from './internal/system.js';
+import {
+    cpuUsage,
+    killPid,
+    memoryUsage,
+    readId,
+    readUmask,
+    type CpuUsage,
+    type MemoryUsage,
+} from './internal/system.js';
 import { armSignal, disarmSignal, isDeliverableSignal } from './internal/signals.js';
 import { ProcessReadStream, ProcessWriteStream } from './streams.js';
 
@@ -197,6 +205,27 @@ export class Process extends EventEmitter {
         return live;
     }
     private _umaskWarned = false;
+
+    /**
+     * Real/effective user and group ids, measured (see `readId`). Node leaves
+     * these undefined on Windows; no GJS host exists there, so they are always
+     * defined here.
+     */
+    getuid(): number {
+        return readId('uid');
+    }
+
+    geteuid(): number {
+        return readId('euid');
+    }
+
+    getgid(): number {
+        return readId('gid');
+    }
+
+    getegid(): number {
+        return readId('egid');
+    }
 
     emitWarning(warning: string | Error, name?: string): void {
         if (typeof warning === 'string') {
