@@ -1929,7 +1929,11 @@ app-support {
 }
 
 .icon-chromium { --brand-1: #ea4335; --brand-2: #34a853; --brand-3: #fbbc04; --brand-4: #4285f4; }
-.icon-firefox { --brand-1: #ff9500; --brand-2: #0060df; }
+.icon-firefox { --brand-1: #ff9500; --brand-2: #7542e5; }
+
+/* Fox and globe share `currentColor` at rest and would merge into one blob, so the globe stays
+ * translucent until the brand colours switch on. */
+.icon-firefox .b2 { fill-opacity: var(--globe-opacity, 0.35); transition: fill 150ms ease, fill-opacity 150ms ease; }
 .icon-macos { --brand-1: #61bb46; --brand-2: #fdb827; --brand-3: #f5821f; --brand-4: #e03a3e; --brand-5: #963d97; --brand-6: #009ddc; }
 .icon-windows { --brand-1: #f25022; --brand-2: #7fba00; --brand-3: #00a4ef; --brand-4: #ffb900; }
 .icon-safari { --brand-1: #1b9ef0; --brand-2: #ff3b30; --brand-3: #9a9aa0; }
@@ -1953,6 +1957,7 @@ app-support {
     --c4: var(--brand-4, currentColor);
     --c5: var(--brand-5, currentColor);
     --c6: var(--brand-6, currentColor);
+    --globe-opacity: 1;
   }
 
   @media (hover: hover) {
@@ -1965,6 +1970,7 @@ app-support {
       --c4: var(--brand-4, currentColor);
       --c5: var(--brand-5, currentColor);
       --c6: var(--brand-6, currentColor);
+    --globe-opacity: 1;
     }
   }
 }
