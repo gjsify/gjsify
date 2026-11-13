@@ -519,6 +519,9 @@ msgstr "Hinweis des Hosting-Anbieters"
 msgid "Flathub"
 msgstr "Flathub"
 
+msgid "FlatPark"
+msgstr "FlatPark"
+
 msgid "Flatpak bundle"
 msgstr "Flatpak-Bundle"
 

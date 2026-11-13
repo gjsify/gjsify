@@ -518,6 +518,9 @@ msgstr ""
 msgid "Flathub"
 msgstr ""
 
+msgid "FlatPark"
+msgstr ""
+
 msgid "Flatpak bundle"
 msgstr ""
 
