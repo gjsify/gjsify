@@ -789,7 +789,7 @@ function support(ctx: RenderContext): string {
 }
 
 /** The landing page's pointer to the extension page: the counterpart of the extension page's "needs the app" card. */
-function extensionCard(ctx: RenderContext): string {
+export function extensionCard(ctx: RenderContext): string {
     const { data, lang, t } = ctx;
     if (!data.extension) return '';
     const [first] = data.extension.browsers;
