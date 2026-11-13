@@ -1,0 +1,62 @@
+{
+    "name": "@gjsify/gtk-quartz-native",
+    "version": "0.64.35",
+    "description": "Adds the missing Dock-click reopen handler to GTK's macOS application delegate, so a click on a windowless app's Dock icon activates the GApplication (ADR 0141). Contains no JavaScript; the prebuilt library and typelib arrive through per-target optionalDependencies.",
+    "type": "module",
+    "files": [],
+    "gjsify": {
+        "platforms": [
+            "darwin-x64",
+            "darwin-arm64"
+        ],
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "none"
+        },
+        "os": {
+            "linux": "none",
+            "darwin": "supported",
+            "win32": "none"
+        },
+        "osNotes": {
+            "linux": "Patches GtkApplicationQuartzDelegate, a class of GTK's macOS backend; GTK on Linux has no such class and desktops activate a running application through D-Bus.",
+            "win32": "Patches GtkApplicationQuartzDelegate, a class of GTK's macOS backend; GTK on Windows has no such class."
+        },
+        "tier": 1
+    },
+    "scripts": {
+        "clear": "gjsify clear build _install",
+        "check": "echo 'no TypeScript in this package'",
+        "init:meson": "meson setup build .",
+        "init:meson:wipe": "gjsify run init:meson --wipe",
+        "build": "echo 'native only — see build:prebuilds'",
+        "build:meson": "gjsify run init:meson && meson compile -C build",
+        "build:prebuilds": "gjsify run build:meson && node ../../../scripts/stage-prebuild.mjs .",
+        "test": "echo 'darwin only — run test:meson'",
+        "test:meson": "gjsify run build:meson && meson test -C build --print-errorlogs"
+    },
+    "keywords": [
+        "gjs",
+        "gtk",
+        "quartz",
+        "darwin",
+        "macos",
+        "dock"
+    ],
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/framework/gtk-quartz-native"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/gtk-quartz-native#readme",
+    "optionalDependencies": {
+        "@gjsify/gtk-quartz-native-darwin-arm64": "workspace:*",
+        "@gjsify/gtk-quartz-native-darwin-x64": "workspace:*"
+    }
+}

@@ -69,6 +69,9 @@ const JOB = 'build-prebuilds-macos';
  *                              `…_get_type`, which is what dlopens the library.
  *                              A typelib merely FOUND resolves the namespace and
  *                              then throws, so the class is the actual test.
+ *                              `gtk-quartz-native` has no class at all (one function), so
+ *                              its row names that function: resolving it loads the library
+ *                              the same way and is only looked up, never called.
  * @property {boolean} rustSibling whether the Vala library links a cargo cdylib
  *                              (`libgjsify_<x>.dylib`, underscore) it must reach
  *                              through `@loader_path` alone
@@ -106,6 +109,12 @@ export const DARWIN_BRIDGES = /** @type {DarwinBridge[]} */ ([
         klass: 'WebView',
         rustSibling: false,
         library: 'libgjsifywebkit.dylib',
+    },
+    {
+        dir: 'packages/framework/gtk-quartz-native',
+        namespace: 'GjsifyQuartz',
+        klass: 'install_reopen_handler',
+        rustSibling: false,
     },
     { dir: 'packages/web/gamepad-native', namespace: 'GjsifyGamepad', klass: 'Monitor', rustSibling: false },
 ]);

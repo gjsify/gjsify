@@ -109,6 +109,9 @@ on:
       - 'packages/node/terminal-native/meson.build'
       - 'packages/framework/webkit-native/src/objc/**'
       - 'packages/framework/webkit-native/meson.build'
+      - 'packages/framework/gtk-quartz-native/src/objc/**'
+      - 'packages/framework/gtk-quartz-native/test/**'
+      - 'packages/framework/gtk-quartz-native/meson.build'
       - 'packages/web/gamepad-native/src/**'
       - 'packages/web/gamepad-native/test/**'
       - 'packages/web/gamepad-native/subprojects/sdl3.wrap'
@@ -232,6 +235,9 @@ on:
       - 'packages/node/terminal-native/meson.build'
       - 'packages/framework/webkit-native/src/objc/**'
       - 'packages/framework/webkit-native/meson.build'
+      - 'packages/framework/gtk-quartz-native/src/objc/**'
+      - 'packages/framework/gtk-quartz-native/test/**'
+      - 'packages/framework/gtk-quartz-native/meson.build'
       - 'packages/web/gamepad-native/src/**'
       - 'packages/web/gamepad-native/test/**'
       - 'packages/web/gamepad-native/subprojects/sdl3.wrap'
@@ -1611,6 +1617,33 @@ jobs:
         with:
           name: webkit-native-prebuilds-darwin-${{ matrix.arch }}
           path: packages/framework/webkit-native/prebuilds/darwin-${{ matrix.arch }}/
+          if-no-files-found: error
+          retention-days: 30
+
+      # -------- @gjsify/gtk-quartz-native (GjsifyQuartz, darwin only) --------
+      # One Objective-C file that adds the Dock-click reopen handler GTK 4.24.1's
+      # application delegate lacks (ADR 0141). Same toolchain as webkit-native; it
+      # links neither GTK nor GLib. `meson test` is the spec: it sends the selector
+      # to a real GtkApplicationQuartzDelegate (needs the host gtk4 the closure has).
+      - name: Build @gjsify/gtk-quartz-native (Objective-C runtime patch)
+        if: ${{ !contains(needs.changes.outputs.skip, '"gtk-quartz-native"') }}
+        working-directory: packages/framework/gtk-quartz-native
+        run: |
+          meson setup build .
+          meson compile -C build
+          meson test -C build --print-errorlogs
+
+      - name: Collect @gjsify/gtk-quartz-native prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"gtk-quartz-native"') }}
+        working-directory: packages/framework/gtk-quartz-native
+        run: node ../../../scripts/stage-prebuild.mjs . --scratch
+
+      - name: Upload @gjsify/gtk-quartz-native prebuilds artifact
+        if: ${{ !contains(needs.changes.outputs.skip, '"gtk-quartz-native"') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: gtk-quartz-native-prebuilds-darwin-${{ matrix.arch }}
+          path: packages/framework/gtk-quartz-native/prebuilds/darwin-${{ matrix.arch }}/
           if-no-files-found: error
           retention-days: 30
 
@@ -5042,6 +5075,13 @@ jobs:
           name: webkit-native-prebuilds-darwin-arm64
           path: packages/framework/webkit-native-darwin-arm64/prebuilds/darwin-arm64/
 
+      - name: Download gtk-quartz-native darwin-arm64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"gtk-quartz-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: gtk-quartz-native-prebuilds-darwin-arm64
+          path: packages/framework/gtk-quartz-native-darwin-arm64/prebuilds/darwin-arm64/
+
       - name: Download gamepad-native darwin-arm64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
         uses: actions/download-artifact@v8
@@ -5135,6 +5175,13 @@ jobs:
         with:
           name: webkit-native-prebuilds-darwin-x64
           path: packages/framework/webkit-native-darwin-x64/prebuilds/darwin-x64/
+
+      - name: Download gtk-quartz-native darwin-x64 prebuilds
+        if: ${{ !contains(needs.changes.outputs.skip, '"gtk-quartz-native"') }}
+        uses: actions/download-artifact@v8
+        with:
+          name: gtk-quartz-native-prebuilds-darwin-x64
+          path: packages/framework/gtk-quartz-native-darwin-x64/prebuilds/darwin-x64/
 
       - name: Download gamepad-native darwin-x64 prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"gamepad-native"') }}
