@@ -115,6 +115,17 @@ function appImageArch(arch: string, _archIndependent: boolean): string {
 }
 
 /**
+ * `process.arch` → the `uname -m` spelling a tarball name carries (and the
+ * Flatpak arch the `-flatpak` variant is consumed under). `archIndependent` is
+ * IGNORED: the name is a download label and Flatpak has no `noarch`.
+ */
+const LINUX_TAR_ARCH: Record<string, string> = { x64: 'x86_64', arm64: 'aarch64' };
+
+function linuxTarArch(arch: string, _archIndependent: boolean): string {
+    return lookupArch(LINUX_TAR_ARCH, arch, 'Linux tarball');
+}
+
+/**
  * `process.arch` → the name Apple's tools use.
  *
  * Two rows, because two architectures exist: `x86_64` and `arm64` are what
@@ -541,6 +552,78 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         // refusal `gjsify.ship.kind` decides on its own, so it belongs before the
         // build beside the tool gate rather than after it inside the packer.
         requiresDesktopEntry: true,
+    },
+    // THE FIFTH CONTAINER OVER THE LINUX TREE, and the first with no install
+    // step and no prefix at all: a gzip'd tar whose single top directory is
+    // `<binaryName>-<version>-linux-<arch>/`. It is a download to unpack anywhere,
+    // and the launcher computes its own prefix, so the same `bin/<name>` works.
+    // It is NOT a replacement for `.deb`/`.rpm` and NOT self-contained: it takes
+    // its interpreter from the machine, like them, with no field to declare it.
+    //
+    // `finishOn: ['linux']` and not `'any'` although nothing is exec'd, and the
+    // reason is `defaultFormatIds`: `'any'` is what makes a bare `gjsify ship` on
+    // Linux build a row, and that set is exactly `deb` + `rpm` today. Opt-in
+    // through `--target` or `gjsify.ship.targets`, like `appimage` and `flatpak`.
+    'linux-tar': {
+        id: 'linux-tar',
+        layoutOs: 'linux',
+        // No install prefix: the packer names the top directory. Unused by it.
+        prefix: '',
+        host: {
+            finishOn: ['linux'],
+            requiredTools: [],
+            oracle: {
+                // This tree's own `parseTar` reads the artifact back in the unit
+                // suite; the e2e suite reads it with GNU `tar`, which shares no code
+                // with the writer (ADR 0024 § A3).
+                readWith: ['tar'],
+                readOn: ['linux'],
+                selfReading: false,
+            },
+        },
+        depends: null,
+        interpreters: ['gjs', 'node'],
+        interpreterGap:
+            'a tarball carries the application and takes its interpreter from the host, exactly as a distro ' +
+            'package does — but with no dependency field to declare it in',
+        licenseDest: SHARE_LICENSE_DEST,
+        licenseKind: 'plain',
+        archName: linuxTarArch,
+        fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}-${s.version}-linux-${archLabel}.tar.gz`,
+        artifactKind: 'file',
+    },
+    // THE FLATPAK-OPTIMISED VARIANT, a second row and not a flag. The payload is
+    // identical; what differs is one pack-time step — `gschemas.compiled` is
+    // compiled and shipped (`appimage`'s precedent, and for its reason: the Linux
+    // stage is shared with `.deb`/`.rpm`, so no stage carries the cache) — and
+    // the CONTRACT: this archive is meant to be an `extra-data` source under
+    // `org.gnome.Platform`, which provides gjs and GTK, so nothing is bundled.
+    // A row keeps `defaultFormatIds`, `--target`, the closed vocabulary and
+    // `TARGETS` table-driven; a flag would need a second axis in all four.
+    'linux-tar-flatpak': {
+        id: 'linux-tar-flatpak',
+        layoutOs: 'linux',
+        prefix: '',
+        host: {
+            finishOn: ['linux'],
+            requiredTools: [SCHEMA_COMPILER],
+            installHint: `The schema compiler is packaged: ${SCHEMA_COMPILER_HINT}`,
+            oracle: { readWith: ['tar'], readOn: ['linux'], selfReading: false },
+        },
+        depends: null,
+        // GJS ONLY, like the Flatpak row: the runtime ships `gjs`, not `node`.
+        interpreters: ['gjs'],
+        interpreterGap:
+            'the archive is meant to run under `org.gnome.Platform`, which ships `gjs` and no `node`, and it ' +
+            'bundles no interpreter',
+        licenseDest: SHARE_LICENSE_DEST,
+        licenseKind: 'plain',
+        archName: linuxTarArch,
+        // A name of its own: both variants of one build must be able to sit in one
+        // `out/` directory.
+        fileName: (s: PackSettings, archLabel: string) =>
+            `${s.binaryName}-${s.version}-linux-${archLabel}-flatpak.tar.gz`,
+        artifactKind: 'file',
     },
     // ── macOS (#1354 M2a) ────────────────────────────────────────────────
     //
@@ -1259,6 +1342,8 @@ export function canCarryTicket(id: FormatId): boolean {
         case 'rpm':
         case 'flatpak':
         case 'appimage':
+        case 'linux-tar':
+        case 'linux-tar-flatpak':
         case 'windows-dir':
         case 'windows-dir-zip':
         case 'msi':

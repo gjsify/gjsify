@@ -78,6 +78,7 @@
         "test:e2e:ship": "node --test tests/e2e/ship/run.mjs",
         "test:e2e:ship-declaration": "node --test tests/e2e/ship-declaration/run.mjs",
         "test:e2e:ship-from-stage": "node --test tests/e2e/ship-from-stage/run.mjs",
+        "test:e2e:ship-linux-tar": "node --test tests/e2e/ship-linux-tar/run.mjs",
         "test:e2e:ship-layout": "node --test tests/e2e/ship-layout/run.mjs",
         "test:e2e:ship-flatpak": "node --test tests/e2e/ship-flatpak/run.mjs",
         "test:e2e:ship-macos": "node --test tests/e2e/ship-macos/run.mjs",
