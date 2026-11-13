@@ -174,3 +174,62 @@ export function readUmask(): number {
     }
     return 0o022;
 }
+
+export type IdKind = 'uid' | 'euid' | 'gid' | 'egid';
+
+const PROC_FIELD: Record<IdKind, { line: 'Uid' | 'Gid'; column: 0 | 1 }> = {
+    uid: { line: 'Uid', column: 0 },
+    euid: { line: 'Uid', column: 1 },
+    gid: { line: 'Gid', column: 0 },
+    egid: { line: 'Gid', column: 1 },
+};
+
+const ID_FLAGS: Record<IdKind, string[]> = {
+    uid: ['-ru'],
+    euid: ['-u'],
+    gid: ['-rg'],
+    egid: ['-g'],
+};
+
+const _idCache = new Map<IdKind, number>();
+
+/**
+ * The process's real/effective user or group id.
+ *
+ * GJS has no `getuid(2)` family binding (`GLib` exposes none, `Gio.Credentials`
+ * answers the effective uid only), and `process.getuid?.() === 0` is how Node
+ * code asks "am I root" — so a missing function breaks, and a guessed `0` or
+ * `1000` would be a wrong answer to a security question.
+ *
+ * Linux publishes all four ids in `/proc/self/status` (`Uid:`/`Gid:` lines are
+ * real, effective, saved, filesystem). Elsewhere (macOS) `id` is the POSIX
+ * answer; it is spawned once per kind and cached, which is sound because no GJS
+ * API can change the ids afterwards. Throws when neither source answers, rather
+ * than returning a value that was not measured.
+ */
+export function readId(kind: IdKind): number {
+    const GLib = getGjsGlobal().imports?.gi?.GLib;
+    if (!GLib) throw new Error(`process.get${kind}: GLib is not available`);
+
+    try {
+        const [ok, data] = GLib.file_get_contents('/proc/self/status');
+        if (ok) {
+            const { line, column } = PROC_FIELD[kind];
+            const match = new RegExp(`^${line}:\\s*(\\d+)\\s+(\\d+)`, 'm').exec(new TextDecoder().decode(data));
+            if (match) return parseInt(match[column + 1], 10);
+        }
+    } catch {
+        // No procfs (macOS, BSD): fall through to id(1).
+    }
+
+    const cached = _idCache.get(kind);
+    if (cached !== undefined) return cached;
+
+    const glib = GLib as unknown as KillGlib;
+    const [ok, stdout] = glib.spawn_sync(null, ['id', ...ID_FLAGS[kind]], null, SPAWN_SEARCH_PATH, null);
+    const text = ok && stdout ? new TextDecoder().decode(stdout).trim() : '';
+    if (!/^\d+$/.test(text)) throw new Error(`process.get${kind}: could not determine the id (no /proc, no id(1))`);
+    const value = parseInt(text, 10);
+    _idCache.set(kind, value);
+    return value;
+}
