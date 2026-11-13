@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/store",
-    "version": "0.64.38",
+    "version": "0.64.39",
     "description": "Store purchase and entitlement interface for gjsify apps (ADR 0139). Pure TypeScript, identical on GJS, Node and the browser.",
     "type": "module",
     "module": "lib/esm/index.js",
