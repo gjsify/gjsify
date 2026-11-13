@@ -130,6 +130,31 @@ export default async () => {
         });
     });
 
+    await describe('DatabaseSync file: URIs', async () => {
+        await it('reads query parameters from a file: path, as Node does', async () => {
+            const dbPath = nextDb();
+            const writer = new DatabaseSync(dbPath);
+            writer.exec('PRAGMA journal_mode=WAL');
+            writer.exec('CREATE TABLE t (x)');
+            writer.exec('INSERT INTO t VALUES (1)');
+            writer.close();
+
+            const reader = new DatabaseSync(`file:${dbPath}?immutable=1`, { readOnly: true });
+            expect((reader.prepare('SELECT count(*) AS n FROM t').get() as { n: number }).n).toBe(1);
+            expect(() => reader.exec('INSERT INTO t VALUES (2)')).toThrow();
+            reader.close();
+            // `immutable` means no -wal or -shm file is created beside the database.
+            expect(existsSync(`${dbPath}-shm`)).toBe(false);
+        });
+
+        await it('creates the file named by mode=rwc', async () => {
+            const dbPath = nextDb();
+            const db = new DatabaseSync(`file:${dbPath}?mode=rwc`);
+            db.close();
+            expect(existsSync(dbPath)).toBe(true);
+        });
+    });
+
     await describe('DatabaseSync.prototype.close()', async () => {
         await it('closes an open database connection', async () => {
             const db = new DatabaseSync(nextDb());
