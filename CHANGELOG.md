@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.64.36](https://github.com/gjsify/gjsify/compare/v0.64.35...v0.64.36) (2026-11-13)
+
+### Features
+
+* **gtk-quartz-native:** reopen the app on a Dock click (macOS) ([#2602](https://github.com/gjsify/gjsify/issues/2602)) ([0a819d9](https://github.com/gjsify/gjsify/commit/0a819d92ac6254a4b2b4da87af65943d54151f1b))
+
+### Bug Fixes
+
+* **site:** keep the firefox fox visible at rest ([#2618](https://github.com/gjsify/gjsify/issues/2618)) ([3e0875c](https://github.com/gjsify/gjsify/commit/3e0875c728d9f128e0183eff95856fc38e3f5618))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([84daa32](https://github.com/gjsify/gjsify/commit/84daa326756c2e10261a4572d549a89c1b9e6082))
+
 ## [0.64.35](https://github.com/gjsify/gjsify/compare/v0.64.34...v0.64.35) (2026-11-13)
 
 ### Features
