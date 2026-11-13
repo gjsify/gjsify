@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/image-generation",
-    "version": "0.64.36",
+    "version": "0.64.37",
     "description": "Image generation in the WebML CG lifecycle shape: an ImageGenerator with availability(), create({ monitor, signal }) and destroy(), and a local stable-diffusion.cpp engine for diffusion models on Node and GJS.",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
