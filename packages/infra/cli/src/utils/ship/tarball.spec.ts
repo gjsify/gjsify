@@ -59,7 +59,12 @@ export default async () => {
 
     await describe('buildLinuxTarball', async () => {
         await it('holds exactly the payload under one top directory, with modes', async () => {
-            const bytes = await buildLinuxTarball({ settings, payload: PAYLOAD, archLabel: 'x86_64', mtime: 1700000000 });
+            const bytes = await buildLinuxTarball({
+                settings,
+                payload: PAYLOAD,
+                archLabel: 'x86_64',
+                mtime: 1700000000,
+            });
             const entries = parseTar(await gunzip(bytes));
             const top = tarballTopDir(settings, 'x86_64');
             expect(top).toBe('hello-app-1.2.3-linux-x86_64');
@@ -86,7 +91,13 @@ export default async () => {
 
     await describe('assertTarballHygiene', async () => {
         await it('refuses .env, .git, logs and a foreign node_modules', () => {
-            for (const bad of ['.env', 'lib/.env.local', 'lib/.git/config', 'share/run.log', 'lib/node_modules/x/i.js']) {
+            for (const bad of [
+                '.env',
+                'lib/.env.local',
+                'lib/.git/config',
+                'share/run.log',
+                'lib/node_modules/x/i.js',
+            ]) {
                 expect(() => assertTarballHygiene(payload([[bad, 0o644, 'x']]), settings)).toThrow();
             }
         });

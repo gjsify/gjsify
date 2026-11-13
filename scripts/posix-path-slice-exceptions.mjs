@@ -17,6 +17,10 @@
 
 /** @type {Record<string, string>} */
 export const POSIX_PATH_SLICE_EXCEPTIONS = {
+    'packages/infra/cli/src/utils/ship/tarball.ts':
+        'A TAR ENTRY name. The ustar format (POSIX.1-1988) stores member names `/`-separated on ' +
+        'every host, and the payload paths are already posix-normalised before they get here — ' +
+        'they are archive identifiers, never read from a filesystem.',
     'packages/framework/devtools/src/widget-tree.ts':
         'A D-Bus OBJECT PATH, whose grammar (D-Bus spec §Object paths) is `/`-separated on ' +
         'every platform — it never touches a filesystem.',

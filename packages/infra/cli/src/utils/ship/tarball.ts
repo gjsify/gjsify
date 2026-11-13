@@ -70,9 +70,7 @@ export async function buildLinuxTarball(input: {
     }
 
     const entries: TarWriteEntry[] = [
-        ...[...directories]
-            .sort()
-            .map((name) => ({ name, mode: 0o755, mtime: input.mtime, directory: true as const })),
+        ...[...directories].sort().map((name) => ({ name, mode: 0o755, mtime: input.mtime, directory: true as const })),
         ...input.payload.map((entry) => ({
             name: `${top}/${entry.path}`,
             body: entry.data,

@@ -31,7 +31,10 @@ describe('gjsify ship --target linux-tar,linux-tar-flatpak', { skip: process.pla
         tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-ship-linux-tar-'));
         const projectDir = scaffold(join(tmpDir, 'project'));
         const env = { ...process.env, SOURCE_DATE_EPOCH: STAMP };
-        runCliSync(CLI_ENTRY, ['ship', '--skip-build', '--stage', '--target', 'linux-tar,linux-tar-flatpak'], { cwd: projectDir, env });
+        runCliSync(CLI_ENTRY, ['ship', '--skip-build', '--stage', '--target', 'linux-tar,linux-tar-flatpak'], {
+            cwd: projectDir,
+            env,
+        });
 
         const stage = join(tmpDir, 'detached', 'stage');
         mkdirSync(dirname(stage), { recursive: true });
