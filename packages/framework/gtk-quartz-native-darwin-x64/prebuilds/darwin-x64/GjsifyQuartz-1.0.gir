@@ -1,0 +1,40 @@
+<?xml version="1.0"?>
+<!-- This file was automatically generated from C sources - DO NOT EDIT!
+To affect the contents of this file, edit the original C definitions,
+and/or use gtk-doc annotations.  -->
+<repository version="1.2"
+            xmlns="http://www.gtk.org/introspection/core/1.0"
+            xmlns:c="http://www.gtk.org/introspection/c/1.0"
+            xmlns:doc="http://www.gtk.org/introspection/doc/1.0"
+            xmlns:glib="http://www.gtk.org/introspection/glib/1.0">
+  <include name="GLib" version="2.0"/>
+  <c:include name="gjsify-quartz.h"/>
+  <doc:format name="unknown"/>
+  <namespace name="GjsifyQuartz"
+             version="1.0"
+             shared-library="libgjsifyquartz.dylib"
+             c:identifier-prefixes="GjsifyQuartz"
+             c:symbol-prefixes="gjsify_quartz">
+    <function name="install_reopen_handler"
+              c:identifier="gjsify_quartz_install_reopen_handler">
+      <doc xml:space="preserve"
+           filename="src/objc/gjsify-quartz.h"
+           line="16">Teach GTK's `GtkApplicationQuartzDelegate` to answer a Dock click on a
+running application that has no visible window. The handler emits
+`GApplication::activate` on the default application; with visible windows it
+does nothing, as Cocoa does by default.
+
+The call is self-retiring: when the loaded GTK already implements
+`applicationShouldHandleReopen:hasVisibleWindows:` nothing is installed.</doc>
+      <source-position filename="src/objc/gjsify-quartz.h" line="31"/>
+      <return-value transfer-ownership="none">
+        <doc xml:space="preserve"
+             filename="src/objc/gjsify-quartz.h"
+             line="27">%TRUE if this call installed the handler, %FALSE if GTK is not
+  loaded, the delegate class is absent, or it already responds to the
+  selector (including a previous call of this function).</doc>
+        <type name="gboolean" c:type="gboolean"/>
+      </return-value>
+    </function>
+  </namespace>
+</repository>
