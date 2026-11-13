@@ -515,6 +515,30 @@ msgstr ""
 msgid "See the hosting provider's notice"
 msgstr ""
 
+msgid "missing"
+msgstr ""
+
+msgid "ready"
+msgstr ""
+
+msgid "enter by hand"
+msgstr ""
+
+msgid "not set"
+msgstr ""
+
+msgid "Promo tile"
+msgstr ""
+
+msgid "Screenshot"
+msgstr ""
+
+msgid "Form fields"
+msgstr ""
+
+msgid "Store listing preview"
+msgstr ""
+
 msgid "Flathub"
 msgstr ""
 

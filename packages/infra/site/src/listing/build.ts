@@ -17,6 +17,8 @@ export interface StoreEntry {
     /** `<url type="homepage">`; the donation URL is never carried (ADR 0113). */
     homepage?: string;
     supportUrl?: string;
+    /** Edge's search terms, from the metainfo keywords. */
+    searchTerms?: string[];
 }
 
 export interface Issue {
@@ -121,6 +123,7 @@ export function buildListingModel({ metainfo, config, catalogs, stores = STORES 
                 ...base,
                 ...(spec.descriptionHtml ? { descriptionHtml: descriptionHtml(description, app) } : {}),
                 category: config.category[store],
+                ...(spec.searchTerms ? { searchTerms: metainfo.keywords.map(app) } : {}),
             };
             (model.stores[store] ??= {})[language] = entry;
             model.issues.push(...checkEntry(store, language, entry));
