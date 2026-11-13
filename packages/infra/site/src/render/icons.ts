@@ -1,7 +1,14 @@
 /**
  * The page needs about twenty small glyphs. They are drawn here instead of pulled from an icon
- * theme: inlining them costs no request and no licence notice, and a symbolic 16×16 grid is
- * little enough geometry to keep in one file. Every path uses `currentColor` and is sized by CSS.
+ * theme: inlining them costs no request, and a symbolic 16×16 grid is little enough geometry to
+ * keep in one file. UI glyphs use `currentColor` and are sized by CSS.
+ *
+ * The platform and browser marks (Linux, macOS, Windows, Android, Firefox, Chromium, Edge, Safari)
+ * are simplified redrawings of the trademarked logos, with `simple-icons` (CC0 1.0) as geometry
+ * reference for the Firefox silhouette, Apple and Linux; Chromium, Edge and the rest are drawn
+ * from scratch — `simple-icons` has no Chromium or Edge mark. The marks belong to
+ * their owners and appear only to name the platform. Each part is a `b1…bN` path: at rest all
+ * are `currentColor`, and the stylesheet fills them in the brand colours on hover and focus.
  */
 
 export type IconName =
@@ -12,6 +19,8 @@ export type IconName =
     | 'web'
     | 'firefox'
     | 'chromium'
+    | 'edge'
+    | 'safari'
     | 'package'
     | 'download'
     | 'license'
@@ -36,16 +45,33 @@ export type IconName =
 /** Shared attributes of the outline icons, so the strokes stay optically equal. */
 const STROKE = 'fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"';
 
+/** Marks of platforms and browsers; every part is its own `b1…bN` path, see the stylesheet. */
+export const BRAND_ICONS = [
+    'linux',
+    'macos',
+    'windows',
+    'android',
+    'firefox',
+    'chromium',
+    'edge',
+    'safari',
+] as const satisfies readonly IconName[];
+
+const BRAND_PATHS: Record<(typeof BRAND_ICONS)[number], string> = {
+    linux: `<path class="b1" fill-rule="evenodd" d="M8 1.8c-1.7 0-2.9 1.4-2.9 3.2 0 .9.3 1.5-.4 2.5-1 1.4-1.8 3.2-1.8 4.6 0 .9.8 1.4 1.7 1.4h6.8c.9 0 1.7-.5 1.7-1.4 0-1.4-.8-3.2-1.8-4.6-.7-1-.4-1.6-.4-2.5 0-1.8-1.2-3.2-2.9-3.2Zm-1.2 2.4a.6.6 0 1 0 0 1.2.6.6 0 0 0 0-1.2Zm2.4 0a.6.6 0 1 0 0 1.2.6.6 0 0 0 0-1.2ZM8 7.4c-1.3 0-2.2 1.4-2.2 3.2 0 1.4.9 2.4 2.2 2.4s2.2-1 2.2-2.4c0-1.8-.9-3.2-2.2-3.2Z"/><path class="b2" d="M8 7.9c-.95 0-1.65 1.1-1.65 2.7 0 1.1.7 1.9 1.65 1.9s1.65-.8 1.65-1.9C9.65 9 8.95 7.9 8 7.9Z"/><ellipse class="b3" cx="8" cy="6.3" rx="1.3" ry="0.65"/><ellipse class="b3" cx="5.3" cy="14.3" rx="2.1" ry="1"/><ellipse class="b3" cx="10.7" cy="14.3" rx="2.1" ry="1"/>`,
+    macos: `<path class="b1" d="M10.35 2.55L10.67 2.12L10.92 1.63L11.1 1.11L11.19 .56L11.18 0L10.69 .07L10.17 .25L9.68 .5L9.22 .83L8.83 1.21L8.53 1.61L8.27 2.08L8.08 2.59L7.97 3.14L7.98 3.69L8.52 3.66L9.04 3.51L9.53 3.26L9.98 2.94L10.35 2.55Z"/><path class="b2" d="M8.1 4.6L7.68 4.52L7.2 4.35L6.65 4.14L6.07 3.97L5.46 3.9L4.66 4L3.91 4.27L3.23 4.68L2.64 5.24L2.15 5.91L2.02 6.28L13.18 6.28L13.45 5.96L13.89 5.59L14.1 5.45L13.48 4.76L12.81 4.3L12.15 4.04L11.58 3.91L11.17 3.87L10.4 3.91L9.7 4.08L9.07 4.31L8.53 4.51L8.1 4.6Z"/><path class="b3" d="M1.94 6.52L1.59 7.5L1.53 8.58L12.39 8.58L12.37 8.49L12.54 7.4L12.95 6.56L12.98 6.52Z"/><path class="b4" d="M1.52 8.82L1.5 9.24L1.79 10.88L13.34 10.88L13.13 10.68L12.6 9.76L12.43 8.82Z"/><path class="b5" d="M1.86 11.12L2.4 12.61L2.66 13.08L13.95 13.08L14.13 12.74L14.34 12.23L14.47 11.88L14.52 11.73L14.29 11.62L13.76 11.29L13.59 11.12Z"/><path class="b6" d="M2.8 13.32L3.17 13.97L3.59 14.56L4.04 15.12L4.54 15.58L5.09 15.89L5.69 16L6.24 15.91L6.7 15.75L7.16 15.56L7.67 15.41L8.32 15.34L8.96 15.41L9.47 15.57L9.92 15.76L10.39 15.92L10.96 15.97L11.57 15.86L12.1 15.56L12.57 15.12L13 14.59L13.41 14.01L13.82 13.34Z"/>`,
+    windows: `<path class="b1" d="M1.6 1.6h6v6h-6Z"/><path class="b2" d="M8.4 1.6h6v6h-6Z"/><path class="b3" d="M1.6 8.4h6v6h-6Z"/><path class="b4" d="M8.4 8.4h6v6h-6Z"/>`,
+    android: `<path class="b1" fill-rule="evenodd" d="M2.4 12.2a5.6 5.6 0 0 1 11.2 0Zm3.5-3.5a.8.8 0 1 0 1.6 0 .8.8 0 0 0-1.6 0Zm4.2 0a.8.8 0 1 0 1.6 0 .8.8 0 0 0-1.6 0ZM5.2 5.9 3.9 3.1l.9-.4 1.3 2.8ZM10.8 5.9l1.3-2.8-.9-.4-1.3 2.8Z"/>`,
+    firefox: `<path class="b1" fill-rule="evenodd" d="M13.63 2.3A7.33 7.33 0 0 0 11.98 1.02C11.3 .66 10.07 .06 8.32 .02C7.83 .01 7.35 .04 6.87 .12C6.39 .19 5.94 .31 5.46 .49C4.78 .74 4.13 1.14 3.74 1.53C4.13 1.29 4.72 1.04 5.44 .87A6.72 6.72 0 0 1 7.93 .75C9.49 .98 10.71 1.67 11.58 2.5A5.38 5.38 0 0 1 12.45 3.56C13.42 5.15 13.33 7.15 12.57 8.32C12 9.2 10.79 10.02 9.65 10.01C9.27 9.99 8.7 9.91 8.15 9.63C6.4 8.74 6.14 6.51 7.41 5.43C6.99 5.34 6.2 5.52 5.65 6.34C5.15 7.08 5.18 8.21 5.48 9.02A4.32 4.32 0 0 1 5.09 7.76A5.13 5.13 0 0 1 5.37 5.2A5.47 5.47 0 0 1 6.3 3.6C6.9 2.89 7.57 2.45 8.13 2.26C7.77 1.95 7.19 1.77 6.52 1.75C5.54 1.72 4.22 2.04 3.13 2.94A5.43 5.43 0 0 0 1.82 4.55C1.51 5.11 1.36 5.66 1.35 5.67C1.43 4.7 1.82 3.67 2.18 2.96C1.66 3.24 .97 4.08 .58 4.99C.06 6.25 -.13 7.74 .09 9.33C.74 13.1 4.03 15.98 7.99 15.98C12.41 15.98 16 12.39 16 7.97A7.95 7.95 0 0 0 13.63 2.3ZM4.8 9A4 4 0 1 0 12.8 9A4 4 0 1 0 4.8 9Z"/><circle class="b2" cx="8.8" cy="9" r="3.1"/>`,
+    chromium: `<path class="b1" d="M2.01 3.16A7.7 7.7 0 0 1 13.99 3.16L11.25 4.74A4.6 4.6 0 0 0 4.75 4.74Z"/><path class="b2" d="M15.19 5.24A7.7 7.7 0 0 1 9.2 15.61L9.2 12.44A4.6 4.6 0 0 0 12.45 6.82Z"/><path class="b3" d="M6.8 15.61A7.7 7.7 0 0 1 .81 5.24L3.55 6.82A4.6 4.6 0 0 0 6.8 12.44Z"/><circle class="b4" cx="8" cy="8" r="3.4"/>`,
+    edge: `<path class="b1" d="M.4 8.25A7.6 7.6 0 1 1 7.75 15.6A6 6 0 1 0 .4 8.25Z"/><path class="b2" d="M.46 12.48A7.3 7.3 0 0 1 11.03 7.55L9.99 9.5A5.1 5.1 0 0 0 2.61 12.94Z"/>`,
+    safari: `<path class="b1" fill-rule="evenodd" d="M8 .3A7.7 7.7 0 1 1 8 15.7 7.7 7.7 0 0 1 8 .3Zm0 1.2A6.5 6.5 0 1 0 8 14.5 6.5 6.5 0 0 0 8 1.5ZM7.7 2.2h.6v1.2h-.6ZM12.6 7.7h1.2v.6h-1.2ZM7.7 12.6h.6v1.2h-.6ZM2.2 7.7h1.2v.6H2.2Z"/><path class="b2" d="M11.25 4.75 8.96 8.74 7.26 7.05Z"/><path class="b3" d="M4.75 11.25 7.05 7.26 8.74 8.96Z"/>`,
+};
+
 const PATHS: Record<IconName, string> = {
-    // Platform marks are filled silhouettes: at 18px an outline turns to mush.
-    linux: `<path fill-rule="evenodd" d="M8 1.1c-1.7 0-3.1 1.4-3.1 3.1v1.2c0 .5-.2.9-.5 1.3-1.2 1.3-1.8 2.9-1.8 4.7 0 .6-.2 1.1-.6 1.5-.6.7-.3 1.7.5 2 1 .4 2.2.7 3.3.8.2 0 .3 0 .5-.1.5.1 1.1.1 1.7.1s1.2 0 1.7-.1c.2.1.3.1.5.1 1.1-.1 2.3-.4 3.3-.8.8-.3 1.1-1.3.5-2-.4-.4-.6-.9-.6-1.5 0-1.8-.6-3.4-1.8-4.7-.3-.4-.5-.8-.5-1.3V4.2c0-1.7-1.4-3.1-3.1-3.1Zm-1.2 2.2a.7.7 0 1 1 0 1.4.7.7 0 0 1 0-1.4Zm2.4 0a.7.7 0 1 1 0 1.4.7.7 0 0 1 0-1.4ZM8 5.1l1 .9-1 .9-1-.9 1-.9Z"/>`,
-    macos: `<path d="M11.2 8.5c0-1.5 1.2-2.2 1.3-2.3-.7-1-1.8-1.1-2.1-1.1-.9-.1-1.7.5-2.2.5-.4 0-1.1-.5-1.9-.5-1 0-1.9.6-2.4 1.5-1 1.7-.3 4.3.7 5.7.5.7 1.1 1.5 1.8 1.4.7 0 1-.4 1.8-.4.9 0 1.1.4 1.8.4.8 0 1.2-.7 1.7-1.4.6-.8.8-1.5.8-1.6 0 0-1.3-.5-1.3-2.2Z"/><path d="M9.6 3.7c.4-.5.7-1.1.6-1.8-.6 0-1.3.4-1.7.9-.4.4-.7 1.1-.6 1.7.7.1 1.3-.3 1.7-.8Z"/>`,
-    windows: `<path d="M1.6 2.9 7.1 2.1v5.2H1.6V2.9Zm6.5-.9L14.4 1v6.3H8.1V2Zm-6.5 6.7h5.5V14L1.6 13.2V8.7Zm6.5 0h6.3V15L8.1 14.1V8.7Z"/>`,
-    android: `<path ${STROKE} d="m4.9 3 -.8-1.3M11.1 3l.8-1.3"/><path fill-rule="evenodd" d="M3.9 5.8C4.1 3.7 5.8 2 8 2s3.9 1.7 4.1 3.8H3.9Zm2.4-1.9a.6.6 0 1 1 0 1.2.6.6 0 0 1 0-1.2Zm3.4 0a.6.6 0 1 1 0 1.2.6.6 0 0 1 0-1.2Z"/><path d="M3.9 6.8h8.2v5.4c0 .6-.5 1.1-1.1 1.1H5c-.6 0-1.1-.5-1.1-1.1V6.8Zm-2.9.9a.9.9 0 0 1 1.8 0v3.5a.9.9 0 0 1-1.8 0V7.7Zm12.3 0a.9.9 0 0 1 1.8 0v3.5a.9.9 0 0 1-1.8 0V7.7ZM5.1 13.6a.9.9 0 0 1 1.8 0v1.5a.9.9 0 0 1-1.8 0v-1.5Zm4 0a.9.9 0 0 1 1.8 0v1.5a.9.9 0 0 1-1.8 0v-1.5Z"/>`,
+    ...BRAND_PATHS,
     web: `<g ${STROKE}><circle cx="8" cy="8" r="6.3"/><path d="M1.7 8h12.6"/><path d="M8 1.7c1.7 1.7 2.6 3.9 2.6 6.3S9.7 12.6 8 14.3C6.3 12.6 5.4 10.4 5.4 8s.9-4.6 2.6-6.3Z"/></g>`,
 
-    firefox: `<g ${STROKE}><circle cx="8" cy="8" r="6.3"/><path d="M4.9 7.4a3.3 3.3 0 1 0 5.7-2.5c.2 1-.1 1.8-.9 2.4"/></g>`,
-    chromium: `<g ${STROKE}><circle cx="8" cy="8" r="6.3"/><circle cx="8" cy="8" r="2.4"/><path d="M8 5.6h5.7M5.9 9.2 3.1 14M10.1 9.2 7.3 14.1"/></g>`,
     package: `<g ${STROKE}><path d="M8 1.6 14 4.5v7L8 14.4l-6-2.9v-7L8 1.6Z"/><path d="m2 4.5 6 2.9 6-2.9M8 7.4v7"/></g>`,
     download: `<g ${STROKE}><path d="M8 1.9v7.6M4.8 6.4 8 9.6l3.2-3.2M2.4 13.3h11.2"/></g>`,
     license: `<g ${STROKE}><path d="M4 1.8h5l3.2 3.2v9.2H4V1.8Z"/><path d="M8.8 1.8V5h3.2M6.2 8.2h3.6M6.2 10.8h3.6"/></g>`,
@@ -78,7 +104,8 @@ export interface IconOptions {
 
 /** Renders one icon as an inline `<svg>`; decorative by default. */
 export function icon(name: IconName, options: IconOptions = {}): string {
-    const classes = options.class ? `icon ${options.class}` : 'icon';
+    const brand = (BRAND_ICONS as readonly string[]).includes(name) ? ` icon-brand icon-${name}` : '';
+    const classes = `icon${brand}${options.class ? ` ${options.class}` : ''}`;
     const label = options.title
         ? ` role="img" aria-label="${options.title.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`)}"`
         : ' aria-hidden="true"';
