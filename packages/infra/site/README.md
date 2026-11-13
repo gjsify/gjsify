@@ -196,6 +196,7 @@ Lives in the root `package.json`, next to `ship` and `flatpak`.
 | `languages` / `defaultLanguage` / `sourceLanguage` | Languages to render (`/en/`, `/de/`). `defaultLanguage` is where `/` lands when the visitor's languages match none (default: the first). `sourceLanguage` is the language of the metainfo's untranslated text (default `en`); the others are looked up in `translations`. |
 | `repository` | `owner/name`; release assets and counts come from its latest GitHub release. |
 | `flathub` | Flathub app id: adds the Flathub download and install count. Optional. |
+| `flatpark` | FlatPark app id: adds the FlatPark install page, ranked after Flathub and before the Flatpak bundle. Optional. |
 | `webApp` | Path of a web app below `base`; adds "Try in browser". Optional. |
 | `translations` | Directory of the app's `<lang>.po` catalogues, used when the metainfo lacks a translation. Optional. |
 | `pageTranslations` | Directory of `<lang>.po` catalogues for the *page's own* strings, overlaying this package's `po/`. Optional, see below. |

@@ -41,6 +41,7 @@ export default async () => {
     await describe('page fragments', async () => {
         await it('describes the recommended target, not just its group', async () => {
             expect(ctaLabel(target('linux', 'flathub'), t)).toBe('Install from Flathub');
+            expect(ctaLabel(target('linux', 'flatpark'), t)).toBe('Install from FlatPark');
             expect(ctaLabel(target('linux', 'appimage'), t)).toBe('Download for Linux');
             expect(ctaLabel(target('web', 'web'), t)).toBe('Try in browser');
             expect(ctaLabel(target('chromium', 'source'), t)).toBe('Build from source');

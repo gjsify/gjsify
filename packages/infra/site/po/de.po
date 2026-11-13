@@ -342,6 +342,9 @@ msgstr "Nicht signiert"
 msgid "Install from Flathub"
 msgstr "Über Flathub installieren"
 
+msgid "Install from FlatPark"
+msgstr "Über FlatPark installieren"
+
 msgid "Build from source"
 msgstr "Aus dem Quellcode bauen"
 
@@ -539,6 +542,9 @@ msgstr "Vorschau des Store-Eintrags"
 
 msgid "Flathub"
 msgstr "Flathub"
+
+msgid "FlatPark"
+msgstr "FlatPark"
 
 msgid "Flatpak bundle"
 msgstr "Flatpak-Bundle"
