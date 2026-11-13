@@ -108,7 +108,7 @@ export interface StoreDescriptor {
 }
 
 export const STORES: Readonly<Record<StoreId, StoreDescriptor>> = {
-    chrome: { id: 'chrome', label: 'Chrome Web Store', implemented: false, createsListings: false },
+    chrome: { id: 'chrome', label: 'Chrome Web Store', implemented: true, createsListings: false },
     edge: { id: 'edge', label: 'Edge Add-ons', implemented: true, createsListings: false },
     amo: { id: 'amo', label: 'addons.mozilla.org', implemented: false, createsListings: false },
 };
@@ -320,6 +320,8 @@ export interface StoreStatusResult {
     readonly state: StoreSubmissionState;
     /** The version the store reports, when it reports one. */
     readonly version?: string;
+    /** True while the store is still ingesting an async upload (Chrome `lastAsyncUploadState: IN_PROGRESS`); the shared poll loop keeps waiting on it. */
+    readonly ingesting?: boolean;
     /** One line naming the evidence this state rests on — it goes in the report verbatim. */
     readonly detail: string;
 }
