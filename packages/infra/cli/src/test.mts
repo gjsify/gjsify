@@ -151,6 +151,7 @@ import webextStoresSuite from './utils/webext/stores/stores.spec.js';
 import webextChromeSuite from './utils/webext/stores/chrome.spec.js';
 import webextEdgeSuite from './utils/webext/stores/edge.spec.js';
 import webextSubmitPollSuite from './utils/webext/stores/poll.spec.js';
+import webextSubmitSuite from './utils/webext/submit.spec.js';
 import spawnSuite from './utils/spawn.spec.js';
 import win32CommandSuite from './utils/win32-command.spec.js';
 import envCommandSuite from './commands/env.spec.js';
@@ -451,6 +452,7 @@ run(
         webextChromeSuite,
         webextEdgeSuite,
         webextSubmitPollSuite,
+        webextSubmitSuite,
         spawnSuite,
         win32CommandSuite,
         envCommandSuite,
