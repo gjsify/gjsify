@@ -26,6 +26,7 @@
 //     unchanged: never claim what was not established.
 
 // The import cycle with `edge.ts` is safe: it uses this file's exports only inside functions.
+import { createChromeBackend } from './chrome.js';
 import { createEdgeBackend } from './edge.js';
 
 /** The stores `webext submit` knows by name. A store it does not know is refused by name, not by a missing case. */
@@ -402,15 +403,15 @@ export interface StoreBackendOptions {
     readonly log?: (msg: string) => void;
 }
 
-/** A store's backend factory, registered in {@link STORE_BACKENDS} by its own file. */
+/** A store's backend factory, registered in {@link STORE_BACKENDS}. */
 export type StoreBackendFactory = (credentials: StoreCredentials, options?: StoreBackendOptions) => StoreBackend;
 
 /**
- * Backend per store, EMPTY in this slice: the interface lands before the two
- * implementations so they can be written against a file neither of them owns.
- * `chrome.ts` and `edge.ts` each add their own row; nothing else changes.
+ * Backend per store. AMO has none. Registered here rather than as an import side
+ * effect of each backend file, so a backend is never silently missing.
  */
 export const STORE_BACKENDS: Partial<Record<StoreId, StoreBackendFactory>> = {
+    chrome: createChromeBackend,
     edge: createEdgeBackend,
 };
 

@@ -25,7 +25,6 @@ import {
     StoreApiError,
     StoreInReviewError,
     StoreVersionAlreadyThereError,
-    STORE_BACKENDS,
 } from './index.js';
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -281,5 +280,3 @@ export function createChromeBackend(credentials: StoreCredentials, options: Stor
         },
     };
 }
-
-STORE_BACKENDS.chrome = createChromeBackend;
