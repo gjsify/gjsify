@@ -1628,10 +1628,20 @@ jobs:
       - name: Build @gjsify/gtk-quartz-native (Objective-C runtime patch)
         if: ${{ !contains(needs.changes.outputs.skip, '"gtk-quartz-native"') }}
         working-directory: packages/framework/gtk-quartz-native
+        # `install-gjs` imports Gtk, whose GJS override loads the GjsPrivate typelib,
+        # which records the BARE leaf `libgjs.0.dylib` (and Gtk records
+        # `libgtk-4.1.dylib`). dyld resolves a bare leaf only through the fallback
+        # list, and the test's own DYLD_LIBRARY_PATH (the build dir) is the override
+        # half. Without the host libdir the test fails with "Failed to load shared
+        # library 'libgjs.0.dylib'" on the runner (prebuilds main 43391185286). The
+        # same split as the load-test step below; `/usr/lib` because setting the
+        # variable REPLACES dyld's default list. The darwin job never runs on a
+        # pull request, so this step was first executed — and failed — on main.
         run: |
           meson setup build .
           meson compile -C build
-          meson test -C build --print-errorlogs
+          DYLD_FALLBACK_LIBRARY_PATH="$(brew --prefix)/lib:/usr/lib" \
+            meson test -C build --print-errorlogs
 
       - name: Collect @gjsify/gtk-quartz-native prebuilds
         if: ${{ !contains(needs.changes.outputs.skip, '"gtk-quartz-native"') }}
