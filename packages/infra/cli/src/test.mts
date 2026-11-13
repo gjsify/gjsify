@@ -146,6 +146,7 @@ import devPlanSuite from './utils/dev-plan.spec.js';
 import watchLoopSuite from './utils/watch-loop.spec.js';
 import webextSuite from './utils/webext/webext.spec.js';
 import webextStoresSuite from './utils/webext/stores/stores.spec.js';
+import webextChromeSuite from './utils/webext/stores/chrome.spec.js';
 import spawnSuite from './utils/spawn.spec.js';
 import win32CommandSuite from './utils/win32-command.spec.js';
 import envCommandSuite from './commands/env.spec.js';
@@ -441,6 +442,7 @@ run(
         watchLoopSuite,
         webextSuite,
         webextStoresSuite,
+        webextChromeSuite,
         spawnSuite,
         win32CommandSuite,
         envCommandSuite,
