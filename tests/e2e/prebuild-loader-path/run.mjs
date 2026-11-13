@@ -368,6 +368,10 @@ describe('darwin prebuilds bind GLib to the host process', () => {
         let checked = 0;
         for (const file of mesonFiles(join(ROOT, 'packages'))) {
             if (file.includes('webview2-native')) continue;
+            // gtk-quartz-native links neither GTK nor GLib on purpose (ADR 0141): the class is
+            // looked up by name at run time. `gtk4` appears only in its test executable, which
+            // is never shipped, so there is no shipped load command to require.
+            if (file.includes('gtk-quartz-native')) continue;
             const src = readFileSync(file, 'utf8');
             if (!/'(libsoup-3\.0|gtk4|json-glib-1\.0|gstreamer[\w.-]*)'/.test(src)) continue;
             checked++;
