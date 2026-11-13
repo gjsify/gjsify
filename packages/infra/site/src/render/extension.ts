@@ -280,8 +280,8 @@ ${ctx.iconUrl ? `<div class="hero-icon" style="--icon-url:url(${esc(ctx.iconUrl)
 <h1>${esc(first!.name[lang]!)}</h1>
 ${heroBy(ctx)}
 ${first!.description[lang] ? `<p class="ext-short">${esc(first!.description[lang]!)}</p>` : ''}
-${install(ctx)}
 </div>
+${install(ctx)}
 </div>
 ${screenshotBand(ctx)}
 </header>`;

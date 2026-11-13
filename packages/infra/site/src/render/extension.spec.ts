@@ -120,6 +120,15 @@ export default async () => {
             expect(html.indexOf('class="ext-facts"')).toBeLessThan(html.indexOf('class="ext-main"'));
         });
 
+        await it('places the download widget to the right of the hero text, like the app page', async () => {
+            const html = renderExtensionPage(context());
+            const textEnd = html.indexOf('</div>', html.indexOf('class="ext-short"'));
+            const widget = html.indexOf('<app-download class="download">');
+            expect(textEnd).toBeGreaterThan(-1);
+            expect(widget).toBeGreaterThan(textEnd);
+            expect(widget).toBeLessThan(html.indexOf('</header>'));
+        });
+
         await it('explains known permissions, shows unknown ones raw, and names differing browsers', async () => {
             const html = renderExtensionPage(context());
             expect(html).toContain('Store its own settings and data');
