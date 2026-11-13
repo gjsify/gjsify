@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.64.37](https://github.com/gjsify/gjsify/compare/v0.64.36...v0.64.37) (2026-11-13)
+
+### Bug Fixes
+
+* **site:** put extension download on the right ([#2622](https://github.com/gjsify/gjsify/issues/2622)) ([e6f0817](https://github.com/gjsify/gjsify/commit/e6f0817eb06401088ad4f802289dd86e5c4f9bd9))
+* **sqlite:** open file: URIs like node:sqlite ([#2620](https://github.com/gjsify/gjsify/issues/2620)) ([660709f](https://github.com/gjsify/gjsify/commit/660709f826a23f041a33eb06c0a4d38655fe647c))
+
 ## [0.64.36](https://github.com/gjsify/gjsify/compare/v0.64.35...v0.64.36) (2026-11-13)
 
 ### Features
