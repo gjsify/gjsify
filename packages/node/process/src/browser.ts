@@ -169,6 +169,19 @@ const browserProcess = {
     abort(): never {
         throw new Error('process.abort is not supported in the browser');
     },
+    // A browser has no user or group ids; a guessed number would be a wrong answer to "am I root".
+    getuid(): number {
+        throw new Error('process.getuid is not supported in the browser');
+    },
+    geteuid(): number {
+        throw new Error('process.geteuid is not supported in the browser');
+    },
+    getgid(): number {
+        throw new Error('process.getgid is not supported in the browser');
+    },
+    getegid(): number {
+        throw new Error('process.getegid is not supported in the browser');
+    },
     kill: (_pid: number, _signal?: string | number): boolean => false,
 
     // Timing
@@ -224,6 +237,10 @@ export const chdir = browserProcess.chdir;
 export const exit = browserProcess.exit;
 export const abort = browserProcess.abort;
 export const umask = browserProcess.umask;
+export const getuid = browserProcess.getuid;
+export const geteuid = browserProcess.geteuid;
+export const getgid = browserProcess.getgid;
+export const getegid = browserProcess.getegid;
 export const kill = browserProcess.kill;
 export const uptime = browserProcess.uptime;
 export const hrtime = browserProcess.hrtime;
