@@ -211,6 +211,7 @@ measures nothing — the reason this field is a required one rather than prose:
 | `windows-dir-zip` | `unzip -Z1` | as above; and here it is also blind to the archive's own failure, entries written at the ROOT | `zipinfo -l` |
 | `appimage` | `--appimage-offset` | the artifact's own embedded runtime answering where its filesystem starts — § A3's `selfReading`, with extra steps | CPython `struct` over the ELF section headers + `unsquashfs` |
 | `appimage` | `--appimage-extract` | the same runtime unpacking what it was concatenated onto — it reproduces names, modes and mtimes faithfully (measured), which is exactly why it is not a second opinion about them | " |
+| `linux-tar` / `linux-tar-flatpak` | `parseTar` (unit suite) | our own reader of our own writer | GNU `tar -tzf` / `-tvzf` in `tests/e2e/ship-linux-tar` |
 | `macos-app-dmg` | `hdiutil verify` / `hdiutil imageinfo` | hdiutil reading what hdiutil wrote — ADR 0024 § A3 names this format as the case the field exists for | `7z l` + `7z t` + `dmg2img` + `fsck.hfsplus -f -n`, on **Linux** |
 | `macos-app-dmg` | `7z l` alone | it decodes only what its nested HFS listing needs — measured blind to a byte flipped at offset 16000 of a real image, which `7z t` and `dmg2img` both refuse | " |
 | `macos-app-dmg` | `dmg2img in.dmg out.img` | writes the whole GPT-partitioned DISK (measured: eight partitions), so the HFS+ volume header is not at offset 1024 and `fsck.hfsplus` exits 8 on a correct image | `dmg2img -l` to find the `Apple_HFS` partition, then `dmg2img -p <n>` |
@@ -388,6 +389,17 @@ never receive a certificate at all — it will exec `codesign` with a NAME, and 
 on the signing host (ADR 0024 § A12 records what is measured about that and what is Apple's
 documented behaviour). That is what lets an external developer ship under their own Developer ID
 with no fork and no fixture.
+
+## `linux-tar` and `linux-tar-flatpak`: a download, and an `extra-data` source (ADR 0142)
+
+Two rows, both `layoutOs: 'linux'` and `finishOn: ['linux']`, so `defaultFormatIds('linux')` stays
+exactly `['deb', 'rpm']` (`'any'` would add them to every bare `gjsify ship`). The archive is
+`<binary>-<version>-linux-<arch>[-flatpak].tar.gz` with one top directory of the same name, written
+in-tree by `utils/ship/tarball.ts` (no `tar` on the packing host). It holds the PAYLOAD and nothing
+else: the stage sidecar is not in it, and `assertTarballHygiene` refuses `.env`, `.git`, `*.log` and,
+for a non-Node app, `node_modules`. The `-flatpak` variant adds `gschemas.compiled`, compiled on the
+pack path as for `appimage`, because an `extra-data` tree has no postinst. Neither bundles an
+interpreter: it is not self-contained and not a replacement for `.deb`.
 
 ## More than one executable per package (`gjsify.ship.executables`)
 

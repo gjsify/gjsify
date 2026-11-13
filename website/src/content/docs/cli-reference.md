@@ -1521,6 +1521,7 @@ gjsify ship                     # this host's layout; on Linux, a .deb and an .r
 gjsify ship linux               # the same two, from a Mac or from Windows
 gjsify ship linux --target flatpak         # a single-file Flatpak bundle (needs flatpak-builder)
 gjsify ship linux --target appimage        # a self-contained .AppImage (needs appimagetool)
+gjsify ship linux --target linux-tar       # a .tar.gz to unpack anywhere; linux-tar-flatpak adds gschemas.compiled
 gjsify ship darwin --arch arm64            # a macOS <App>.app and a zip around it
 gjsify ship darwin --target macos-app-dmg  # a .dmg, on macOS only
 gjsify ship windows                        # a program directory and its zip
@@ -1568,6 +1569,8 @@ ship/out/              the artifacts
 | `rpm` | linux | yes | any host | nothing |
 | `flatpak` | linux | no | linux | `flatpak-builder`, `flatpak` |
 | `appimage` | linux | no | linux | `appimagetool`, `glib-compile-schemas` |
+| `linux-tar` | linux | no | linux | nothing |
+| `linux-tar-flatpak` | linux | no | linux | `glib-compile-schemas` |
 | `macos-app` | darwin | yes | any host | `glib-compile-schemas` |
 | `macos-app-zip` | darwin | yes | any host | `glib-compile-schemas` |
 | `macos-app-dmg` | darwin | no | darwin | `hdiutil`, part of macOS |
