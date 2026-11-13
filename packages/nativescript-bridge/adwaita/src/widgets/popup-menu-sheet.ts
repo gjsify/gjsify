@@ -44,3 +44,86 @@ export function sheetTitle(entry: SheetEntry): string {
     if (entry.children !== undefined) return `${entry.title} ›`;
     return entry.checked ? `✓ ${entry.title}` : entry.title;
 }
+
+export interface SheetSessionEvents {
+    /** The tapped leaf's id; the answer is not needed on a sheet (nothing falls through to a parent). */
+    click(itemId: number): void;
+    /** Fires exactly once per opened session, whichever way the last sheet went away. */
+    dismissed(): void;
+}
+
+/**
+ * The open/closed state of one menu on a sheet surface. UIKit tells the driver about a sheet going
+ * away through four unrelated doors (an action handler, the cancel row, a tap outside / the iPad
+ * popover, our own `dismiss()`), and a submenu is a SECOND sheet presented after the first one is
+ * gone. A driver that holds its own flag per door loses one of them, and a lost dismissal leaves
+ * the owning button believing the menu is still open for good. So every door funnels into `end()`,
+ * which is idempotent, and a late callback of a sheet that was already replaced is ignored.
+ */
+export class SheetSession {
+    #current: SheetMenu | null = null;
+    #depth = 0;
+
+    constructor(private readonly events: SheetSessionEvents) {}
+
+    get isOpen(): boolean {
+        return this.#current !== null;
+    }
+
+    /** How many sheets deep the session is: 0 closed, 1 the root, 2 its submenu, … */
+    get depth(): number {
+        return this.#depth;
+    }
+
+    /** Start a session on `root`; `false` while one is already open (the sheet is not stacked twice). */
+    open(root: SheetMenu): boolean {
+        if (this.#current !== null) return false;
+        this.#current = root;
+        this.#depth = 1;
+        return true;
+    }
+
+    /**
+     * A row was tapped (UIKit has already taken its sheet down). A submenu row answers the level to
+     * present next; a leaf reports its click and ends the session, answering `null`.
+     */
+    choose(entry: SheetEntry): SheetMenu | null {
+        if (this.#current === null) return null;
+        if (entry.children !== undefined) {
+            this.#current = entry.children;
+            this.#depth++;
+            return entry.children;
+        }
+        try {
+            this.events.click(entry.itemId);
+        } finally {
+            this.end();
+        }
+        return null;
+    }
+
+    /** The cancel row, on any level. */
+    cancel(): void {
+        this.end();
+    }
+
+    /**
+     * UIKit took `level` down on its own (tap outside, iPad popover). A level that is no longer
+     * the current one was replaced by its submenu; its late callback must not close the session.
+     */
+    uikitDismissed(level: SheetMenu): void {
+        if (level === this.#current) this.end();
+    }
+
+    /** The driver's own `dismiss()`. */
+    close(): void {
+        this.end();
+    }
+
+    private end(): void {
+        if (this.#current === null) return;
+        this.#current = null;
+        this.#depth = 0;
+        this.events.dismissed();
+    }
+}
