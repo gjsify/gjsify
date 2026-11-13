@@ -201,7 +201,10 @@ hardware keys). A key name outside its keysym subset throws rather than leaving 
 ## What this does not decide
 
 - `GLib.Variant` in general, and `Gio.Settings`/`Gio.PropertyAction`.
-- NativeScript keyboard shortcuts, `Gtk.PopoverMenuBar`, and iOS.
+- NativeScript keyboard shortcuts and `Gtk.PopoverMenuBar`.
+- iOS beyond a stopgap: `popup-menu-surface.ios.ts` draws the plan as a flat `UIAlertController` action
+  sheet (no group rules, a leading ✓ for a checked row, a submenu opens its own sheet). Mapping the
+  plan onto `UIMenu` is undecided.
 
 ## Implementation
 

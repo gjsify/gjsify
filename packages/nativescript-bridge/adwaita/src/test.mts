@@ -4,6 +4,7 @@ import adwaitaNativescriptTestSuite from './index.spec.js';
 import svgPathTestSuite from './svg-path.spec.js';
 import actionsTestSuite from './actions.spec.js';
 import popupMenuTestSuite from './popup-menu.spec.js';
+import popupMenuSheetTestSuite from './popup-menu-sheet.spec.js';
 import iconThemeTestSuite from './icon-theme.spec.js';
 import iconResourcesTestSuite from './icon-resources.spec.js';
 import { Canvas2DSubsetNsTest } from './canvas2d/canvas-subset.spec.js';
@@ -105,6 +106,7 @@ run({
     iconResourcesTestSuite,
     actionsTestSuite,
     popupMenuTestSuite,
+    popupMenuSheetTestSuite,
     splitViewWidthTestSuite,
     splitViewStateTestSuite,
     rowStateTestSuite,
