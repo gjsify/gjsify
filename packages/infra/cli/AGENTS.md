@@ -29,7 +29,7 @@ gjsify install [--immutable|--refresh-lockfile|--focus <ws…>] | gjsify dlx <pk
 gjsify link <checkout> [--packages <glob>] | gjsify unlink   # develop a consumer against a LOCAL gjsify checkout (ADR 0065)
 gjsify dev [entry] [--runtime <r>] [--script <s>]   # watch → rebuild → relaunch; the templates' `dev` script
 gjsify prune [-g] [--dry-run]              # drop installed packages this host cannot use (ADR 0025)
-gjsify webext build|zip|dev [--target <t>..]   # WebExtension, one folder per target (ADR 0077)
+gjsify webext build|zip|dev|submit [--target <t>..]   # WebExtension, folder/target (ADR 0077)
 gjsify webext listing [--store(s) cws,edge,amo|all] [--out <dir>] [--check]   # listings, promo tiles, store.json, preview (ADR 0135)
 ```
 
