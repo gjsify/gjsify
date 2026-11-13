@@ -98,6 +98,7 @@ import { isNodeRuntimeTarget, resolveNodeRuntime } from '../utils/ship/node-runt
 import { isUnder, SHARE } from '../utils/ship/share-dirs.js';
 import { compileSchemasForPayload, compileSchemasForStage } from '../utils/ship/schemas.js';
 import { buildMsi, MSI_PAYLOAD_DIR } from '../utils/ship/msi.js';
+import { buildLinuxTarball } from '../utils/ship/tarball.js';
 import { buildZip, zipEntriesFromPayload } from '../utils/ship/zip.js';
 import { assertEntryRunsUnder } from '../utils/ship/entry-interpreter.js';
 import { scanGiRequirements } from '@gjsify/rolldown-plugin-gjsify';
@@ -1471,6 +1472,26 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                 workDir: dirname(appDir),
                 verbose: input.verbose,
             });
+            break;
+        }
+        case 'linux-tar':
+        case 'linux-tar-flatpak': {
+            // FROM THE PAYLOAD, like every container here. The Flatpak variant adds
+            // the one file the shared Linux stage cannot carry — see the `appimage`
+            // arm for why the compile is on the pack path — and nothing else.
+            const schemaCache =
+                format.id === 'linux-tar-flatpak'
+                    ? await compileSchemasForPayload({ payload, workDir: join(outRoot, 'tar-schemas') })
+                    : undefined;
+            writeFileSync(
+                target,
+                await buildLinuxTarball({
+                    settings,
+                    payload: schemaCache === undefined ? payload : [...payload, schemaCache],
+                    archLabel,
+                    mtime,
+                }),
+            );
             break;
         }
         case 'macos-app':

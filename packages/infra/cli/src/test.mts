@@ -49,6 +49,7 @@ import shipPlistSuite from './utils/ship/plist.spec.js';
 import shipMsiSuite from './utils/ship/msi.spec.js';
 import shipArchivesSuite from './utils/ship/archives.spec.js';
 import shipPackersSuite from './utils/ship/packers.spec.js';
+import shipTarballSuite from './utils/ship/tarball.spec.js';
 import shipSigningSuite from './utils/ship/signing.spec.js';
 import shipNestedBundlesSuite from './utils/ship/nested-bundles.spec.js';
 import installProjectEngineSuite from './commands/install-project-engine.spec.js';
@@ -349,6 +350,7 @@ run(
         installProvenanceSuite,
         shipArchivesSuite,
         shipPackersSuite,
+        shipTarballSuite,
         shipSigningSuite,
         shipNestedBundlesSuite,
         installProjectEngineSuite,

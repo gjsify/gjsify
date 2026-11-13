@@ -152,8 +152,8 @@ can spell stops the run.
 
 ## Where each format can be packed
 
-Ten formats wrap three layouts. Seven of them pack on any host, offline, with
-no tool outside this CLI. Three do not, and ship refuses those on the wrong host
+Twelve formats wrap three layouts. Seven of them pack on any host, offline, with
+no tool outside this CLI. Five do not, and ship refuses those on the wrong host
 rather than writing a broken file.
 
 | Format | Layout | In the default set | Packs on | Needs installed |
@@ -162,6 +162,8 @@ rather than writing a broken file.
 | `rpm` | linux | yes | any host | nothing |
 | `flatpak` | linux | no | Linux | `flatpak-builder`, `flatpak` |
 | `appimage` | linux | no | Linux | `appimagetool`, which no distribution packages |
+| `linux-tar` | linux | no | Linux | nothing |
+| `linux-tar-flatpak` | linux | no | Linux | `glib-compile-schemas` |
 | `macos-app` | darwin | yes | any host | `glib-compile-schemas` |
 | `macos-app-zip` | darwin | yes | any host | `glib-compile-schemas` |
 | `macos-app-dmg` | darwin | no | macOS | `hdiutil`, which is part of macOS |
