@@ -428,9 +428,9 @@ export default async () => {
                     .filter((target) => target.recommended)
                     .map((target) => target.format);
 
-            expect(recommended({ assets: bundle, flathub: 'eu.example.App', flatpark: 'eu.example.App' })).toStrictEqual([
-                'flathub',
-            ]);
+            expect(
+                recommended({ assets: bundle, flathub: 'eu.example.App', flatpark: 'eu.example.App' }),
+            ).toStrictEqual(['flathub']);
             expect(recommended({ assets: bundle, flatpark: 'eu.example.App' })).toStrictEqual(['flatpark']);
             expect(recommended({ assets: bundle })).toStrictEqual(['flatpak']);
 
