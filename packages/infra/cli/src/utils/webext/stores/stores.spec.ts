@@ -135,6 +135,7 @@ export default async () => {
                 publish: async () => ({ state: 'in-review', detail: 'fake' }),
                 status: async () => ({ state: 'draft', detail: 'fake' }),
             };
+            const original = STORE_BACKENDS.edge;
             STORE_BACKENDS.edge = (credentials, options) => {
                 seen = credentials;
                 sawFetch = options?.fetchImpl !== undefined;
@@ -150,7 +151,7 @@ export default async () => {
                 expect(sawFetch).toBe(true);
                 expect(seen?.['EDGE_ADDONS_API_KEY']).toBe(CANARY);
             } finally {
-                delete STORE_BACKENDS.edge;
+                STORE_BACKENDS.edge = original;
             }
         });
 
