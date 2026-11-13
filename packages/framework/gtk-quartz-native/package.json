@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/gtk-quartz-native",
-    "version": "0.64.37",
+    "version": "0.64.38",
     "description": "Adds the missing Dock-click reopen handler to GTK's macOS application delegate, so a click on a windowless app's Dock icon activates the GApplication (ADR 0141). Contains no JavaScript; the prebuilt library and typelib arrive through per-target optionalDependencies.",
     "type": "module",
     "files": [],
