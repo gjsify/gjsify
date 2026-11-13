@@ -181,8 +181,9 @@ export class DatabaseSync {
         try {
             // The path goes to sqlite3_open_v2() verbatim — `:memory:` and every relative
             // or absolute file name mean there what they mean to node:sqlite. URI handling
-            // is off, so a path that happens to start with `file:` is a file of that name.
-            this.#database = Database.open(this.#path, mode, false);
+            // is ON, as in Node (SQLITE_OPEN_URI): `file:/x.db?immutable=1` and `?mode=ro`
+            // are how a caller reaches a WAL database it must not write beside.
+            this.#database = Database.open(this.#path, mode, true);
         } catch (e: unknown) {
             this.#database = null;
             throw toSqliteError(e);
