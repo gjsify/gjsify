@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.64.35](https://github.com/gjsify/gjsify/compare/v0.64.34...v0.64.35) (2026-11-13)
+
+### Features
+
+* **site:** fontisto firefox, font awesome edge ([#2617](https://github.com/gjsify/gjsify/issues/2617)) ([53a2b02](https://github.com/gjsify/gjsify/commit/53a2b02218b455aa6dae6acf4827cbb5eed9030b)), closes [#2606](https://github.com/gjsify/gjsify/issues/2606)
+* **site:** multicolour brand icons on hover ([#2606](https://github.com/gjsify/gjsify/issues/2606)) ([3b4b476](https://github.com/gjsify/gjsify/commit/3b4b476b0dcbffeaa93e21606df58c137a3b3d3d))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([624268a](https://github.com/gjsify/gjsify/commit/624268ac410a4fe51acfe2bb599652cef05a937e))
+
+### Tests
+
+* **site:** cover extension card and scoped downloads ([#2616](https://github.com/gjsify/gjsify/issues/2616)) ([4071324](https://github.com/gjsify/gjsify/commit/40713248d71730af551de451dbbe33547186b1f0))
+
 ## [0.64.34](https://github.com/gjsify/gjsify/compare/v0.64.33...v0.64.34) (2026-11-12)
 
 ### Features

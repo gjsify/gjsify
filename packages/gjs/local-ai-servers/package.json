@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/local-ai-servers",
-    "version": "0.64.34",
+    "version": "0.64.35",
     "description": "Find local inference servers (Ollama, LM Studio, llama.cpp) and the models they have loaded, so an app can reuse one through its OpenAI-compatible endpoint instead of loading a second copy. Loopback only, short timeouts, never inference.",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
