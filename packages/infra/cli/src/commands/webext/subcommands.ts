@@ -10,6 +10,7 @@ import { dirname, join, resolve, sep } from 'node:path';
 
 import type { Command } from '../../types/index.js';
 import { dispatchSite } from '../../utils/site-dispatch.js';
+import { runSubmit } from '../../utils/webext/submit.js';
 import { buildWebext, type BundleRequest } from '../../utils/webext/build.js';
 import { resolveWebextConfig, selectTargets, type ResolvedWebext } from '../../utils/webext/config.js';
 import {
@@ -310,5 +311,71 @@ export const webextListingCommand: Command<unknown, ListingArgs> = {
             globals: args.globals,
             needsClient: false,
         });
+    },
+};
+
+interface SubmitArgs {
+    store: string;
+    zip?: string;
+    dryRun: boolean;
+    submit: boolean;
+    timeout?: number;
+    listingDir?: string;
+}
+
+export const webextSubmitCommand: Command<unknown, SubmitArgs> = {
+    command: 'submit',
+    description:
+        'Upload the built zip to the Chrome Web Store or Edge Add-ons as a draft; --submit also asks for review (tags only).',
+    builder: (yargs) =>
+        yargs
+            .option('store', {
+                description: 'Which store (amo is not implemented: Firefox is distributed by the project itself).',
+                type: 'string',
+                choices: ['chrome', 'edge', 'amo'],
+                demandOption: true,
+            })
+            .option('zip', {
+                description: "The zip to upload (default: what `webext zip` writes for the store's target).",
+                type: 'string',
+            })
+            .option('dry-run', {
+                description: 'Check the credentials with one read call; upload nothing.',
+                type: 'boolean',
+                default: false,
+            })
+            .option('submit', {
+                description: 'Ask for review after the upload. Refused unless $GITHUB_REF is a tag.',
+                type: 'boolean',
+                default: false,
+            })
+            .option('timeout', {
+                description: 'Seconds to wait for the store to resolve an upload or submission (default: 600).',
+                type: 'number',
+            })
+            .option('listing-dir', {
+                description: 'Where `webext listing` wrote store.json (default: dist/listing).',
+                type: 'string',
+            })
+            .epilog(
+                'Credentials come from the environment only (see ADR 0077 § Amendment 1). Exit codes: 0 done or nothing to do, ' +
+                    '1 rejected or failed, 3 accepted but unresolved (run again), 4 unverifiable. ' +
+                    'A submission stuck in review is cancelled in the Chrome dashboard (:cancelSubmission); this command never does.',
+            ),
+    handler: async (args) => {
+        const cwd = process.cwd();
+        const code = await runSubmit({
+            store: args.store,
+            zip: args.zip ? resolve(cwd, args.zip) : undefined,
+            dryRun: args.dryRun,
+            submit: args.submit,
+            timeoutSeconds: args.timeout,
+            listingDir: args.listingDir,
+            project: loadConfig(cwd),
+            env: process.env,
+            out: (line) => console.log(line),
+            err: (line) => console.error(line),
+        });
+        if (code !== 0) process.exitCode = code;
     },
 };
