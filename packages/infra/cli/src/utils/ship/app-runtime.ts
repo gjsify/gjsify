@@ -270,9 +270,17 @@ function resolveNodeGiRoot(options: ResolveRuntimeOptions): string | null {
  * answers from the runtime's global install cache for a project that merely has a
  * `package.json` and no `node_modules`, which would put files the author never
  * declared inside a `.app`. See that function for the measurement.
+ *
+ * `fromCli: false` drops the fallback to the CLI's own install: the Dock bridge is
+ * optional, so only the project (or adwaita-app inside it) may declare it. Else a
+ * CLI running from this monorepo, or a global install, stages it into every app.
  */
-function resolveStagedPackage(specifier: string, options: ResolveRuntimeOptions): string | null {
-    const opts: ResolveInstalledPackageOptions = { bundleUrl: import.meta.url };
+function resolveStagedPackage(
+    specifier: string,
+    options: ResolveRuntimeOptions,
+    { fromCli = true }: { fromCli?: boolean } = {},
+): string | null {
+    const opts: ResolveInstalledPackageOptions = fromCli ? { bundleUrl: import.meta.url } : {};
     if (options.cwd !== undefined) opts.cwd = options.cwd;
     if (options.resolve !== undefined) opts.resolve = options.resolve;
     return resolveInstalledPackage(specifier, opts);
@@ -317,7 +325,7 @@ export function resolveQuartzBridge(
     if (!target.startsWith('darwin-')) return null;
     const companion = quartzBridgePackageName(target);
     const dirOf = (specifier: string, from: ResolveRuntimeOptions): string | null => {
-        const entry = resolveStagedPackage(`${specifier}/package.json`, from);
+        const entry = resolveStagedPackage(`${specifier}/package.json`, from, { fromCli: false });
         return entry === null ? null : dirname(entry);
     };
 
@@ -326,7 +334,7 @@ export function resolveQuartzBridge(
     if (companionDir === null) {
         facadeDir = dirOf(QUARTZ_BRIDGE_FACADE, options);
         if (facadeDir === null) {
-            const adwaitaEntry = resolveStagedPackage('@gjsify/adwaita-app', options);
+            const adwaitaEntry = resolveStagedPackage('@gjsify/adwaita-app', options, { fromCli: false });
             const adwaitaDir = adwaitaEntry === null ? null : packageRootOf(adwaitaEntry);
             if (adwaitaDir !== null) facadeDir = dirOf(QUARTZ_BRIDGE_FACADE, { ...options, cwd: adwaitaDir });
         }
