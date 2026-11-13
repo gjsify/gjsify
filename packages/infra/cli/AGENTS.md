@@ -29,7 +29,7 @@ gjsify link <checkout> [--packages <glob>] | gjsify unlink   # develop a consume
 gjsify dev [entry] [--runtime <r>] [--script <s>]   # watch → rebuild → relaunch; the templates' `dev` script
 gjsify prune [-g] [--dry-run]              # drop installed packages this host cannot use (ADR 0025)
 gjsify webext build|zip|dev [--target <t>..]   # WebExtension, one folder per target (ADR 0077)
-gjsify webext listing [--store cws|edge|amo|all] [--out <dir>] [--check]   # store listings from the metainfo (ADR 0135)
+gjsify webext listing [--store cws|edge|amo|all | --stores cws,edge] [--out <dir>] [--check]   # store listings, promo tiles, store.json, preview.html from the metainfo (ADR 0135)
 ```
 
 **`gjsify dev` exists because `gjsify build --watch` cannot serve the host it is for**: that flag
