@@ -8,7 +8,7 @@
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
-import { runListing, STORES, type Store } from './listing/index.js';
+import { parseStores, runListing } from './listing/index.js';
 import { buildSite, syncSiteI18n } from './site.js';
 
 const USAGE = `Usage: gjsify site <command> [options]
@@ -30,6 +30,7 @@ Options:
                      (default: $GJSIFY_SITE_RELEASE_TAG)
   --check            i18n: report what is out of date instead of writing it
   --store <s>        listing: cws | edge | amo | all (default: all)
+  --stores <list>    listing: several at once, e.g. cws,edge (or all)
   --metainfo <path>  listing: AppStream metainfo, overriding the configured one
   --config <file>    listing: JSON that overrides \`gjsify.webext.listing\`
   --pot <file>       listing: write the config strings as a gettext template
@@ -91,15 +92,14 @@ async function i18n(flags: readonly string[]): Promise<number> {
 async function listing(flags: readonly string[]): Promise<number> {
     const root = resolve(flagValue(flags, '--root') ?? process.cwd());
     const check = flags.includes('--check');
-    const requested = flagValue(flags, '--store') ?? 'all';
-    if (requested !== 'all' && !STORES.includes(requested as Store))
-        throw new Error(`--store must be one of ${STORES.join(', ')}, all`);
+    const stores = parseStores(flagValue(flags, '--stores') ?? flagValue(flags, '--store') ?? 'all');
     const configFile = flagValue(flags, '--config');
     const pot = flagValue(flags, '--pot');
     const result = await runListing({
         root,
         out: resolve(flagValue(flags, '--out') ?? join(root, 'dist', 'listing')),
-        stores: requested === 'all' ? STORES : [requested as Store],
+        stores,
+        packageDir: flagValue(flags, '--package-dir'),
         check,
         config: configFile ? JSON.parse(await readFile(resolve(configFile), 'utf8')) : undefined,
         metainfo: flagValue(flags, '--metainfo'),

@@ -513,6 +513,30 @@ msgstr "Wer sie bereitstellt, kann dabei die üblichen Zugriffsprotokolle eines 
 msgid "See the hosting provider's notice"
 msgstr "Hinweis des Hosting-Anbieters"
 
+msgid "missing"
+msgstr "fehlt"
+
+msgid "ready"
+msgstr "bereit"
+
+msgid "enter by hand"
+msgstr "von Hand eintragen"
+
+msgid "not set"
+msgstr "nicht gesetzt"
+
+msgid "Promo tile"
+msgstr "Werbekachel"
+
+msgid "Screenshot"
+msgstr "Bildschirmfoto"
+
+msgid "Form fields"
+msgstr "Formularfelder"
+
+msgid "Store listing preview"
+msgstr "Vorschau des Store-Eintrags"
+
 msgid "Flathub"
 msgstr "Flathub"
 

@@ -16,6 +16,7 @@ import markdownSuite from './render/markdown.spec.js';
 import pagesSuite from './render/pages.spec.js';
 import platformSuite from './client/platform.spec.js';
 import seoSuite from './render/seo.spec.js';
+import storePreviewSuite from './render/store-preview.spec.js';
 import siteDataSuite from './site-data/site-data.spec.js';
 
 run({
@@ -34,4 +35,5 @@ run({
     developerSuite,
     extensionSuite,
     extensionPageSuite,
+    storePreviewSuite,
 });

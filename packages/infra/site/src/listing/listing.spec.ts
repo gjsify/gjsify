@@ -5,6 +5,9 @@ import { parseCatalog } from '../site-data/po.js';
 import { buildListingModel, checkEntry, type StoreEntry } from './build.js';
 import { parseListingConfig } from './config.js';
 import { fitInto, parseHexColor, planPlacement } from './fit.js';
+import { parseStores, STORE_SPECS } from './limits.js';
+import { promoFileName, promoSvg } from './promo.js';
+import { storeManifest } from './store-json.js';
 import { descriptionHtml, descriptionText } from './text.js';
 
 const METAINFO = `<?xml version="1.0"?>
@@ -158,6 +161,91 @@ export default async () => {
             expect(parseHexColor('#d9c2f0')).toBe(0xd9c2f0);
             expect(parseHexColor('#fff')).toBe(0xffffff);
             expect(parseHexColor('#12345678')).toBe(undefined);
+        });
+    });
+
+    await describe('listing --stores', async () => {
+        await it('expands all, lists and single stores in canonical order', async () => {
+            expect(parseStores('all').join()).toBe('cws,edge,amo');
+            expect(parseStores('amo,cws').join()).toBe('cws,amo');
+            expect(parseStores('edge').join()).toBe('edge');
+        });
+        await it('names an unknown store', async () => {
+            expect(() => parseStores('cws,opera')).toThrow();
+        });
+    });
+
+    await describe('store.json', async () => {
+        const files = {
+            icon: 'icon-128.png',
+            screenshots: ['screenshots/01-a.png'],
+            promo: { small: 'promo-small-440x280.png' },
+        };
+        const field = (m: ReturnType<typeof storeManifest>, key: string) => m.fields.find((f) => f.key === key)!;
+        await it('marks derived, manual and missing fields', async () => {
+            const m = storeManifest({ app: 'x', store: 'cws', entries: { en: entry() }, files });
+            expect(field(m, 'name').status).toBe('derived');
+            expect(field(m, 'name').limit?.max).toBe(75);
+            expect(field(m, 'dataUsage').status).toBe('manual');
+            expect(field(m, 'promoMarquee').status).toBe('omitted');
+            expect(field(m, 'privacyUrl').status).toBe('missing');
+        });
+        await it('reports sizes, counts and file paths', async () => {
+            const m = storeManifest({ app: 'x', store: 'cws', entries: { en: entry() }, files });
+            expect(field(m, 'promoSmall').size?.width).toBe(440);
+            expect(field(m, 'screenshots').count?.max).toBe(5);
+            expect(field(m, 'screenshots').files?.[0]).toBe('screenshots/01-a.png');
+            expect(field(m, 'description').files?.[0]).toBe('en/description.txt');
+        });
+        await it('flags a missing required file', async () => {
+            const m = storeManifest({
+                app: 'x',
+                store: 'cws',
+                entries: { en: entry() },
+                files: { screenshots: [], promo: {} },
+            });
+            expect(field(m, 'promoSmall').status).toBe('missing');
+            expect(field(m, 'screenshots').status).toBe('missing');
+        });
+        await it('carries Edge search terms and omits the optional tile', async () => {
+            const m = storeManifest({
+                app: 'x',
+                store: 'edge',
+                entries: { en: entry({ searchTerms: ['a', 'b'] }) },
+                files,
+            });
+            expect(field(m, 'searchTerms').status).toBe('derived');
+            expect(field(m, 'promoSmall').status).toBe('derived');
+            expect(STORE_SPECS.amo.promo.length).toBe(0);
+        });
+    });
+
+    await describe('promo tile svg', async () => {
+        await it('has the exact size, escapes text and names the file', async () => {
+            const spec = { kind: 'small' as const, width: 440, height: 280 };
+            const svg = promoSvg(spec, {
+                name: 'A<b>',
+                summary: 'Does one thing',
+                background: '#fff',
+                foreground: '#000',
+            });
+            expect(svg.includes('width="440" height="280"')).toBe(true);
+            expect(svg.includes('A&lt;b&gt;')).toBe(true);
+            expect(promoFileName(spec)).toBe('promo-small-440x280.png');
+        });
+        await it('lays a marquee out beside the icon', async () => {
+            const svg = promoSvg(
+                { width: 1400, height: 560 },
+                {
+                    name: 'App',
+                    summary: 'S',
+                    background: '#fff',
+                    foreground: '#000',
+                    iconHref: 'data:image/png;base64,AA',
+                },
+            );
+            expect(svg.includes('<image')).toBe(true);
+            expect(svg.includes('text-anchor')).toBe(false);
         });
     });
 };
