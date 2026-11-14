@@ -37,7 +37,7 @@ interface GjsImports {
  * @gjsify/fetch accepts a GJS-runtime extension the DOM `RequestInit` does not model: a
  * per-request `rejectUnauthorized`. Model it here instead of casting through `unknown` at each call site.
  */
-type FetchInit = RequestInit & { rejectUnauthorized?: boolean };
+type FetchInit = RequestInit & { rejectUnauthorized?: boolean; servername?: string };
 
 // A REAL self-signed cert+key (RSA-2048, CN=localhost, SAN DNS:localhost + IP:127.0.0.1, 100y) so a
 // live TLS handshake against the local Soup.Server actually completes. Embedded inline to stay
@@ -132,6 +132,56 @@ export default async () => {
             await it('defaults rejectUnauthorized to undefined (verification stays on)', () => {
                 const req = new RequestCtor('https://example.com/');
                 expect(req.rejectUnauthorized).toBe(undefined);
+            });
+        });
+
+        await describe('@gjsify/fetch — servername (verify against another name than the URL host)', async () => {
+            await it('carries servername from init onto the request', () => {
+                expect(new RequestCtor('https://example.com/', { servername: 'a.example' }).servername).toBe(
+                    'a.example',
+                );
+                expect(new RequestCtor('https://example.com/').servername).toBe(undefined);
+            });
+
+            // The system CA does not know the test cert, so the chain stays untrusted: servername only
+            // forgives a hostname mismatch, never UNKNOWN_CA — even though the name itself matches.
+            await it('still rejects an untrusted chain when the name matches servername', async () => {
+                const { server, base } = startHttpsServer();
+                let rejected = false;
+                try {
+                    await fetchFn(base, { servername: 'localhost' });
+                } catch {
+                    rejected = true;
+                } finally {
+                    server.disconnect();
+                }
+                expect(rejected).toBe(true);
+            });
+
+            await it('rejects a servername the certificate does not name', async () => {
+                const { server, base } = startHttpsServer();
+                let rejected = false;
+                try {
+                    await fetchFn(base, { servername: 'example.com' });
+                } catch {
+                    rejected = true;
+                } finally {
+                    server.disconnect();
+                }
+                expect(rejected).toBe(true);
+            });
+
+            await it('lets rejectUnauthorized:false win over servername', async () => {
+                const { server, base } = startHttpsServer();
+                let status = 0;
+                try {
+                    const res = await fetchFn(base, { servername: 'example.com', rejectUnauthorized: false });
+                    status = res.status;
+                    await res.text();
+                } finally {
+                    server.disconnect();
+                }
+                expect(status).toBe(200);
             });
         });
 

@@ -24,6 +24,18 @@ const text = await response.text();
 console.log(text);
 ```
 
+## TLS options (GJS)
+
+- `rejectUnauthorized: false` accepts any peer certificate for that request (also `NODE_TLS_REJECT_UNAUTHORIZED=0`).
+- `servername: 'host.example'` connects to the URL (e.g. `https://127.0.0.2:8443/` through an SSH tunnel)
+  but verifies the certificate against `host.example` with the system CA. Only a hostname mismatch is
+  forgiven, and only when the certificate names `servername`; an untrusted, expired or revoked chain
+  still fails. `rejectUnauthorized: false` takes precedence.
+
+The check runs per TLS handshake. libsoup/GIO may reuse a pooled connection or resume the TLS session
+for a later request to the same host:port without a handshake, so do not mix verification policies
+for one host:port in a process (this holds for `rejectUnauthorized: false` too).
+
 ## Inspirations and credits
 
 - https://github.com/sonnyp/troll/blob/main/src/std/fetch.js
