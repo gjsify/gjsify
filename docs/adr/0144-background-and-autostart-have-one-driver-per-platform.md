@@ -314,7 +314,7 @@ Where the socket lives, per platform:
 | Target | Address | Why |
 |---|---|---|
 | Linux | the session bus, unchanged | it exists; peer-to-peer is for the others |
-| macOS, unsandboxed | `unix:path=$XDG_RUNTIME_DIR`-equivalent, i.e. a file under `~/Library/Application Support/<app-id>/` | the app's own directory, present for both processes |
+| macOS, unsandboxed | `unix:tmpdir=` under `~/Library/Application Support/<app-id>/` (the `$XDG_RUNTIME_DIR` equivalent) | the app's own directory, present for both processes |
 | macOS, App Sandbox | a socket in the **App Group container**, `~/Library/Group Containers/<team-id>.<group>/` | two sandboxed processes of one app share nothing else; the group container is the documented shared place, and it requires the `com.apple.security.application-groups` entitlement in **both** bundles |
 | Windows | `nonce-tcp:host=127.0.0.1` | GLib implements no unix-socket transport on win32 (measured, gjs 1.88.1); the nonce file's filesystem permissions are the secret |
 
