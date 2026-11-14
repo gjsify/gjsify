@@ -262,6 +262,9 @@ async function fetchOnce(session, startUrl, { forceHttp1 = false } = {}) {
         if (status !== Soup.Status.OK) {
             const err = new Error(`HTTP ${status} from ${url}`);
             err.httpStatus = status;
+            // Who said no: a refusal from a redirect TARGET is the CDN's signed URL
+            // misbehaving; from the first hop it is the host we asked answering.
+            err.fromRedirect = hop > 0;
             throw err;
         }
         return bytes.get_data();
@@ -286,6 +289,13 @@ async function fetchOnce(session, startUrl, { forceHttp1 = false } = {}) {
  * is it saying no; retrying either would only delay the same result while making a real
  * outage look like a hang.
  *
+ * SECOND INCIDENT (2026-11-14, PR #2639): three CI attempts in a row died on `HTTP 403 from
+ * https://release-assets.githubusercontent.com/…`, for the `.sha256` and the bundle alike.
+ * github.com answers 302 to a short-lived SIGNED CDN URL and that CDN transiently answers
+ * 403. So a 403 from a REDIRECT TARGET (hop > 0) is a hiccup too and is retried — each
+ * retry restarts at the original URL, which mints a fresh signed URL. A 403 from the FIRST
+ * hop (the host we asked, github.com itself) stays an answer, exactly like a 404.
+ *
  * FIVE attempts, not three, and the numbers come from a run rather than a preference:
  * with three the CI log showed `retry 2/3` and `retry 3/3` and still failed, because each
  * attempt takes ~20 s to give up — so the 500ms/1500ms backoff was noise beside it and the
@@ -308,7 +318,11 @@ async function fetchBytes(session, url) {
         } catch (err) {
             lastErr = err;
             const status = err.httpStatus;
-            const retriable = status === undefined || status === 429 || status >= 500;
+            const retriable =
+                status === undefined ||
+                status === 429 ||
+                status >= 500 ||
+                (status === 403 && err.fromRedirect === true);
             if (!retriable || attempt === attempts) break;
             const wait = RETRY_BACKOFF_MS[Math.min(attempt - 1, RETRY_BACKOFF_MS.length - 1)];
             info(`Fetch of ${url} failed (${err.message}) — retry ${attempt + 1}/${attempts} in ${wait}ms`);
