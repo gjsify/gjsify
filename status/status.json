@@ -537,6 +537,11 @@
       "missing": "Tested against a temporary directory and an injected fetch only; no test downloads a real model. No resumable download, no eviction or size limit, no shared lock between processes (two processes downloading one model both fetch; the rename keeps the file whole).",
       "note": "One model store per capability under <user cache>/gjsify/models/<capability>/<id>/<file>: streaming download with a running size check, SHA-256 before an atomic rename, downloadprogress in the WebML CG monitor shape, and three sources in order (configured directory, app data dir, cache), each digest-checked. Also exports `downloadVerified()` for one-off verified downloads outside a manifest. Moves files from a legacy directory once (ADR 0132 \u00a7 5). Pure TypeScript on node:* APIs."
     },
+    "@gjsify/xdp": {
+      "status": "partial",
+      "missing": "Linux only. The fallback (an XDG autostart file) and the portal path have run against a fake Background portal on a peer-to-peer D-Bus server and a temporary config directory, never against a real xdg-desktop-portal backend. No Windows or macOS driver yet (ADR 0144 § 2).",
+      "note": "libportal's Background portal: the real `gi://Xdp` on Linux (`Portal`, `BackgroundFlags`, `XdpGtk4.parent_new_gtk`), a named throwing stub on browser and NativeScript. `@gjsify/xdp/background` adds `requestBackground` and `setBackgroundStatus` with a host fallback that writes `$XDG_CONFIG_HOME/autostart/<app-id>.desktop` when no Background portal is on the session bus. A request is the whole wish: without AUTOSTART it removes the entry."
+    },
     "@gjsify/xeddsa": {
       "status": "partial",
       "missing": "Checked against the libsignal-protocol-c and libsignal (Rust) vectors only, not yet interoperating with a deployed OMEMO client. No VXEdDSA (the VRF variant); no constant-time guarantee beyond what @noble/curves gives.",
