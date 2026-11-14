@@ -61,6 +61,7 @@ import scrolledWindowPolicyTestSuite from './scrolled-window-policy.spec.js';
 import gtkEnumTablesTestSuite from './gtk-enum-tables.spec.js';
 import revealerStateTestSuite from './revealer-state.spec.js';
 import windowStateTestSuite from './window-state.spec.js';
+import popoverPlacementTestSuite from './popover-placement.spec.js';
 import gridStateTestSuite from './grid-state.spec.js';
 import listBoxStateTestSuite from './list-box-state.spec.js';
 import nsLengthTestSuite from './ns-length.spec.js';
@@ -84,6 +85,7 @@ run({
     gtkEnumTablesTestSuite,
     revealerStateTestSuite,
     windowStateTestSuite,
+    popoverPlacementTestSuite,
     gridStateTestSuite,
     listBoxStateTestSuite,
     nsLengthTestSuite,

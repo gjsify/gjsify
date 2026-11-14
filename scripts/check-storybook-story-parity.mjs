@@ -157,7 +157,7 @@ const NOT_ON_THIS_TARGET = {
     'list-view@nativescript':
         'status/open-todos/adwaita-ports.md, "The four model-driven views on NativeScript": the port has no Gtk.ListView widget yet — the open question there is how a portable item FACTORY is spelled against an `itemTemplate` — so the story is rendered by the other two targets only.',
     'popover@nativescript':
-        'status/open-todos/adwaita-ports.md, "<gtk-popover>, <gtk-popover-menu>, <gtk-popover-menu-bar> and <gtk-popover-bin> on NativeScript": the port has no positioned popup surface at all — its menus go through the platform action() sheet, which cannot host arbitrary content — so the story is rendered by the other two targets only.',
+        'status/open-todos/adwaita-ports.md, "<gtk-popover>, <gtk-popover-menu>, <gtk-popover-menu-bar> and <gtk-popover-bin> on NativeScript": the Gtk.Popover of this port is an overlay that appears next to an anchor in a window, so the free-standing card the story shows has no counterpart there — the story is rendered by the other two targets only.',
     'popover-bin@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-popover>, <gtk-popover-menu>, <gtk-popover-menu-bar> and <gtk-popover-bin> on NativeScript": the port has no positioned popup surface at all — its menus go through the platform action() sheet, which cannot host arbitrary content — so the story is rendered by the other two targets only.',
     'popover-menu@nativescript':

@@ -548,9 +548,9 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
         'nothing in it owns a popup, so there is nothing for a second property to attach ' +
         '(status/open-todos/adwaita-ports.md).',
     'Gtk.Popover':
-        'The NativeScript port has no standalone popover surface: GtkMenuButton.menuModel builds the menu a ' +
-        "popover would show, but the port has no view that takes arbitrary content as a popup's child " +
-        '(status/open-todos/adwaita-ports.md).',
+        'The NativeScript Gtk.Popover exists, but it is an overlay that appears next to an anchor ' +
+        'inside a window (set_parent + popup); the gallery block is a free-standing, always-visible ' +
+        'card, which this port has no state for (status/open-todos/adwaita-ports.md).',
     'Adw.SplitButton':
         'AdwSplitButton.menuModel takes a Gio.MenuModel object and refuses a string outright (ADR 0128); ' +
         'an XML attribute is a string.',
