@@ -2,13 +2,14 @@ import { existsSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
-import { decodeImageFile, decodeImageFileAtSize } from '../render/image-backend.js';
+import { decodeImageFile, decodeImageFileAtSize, svgToPng } from '../render/image-backend.js';
 import { imageSlug, resolveScreenshots, type ScreenshotOptions } from '../site-data/screenshots.js';
 import type { Metainfo } from '../site-data/types.js';
 import { fitInto, parseHexColor, planPlacement } from './fit.js';
 import type { Issue } from './build.js';
 import type { ListingConfig } from './config.js';
-import { STORE_SPECS, type Store } from './limits.js';
+import { STORE_SPECS, type PromoSpec, type Store } from './limits.js';
+import { promoFileName, promoSvg, type PromoInput } from './promo.js';
 
 export interface SourceShot {
     file: string;
@@ -100,4 +101,9 @@ export function renderIcon(store: Store, file: string): RenderedImage {
         };
     }
     return { name: `icon-${size}.png`, bytes: image.encode('png') };
+}
+
+/** A promo tile drawn as SVG and rasterised by the same backend as the icon. */
+export function renderPromo(spec: PromoSpec, input: PromoInput): RenderedImage {
+    return { name: promoFileName(spec), bytes: svgToPng(promoSvg(spec, input)) };
 }

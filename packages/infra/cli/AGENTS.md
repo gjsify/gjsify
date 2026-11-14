@@ -19,17 +19,18 @@ gjsify exec [--runtime <r>] <bin> [args..]  # an installed npm bin on the host r
 gjsify tsc …                              # Node-free tsc via the @gjsify/tsc bundle (args verbatim)
 gjsify publish|whoami|login|logout        # Node-free npm publish/auth (npm-otp header, no web-OAuth)
 gjsify credits [--check|--stdout]         # contributors from git log (+ .mailmap, Co-authored-by) → credits.json, names only (ADR 0130)
-gjsify android-icons [--resources <dir>] [--icon <svg>] [--background <#rrggbb>] [--check]   # NativeScript App_Resources launcher icon + splash logo from the ONE hicolor app icon (librsvg via ship/icons.ts); --check reads a stamp of the INPUTS, never PNG bytes
+gjsify android-icons [--resources <dir>] [--icon <svg>] [--background <#rrggbb>] [--check]   # NativeScript App_Resources icon + splash from the ONE hicolor icon; --check stamps the INPUTS, not PNG bytes
 gjsify trust [pkg] | gjsify onboard [--packages <glob>]  # Trusted-Publisher / publish+trust sweep, ANY monorepo
 gjsify upgrade [--latest|--minor|--patch|--align|--check] [--exact] [-p glob]   # workspace deps; --check gates, --align repairs, --exact pins
 gjsify ship [linux|darwin|windows] [--target <fmt..>] [--stage]   # phase 1: assemble ONE staged payload for that OS's LAYOUT (ADR 0024)
 gjsify ship --from-stage <dir> [--expect-target <os>-<arch>]   # phase 2: pack a stage, no project needed
+gjsify flatpark [project] --out <dir>   # FlatPark package from a ship stage (ADR 0143)
 gjsify install [--immutable|--refresh-lockfile|--focus <ws…>] | gjsify dlx <pkg> | gjsify showcase <name> | gjsify storybook | gjsify debug
 gjsify link <checkout> [--packages <glob>] | gjsify unlink   # develop a consumer against a LOCAL gjsify checkout (ADR 0065)
 gjsify dev [entry] [--runtime <r>] [--script <s>]   # watch → rebuild → relaunch; the templates' `dev` script
 gjsify prune [-g] [--dry-run]              # drop installed packages this host cannot use (ADR 0025)
 gjsify webext build|zip|dev [--target <t>..]   # WebExtension, one folder per target (ADR 0077)
-gjsify webext listing [--store cws|edge|amo|all] [--out <dir>] [--check]   # store listings from the metainfo (ADR 0135)
+gjsify webext listing [--store(s) cws,edge,amo|all] [--out <dir>] [--check]   # listings, promo tiles, store.json, preview (ADR 0135)
 ```
 
 **`gjsify dev` exists because `gjsify build --watch` cannot serve the host it is for**: that flag

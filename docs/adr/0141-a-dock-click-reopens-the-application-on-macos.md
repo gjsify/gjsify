@@ -81,6 +81,33 @@ stays a manual check (a synthetic Dock event cannot be sent headlessly).
 - The package is explicitly temporary: delete it when the bundled GTK answers YES to the selector
   (the probe above is the check; add it to the runtime bundle's verify step so the day is noticed).
 
+## Node hosts
+
+The bridge first shipped for GJS only: `installDockReopen()` handed `loadOptionalNativeModule` no
+`imports.gi` on Node, it fell back to `globalThis.imports.gi` (GJS only) and answered `false`, and
+`gjsify ship darwin --target macos-app` never staged the bridge's prebuilds. A Node (node-gi) `.app`
+therefore never reopened on a Dock click. Both halves are fixed:
+
+- **Load.** Without a GJS `imports.gi`, `installDockReopen` builds a one-namespace view
+  `{ GjsifyQuartz: requireGi('GjsifyQuartz', '1.0') }` from `@gjsify/node-gi/gi`, resolved from the bundle's
+  own location inside a `try` (the shape of the ADR 0087 `&optional` node shim). Typelib absent = no bridge =
+  `false`, windows stay visible.
+- **Ship.** `stageAppRuntime` stages the typelib into the staged GTK closure's `girepository-1.0/` and the
+  dylib into its `lib/`. node-gi already puts exactly those two directories on GI's typelib and library
+  search paths when the bundled GTK is in use (`activateBundledGtkRuntime`, `activateGiLibraryPath`), so
+  the launcher gains no variable. Only an app that has the dependency (the `@gjsify/gtk-quartz-native-<target>`
+  companion, found from the project or through `@gjsify/adwaita-app`) gets the two files; a facade without its
+  companion is reported under `missing`, never fatal. The dylib is signed by the existing magic-number pass.
+
+Rejected: `gi://GjsifyQuartz?version=1.0&optional` — it would put a namespace mapping into
+`ship/gi-namespaces.ts` and `depends.ts` for every adwaita-app ship and change the GJS path. Also rejected:
+`gjsify.ship.bundledTypelibs`, which flattens the tree.
+
+Limits: with `GJSIFY_GTK_PREFER=system` node-gi does not search the closure, so the bridge is not found and
+the result is `false`. The package manifest keeps `runtimes.node: "none"`: the package contains no
+JavaScript; the Node lookup lives in `@gjsify/adwaita-app`. The windowed Dock click on a Node app is, like
+the GJS one, a manual check.
+
 ## Implementation
 
 `@gjsify/gtk-quartz-native` (GI namespace `GjsifyQuartz`, `packages/framework/gtk-quartz-native`) with its

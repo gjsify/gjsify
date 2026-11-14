@@ -15,6 +15,7 @@ export * from './gettext.js';
 export * from './gsettings.js';
 export { flatpakCommand } from './flatpak/index.js';
 export * from './ship.js';
+export * from './flatpark.js';
 export * from './dlx.js';
 export * from './install.js';
 export * from './link.js';

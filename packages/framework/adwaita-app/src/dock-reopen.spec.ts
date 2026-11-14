@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import type { GiImportsView } from '@gjsify/utils/core';
-import { installDockReopen } from './dock-reopen.js';
+import { installDockReopen, nodeHostGi } from './dock-reopen.js';
 
 function stubGi(install: () => boolean): { gi: GiImportsView; calls: () => number } {
     let calls = 0;
@@ -46,6 +46,44 @@ export default async () => {
                 throw new Error('boom');
             });
             expect(installDockReopen('darwin', gi)).toBe(false);
+        });
+    });
+
+    await describe('nodeHostGi', async () => {
+        await it('builds an imports.gi view holding the requested namespace', () => {
+            const asked: string[][] = [];
+            const view = nodeHostGi((id) => {
+                expect(id).toBe('@gjsify/node-gi/gi');
+                return {
+                    requireGi: (ns: string, version?: string) => {
+                        asked.push([ns, String(version)]);
+                        return { install_reopen_handler: () => true };
+                    },
+                };
+            });
+            expect(asked).toStrictEqual([['GjsifyQuartz', '1.0']]);
+            expect(installDockReopen('darwin', view)).toBe(true);
+        });
+
+        await it('is undefined when node-gi cannot be loaded', () => {
+            expect(
+                nodeHostGi(() => {
+                    throw new Error('Cannot find module');
+                }),
+            ).toBe(undefined);
+        });
+
+        await it('is undefined when the typelib is absent', () => {
+            const view = nodeHostGi(() => ({
+                requireGi: () => {
+                    throw new Error('Typelib not found');
+                },
+            }));
+            expect(view).toBe(undefined);
+        });
+
+        await it('is undefined when node-gi has no requireGi', () => {
+            expect(nodeHostGi(() => ({}))).toBe(undefined);
         });
     });
 };

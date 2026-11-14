@@ -59,12 +59,17 @@ for any extension, not only one built by `gjsify webext build`. See ADR 0135.
 ```sh
 gjsify webext listing --check                  # validate against the store limits, write nothing
 gjsify webext listing --store amo --out dist/listing
+gjsify webext listing --stores cws,edge        # several stores (or `all`); wins over --store
 gjsify webext listing --pot po/listing.pot     # the config strings as a gettext template
 ```
 
 It writes `<out>/<store>/<lang>/{name,summary,description}.txt` (plus `description.html` for AMO and
-`permissions.md` for the stores that ask), `<store>/screenshots/*.png`, `<store>/icon*.png` and a
-`listing.json`. Screenshots are scaled down and letterboxed on the `<branding>` light colour to each
+`permissions.md` for the stores that ask), `<store>/screenshots/*.png`, `<store>/icon*.png`, the
+promo tiles (`<store>/promo-small.png` 440×280, `promo-marquee.png` 1400×560, rendered from the
+branding colour and icon, no extra dependency), `<store>/store.json` and a `preview.html`.
+`store.json` is a preflight for `gjsify webext submit`, not an API payload: each store form field is
+`derived`, `manual` (CWS data usage, Edge certification notes), `missing` or `omitted`.
+`preview.html` shows each store's rendering in light and dark and works at 390 px. Also `listing.json`. Screenshots are scaled down and letterboxed on the `<branding>` light colour to each
 store's exact size; one that would need an enlargement beyond 2× is refused. The metainfo's donation
 URL is never emitted (ADR 0113). Every length is checked and a violation names the field, store,
 language and limit.

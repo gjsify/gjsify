@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.64.40](https://github.com/gjsify/gjsify/compare/v0.64.39...v0.64.40) (2026-11-14)
+
+### Features
+
+* **adwaita-nativescript:** iOS menu action sheet ([#2626](https://github.com/gjsify/gjsify/issues/2626)) ([166ffa5](https://github.com/gjsify/gjsify/commit/166ffa568423e3296878e15d461ee7b02d4e55fc))
+* **process:** add getuid, geteuid, getgid, getegid ([#2630](https://github.com/gjsify/gjsify/issues/2630)) ([e746ef2](https://github.com/gjsify/gjsify/commit/e746ef24e15f4c549cb2630c1cd121af7348ed7d)), closes [#2629](https://github.com/gjsify/gjsify/issues/2629)
+* **ship:** add linux-tar and linux-tar-flatpak targets ([#2623](https://github.com/gjsify/gjsify/issues/2623)) ([8cc6163](https://github.com/gjsify/gjsify/commit/8cc6163b178886a6ea2f177802c893f4b54c6dc0))
+* **site:** store form fields, promo tiles, preview ([#2628](https://github.com/gjsify/gjsify/issues/2628)) ([ca93279](https://github.com/gjsify/gjsify/commit/ca93279322ec25d94d18d3247e1c07a7470aeb8c))
+* **webext:** store backend seam and ADR 0077 amendment ([#2627](https://github.com/gjsify/gjsify/issues/2627)) ([a6841cf](https://github.com/gjsify/gjsify/commit/a6841cf9eadb6e713657539abc86d6c1b4ed33fe))
+
+### Bug Fixes
+
+* `Dock-click` reopen bridge for Node macOS apps ([#2632](https://github.com/gjsify/gjsify/issues/2632)) ([48e4b84](https://github.com/gjsify/gjsify/commit/48e4b846570aa94f3e76b55b18f518dd61d29faa))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([fd1a284](https://github.com/gjsify/gjsify/commit/fd1a284a85e530fea1dfef8842b343b1d1cd8e71))
+* update native prebuilds [skip ci] ([69c7cad](https://github.com/gjsify/gjsify/commit/69c7cade6d77face4542c7b03f2e5d72ea1cd1be))
+
 ## [0.64.39](https://github.com/gjsify/gjsify/compare/v0.64.37...v0.64.39) (2026-11-13)
 
 ### Features

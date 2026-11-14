@@ -4,6 +4,7 @@ import extendedTestSuite from './extended.spec.js';
 import streamsTestSuite from './streams.spec.js';
 import rawModeTestSuite from './raw-mode.spec.js';
 import detectTestSuite from './detect.spec.js';
+import idsTestSuite from './ids.spec.js';
 import terminalFallbackTestSuite from './terminal-fallback.gjs.spec.js';
 run({
     testSuite,
@@ -11,5 +12,6 @@ run({
     streamsTestSuite,
     rawModeTestSuite,
     detectTestSuite,
+    idsTestSuite,
     terminalFallbackTestSuite,
 });

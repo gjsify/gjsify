@@ -201,7 +201,22 @@ hardware keys). A key name outside its keysym subset throws rather than leaving 
 ## What this does not decide
 
 - `GLib.Variant` in general, and `Gio.Settings`/`Gio.PropertyAction`.
-- NativeScript keyboard shortcuts, `Gtk.PopoverMenuBar`, and iOS.
+- NativeScript keyboard shortcuts and `Gtk.PopoverMenuBar`.
+- iOS beyond a stopgap: `popup-menu-surface.ios.ts` draws the plan as a flat `UIAlertController` action
+  sheet (no group rules, a leading ✓ for a checked row, a submenu opens its own sheet). Mapping the
+  plan onto `UIMenu` is undecided.
+  - iOS inherits the Android-shaped refusals of `popup-menu-plan.ts` (a section label, a radio run
+    mixed into a section) although a sheet could draw both; the stopgap does not widen the plan per
+    platform. A checkable row that is not checked is drawn like a plain action (no "✓", no
+    unchecked mark), so an unchecked and a non-checkable row look the same on a sheet.
+  - Every way a sheet goes away (a row, Cancel on any level, a tap outside, the iPad popover,
+    `dismiss()`) ends in one idempotent `SheetSession` (`popup-menu-sheet.ts`, specced on Node and
+    GJS), so `onDismiss` fires exactly once per opening and the button can open the menu again. The
+    UIKit doors feeding it are the action handlers (Cancel on every level) and a
+    `UIAdaptivePresentationControllerDelegate`/`UIPopoverPresentationControllerDelegate` per sheet.
+    UNVERIFIED on a device: that the delegate callbacks fire on an iPad outside tap, whether UIKit
+    also runs the Cancel handler there (the session tolerates both), and that a delegate set on an
+    action sheet's `presentationController` is honoured on iPhone.
 
 ## Implementation
 

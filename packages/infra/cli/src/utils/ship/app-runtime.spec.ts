@@ -24,7 +24,7 @@
 // host-bound, so nothing here may key on `process.platform`.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -35,7 +35,10 @@ import {
     isGtkRuntimeTarget,
     resolveGtkRuntime,
     resolveNodeGiAddon,
+    resolveQuartzBridge,
     stageAppRuntime,
+    QUARTZ_BRIDGE_LIBRARY,
+    QUARTZ_BRIDGE_TYPELIB,
     GTK_RUNTIME_TARGETS,
     NODE_GI_ADDON_FILENAME,
     type GtkRuntimeTarget,
@@ -133,6 +136,33 @@ function consumerWithNodeGi(target: GtkRuntimeTarget, { addon = true, closure = 
     if (addon) put(dir, `prebuilds/${target}/${NODE_GI_ADDON_FILENAME}`, 'the addon');
     if (closure) writeClosure(join(dir, 'prebuilds', target, 'gtk'));
     return root;
+}
+
+/**
+ * A resolver that sees ONLY `<cwd>/node_modules`. Inside this monorepo the CLI's
+ * own workspace links would otherwise answer for a package the fixture left out.
+ */
+function projectOnly(cwd: string) {
+    return (specifier: string, anchor: string): string | null => {
+        if (anchor !== 'project') return null;
+        const file = join(cwd, 'node_modules', ...specifier.split('/'));
+        const path = specifier.endsWith('/package.json') ? file : join(file, 'index.js');
+        return existsSync(path) ? path : null;
+    };
+}
+
+/**
+ * The Dock-reopen bridge's per-target companion (ADR 0141), in a consumer tree.
+ * `facade` adds the `@gjsify/gtk-quartz-native` package that lists it.
+ */
+function addQuartzBridge(root: string, target: GtkRuntimeTarget, { companion = true, facade = false } = {}): void {
+    const scope = join(root, 'node_modules', '@gjsify');
+    if (facade) put(scope, 'gtk-quartz-native/package.json', JSON.stringify({ name: '@gjsify/gtk-quartz-native' }));
+    if (!companion) return;
+    const name = `gtk-quartz-native-${target}`;
+    put(scope, `${name}/package.json`, JSON.stringify({ name: `@gjsify/${name}`, version: '0.0.0' }));
+    put(scope, `${name}/prebuilds/${target}/${QUARTZ_BRIDGE_TYPELIB}`, 'typelib');
+    put(scope, `${name}/prebuilds/${target}/${QUARTZ_BRIDGE_LIBRARY}`, 'dylib');
 }
 
 /** The minimum `ShipSettings` `planStage` reads — the CONTROL for the flattening claim. */
@@ -425,6 +455,85 @@ export default async () => {
                 expect(resolveNodeGiPackage({ cwd: root, env: {} })).toBe(null);
             } finally {
                 rmSync(root, { recursive: true, force: true });
+            }
+        });
+    });
+
+    await describe('the Dock-reopen bridge', async () => {
+        const stage = (cwd: string, target: GtkRuntimeTarget = 'darwin-arm64') => {
+            const nodeBin = scratch('node-bin');
+            writeFileSync(join(nodeBin, 'node'), 'the interpreter');
+            writeFileSync(join(nodeBin, 'LICENSE'), 'license');
+            const staged = stageAppRuntime({
+                layout: LAYOUTS.darwin,
+                identity: IDENTITY,
+                target,
+                cwd,
+                resolve: projectOnly(cwd),
+                interpreter: {
+                    source: 'GJSIFY_NODE_RUNTIME',
+                    nodePath: join(nodeBin, 'node'),
+                    licensePath: join(nodeBin, 'LICENSE'),
+                },
+            });
+            rmSync(nodeBin, { recursive: true, force: true });
+            return staged;
+        };
+        const gtkDir = 'Ship Demo.app/Contents/Resources/native/node-gi/prebuilds/darwin-arm64/gtk';
+
+        await it('stages typelib and dylib into the closure where node-gi searches', () => {
+            const cwd = consumerWithNodeGi('darwin-arm64');
+            try {
+                addQuartzBridge(cwd, 'darwin-arm64');
+                const staged = stage(cwd);
+                const typelib = staged.files.find(
+                    (f) => f.path === `${gtkDir}/girepository-1.0/${QUARTZ_BRIDGE_TYPELIB}`,
+                );
+                const dylib = staged.files.find((f) => f.path === `${gtkDir}/lib/${QUARTZ_BRIDGE_LIBRARY}`);
+                expect(typelib !== undefined).toBe(true);
+                expect(dylib !== undefined).toBe(true);
+                expect(dylib?.mode).toBe(0o755);
+                expect(staged.missing).toStrictEqual([]);
+                expect(staged.found.some((line) => line.includes('Dock-click reopen bridge'))).toBe(true);
+            } finally {
+                rmSync(cwd, { recursive: true, force: true });
+            }
+        });
+
+        await it('leaves an app without the dependency unchanged', () => {
+            const cwd = consumerWithNodeGi('darwin-arm64');
+            try {
+                const staged = stage(cwd);
+                const paths = staged.files.map((f) => f.path);
+                expect(paths.some((p) => p.includes('GjsifyQuartz') || p.includes('gjsifyquartz'))).toBe(false);
+                expect(staged.missing).toStrictEqual([]);
+            } finally {
+                rmSync(cwd, { recursive: true, force: true });
+            }
+        });
+
+        await it('reports a facade without its companion, without failing', () => {
+            const cwd = consumerWithNodeGi('darwin-arm64');
+            try {
+                addQuartzBridge(cwd, 'darwin-arm64', { companion: false, facade: true });
+                const staged = stage(cwd);
+                expect(staged.missing.some((line) => line.includes('Dock-click reopen bridge not carried'))).toBe(true);
+                expect(staged.files.some((f) => f.path.endsWith(QUARTZ_BRIDGE_LIBRARY))).toBe(false);
+            } finally {
+                rmSync(cwd, { recursive: true, force: true });
+            }
+        });
+
+        await it('only resolves for darwin targets', () => {
+            const cwd = consumerWithNodeGi('darwin-arm64');
+            try {
+                addQuartzBridge(cwd, 'darwin-arm64');
+                expect(resolveQuartzBridge('win32-x64', { cwd, resolve: projectOnly(cwd) }) === null).toBe(true);
+                expect(
+                    resolveQuartzBridge('linux-x64' as GtkRuntimeTarget, { cwd, resolve: projectOnly(cwd) }) === null,
+                ).toBe(true);
+            } finally {
+                rmSync(cwd, { recursive: true, force: true });
             }
         });
     });

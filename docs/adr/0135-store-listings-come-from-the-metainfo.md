@@ -73,8 +73,26 @@ set too low produces a message to fix while one set too high ships a rejection.
 | AMO | description markup | `p`, `ul`, `li` only | https://blog.mozilla.org/addons/2025/03/03/markdown/ | **no** (allowed tag list not found; conservative output) |
 | AMO | description length | no limit enforced | — | **no** |
 
-Promo tiles (CWS small 440×280, marquee 1400×560; Edge the same two sizes) are not generated yet;
-CWS promo images are not localizable.
+Promo tiles (CWS small 440×280 required, marquee 1400×560 optional; Edge the same two, both
+optional; AMO none) are generated as SVG and rasterised with GdkPixbuf. CWS promo images are not
+localizable.
+
+### Form fields
+
+`--stores cws,edge` selects several stores. Each store gets a `store.json` preflight (field status
+`derived` / `manual` / `missing` / `omitted`) for `gjsify webext submit`, and `preview.html` renders
+all stores in light and dark.
+
+| Store form field | `listing` output |
+|---|---|
+| Name, short description, description | derived (metainfo + catalogue) |
+| Category, privacy URL, support URL | derived from config / metainfo; `missing` if absent |
+| Icon, screenshots | derived (PNG at the store size) |
+| Promo tiles (small / marquee) | derived (CWS small required; Edge optional) |
+| Single purpose, permission justifications | derived (`permissions.md`) |
+| Edge search terms | derived from the metainfo keywords |
+| CWS data usage disclosures | manual (`store.json` flags it) |
+| Edge notes for certification | manual |
 
 ### Screenshots
 

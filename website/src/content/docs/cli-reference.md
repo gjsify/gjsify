@@ -1521,6 +1521,7 @@ gjsify ship                     # this host's layout; on Linux, a .deb and an .r
 gjsify ship linux               # the same two, from a Mac or from Windows
 gjsify ship linux --target flatpak         # a single-file Flatpak bundle (needs flatpak-builder)
 gjsify ship linux --target appimage        # a self-contained .AppImage (needs appimagetool)
+gjsify ship linux --target linux-tar       # a .tar.gz to unpack anywhere; linux-tar-flatpak adds gschemas.compiled
 gjsify ship darwin --arch arm64            # a macOS <App>.app and a zip around it
 gjsify ship darwin --target macos-app-dmg  # a .dmg, on macOS only
 gjsify ship windows                        # a program directory and its zip
@@ -1568,6 +1569,8 @@ ship/out/              the artifacts
 | `rpm` | linux | yes | any host | nothing |
 | `flatpak` | linux | no | linux | `flatpak-builder`, `flatpak` |
 | `appimage` | linux | no | linux | `appimagetool`, `glib-compile-schemas` |
+| `linux-tar` | linux | no | linux | nothing |
+| `linux-tar-flatpak` | linux | no | linux | `glib-compile-schemas` |
 | `macos-app` | darwin | yes | any host | `glib-compile-schemas` |
 | `macos-app-zip` | darwin | yes | any host | `glib-compile-schemas` |
 | `macos-app-dmg` | darwin | no | darwin | `hdiutil`, part of macOS |
@@ -2128,6 +2131,16 @@ gh release create v0.1.7 --notes "$(gjsify release-notes v0.1.7 --compare)"
 | `--metainfo <path>` | none | Read the `<release>` entries from this AppStream metainfo file instead of the config. |
 
 Lookup order: `--metainfo`, then `gjsify.ship.releases`, then `gjsify.flatpak.releases`, then the file named by `gjsify.site.metainfo`. The metainfo reader takes the untagged `<description>` of each `<release>` (`xml:lang` translations are skipped): `<p>` becomes a paragraph, `<ul>`/`<ol>` with `<li>` become `- ` items, `<em>`/`<code>`/`<strong>` become `*…*`/`` `…` ``/`**…**`, and entities are decoded. Newest entry first, as in the file, so `--compare` uses the next entry down.
+
+### `gjsify flatpark`
+
+Write a FlatPark package (`registry/<app-id>/`) from a `gjsify ship --stage` directory and the `.gjsify-release.json` record of the packed `linux-tar-flatpak` artifact. Files only: no network, no hashing, and the output is byte-identical across runs. `url`, `sha256` and `size` come from the record; a missing record aborts.
+
+```bash
+gjsify flatpark --out packages/flatpark/eu.example.App                 # stage and release dir under the ship out dir
+gjsify flatpark --out pkg --stage ship/stage --release-dir ship/out    # explicit inputs
+gjsify flatpark --out pkg --repo owner/name --tag-prefix v             # release URL source
+```
 
 ### `gjsify credits`
 

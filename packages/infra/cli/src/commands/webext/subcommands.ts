@@ -237,6 +237,7 @@ export const webextDevCommand: Command<unknown, WebextArgs> = {
 
 interface ListingArgs {
     store: string;
+    stores?: string;
     out?: string;
     check: boolean;
     metainfo?: string;
@@ -260,6 +261,10 @@ export const webextListingCommand: Command<unknown, ListingArgs> = {
                 type: 'string',
                 choices: ['cws', 'edge', 'amo', 'all'],
                 default: 'all',
+            })
+            .option('stores', {
+                description: 'Several stores at once, comma separated (cws,edge,amo) or all; wins over --store.',
+                type: 'string',
             })
             .option('out', { description: 'Output directory, emptied first (default: dist/listing).', type: 'string' })
             .option('check', {
@@ -290,7 +295,7 @@ export const webextListingCommand: Command<unknown, ListingArgs> = {
             .option('globals', { description: 'Value for `gjsify build --globals` (default: auto).', type: 'string' }),
     handler: async (args) => {
         const cwd = process.cwd();
-        const forwarded = ['listing', '--store', args.store];
+        const forwarded = ['listing', '--store', args.stores ?? args.store];
         if (args.root) forwarded.push('--root', resolve(cwd, args.root));
         if (args.out) forwarded.push('--out', resolve(cwd, args.out));
         if (args.check) forwarded.push('--check');
