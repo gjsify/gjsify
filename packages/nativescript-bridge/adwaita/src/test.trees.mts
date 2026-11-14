@@ -44,6 +44,7 @@ import { AdwGObjectDoorNsTest } from './gobject-door.spec.js';
 import { AdwGTypeNameNsTest } from './gtype-name.spec.js';
 import { AdwCssNamesNsTest } from './css-names.spec.js';
 import { AdwGridLayoutNsTest } from './grid-layout.spec.js';
+import { GtkFlowBoxNsTest } from './flow-box.spec.js';
 import { GtkGridNsTest } from './gtk-grid.spec.js';
 import { GtkLabelMarkupNsTest } from './label-markup.spec.js';
 import { GtkListBoxNsTest } from './gtk-list-box.spec.js';
@@ -100,6 +101,7 @@ run({
     AdwCssNamesNsTest,
     AdwContainersNsTest,
     GtkBoxNsTest,
+    GtkFlowBoxNsTest,
     GtkGridNsTest,
     AdwGridLayoutNsTest,
     GtkLabelMarkupNsTest,

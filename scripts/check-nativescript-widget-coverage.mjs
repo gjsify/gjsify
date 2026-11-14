@@ -297,6 +297,10 @@ const KNOWN_GAPS = {
         gaps: ['adaptivePreview'],
         why: "The same as `adw-window`: `adaptive-preview` previews a layout by resizing a window, and the platform's window is the screen.",
     },
+    'gtk-flow-box': {
+        gaps: ['acceptUnpairedRelease'],
+        why: 'A touch screen has no unpaired button release, so `accept-unpaired-release` has nothing to accept.',
+    },
     'gtk-grid': {
         gaps: ['baselineRow'],
         why: "`baseline-row` picks the row whose text baseline the grid aligns to; nothing in @nativescript/core measures a text baseline (the absence `gtk-align.ts` declares for `Gtk.Align`'s baseline members), so there is no allocation for it to change.",

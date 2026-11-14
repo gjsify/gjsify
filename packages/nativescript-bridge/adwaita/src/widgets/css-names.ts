@@ -68,6 +68,7 @@ export const GTK_CSS_NAMES: Readonly<Record<string, string>> = {
     GtkDropDown: 'dropdown',
     GtkEntry: 'entry',
     GtkFrame: 'frame',
+    GtkFlowBox: 'flowbox',
     GtkGrid: 'grid',
     GtkImage: 'image',
     GtkLabel: 'label',

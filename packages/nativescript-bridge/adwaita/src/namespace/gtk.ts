@@ -51,6 +51,7 @@ export { GtkDropDown as DropDown } from '../widgets/gtk-drop-down.js';
 export { GtkCheckButton as CheckButton } from '../widgets/gtk-check-button.js';
 export { GtkDrawingArea as DrawingArea } from '../widgets/gtk-drawing-area.js';
 export { GtkEntry as Entry } from '../widgets/gtk-entry.js';
+export { GtkFlowBox as FlowBox } from '../widgets/gtk-flow-box.js';
 export { GtkGrid as Grid } from '../widgets/gtk-grid.js';
 export { GtkFrame as Frame } from '../widgets/gtk-frame.js';
 export { GtkImage as Image } from '../widgets/gtk-image.js';

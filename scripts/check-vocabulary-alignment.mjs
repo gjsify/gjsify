@@ -594,6 +594,9 @@ const NS_PROPERTY_ALIGNMENT = {
     'gtk-stack.styleClasses': {
         own: 'The same slot, the same collision as `gtk-button.styleClasses` above: `GtkWidget:css-classes` is the key and `cssClasses` is a name `ViewBase` owns as a live `Set<string>` the CSS engine rebuilds on every `className` write. A Blueprint `css-classes: [...]` or `styles [...]` on a stack reaches this door; the five GIR verbs sit beside it.',
     },
+    'gtk-flow-box.styleClasses': {
+        own: 'The same slot and the same collision as `gtk-stack.styleClasses` above: `GtkWidget:css-classes` is the key and `cssClasses` is a name `ViewBase` owns as a live `Set<string>`, so the port spells it `styleClasses`.',
+    },
     'gtk-text-view.text': {
         own: "`Gtk.TextView` edits a `Gtk.TextBuffer` (`buffer`, tags, iters, marks) and has no `text` key; the platform's `TextView` edits a string, so the whole text is the port's stand-in for the buffer. Converging means modelling `Gtk.TextBuffer` as a constructible value (`get_text` / `set_text` / `changed`), which this widget does not do — recorded in ADR 0034 § Amendment 23.",
     },
@@ -1011,6 +1014,15 @@ const NS_METHOD_ALIGNMENT = {
         own: CHILD_DOOR_INSERT,
     },
     'gtk-grid.removeChild': {
+        own: CHILD_DOOR_REMOVE,
+    },
+    'gtk-flow-box.addChild': {
+        own: CHILD_DOOR_ADD,
+    },
+    'gtk-flow-box.insertChild': {
+        own: CHILD_DOOR_INSERT,
+    },
+    'gtk-flow-box.removeChild': {
         own: CHILD_DOOR_REMOVE,
     },
     'gtk-list-box.addChild': {

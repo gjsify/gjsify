@@ -580,7 +580,10 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   are `gtk_list_box_update_selection_full` line for line (ADR 0089), which is also
   `gtk_flow_box_update_selection`, and their vector tables run from the core suite AND from
   both browser specs. What the NativeScript port has is `GtkBox` (a `StackLayout`) and
-  `AdwWrapBox` (a `FlexboxLayout`), so the wrap's CHILDREN have somewhere to go and its SELECTION does not: a wrap holds no state per cell. The calendar is further out —
+  `AdwWrapBox` (a `FlexboxLayout`), and `GtkFlowBox` (a wrapping `FlexboxLayout`: `max-children-per-line` as a forced
+  break, spacings as margins, `homogeneous` as equal grow) holds the wrap's CHILDREN; its SELECTION is
+  held as properties and never applied — a wrap holds no state per cell. Still open there: a story template,
+  `min-children-per-line`, a vertical flow. The calendar is further out —
   `@nativescript/core` ships no `DatePicker`, so there is nothing to take a day, a month grid,
   a marked day or the four navigation arrows from. Their stories are therefore ledgered as not
   rendered there (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and their
