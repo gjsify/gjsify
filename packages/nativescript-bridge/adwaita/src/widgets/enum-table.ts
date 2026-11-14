@@ -17,4 +17,3 @@ export function tableOf<const Nicks extends readonly string[]>(nicks: Nicks) {
         [Nick in Nicks[number] as Snake<Nick>]: number;
     }>;
 }
-

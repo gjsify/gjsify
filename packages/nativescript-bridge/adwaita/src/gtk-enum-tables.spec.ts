@@ -24,9 +24,12 @@ export default async () => {
             expect([Justification.LEFT, Justification.RIGHT, Justification.CENTER, Justification.FILL]).toStrictEqual([
                 0, 1, 2, 3,
             ]);
-            expect([SelectionMode.NONE, SelectionMode.SINGLE, SelectionMode.BROWSE, SelectionMode.MULTIPLE]).toStrictEqual([
-                0, 1, 2, 3,
-            ]);
+            expect([
+                SelectionMode.NONE,
+                SelectionMode.SINGLE,
+                SelectionMode.BROWSE,
+                SelectionMode.MULTIPLE,
+            ]).toStrictEqual([0, 1, 2, 3]);
             expect([WrapMode.NONE, WrapMode.CHAR, WrapMode.WORD, WrapMode.WORD_CHAR]).toStrictEqual([0, 1, 2, 3]);
         });
 
@@ -44,9 +47,11 @@ export default async () => {
 
     await describe('Adw.ResponseAppearance', async () => {
         await it('is DEFAULT 0, SUGGESTED 1, DESTRUCTIVE 2', () => {
-            expect([ResponseAppearance.DEFAULT, ResponseAppearance.SUGGESTED, ResponseAppearance.DESTRUCTIVE]).toStrictEqual([
-                0, 1, 2,
-            ]);
+            expect([
+                ResponseAppearance.DEFAULT,
+                ResponseAppearance.SUGGESTED,
+                ResponseAppearance.DESTRUCTIVE,
+            ]).toStrictEqual([0, 1, 2]);
         });
 
         await it('resolves a constant or a nick to the nick, and refuses anything else naming the members', () => {
