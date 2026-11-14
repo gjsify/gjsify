@@ -539,7 +539,7 @@
     },
     "@gjsify/xdp": {
       "status": "partial",
-      "missing": "Linux only. The fallback (an XDG autostart file) and the portal path have run against a fake Background portal on a peer-to-peer D-Bus server and a temporary config directory, never against a real xdg-desktop-portal backend. No Windows or macOS driver yet (ADR 0144 § 2).",
+      "missing": "The fallback (an XDG autostart file) and the portal path have run against a fake Background portal on a peer-to-peer D-Bus server and a temporary config directory, never against a real xdg-desktop-portal backend. The Windows HKCU Run driver is tested on Linux with a stand-in reg.exe only, never on Windows. No macOS driver yet (ADR 0144 § 2).",
       "note": "libportal's Background portal: the real `gi://Xdp` on Linux (`Portal`, `BackgroundFlags`, `XdpGtk4.parent_new_gtk`), a named throwing stub on browser and NativeScript. `@gjsify/xdp/background` adds `requestBackground` and `setBackgroundStatus` with a host fallback that writes `$XDG_CONFIG_HOME/autostart/<app-id>.desktop` when no Background portal is on the session bus. A request is the whole wish: without AUTOSTART it removes the entry."
     },
     "@gjsify/xeddsa": {

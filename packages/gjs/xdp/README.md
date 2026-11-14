@@ -43,7 +43,8 @@ A request is the **whole wish**, not a delta: without `AUTOSTART` it removes an 
 |---|---|
 | Linux | `src/portal.ts` re-exports `Xdp.Portal` and `Xdp.BackgroundFlags`; `XdpGtk4.parent_new_gtk` is real |
 | Linux, no Background portal | `@gjsify/xdp/background` writes `$XDG_CONFIG_HOME/autostart/<app-id>.desktop` |
-| Windows, macOS | no driver in this package yet (ADR 0144 § 2) |
+| Windows (unpackaged) | `@gjsify/xdp/background` writes `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` with `reg.exe` (argv array, no shell); asks nothing, resolves `granted`. A packaged (MSIX) program (path under `WindowsApps`) throws by name; `ACTIVATABLE` is accepted and ignored; `set_background_status` is a no-op. **Not run on Windows**: argv and mapping are tested on Linux with a stand-in `reg.exe` |
+| macOS | no driver yet (ADR 0144 § 2) |
 | Browser, NativeScript | named throwing stub (`ENOTSUP`); `XdpGtk4.parent_new_gtk` returns `null` |
 
 ## Fallback semantics

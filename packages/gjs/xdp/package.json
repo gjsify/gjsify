@@ -84,11 +84,10 @@
         "os": {
             "linux": "supported",
             "darwin": "none",
-            "win32": "none"
+            "win32": "supported"
         },
         "osNotes": {
-            "darwin": "No driver yet: ADR 0144 \u00a7 2 decides on SMAppService behind a new native bridge, which does not exist.",
-            "win32": "No driver in this package yet: ADR 0144 \u00a7 2 decides on the HKCU Run key written with reg.exe."
+            "darwin": "No driver yet: ADR 0144 \u00a7 2 decides on SMAppService behind a new native bridge, which does not exist."
         }
     }
 }
