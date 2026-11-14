@@ -58,7 +58,8 @@ export default async () => {
             const root = pkg({ 'index.js': '', 'm.wasm': 'bytes' });
             const out = mkdtempSync(join(tmpdir(), 'gjsify-url-assets-out-'));
             const assets = new UrlAssets();
-            for (const a of findUrlAssets(`new URL('./m.wasm', import.meta.url)`, join(root, 'index.js'))) assets.add(a);
+            for (const a of findUrlAssets(`new URL('./m.wasm', import.meta.url)`, join(root, 'index.js')))
+                assets.add(a);
             expect(assets.writeTo(out)).toStrictEqual(['m.wasm']);
             expect(existsSync(join(out, 'm.wasm'))).toBe(true);
             expect(readFileSync(join(out, 'm.wasm'), 'utf8')).toBe('bytes');
