@@ -1808,6 +1808,40 @@ Page.adw-window {
     background-color: rgba(0, 0, 0, 0.05);
 }
 
+/* `progressbar` (web/adwaita-web/scss/_progress_bar.scss, libadwaita _progress-bar.scss): an 8px
+ * trough that is 15% of the foreground, a rounded accent fill inside it, a 150 minimum width, and
+ * the text row beneath in the dimmed small face. `.osd` drops the trough and thins the bar to 2px. */
+.adw-progress-bar {
+    min-width: 150;
+}
+
+.adw-progress-bar-trough {
+    height: 8;
+    border-radius: 4;
+    background-color: rgba(0, 0, 0, 0.12);
+}
+
+.adw-progress-bar-progress {
+    border-radius: 4;
+    background-color: #3584e4;
+}
+
+.adw-progress-bar-text {
+    font-size: 12;
+    horizontal-align: center;
+    margin-top: 4;
+}
+
+.adw-progress-bar.osd .adw-progress-bar-trough {
+    height: 2;
+    border-radius: 0;
+    background-color: transparent;
+}
+
+.adw-progress-bar.osd .adw-progress-bar-progress {
+    border-radius: 0;
+}
+
 /* `separator` (_misc.scss): a 1px line in the border colour. */
 .adw-separator {
     background-color: rgba(0, 0, 0, 0.15);
@@ -2753,6 +2787,15 @@ Page.ns-dark.adw-window {
 
 .ns-dark .adw-check-button:highlighted {
     background-color: rgba(255, 255, 255, 0.07);
+}
+
+/* Dark progressbar: the trough is 15% of the white foreground; the fill stays the accent. */
+.ns-dark .adw-progress-bar-trough {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.ns-dark .adw-progress-bar.osd .adw-progress-bar-trough {
+    background-color: transparent;
 }
 
 .ns-dark .adw-separator,

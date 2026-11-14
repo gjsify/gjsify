@@ -315,19 +315,14 @@ exactly why they must not be written as decisions.
   missing is the second boolean — `GtkSwitch:state`, the half that makes a slow backend
   look pending (`refs/gtk/gtk/gtkswitch.c:39-43, :637-654`) has nowhere to go in a
   one-boolean `Switch`.
-- **`<gtk-progress-bar>` on NativeScript.** libadwaita styles the GtkProgressBar node in
-  `stylesheet/widgets/_progress-bar.scss` and the browser ships the element; the
-  NativeScript port has no progress widget. The PLATFORM half is not what is missing:
-  `@nativescript/core` ships a determinate `Progress` (`value`/`maxValue`, `ui/progress`),
-  exported from the same package root this port already takes `Switch`, `Slider` and
-  `ActivityIndicator` from — unlike the checkbox above, this is not a platform survey.
-  What is open is the Adwaita EXPRESSION: `progressbar > trough > progress` has no
-  equivalent in the NativeScript CSS subset this theme is confined to, and `.osd`, the
-  text label and the fraction have no counterpart at all. So the question is what a
-  determinate Adwaita progress bar should even look like there, not whether one is
-  buildable. Its story is therefore ledgered as not rendered there
-  (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and its XML
-  template refused.
+- **`<gtk-progress-bar>` story and XML template on NativeScript.** `GtkProgressBar` is a
+  NativeScript view now (`widgets/gtk-progress-bar.ts`): a trough `GridLayout` whose
+  columns split `fraction*` from the rest, so the fill needs no measuring; `fraction`,
+  `pulse-step`, `inverted`, `show-text`, `text` and `pulse()`. It is horizontal only
+  (`orientation` and `ellipsize` are left out) and the pulse block jumps one step per
+  `pulse()` call without an animation between two calls. Its story is ledgered as not
+  rendered there (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and
+  its XML template refused until one exists.
 - **`<gtk-stack-switcher>`, `<gtk-stack-sidebar>` and `<gtk-notebook>` on NativeScript.**
   `Gtk.Stack` and `Gtk.StackPage` ship there now (a layout that shows one child at a time,
   built for Learn6502's shared templates), so the stack itself is no longer open. The three

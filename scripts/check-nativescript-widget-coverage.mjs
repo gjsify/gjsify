@@ -168,6 +168,10 @@ const KNOWN_GAPS = {
         gaps: ['cascadePopdown', 'hasArrow', 'mnemonicsVisible'],
         why: 'The card is placed beside its anchor with no arrow (`pointing-to` is not accepted either), so `has-arrow` has nothing to switch; `cascade-popdown` closes a chain of submenu popovers and `mnemonics-visible` underlines accelerator letters, and this surface has neither a keyboard nor nested popovers.',
     },
+    'gtk-progress-bar': {
+        gaps: ['ellipsize'],
+        why: "The text row is a NativeScript Label that already truncates at the end; Pango's ellipsize mode on a progress text has nothing to choose between (gtk-progress-bar.ts). The bar is horizontal only, and `orientation` is left out with it.",
+    },
     'gtk-popover-menu': {
         gaps: ['visibleSubmenu'],
         why: 'A PopupMenu opens its submenus itself and reports no page, so there is nothing to read or write: Android owns the navigation (ADR 0097 § 2).',

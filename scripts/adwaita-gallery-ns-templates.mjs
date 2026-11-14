@@ -668,7 +668,7 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     'Gtk.Switch':
         'The NativeScript port composes the platform Switch inside AdwSwitchRow and has no standalone one; a NativeScript Switch is one boolean, while the GTK widget also carries the backend half behind a state-set signal (status/open-todos/adwaita-ports.md).',
     'Gtk.ProgressBar':
-        "The NativeScript port has no progress widget: the nearest thing it builds is AdwSpinRow, which is a titled row with a stepper and not a bar, and the theme's CSS subset has no trough to nest anything in (status/open-todos/adwaita-ports.md).",
+        'GtkProgressBar ships on NativeScript (src/widgets/gtk-progress-bar.ts), but this block has no XML template for it yet (status/open-todos/adwaita-ports.md).',
     'Gtk.LevelBar':
         'The NativeScript port has no segmented-bar view: AdwSpinner is the only indicator it has and it takes no value, and GtkBox offers no run of equal children to divide into segments (status/open-todos/adwaita-ports.md).',
     'Gtk.Spinner':
