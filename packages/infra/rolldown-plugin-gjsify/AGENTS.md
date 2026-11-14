@@ -22,6 +22,7 @@ Engine: **Rolldown** (Vite 8's production bundler; under GJS the only engine is 
 
 **A GJS shim bakes the addon's PACKAGE IDENTITY, never a path** (ADR 0084): a `<platform-key> → <pkg>/<subpath>` table whose key order is part of the artifact's bytes.
 **No anchor, no rewrite.** `runtimeResolve` rides the same `format === 'esm'` gate as the path rewriter; with no bundle-URL anchor the plugin declines every shape rather than baking a path again.
+**URL assets.** A node_modules file's `new URL('./x.wasm', import.meta.url)` (non-JS, file exists) is copied beside the bundle in `writeBundle` (`utils/url-assets.ts`, runtimeResolve only): the shim's no-node_modules fallback resolves to `<bundle dir>/x.wasm`, and `gjsify ship` stages the bundle dir wholesale. With node_modules present the package path still wins. Unit `url-assets.spec.ts`; ship `discover-bundle.spec.ts`.
 
 **Deepkit** (`@gjsify/rolldown-plugin-deepkit`): runtime reflection via `@deepkit/type-compiler`; default `reflection: false`. Keep disabled unless the project uses Deepkit runtime types — its emitter transforms TS `extends` method definitions into invalid `function extends()` syntax on user code.
 

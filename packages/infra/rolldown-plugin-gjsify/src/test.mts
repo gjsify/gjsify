@@ -18,6 +18,7 @@ import autoGlobalsSuite from './utils/auto-globals.spec.js';
 import textLoaderSuite from './plugins/text-loader.spec.js';
 import selfGlobalSuite from './utils/self-global.spec.js';
 import workerUrlSuite from './plugins/worker-url.spec.js';
+import urlAssetsSuite from './utils/url-assets.spec.js';
 
 run({
     addonResolveSuite,
@@ -36,6 +37,7 @@ run({
     rnRouteManifestSuite,
     selfGlobalSuite,
     textLoaderSuite,
+    urlAssetsSuite,
     workerUrlSuite,
     zipPathSuite,
 });
