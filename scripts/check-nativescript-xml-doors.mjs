@@ -741,7 +741,8 @@ if (iconSizeSource !== null && iconSizeNicks !== null) {
 // ---------------------------------------------------------------------------
 
 /**
- * `transition-type.ts`, `scrolled-window-policy.ts`, `window-state.ts` and `list-box-state.ts` take a GIR enum as a nick list whose
+ * `transition-type.ts`, `scrolled-window-policy.ts`, `window-state.ts`, `list-box-state.ts`, `gtk-enums.ts` and
+ * `adw-enums.ts` (which also derive the `Gtk.*` / `Adw.*` value tables from them) take a GIR enum as a nick list whose
  * POSITION is the constant a GJS snippet writes (`Gtk.PolicyType.NEVER` is 2), so a number
  * resolves by index. That is legitimate only for an enum with no alias; the typelib-read
  * table is what says so, the same premise arm 7 checks for `Gtk.IconSize`.
@@ -760,6 +761,10 @@ const ENUM_LISTS = [
         gtype: 'AdwDialogPresentationMode',
     },
     { file: `${NS_WIDGETS_DIR}/list-box-state.ts`, array: 'GTK_SELECTION_MODES', gtype: 'GtkSelectionMode' },
+    { file: `${NS_WIDGETS_DIR}/gtk-enums.ts`, array: 'GTK_ORIENTATIONS', gtype: 'GtkOrientation' },
+    { file: `${NS_WIDGETS_DIR}/gtk-enums.ts`, array: 'GTK_WRAP_MODES', gtype: 'GtkWrapMode' },
+    { file: 'packages/web/adwaita-core/src/label.ts', array: 'LABEL_JUSTIFICATIONS', gtype: 'GtkJustification' },
+    { file: `${NS_WIDGETS_DIR}/adw-enums.ts`, array: 'ADW_RESPONSE_APPEARANCES', gtype: 'AdwResponseAppearance' },
 ];
 let enumListMembers = 0;
 let allEnumValues = null;

@@ -15,6 +15,7 @@
 // Copyright (c) The GTK Team and GNOME contributors. LGPLv2.1+.
 
 import { GridLayout, ItemSpec, TextView, type EventData } from '@nativescript/core';
+import { GTK_WRAP_MODES } from './gtk-enums.js';
 import { classNameWith } from './style-classes.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
@@ -23,8 +24,7 @@ import { gtkBuilderInteger, xmlBoolean, xmlNumber } from './xml-values.js';
 /** Event name emitted when {@link GtkTextView.text} changes. Mirrors `notify::text`. */
 export const NOTIFY_TEXT_VIEW_TEXT = 'notify::text';
 
-/** `Gtk.WrapMode`'s nicks, in the enum's order (NONE=0 … WORD_CHAR=3). */
-export const GTK_WRAP_MODES = ['none', 'char', 'word', 'word-char'] as const;
+export { GTK_WRAP_MODES };
 export type GtkWrapModeNick = (typeof GTK_WRAP_MODES)[number];
 
 /** The part of `Gtk.TextBuffer` the port carries (see {@link GtkTextView.buffer}). */

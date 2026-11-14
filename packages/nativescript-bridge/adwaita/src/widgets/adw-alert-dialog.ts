@@ -32,6 +32,7 @@
 import { action, confirm, Observable, type EventData } from '@nativescript/core';
 import { AdwAlertResponses } from '@gjsify/adwaita-core';
 import type { AdwResponseAppearance, AdwResponseOptions } from '@gjsify/adwaita-core';
+import { responseAppearance } from './adw-enums.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
 
@@ -142,8 +143,8 @@ export class AdwAlertDialog extends withSignals(Observable) {
     }
 
     /** Set a registered response's emphasis — `adw_alert_dialog_set_response_appearance`. */
-    set_response_appearance(id: string, appearance: AdwResponseAppearance): void {
-        this._responses.setResponseAppearance(id, appearance);
+    set_response_appearance(id: string, appearance: AdwResponseAppearance | number): void {
+        this._responses.setResponseAppearance(id, responseAppearance(appearance));
     }
 
     /** A registered response's emphasis — `adw_alert_dialog_get_response_appearance`; `'default'` for an unknown id. */
