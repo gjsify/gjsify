@@ -1165,3 +1165,12 @@ IS the staged payload, and an escape hatch injecting arbitrary build modules wou
 staging model back in the tree — which is the one thing ADR 0024 § 8 gates the whole migration on.
 A project that has to BUILD something inside the sandbox still has `gjsify flatpak init` +
 `gjsify flatpak build`, unchanged.
+
+## `gjsify flatpark`: a FlatPark package from a stage
+
+`gjsify ship --stage` then `ship --from-stage` produce a `linux-tar-flatpak` artifact and its release
+record. `gjsify flatpark [project] --out <dir>` turns the stage plus that record into a complete
+`registry/<app-id>/` directory (manifest with extra-data, `apply_extra.sh`, `resolve-update.sh`,
+desktop, metainfo, icon, `flatpark.yml`). Flags: `--stage`, `--release-dir`, `--repo`, `--tag-prefix`
+(default `v`). It writes files only, output is byte-identical across runs, and `url`/`sha256`/`size`
+come from the record, never from the network. See [ADR 0143](adr/0143-gjsify-flatpark-writes-a-flatpark-package.md).

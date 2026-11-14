@@ -161,6 +161,7 @@ the TODO records the *what's left*.
 | [0140](0140-models-are-shared-by-content-and-catalog.md) | Models are shared by content and by catalog: one entry list, one blob per SHA-256, the Hugging Face cache as a source | Accepted |
 | [0141](0141-a-dock-click-reopens-the-application-on-macos.md) | A Dock click reopens the application on macOS: a tiny native bridge adds the missing delegate method | Accepted |
 | [0142](0142-a-fifth-linux-container-the-tarball.md) | A fifth Linux container: `linux-tar`, and a Flatpak-optimised variant that adds `gschemas.compiled` | Accepted |
+| [0143](0143-gjsify-flatpark-writes-a-flatpark-package.md) | `gjsify flatpark` writes a FlatPark package from a ship stage and a release record | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
