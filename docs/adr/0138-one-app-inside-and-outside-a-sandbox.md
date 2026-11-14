@@ -64,7 +64,7 @@ claim that nothing can be done.
 | Open a URI or file | `Gtk.FileLauncher`, `Gio.AppInfo` (OpenURI portal) | exists |
 | Appearance | `org.freedesktop.appearance` through Settings (ADR 0078) | exists |
 | Notify | `Gio.Notification` through a `Gio.Application` (GLib uses the Notification portal in a sandbox) | exists in GLib; an app must use it, not the D-Bus name |
-| Stay in the background, start at login | `Gio.Application.hold()` (ADR 0129); the Background portal through `Xdp.Portal.request_background` | the portal call is **missing** from `@gjsify/xdp` |
+| Stay in the background, start at login | `Gio.Application.hold()` (ADR 0129); the Background portal through `Xdp.Portal.request_background` ([ADR 0144](0144-background-and-autostart-have-one-driver-per-platform.md)) | **decided**, not yet built: ADR 0144 puts `request_background` / `set_background_status` in `@gjsify/xdp`, with a Linux autostart-file fallback, `SMAppService` on macOS and `HKCU\Run` on Windows |
 | Online accounts | `@gjsify/system-accounts` (ADR 0095) | exists on GOA; in a Flatpak it needs the GOA hole (rule 6) until a portal exists |
 | Per-app secret | Secret portal (`Xdp.Portal.retrieve_secret`-style master secret) | **missing**; consumers keep their own store until then |
 | Hand a file to another process | descriptor over D-Bus (rule 5) | the recipe is documented here; no helper yet |
@@ -96,6 +96,7 @@ API an app already calls needs it, not before).
   Apple's documentation before a driver is claimed.
 - **Windows.** Which isolation a packaged GTK app gets, and what a file handle crossing a process
   boundary looks like there, is not checked.
-- **Background and Secret in `@gjsify/xdp`.** Whether `request_background` and a secret call join the
-  subset now, with the first consumer (a chat client that runs a daemon), or wait. Leaning: now,
-  because the consumer exists.
+- ~~**Background and Secret in `@gjsify/xdp`.**~~ **Background: decided** by
+  [ADR 0144](0144-background-and-autostart-have-one-driver-per-platform.md) (2026-11-14) — it joins
+  the subset now, because two consumers exist. **Secret stays open:** whether a per-app master
+  secret call joins, or consumers keep their own stores, is undecided; no consumer has asked.
