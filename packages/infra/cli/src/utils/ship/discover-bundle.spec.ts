@@ -99,4 +99,22 @@ export default async () => {
             }
         });
     });
+
+    await describe('a runtime asset the bundler copied beside the entry', async () => {
+        await it('is staged with the bundle, so the shim fallback finds it in every layout', async () => {
+            // `rolldown-plugin-gjsify` copies `new URL('./x.wasm', import.meta.url)` assets
+            // next to the bundle; the shim's no-node_modules fallback looks exactly there.
+            const root = project();
+            try {
+                writeFileSync(join(root, 'dist', 'mtcute-simd.wasm'), 'wasm');
+                mkdirSync(join(root, 'dist', 'data'), { recursive: true });
+                writeFileSync(join(root, 'dist', 'data', 'x.json'), '{}');
+                const files = staged(root, []);
+                expect(files.includes('mtcute-simd.wasm')).toBe(true);
+                expect(files.includes('data/x.json')).toBe(true);
+            } finally {
+                rmSync(root, { recursive: true, force: true });
+            }
+        });
+    });
 };

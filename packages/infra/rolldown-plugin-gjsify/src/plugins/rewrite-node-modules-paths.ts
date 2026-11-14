@@ -32,6 +32,7 @@ import type { Plugin } from 'rolldown';
 import { inlineStaticReads, parseSource } from '../utils/inline-static-reads.js';
 import { declareBuildInput, type WatchFileCapableContext } from '../utils/declare-build-input.js';
 import { hasZipSegment } from '../utils/zip-path.js';
+import { findUrlAssets, UrlAssets } from '../utils/url-assets.js';
 
 export const REWRITE_FILTER = /\.(m?js|cjs|[cm]?tsx?)$/;
 const DIRNAME_DECL_RE = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/;
@@ -529,12 +530,18 @@ export interface NodeModulesPathRewriteOptions {
  */
 export function nodeModulesPathRewritePlugin(options: NodeModulesPathRewriteOptions): Plugin {
     const runtimeResolve = options.runtimeResolve ?? false;
+    const assets = new UrlAssets();
     return {
         name: 'gjsify-node-modules-path-rewrite',
+        // Not `emitFile`: the native engine has none. Copy beside the bundle, where the
+        // shim's no-node_modules fallback looks and where `gjsify ship` stages from.
+        writeBundle() {
+            assets.writeTo(options.bundleDir);
+        },
         transform: {
             order: 'post' as const,
             filter: { id: REWRITE_FILTER },
-            handler(this: WatchFileCapableContext, code: string, id: string) {
+            handler(this: WatchFileCapableContext & { warn?: (message: string) => void }, code: string, id: string) {
                 // What the inliner FOLDS into the bundle is an input of the
                 // output and no module graph names it, so it is declared through
                 // the standard contract — the same one `css-as-string` uses.
@@ -542,6 +549,12 @@ export function nodeModulesPathRewritePlugin(options: NodeModulesPathRewriteOpti
                 // `utils/declare-build-input.ts`.
                 const declare = (abs: string) => declareBuildInput(this, abs);
                 if (id.includes('node_modules')) {
+                    if (runtimeResolve && shouldRewrite(id)) {
+                        for (const asset of findUrlAssets(code, id)) {
+                            const clash = assets.add(asset);
+                            if (clash) this.warn?.(clash);
+                        }
+                    }
                     const result = rewriteContents({ path: id }, code, options.bundleDir, runtimeResolve, declare);
                     if (!result) return null;
                     return { code: result.code, map: null };
