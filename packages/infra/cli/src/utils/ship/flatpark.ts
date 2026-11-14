@@ -75,9 +75,10 @@ export interface FlatparkFile {
 export function parseGithubRepo(value: string): string | undefined {
     const trimmed = value.trim().replace(/^git\+/, '');
     const bare = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/.exec(trimmed);
-    const url = /^(?:https?|ssh|git):\/\/(?:[^@/]+@)?github\.com[/:]([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(
-        trimmed,
-    );
+    const url =
+        /^(?:https?|ssh|git):\/\/(?:[^@/]+@)?github\.com[/:]([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(
+            trimmed,
+        );
     const hit = url ?? bare;
     return hit === null ? undefined : `${hit[1]}/${hit[2]!.replace(/\.git$/, '')}`;
 }

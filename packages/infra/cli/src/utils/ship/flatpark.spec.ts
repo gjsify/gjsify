@@ -136,15 +136,20 @@ export default async () => {
         await it('stops with a clear message when the release record is missing', () => {
             const dir = mkdtempSync(join(tmpdir(), 'flatpark-spec-'));
             try {
-                expect(() => readFlatparkSources({ dir, repo: 'example/hello', version: '1.2.3', tagPrefix: 'v' })).toThrow(
-                    'no release record',
-                );
-                record(dir, 'hello-app-1.2.3-linux-x64.tar.gz', 'x64', 'linux-tar');
-                expect(() => readFlatparkSources({ dir, repo: 'example/hello', version: '1.2.3', tagPrefix: 'v' })).toThrow(
-                    'no release record',
-                );
                 expect(() =>
-                    readFlatparkSources({ dir: join(dir, 'absent'), repo: 'example/hello', version: '1.2.3', tagPrefix: 'v' }),
+                    readFlatparkSources({ dir, repo: 'example/hello', version: '1.2.3', tagPrefix: 'v' }),
+                ).toThrow('no release record');
+                record(dir, 'hello-app-1.2.3-linux-x64.tar.gz', 'x64', 'linux-tar');
+                expect(() =>
+                    readFlatparkSources({ dir, repo: 'example/hello', version: '1.2.3', tagPrefix: 'v' }),
+                ).toThrow('no release record');
+                expect(() =>
+                    readFlatparkSources({
+                        dir: join(dir, 'absent'),
+                        repo: 'example/hello',
+                        version: '1.2.3',
+                        tagPrefix: 'v',
+                    }),
                 ).toThrow('no release record');
             } finally {
                 rmSync(dir, { recursive: true, force: true });

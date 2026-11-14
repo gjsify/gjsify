@@ -13,12 +13,7 @@ import type { Argv } from 'yargs';
 import { Config } from '../config.js';
 import type { Command } from '../types/index.js';
 import { readPackageJson } from '../utils/pkg-json.js';
-import {
-    parseGithubRepo,
-    readFlatparkSources,
-    releaseDateOf,
-    renderFlatparkPackage,
-} from '../utils/ship/flatpark.js';
+import { parseGithubRepo, readFlatparkSources, releaseDateOf, renderFlatparkPackage } from '../utils/ship/flatpark.js';
 import { readStageManifest } from '../utils/ship/stage-manifest.js';
 
 const LOG = '[gjsify flatpark]';
@@ -155,7 +150,7 @@ export const flatparkCommand: Command<unknown, FlatparkOptions> = {
         for (const source of sources) console.log(`${LOG}   ${source.arch}: ${source.url}`);
         console.log(
             `${LOG} next: ${relative(process.cwd(), join(outDir, 'flatpark.yml')) || 'flatpark.yml'} has ` +
-                '`upstream_approved: false`; a row in FlatPark\'s docs/reference/upstream-approvals.md is the maintainer\'s.',
+                "`upstream_approved: false`; a row in FlatPark's docs/reference/upstream-approvals.md is the maintainer's.",
         );
     },
 };
