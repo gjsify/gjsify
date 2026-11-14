@@ -13,7 +13,8 @@
 // `UnderlineSpan`/`StrikethroughSpan` (`ui/text-base/index.android.ts`). `<sub>`/`<sup>`
 // reach `style.verticalAlignment`, which is a REAL platform mechanism and not something
 // invented here: Android shifts the baseline by ±0.4 of the font size
-// (`BaselineAdjustedSpanImpl.updateState`) and iOS does the same in `getBaselineOffset`.
+// (`BaselineAdjustedSpanImpl.updateState`) and iOS does the same in `getBaselineOffset` — but iOS is NOT given the shift, see
+// `label-markup-script.ios.ts`.
 // That member has no `Span`-level shortcut because `verticalAlignment` lives on `View` and
 // a `Span` is a `ViewBase`, so it is written through `style` — see `ns-core.d.ts` for the
 // upstream `.d.ts` narrowing that hides those two values from the types.
@@ -43,6 +44,7 @@
 // Copyright (c) The GTK Team. LGPLv2.1+.
 
 import { FormattedString, Span } from '@nativescript/core';
+import { labelMarkupScriptShift } from './label-markup-script.js';
 
 import {
     stripMnemonic,
@@ -297,7 +299,8 @@ export function labelMarkupSpan(run: LabelMarkupRun, mnemonics: boolean, base?: 
     if (run.style.italic) span.fontStyle = 'italic';
     const line = decoration(run.style, run.link !== null);
     if (line !== undefined) span.textDecoration = line;
-    if (run.style.script !== null) span.style.verticalAlignment = run.style.script;
+    const shift = run.style.script !== null ? labelMarkupScriptShift(run.style.script) : null;
+    if (shift !== null) span.style.verticalAlignment = shift;
 
     // The steps MULTIPLY, as pango's one factor per element does: `<big><big>` is 1.44.
     const steps = run.style.sizeSteps;
