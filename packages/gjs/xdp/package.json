@@ -1,0 +1,93 @@
+{
+    "name": "@gjsify/xdp",
+    "version": "0.64.40",
+    "description": "libportal's Background portal on every desktop: the real `gi://Xdp` on Linux, and a driver where there is none. Start-at-login and background permission by capability, never by mechanism.",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "type": "module",
+    "sideEffects": false,
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        },
+        "./background": {
+            "types": "./lib/types/background.d.ts",
+            "default": "./lib/esm/background.js"
+        },
+        "./browser": {
+            "types": "./lib/types/browser.d.ts",
+            "default": "./lib/esm/browser.js"
+        },
+        "./nativescript": {
+            "types": "./lib/types/nativescript.d.ts",
+            "default": "./lib/esm/nativescript.js"
+        }
+    },
+    "files": [
+        "lib",
+        "!lib/types/fake-portal.d.ts",
+        "!lib/types/**/*.spec.d.ts"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib tmp tsconfig.tsbuildinfo test.gjs.mjs test.node.mjs",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}' 'src/test.gjs.mts' 'src/fake-portal.ts'",
+        "build:types": "gjsify tsc",
+        "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
+        "build:test:gjs": "gjsify build src/test.gjs.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
+        "test:gjs": "gjsify env DBUS_SESSION_BUS_ADDRESS=unix:path=/nonexistent XDG_RUNTIME_DIR=/nonexistent gjsify run test.gjs.mjs",
+        "test:node": "node test.node.mjs"
+    },
+    "keywords": [
+        "gjs",
+        "libportal",
+        "xdp",
+        "portal",
+        "background",
+        "autostart"
+    ],
+    "dependencies": {
+        "@girs/gio-2.0": "5.4.0",
+        "@girs/gjs": "5.4.0",
+        "@girs/glib-2.0": "5.4.0",
+        "@girs/gobject-2.0": "5.4.0",
+        "@girs/xdp-1.0": "5.4.0",
+        "@girs/xdpgtk4-1.0": "5.4.0"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "typescript": "^6.0.3"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/gjs/xdp"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/gjs/xdp#readme",
+    "gjsify": {
+        "tier": 3,
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "polyfill",
+            "browser": "none",
+            "nativescript": "none"
+        },
+        "os": {
+            "linux": "supported",
+            "darwin": "none",
+            "win32": "supported"
+        },
+        "osNotes": {
+            "darwin": "No driver yet: ADR 0144 \u00a7 2 decides on SMAppService behind a new native bridge, which does not exist."
+        }
+    }
+}
