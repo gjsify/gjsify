@@ -150,7 +150,13 @@ describe('gjsify storybook --runtime node E2E', { timeout: 10 * 60 * 1000 }, () 
 
     it('--runtime gjs (default target) keeps gi:// external — no node-gi routing', () => {
         const gjs = buildStorybook('gjs', 'dist/storybook.gjs.mjs');
-        assert.ok(!gjs.includes('requireGi'), 'gjs bundle must NOT carry the node-gi requireGi rewrite');
+        // The `gi://` rewrite is `require('@gjsify/node-gi/gi').requireGi(...)`. The bare word
+        // `requireGi` is not a marker: adwaita-app's Dock bridge (ADR 0141 § Node hosts)
+        // names it in a branch that only a Node host takes.
+        assert.ok(
+            !/require\(["']@gjsify\/node-gi\/gi["']\)\.requireGi\(/.test(gjs),
+            'gjs bundle must NOT carry the node-gi requireGi rewrite',
+        );
         // The gjs target externalises gi:// (resolved by GJS natively at runtime).
         assert.ok(gjs.includes('gi://'), 'gjs bundle should keep gi:// specifiers external');
     });
