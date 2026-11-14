@@ -32,12 +32,17 @@ export { GtkAdjustment as Adjustment } from '@gjsify/adwaita-core';
 // registers (imported by `./gio.ts`) and resolves a `Gio.File`.
 export { GtkFileDialog as FileDialog, GtkFileFilter as FileFilter, DialogError } from '@gjsify/adwaita-core';
 export {
+    Align,
     ArrowType,
+    Justification,
     License,
+    Orientation,
     PolicyType,
+    SelectionMode,
     TextDirection,
     TextExtendSelection,
     TextWindowType,
+    WrapMode,
 } from '../widgets/gtk-enums.js';
 export { GtkActionBar as ActionBar } from '../widgets/gtk-action-bar.js';
 export { GtkBox as Box } from '../widgets/gtk-box.js';
