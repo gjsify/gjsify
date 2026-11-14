@@ -28,7 +28,11 @@ LOG=/tmp/conformance-mem.vg.log
 echo "== conformance load -> run -> exit loop under valgrind =="
 env GJS_DISABLE_JIT=1 GI_TYPELIB_PATH="$PRE" LD_LIBRARY_PATH="$PRE" \
     $VG --log-file="$LOG" \
-    gjs -m conformance/mem-loop.mjs
+    gjs -m conformance/mem-loop.mjs || {
+    echo "valgrind exited non-zero; log tail ($LOG):" >&2
+    head -c 6000 "$LOG" >&2
+    exit 1
+}
 
 grep -E "ERROR SUMMARY" "$LOG"
 grep -q "ERROR SUMMARY: 0 errors" "$LOG" || {
