@@ -1930,11 +1930,20 @@ jobs:
   # `--exclude '@gjsify/napi'` to the `npm:publish` script's `gjsify foreach` so
   # the ubuntu job keeps skipping it.
   napi-prebuild-linux:
-    name: Build @gjsify/napi linux-x64 prebuild
+    name: Build @gjsify/napi linux-${{ matrix.arch }} prebuild
     needs: publish
     if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true && (needs.publish.outputs.all == 'true' || needs.publish.outputs.napi == 'true') }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
+    # Static `include:` — `scripts/audit-runtimes.mjs --check` reads the pairs.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
     container:
       # The baked image, which carries the whole set this job used to install
       # for itself (meson/Vala/C++ + the mozjs-140 + gjs-devel headers the shim
@@ -1947,8 +1956,18 @@ jobs:
       # independently failed `napi` — neither had anything to do with the code,
       # and either one strands a publish. `scripts/check-ci-image-packages.mjs`
       # holds the image to what the jobs on it install.
-      image: ghcr.io/gjsify/ci-fedora:44
+      # The baked image is linux/amd64 only (build-ci-image.yml), so the arm64
+      # leg runs the bare base image and installs the same toolchain below.
+      image: ${{ matrix.arch == 'x64' && 'ghcr.io/gjsify/ci-fedora:44' || 'fedora:44' }}
     steps:
+      - name: Install the toolchain (arm64 — no baked image)
+        if: ${{ matrix.arch == 'arm64' }}
+        run: >
+          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264
+          git tar xz findutils libatomic curl unzip
+          gjs gjs-devel mozjs140-devel glib2-devel gobject-introspection gobject-introspection-devel
+          meson vala gcc gcc-c++ make pkgconf pkgconf-pkg-config ninja-build python3
+
       # Same shape as napi.yml's `consumer` job: name the toolchain the build
       # below silently assumes, so a wrong or drifted image says so here rather
       # than as a confusing meson failure. Costs a second on the release path.
@@ -2021,8 +2040,8 @@ jobs:
       # GObject class, so resolving `imports.gi.GjsifyNapi` proves only that the
       # typelib was FOUND. `is_available()` is what makes GI dlopen the library
       # the typelib records (and it is side-effect free, unlike `init()`).
-      - name: Load-test the linux-x64 prebuild this leg will ship
-        working-directory: packages/napi/napi-linux-x64/prebuilds/linux-x64
+      - name: Load-test the linux-${{ matrix.arch }} prebuild this leg will ship
+        working-directory: packages/napi/napi-linux-${{ matrix.arch }}/prebuilds/linux-${{ matrix.arch }}
         run: |
           set -euo pipefail
           echo "shipping: $(ls -1)"
@@ -2034,11 +2053,11 @@ jobs:
              N.is_available();
              print('GjsifyNapi loaded from the staged prebuild');" < /dev/null
 
-      - name: Upload the linux-x64 prebuild artifact
+      - name: Upload the linux-${{ matrix.arch }} prebuild artifact
         uses: actions/upload-artifact@v4
         with:
-          name: napi-prebuild-linux-x64
-          path: packages/napi/napi-linux-x64/prebuilds/linux-x64
+          name: napi-prebuild-linux-${{ matrix.arch }}
+          path: packages/napi/napi-linux-${{ matrix.arch }}/prebuilds/linux-${{ matrix.arch }}
           if-no-files-found: error
 
   # macOS arm64 leg. Homebrew ships the SAME gjs 1.88.x <-> spidermonkey
@@ -2200,19 +2219,28 @@ jobs:
           name: napi-prebuild-linux-x64
           path: packages/napi/napi-linux-x64/prebuilds/linux-x64
 
+      - name: Download the linux-arm64 prebuild
+        uses: actions/download-artifact@v4
+        with:
+          name: napi-prebuild-linux-arm64
+          path: packages/napi/napi-linux-arm64/prebuilds/linux-arm64
+
       - name: Download the darwin-arm64 prebuild
         uses: actions/download-artifact@v4
         with:
           name: napi-prebuild-darwin-arm64
           path: packages/napi/napi-darwin-arm64/prebuilds/darwin-arm64
 
-      - name: Confirm both prebuilds are staged
+      - name: Confirm all prebuilds are staged
         run: |
           set -eu
           ls -la packages/napi/napi-linux-x64/prebuilds/linux-x64 \
+                 packages/napi/napi-linux-arm64/prebuilds/linux-arm64 \
                  packages/napi/napi-darwin-arm64/prebuilds/darwin-arm64
           test -f packages/napi/napi-linux-x64/prebuilds/linux-x64/libgjsifynapi.so
           test -f packages/napi/napi-linux-x64/prebuilds/linux-x64/GjsifyNapi-1.0.typelib
+          test -f packages/napi/napi-linux-arm64/prebuilds/linux-arm64/libgjsifynapi.so
+          test -f packages/napi/napi-linux-arm64/prebuilds/linux-arm64/GjsifyNapi-1.0.typelib
           test -f packages/napi/napi-darwin-arm64/prebuilds/darwin-arm64/libgjsifynapi.dylib
           test -f packages/napi/napi-darwin-arm64/prebuilds/darwin-arm64/GjsifyNapi-1.0.typelib
 
@@ -2327,7 +2355,7 @@ jobs:
           GJSIFY_PUBLISH_DEBUG: '1'
         run: |
           set -eu
-          for pkg in napi-linux-x64 napi-darwin-arm64; do
+          for pkg in napi-linux-x64 napi-linux-arm64 napi-darwin-arm64; do
             PATH="$PWD/node_modules/.bin:$PATH" gjsify publish "packages/napi/$pkg" \
               --tolerate-republish --tag latest --access public
           done

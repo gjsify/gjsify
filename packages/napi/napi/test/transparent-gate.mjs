@@ -112,8 +112,8 @@ function resolveBuildDriver() {
                 `driver on purpose: that would report green without exercising @gjsify/rolldown-native.`,
         );
     const prebuilds = [
-        join(ROOT, 'packages', 'infra', 'rolldown-native-linux-x64', 'prebuilds', 'linux-x64'),
-        join(ROOT, 'node_modules', '@gjsify', 'rolldown-native', 'prebuilds', 'linux-x64'),
+        join(ROOT, 'packages', 'infra', `rolldown-native-linux-${process.arch}`, 'prebuilds', `linux-${process.arch}`),
+        join(ROOT, 'node_modules', '@gjsify', 'rolldown-native', 'prebuilds', `linux-${process.arch}`),
         PREBUILD_DIR, // @gjsify/napi's own typelib — the shims resolve it too
     ].filter((d) => existsSync(d));
     const prepend = (name) => [...prebuilds, ...(process.env[name] ? [process.env[name]] : [])].join(':');
@@ -126,7 +126,7 @@ function resolveBuildDriver() {
 }
 const ADDONS_DIR = join(HERE, 'addons');
 const NAPI_LIB = join(PKG, 'lib', 'esm', 'index.js');
-const PREBUILD_DIR = join(PKG, '..', 'napi-linux-x64', 'prebuilds', 'linux-x64');
+const PREBUILD_DIR = join(PKG, '..', `napi-linux-${process.arch}`, 'prebuilds', `linux-${process.arch}`);
 
 const name = process.argv[2];
 const cfg = ADDONS[name];
