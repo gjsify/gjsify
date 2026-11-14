@@ -58,6 +58,7 @@ export { AdwApplicationWindow as ApplicationWindow } from '../widgets/adw-applic
 export { AdwAvatar as Avatar } from '../widgets/adw-avatar.js';
 export { AdwBanner as Banner } from '../widgets/adw-banner.js';
 export { AdwBin as Bin } from '../widgets/adw-bin.js';
+export { AdwBreakpointBin as BreakpointBin } from '../widgets/adw-breakpoint-bin.js';
 export { AdwBottomSheet as BottomSheet } from '../widgets/adw-bottom-sheet.js';
 export { AdwButtonContent as ButtonContent } from '../widgets/adw-button-content.js';
 export { AdwButtonRow as ButtonRow } from '../widgets/adw-button-row.js';

@@ -23,6 +23,7 @@ export const GTK_CSS_NAMES: Readonly<Record<string, string>> = {
     AdwAvatar: 'widget',
     AdwBanner: 'banner',
     AdwBin: 'widget',
+    AdwBreakpointBin: 'widget',
     AdwBottomSheet: 'bottom-sheet',
     AdwButtonContent: 'buttoncontent',
     AdwButtonRow: 'row',

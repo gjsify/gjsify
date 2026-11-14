@@ -500,16 +500,19 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   platform does not export: the browser substitutes `<input type="color">` and a family
   list, and there is no `@nativescript/core` view for either, so the open question there is
   whether a colour or font picker belongs on a touch target at all.
-- **`<adw-breakpoint-bin>`, `<adw-multi-layout-view>` and `<adw-layout-slot>` on
-  NativeScript.** All three browser elements, their stories and their gallery blocks
-  exist, and the headless half is done — `BreakpointBinState` plus the two conformance
-  tables the browser spec drives. The NativeScript port has none of the three widgets,
-  so the stories are ledgered as not rendered there and their XML templates refused.
-  What is missing is not the picking but the SIZE SOURCE and the tree surgery: the
-  breakpoint bin needs a view's post-layout size bound to its own allocation, and the
-  multi-layout view has to re-parent children between slots on a platform whose
-  `LayoutBase` has no notion of a slot ID. `AdwLayout` is a GObject there too, so the
-  layouts need the same markup-to-object step the browser gets for free.
+- **`<adw-multi-layout-view>` and `<adw-layout-slot>` on NativeScript, and the
+  `<adw-breakpoint-bin>` story.** All three browser elements, their stories and their
+  gallery blocks exist, and the headless half is done — `BreakpointBinState` plus the two
+  conformance tables the browser spec drives. `AdwBreakpointBin` is now a NativeScript view
+  (`widgets/adw-breakpoint-bin.ts`): the tree builder measures it with `observeViewSize`
+  and hands it the applied breakpoint, which it answers as `current-breakpoint` and
+  announces with `notify::current-breakpoint`. What it still lacks is a NativeScript story,
+  and it keeps its breakpoint when its child goes away, where libadwaita drops it. The
+  multi-layout view and the slot have no NativeScript widget, so their stories are ledgered
+  as not rendered there and their XML templates refused: the multi-layout view has to
+  re-parent children between slots on a platform whose `LayoutBase` has no notion of a slot
+  ID, and `AdwLayout` is a GObject there too, so the layouts need the same markup-to-object
+  step the browser gets for free.
 - **`<adw-clamp-scrollable>`, `<adw-preferences-row>`, `<adw-tab-bar>`,
   `<adw-tab-button>`, `<adw-tab-overview>` and `<adw-view-switcher-sidebar>` on
   NativeScript.** The six browser elements and their gallery blocks exist; the

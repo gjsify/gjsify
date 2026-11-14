@@ -83,7 +83,7 @@ const NOT_ON_THIS_TARGET = {
     'text-view@nativescript':
         'packages/nativescript-bridge/adwaita/src/widgets/gtk-text-view.ts: Gtk.TextView ships as a multi-line editor over the platform TextView, but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'breakpoint-bin@nativescript':
-        'status/open-todos/adwaita-ports.md, "<adw-breakpoint-bin> on NativeScript": the port has no Adw.BreakpointBin view yet, so the story is rendered by the other two targets only.',
+        'status/open-todos/adwaita-ports.md, "<adw-breakpoint-bin> on NativeScript": Adw.BreakpointBin ships as a view (widgets/adw-breakpoint-bin.ts), but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'layout-slot@nativescript':
         'status/open-todos/adwaita-ports.md, "<adw-layout-slot> on NativeScript": the port has no Adw.LayoutSlot view yet, so the story is rendered by the other two targets only.',
     'multi-layout-view@nativescript':

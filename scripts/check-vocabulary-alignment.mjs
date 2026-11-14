@@ -677,6 +677,12 @@ const NS_PROPERTY_ALIGNMENT = {
     'adw-carousel.pageWidth': {
         own: 'GTK sizes carousel pages from the allocation, so there is no page-width property on `Adw.Carousel` to converge towards. The port needs an explicit DIP number because its scroll arithmetic is its own — "Set this to the carousel\'s on-screen width so `scrollToPage` lands cleanly" (adw-carousel.ts:285-289).',
     },
+    'adw-breakpoint-bin.current-breakpoint': {
+        own: "`Adw.BreakpointBin:current-breakpoint` is READ-ONLY in the GIR (`G_PARAM_READABLE`), so generated/props.ts, which emits writable properties only, has no key for it. It appears on this side because the property is DECLARED at the seam (ADR 0122 § 4) and every declared name is reachable; the declaration refuses a write in `normalize`, resolving to the breakpoint the tree builder last reported through `_applyBreakpoint`. The port keeps GTK's spelling, and GTK's read-only-ness with it.",
+    },
+    'adw-breakpoint-bin.currentBreakpoint': {
+        own: 'The camelCase half of `adw-breakpoint-bin.current-breakpoint` above: the seam installs every declared property under both spellings, so both are reachable and both are refused the same way. One GObject key, two names, and no writable counterpart to converge towards.',
+    },
     'adw-combo-row.selected-item': {
         own: "`Adw.ComboRow:selected-item` is READ-ONLY in the GIR — measured on libadwaita 1.9.4, where its pspec carries READABLE alone — so generated/props.ts, which emits writable properties only, has no key for it. It appears on this side because the property is DECLARED at the seam (ADR 0122 § 4) and every declared name is reachable; the declaration refuses a write in `normalize`, resolving to the state's own `selectedItem`. The port keeps GTK's spelling, and GTK's read-only-ness with it.",
     },
