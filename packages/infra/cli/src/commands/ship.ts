@@ -1027,6 +1027,12 @@ function carryNodeModules(
     });
     runtime.files.push(...stageNodeModules(closure, layout.dirs(settings).bundle));
     runtime.found.push(`node_modules: ${closure.packages.length} package(s) for ${declared.join(', ')}`);
+    if (closure.skippedPrebuilds !== undefined && closure.skippedPrebuilds.length > 0) {
+        console.log(
+            `${LOG} node_modules: left out, prebuilds for another platform than ${layout.os}-${settings.arch}: ` +
+                closure.skippedPrebuilds.join(', '),
+        );
+    }
     if (closure.excluded.length > 0) {
         console.log(`${LOG} node_modules: left out by gjsify.ship.nodeModulesExclude: ${closure.excluded.join(', ')}`);
     }

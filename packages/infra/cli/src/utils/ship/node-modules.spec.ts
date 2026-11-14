@@ -163,5 +163,47 @@ export default async () => {
             expect(mode('libx.dylib')).toBe(0o755);
             expect(mode('a.js')).toBe(0o644);
         });
+
+        await it('drops prebuilds/<os>-<arch> of other platforms and keeps the target’s, musl included', async () => {
+            const root = project();
+            const files = {
+                'prebuilds/linux-x64/a.node': '1',
+                'prebuilds/linux-x64-musl/a.node': '2',
+                'prebuilds/linux-arm64/a.node': '3',
+                'prebuilds/darwin-arm64/a.node': '4',
+                'prebuilds/win32-x64/a.node': '5',
+                'src/linux-x64/keep.c': '6',
+            };
+            install(root, 'addon', { name: 'addon' }, files);
+            const names = (os: string, cpu: string) => {
+                const closure = resolveNodeModulesClosure(['addon'], root, { target: { os, cpu } });
+                return stageNodeModules(closure, 'lib').map((f) => f.path.replace('lib/node_modules/addon/', ''));
+            };
+            expect(names('linux', 'x64')).toStrictEqual([
+                'package.json',
+                'prebuilds/linux-x64/a.node',
+                'prebuilds/linux-x64-musl/a.node',
+                'src/linux-x64/keep.c',
+            ]);
+            expect(names('linux', 'arm64')).toStrictEqual([
+                'package.json',
+                'prebuilds/linux-arm64/a.node',
+                'src/linux-x64/keep.c',
+            ]);
+        });
+
+        await it('reports the skipped prebuild directories and leaves a package without prebuilds alone', async () => {
+            const root = project();
+            install(root, 'addon', { name: 'addon' }, { 'prebuilds/darwin-arm64/a.node': '1' });
+            install(root, 'plain', { name: 'plain' }, { 'lib/index.js': '2' });
+            const closure = resolveNodeModulesClosure(['addon', 'plain'], root, { target: { os: 'linux', cpu: 'x64' } });
+            const paths = stageNodeModules(closure, 'lib').map((f) => f.path);
+            expect(closure.skippedPrebuilds).toStrictEqual(['addon/prebuilds/darwin-arm64']);
+            expect(paths).toStrictEqual([
+                'lib/node_modules/addon/package.json',
+                'lib/node_modules/plain/lib/index.js',
+                'lib/node_modules/plain/package.json',
+            ]);
+        });
     });
 };
