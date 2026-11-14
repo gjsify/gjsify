@@ -10,5 +10,6 @@ import rootRelativeSuite from './root-relative.spec.js';
 import soupSessionSuite from './soup-session.gjs.spec.js';
 import partialInputSuite from './partial-input.gjs.spec.js';
 import tlsAbortSuite from './tls-abort.gjs.spec.js';
+import tlsServernameSuite from './tls-servername.spec.js';
 
-run({ testSuite, rootRelativeSuite, soupSessionSuite, partialInputSuite, tlsAbortSuite });
+run({ testSuite, rootRelativeSuite, soupSessionSuite, partialInputSuite, tlsAbortSuite, tlsServernameSuite });

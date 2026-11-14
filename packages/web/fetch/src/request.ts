@@ -8,6 +8,7 @@ import type Soup from '@girs/soup-3.0';
 import Gio from '@girs/gio-2.0';
 import { soupSendAsync, inputStreamToReadable } from './utils/soup-helpers.js';
 import { loadSoup } from './utils/soup-lazy.js';
+import { acceptsForServername } from './utils/tls-servername.js';
 
 import { URL } from '@gjsify/url';
 import type { Blob } from './utils/blob-from.js';
@@ -141,6 +142,8 @@ interface RequestLike {
      * `NODE_TLS_REJECT_UNAUTHORIZED`.
      */
     rejectUnauthorized?: boolean;
+    /** Name the peer certificate is verified against instead of the URL host (see `Request.servername`). */
+    servername?: string;
 }
 
 /**
@@ -269,6 +272,14 @@ export class Request extends Body {
     insecureHTTPParser = false;
     /** Per-request TLS opt-out (undefined ⇒ verify, honoring NODE_TLS_REJECT_UNAUTHORIZED). */
     rejectUnauthorized?: boolean;
+    /**
+     * Connect to the URL host but verify the peer certificate (system CA, chain and expiry
+     * included) against this name — Node's `tls.connect({ servername })`, curl's `--resolve`. For
+     * an SSH tunnel on loopback whose certificate names the real host. Only a hostname mismatch is
+     * forgiven, and only when the certificate names `servername`. `rejectUnauthorized: false`
+     * (or `NODE_TLS_REJECT_UNAUTHORIZED=0`) still accepts any certificate and takes precedence.
+     */
+    servername?: string;
 
     constructor(input: RequestInfo | URL | Request, init?: RequestInit) {
         const inputRL = input as unknown as RequestLike;
@@ -373,6 +384,7 @@ export class Request extends Body {
         this.highWaterMark = initRL.highWaterMark || inputRL.highWaterMark || 16384;
         this.insecureHTTPParser = initRL.insecureHTTPParser || inputRL.insecureHTTPParser || false;
         this.rejectUnauthorized = initRL.rejectUnauthorized ?? inputRL.rejectUnauthorized;
+        this.servername = initRL.servername ?? inputRL.servername;
 
         // §5.4, Request constructor steps, step 16.
         // Default is empty string per https://fetch.spec.whatwg.org/#concept-request-referrer-policy
@@ -446,6 +458,22 @@ export class Request extends Body {
             message.connect(
                 'accept-certificate',
                 (_msg: Soup.Message, _cert: Gio.TlsCertificate, _errors: Gio.TlsCertificateFlags): boolean => true,
+            );
+        }
+
+        // `servername`: libsoup verifies the chain against the system CA and reports BAD_IDENTITY for
+        // the URL host; forgive exactly that when the cert names `servername` (see acceptsForServername).
+        if (parsedURL.protocol === 'https:' && this.servername && !shouldAcceptAnyCert(this.rejectUnauthorized)) {
+            const servername = this.servername;
+            const port = Number(parsedURL.port) || 443;
+            message.connect(
+                'accept-certificate',
+                (_msg: Soup.Message, cert: Gio.TlsCertificate, errors: Gio.TlsCertificateFlags): boolean =>
+                    acceptsForServername(
+                        errors,
+                        cert.verify(Gio.NetworkAddress.new(servername, port), null),
+                        Gio.TlsCertificateFlags.BAD_IDENTITY,
+                    ),
             );
         }
 
