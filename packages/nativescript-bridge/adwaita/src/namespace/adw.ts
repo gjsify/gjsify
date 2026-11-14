@@ -52,6 +52,7 @@
 
 export { AdwAboutDialog as AboutDialog } from '../widgets/adw-about-dialog.js';
 export { AdwActionRow as ActionRow } from '../widgets/adw-action-row.js';
+export { ResponseAppearance } from '../widgets/adw-enums.js';
 export { AdwAlertDialog as AlertDialog } from '../widgets/adw-alert-dialog.js';
 export { AdwApplicationWindow as ApplicationWindow } from '../widgets/adw-application-window.js';
 export { AdwAvatar as Avatar } from '../widgets/adw-avatar.js';

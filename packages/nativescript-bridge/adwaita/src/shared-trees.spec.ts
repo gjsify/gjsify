@@ -613,6 +613,18 @@ export const AdwSharedTreesNsTest = async () => {
             );
         });
 
+        await it('AdwAlertDialog takes Adw.ResponseAppearance as the constant a GJS snippet writes', () => {
+            const dialog = new (elementFor('AdwAlertDialog').ctor as unknown as new () => {
+                add_response(id: string, label: string): void;
+                set_response_appearance(id: string, appearance: number | string): void;
+                get_response_appearance(id: string): string;
+            })();
+            dialog.add_response('delete', 'Delete');
+            dialog.set_response_appearance('delete', 2);
+            expect(dialog.get_response_appearance('delete')).toBe('destructive');
+            expect(() => dialog.set_response_appearance('delete', 9)).toThrow('is not a Adw.ResponseAppearance');
+        });
+
         await it("AdwStatusPage accepts its GIR child property, 'child', as a named builder slot", () => {
             const root = build({ tag: 'AdwStatusPage', children: [{ tag: 'GtkButton', slot: 'child' }] });
 
