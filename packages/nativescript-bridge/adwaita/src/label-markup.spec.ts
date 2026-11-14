@@ -294,6 +294,30 @@ export const GtkLabelMarkupNsTest = async () => {
             expect(spans[0]!.fontSize).toBe(undefined);
         });
 
+        await it('re-scales on load once the CSS size has been written after the first render', () => {
+            const label = new Gtk.Label();
+            label.set_markup('x<sub>2</sub>');
+            expect(spansOf(label)[1]!.fontSize).toBe(undefined);
+            label.style.fontSize = 12;
+            mount(label);
+            expect(spansOf(label)[1]!.fontSize).toBe(12 / 1.2);
+        });
+
+        await it('does not rebuild on load when the markup needs no base size', () => {
+            const label = new Gtk.Label();
+            label.set_markup('a<b>b</b>');
+            const before = label.formattedText;
+            label.style.fontSize = 12;
+            mount(label);
+            expect(label.formattedText).toBe(before);
+        });
+
+        await it('writes no baseline shift on iOS', async () => {
+            const { labelMarkupScriptShift } = await import('./widgets/label-markup-script.ios.js');
+            expect(labelMarkupScriptShift('sub')).toBe(null);
+            expect(labelMarkupScriptShift('sup')).toBe(null);
+        });
+
         await it('multiplies with <big>/<small>', () => {
             const label = new Gtk.Label();
             label.style.fontSize = 12;

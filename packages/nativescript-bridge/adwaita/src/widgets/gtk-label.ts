@@ -194,6 +194,9 @@ export class GtkLabel extends withSignals(Label) {
     private _selectable = false;
     /** The `<a href>` of the last render — kept so a re-parse inherits `visited` by URI. */
     private _links: readonly LabelLink[] = [];
+    /** Whether the last `FormattedString` render depended on `style.fontSize`, and the base it used. */
+    private _baseNeeded = false;
+    private _renderedBase: number | undefined = undefined;
 
     constructor(props?: ConstructProps<GtkLabel>) {
         super();
@@ -207,6 +210,8 @@ export class GtkLabel extends withSignals(Label) {
         this.addEventListener('loaded', () => {
             this._applySelectable();
             this._applyJustificationMode();
+            // The CSS size (`title-1`) lands on load, after the first `set_label`.
+            if (this._baseNeeded && this.style.fontSize !== this._renderedBase) this._render();
         });
         // `xalign` defaults to 0.5 and is DRAWN from the start: a label nobody aligned centres
         // its text in GTK, and the platform's untouched `textAlignment` is the start edge.
@@ -569,6 +574,8 @@ export class GtkLabel extends withSignals(Label) {
             // `FormattedString.toString()`), which is the same string the runs were built
             // from.
             this.text = text;
+            this._baseNeeded = render.runs.some((r) => r.style.script !== null || r.style.sizeSteps !== 0);
+            this._renderedBase = this.style.fontSize;
             this.formattedText = labelMarkupFormattedString(
                 render,
                 this._useUnderline,
@@ -584,6 +591,7 @@ export class GtkLabel extends withSignals(Label) {
         // THE SPANS GO FIRST on the way back, and that order is not interchangeable:
         // clearing `formattedText` calls `textProperty.nativeValueChange(this, '')`, so a
         // `text` written before it would be wiped to the empty string.
+        this._baseNeeded = false;
         labelMarkupHoldNative(this, null);
         if (this.formattedText !== null && this.formattedText !== undefined) this.formattedText = null;
         this.text = text;
