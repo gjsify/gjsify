@@ -50,6 +50,8 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
     /** Request counters for the two digest routes the retry cases use. */
     let flakyHits = 0;
     let goneHits = 0;
+    let cdnHits = 0;
+    let forbiddenHits = 0;
     /** Authorization header seen per path by the token cases. */
     let authSeen = {};
     // Path to the freshly-built gjs bundle we ship as the "bootstrap" asset.
@@ -186,6 +188,29 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
                     }
                     res.writeHead(200, { 'content-type': 'text/plain' });
                     res.end(`${cliBundleSha256}\n`);
+                    return;
+                }
+                // A signed-CDN hiccup: the first hop redirects to another host, which answers 403
+                // once and then 200 (the second request gets a fresh redirect, as a fresh
+                // signed URL would).
+                if (url === '/cdn.sha256') {
+                    res.writeHead(302, { location: `http://localhost:${server.address().port}/cdn-final.sha256` });
+                    res.end();
+                    return;
+                }
+                if (url === '/cdn-final.sha256') {
+                    cdnHits++;
+                    if (cdnHits === 1) {
+                        res.writeHead(403).end('forbidden');
+                        return;
+                    }
+                    res.writeHead(200, { 'content-type': 'text/plain' });
+                    res.end(`${cliBundleSha256}\n`);
+                    return;
+                }
+                if (url === '/forbidden.sha256') {
+                    forbiddenHits++;
+                    res.writeHead(403).end('forbidden');
                     return;
                 }
                 if (url === '/gone.sha256') {
@@ -469,6 +494,29 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
         // Retrying a 404 would only delay the same answer while making a real outage look
         // like a hang — and this is the path a user is told to reach for the opt-out on.
         assert.equal(goneHits, 1, `a 404 must not be retried, saw ${goneHits} request(s)`);
+    });
+
+    it('retries a 403 from a redirect target — the CDN hiccuped', async () => {
+        cdnHits = 0;
+        const r = await runBootstrap(['--tag', '0.0.99-test'], {
+            GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL: `${registryUrl}cdn.sha256`,
+        });
+        const out = r.stderr + r.stdout;
+        assert.equal(cdnHits, 2, `expected one retry after the CDN 403, saw ${cdnHits} request(s):\n${out}`);
+        assert.match(out, /retry 2\/5/, 'the retry happened but was not announced');
+        assert.doesNotMatch(out, /Refusing to install an UNVERIFIED bootstrap bundle/, out);
+    });
+
+    it('does NOT retry a 403 from the first hop — the host answered', async () => {
+        forbiddenHits = 0;
+        const cache = join(tmpRoot, 'no-fallback-cache-403');
+        mkdirSync(cache, { recursive: true });
+        const r = await runBootstrap([], {
+            GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL: `${registryUrl}forbidden.sha256`,
+            GJSIFY_INSTALL_BOOTSTRAP_CACHE: cache,
+        });
+        assert.notEqual(r.status, 0, 'a refused digest must still be fatal');
+        assert.equal(forbiddenHits, 1, `a first-hop 403 must not be retried, saw ${forbiddenHits} request(s)`);
     });
 
     // The token travels to github.com / api.github.com only. The mock cannot be those
