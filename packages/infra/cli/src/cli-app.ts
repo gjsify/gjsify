@@ -38,6 +38,7 @@ import {
     gsettingsCommand as gsettings,
     flatpakCommand as flatpak,
     shipCommand as ship,
+    flatparkCommand as flatpark,
     dlxCommand as dlx,
     installCommand as install,
     linkCommand as link,
@@ -169,6 +170,7 @@ export async function runCli(argv: readonly string[]): Promise<void> {
         .command(gsettings.command, gsettings.description, gsettings.builder, gsettings.handler)
         .command(flatpak.command, flatpak.description, flatpak.builder, flatpak.handler)
         .command(ship.command, ship.description, ship.builder, ship.handler)
+        .command(flatpark.command, flatpark.description, flatpark.builder, flatpark.handler)
         .command(foreach.command, foreach.description, foreach.builder, foreach.handler)
         .command(workspace.command, workspace.description, workspace.builder, workspace.handler)
         .command(pack.command, pack.description, pack.builder, pack.handler)
