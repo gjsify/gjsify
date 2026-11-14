@@ -78,6 +78,8 @@ declare module '@nativescript/core' {
         onLoaded(): void;
         /** Lifecycle hook NativeScript calls when the view leaves the visual tree. */
         onUnloaded(): void;
+        /** Ask the platform to give this view the keyboard focus; `true` when it took it. */
+        focus(): boolean;
         /** Upstream's `eachChildView`: visit direct children; return `false` from the callback to stop. */
         eachChildView(callback: (child: View) => boolean): void;
         /** The Android `Context`; defined once the view is attached to an activity. */

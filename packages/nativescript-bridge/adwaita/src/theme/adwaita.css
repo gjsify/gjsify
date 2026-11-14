@@ -393,6 +393,19 @@ Page.adw-window {
  * `$button_color`, i.e. currentColor at 10% (_entries.scss:9 with
  * _buttons.scss:1), the same fill `.adw-button` carries, at `$button_radius`
  * 9px (_common.scss:8). */
+/* `entry.search` shows the magnifying glass at 70% foreground and, once there is text, the
+ * clear button; both sit inside the one filled box the entry already draws. */
+.adw-search-entry-icon {
+    opacity: 0.7;
+    margin: 0 6 0 0;
+    vertical-align: middle;
+}
+
+.adw-search-entry .adw-image-button.adw-search-entry-clear {
+    margin: 0 0 0 4;
+    vertical-align: middle;
+}
+
 .adw-entry {
     background-color: rgba(0, 0, 0, 0.08);
     border-radius: 9;

@@ -58,6 +58,7 @@ export { GtkImage as Image } from '../widgets/gtk-image.js';
 export { GtkLabel as Label } from '../widgets/gtk-label.js';
 export { GtkLinkButton as LinkButton } from '../widgets/gtk-link-button.js';
 export { GtkProgressBar as ProgressBar } from '../widgets/gtk-progress-bar.js';
+export { GtkSearchEntry as SearchEntry } from '../widgets/gtk-search-entry.js';
 export { GtkListBox as ListBox } from '../widgets/gtk-list-box.js';
 export { GtkMenuButton as MenuButton } from '../widgets/gtk-menu-button.js';
 export { GtkPopover as Popover } from '../widgets/gtk-popover.js';

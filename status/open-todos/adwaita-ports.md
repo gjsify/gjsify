@@ -437,9 +437,13 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   expander's disclosure is the one shape the port is missing where libadwaita's own is
   `AdwExpanderRow`, which it already has. So the open question is the EXPRESSION of each,
   not whether a view can be built.
-- **`<gtk-scale>`, `<gtk-spin-button>`, `<gtk-password-entry>` and
-  `<gtk-search-entry>` on NativeScript.** Four browser elements and four gallery blocks;
-  the NativeScript port has none of the widgets, so all four stories are ledgered as not
+- **`<gtk-scale>`, `<gtk-spin-button>` and `<gtk-password-entry>` on NativeScript, and the
+  `<gtk-search-entry>` story.** `GtkSearchEntry` is a NativeScript view now
+  (`widgets/gtk-search-entry.ts`, a `GtkEntry` with a leading search icon, a clear button
+  and the delayed `search-changed`); `stop-search`, `next-match`, `previous-match`,
+  `search-started` and `key-capture-widget` are keyboard shortcuts and are not emitted. Its
+  story and XML template are ledgered as not there yet. The other three browser elements and
+  gallery blocks have no NativeScript widget, so their stories are ledgered as not
   rendered there and their XML templates refused. The HEADLESS half is already shared:
   `SpinState` in `@gjsify/adwaita-core` is the `Gtk.Adjustment` all of them take, so what
   is missing is the VIEW each is built from, and each one names a neighbour that is not

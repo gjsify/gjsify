@@ -147,7 +147,7 @@ const NOT_ON_THIS_TARGET = {
     'scale@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-scale>, <gtk-spin-button>, <gtk-password-entry> and <gtk-search-entry> on NativeScript": the port has no Gtk.Scale widget yet, so the story is rendered by the other two targets only.',
     'search-entry@nativescript':
-        'status/open-todos/adwaita-ports.md, "<gtk-scale>, <gtk-spin-button>, <gtk-password-entry> and <gtk-search-entry> on NativeScript": the port has no Gtk.SearchEntry widget yet, so the story is rendered by the other two targets only.',
+        'status/open-todos/adwaita-ports.md, "<gtk-scale>, <gtk-spin-button>, <gtk-password-entry> and <gtk-search-entry> on NativeScript": Gtk.SearchEntry ships (widgets/gtk-search-entry.ts), but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'spin-button@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-scale>, <gtk-spin-button>, <gtk-password-entry> and <gtk-search-entry> on NativeScript": the port has no Gtk.SpinButton widget yet, so the story is rendered by the other two targets only.',
     'column-view@nativescript':

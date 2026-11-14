@@ -225,6 +225,11 @@ export class Style extends Observable {
 }
 
 export class View extends Observable {
+    /** `View.focus()` — the double has no focus chain, so it only says it was asked. */
+    focus(): boolean {
+        return true;
+    }
+
     /**
      * `View` keeps its `Style` in `_style` and answers it from `style`: a subclass field of that
      * name replaces it, and every inherited-CSS pass then reads `viewRef` off the wrong object
