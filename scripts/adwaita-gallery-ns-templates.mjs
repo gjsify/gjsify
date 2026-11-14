@@ -676,7 +676,7 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     // Four more the port has no view for, each with the NEIGHBOUR class the reason names —
     // `GtkButton` and `GtkBox` ship, so the sentences stay checkable against real members.
     'Gtk.LinkButton':
-        'The port has no link button: GtkButton takes a label and an iconName and nothing that follows a uri, so neither the destination nor the visited state it draws has anywhere to live (status/open-todos/adwaita-ports.md).',
+        'GtkLinkButton ships on NativeScript (src/widgets/gtk-link-button.ts), but this block has no XML template for it yet (status/open-todos/adwaita-ports.md).',
     'Gtk.ScaleButton':
         'The port has no scale button: GtkButton.child takes one view, and the value a scale button draws on its icon has no slider behind it (status/open-todos/adwaita-ports.md).',
     'Gtk.ColorDialogButton':

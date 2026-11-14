@@ -205,7 +205,7 @@ const NOT_ON_THIS_TARGET = {
     'toggle-button@nativescript':
         'packages/nativescript-bridge/adwaita/src/widgets/gtk-toggle-button.ts: Gtk.ToggleButton ships, with `group`, but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'link-button@nativescript':
-        'status/open-todos/adwaita-ports.md, "<gtk-link-button>, <gtk-scale-button>, <gtk-color-dialog-button> and <gtk-font-dialog-button> on NativeScript": the port has no Gtk.LinkButton widget yet, so the story is rendered by the other two targets only.',
+        'status/open-todos/adwaita-ports.md, "<gtk-link-button>, <gtk-scale-button>, <gtk-color-dialog-button> and <gtk-font-dialog-button> on NativeScript": Gtk.LinkButton ships (widgets/gtk-link-button.ts), but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'scale-button@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-link-button>, <gtk-scale-button>, <gtk-color-dialog-button> and <gtk-font-dialog-button> on NativeScript": the port has no Gtk.ScaleButton widget yet, so the story is rendered by the other two targets only.',
     'color-dialog-button@nativescript':

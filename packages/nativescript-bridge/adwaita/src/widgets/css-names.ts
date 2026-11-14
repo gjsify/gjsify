@@ -73,6 +73,7 @@ export const GTK_CSS_NAMES: Readonly<Record<string, string>> = {
     GtkGrid: 'grid',
     GtkImage: 'image',
     GtkLabel: 'label',
+    GtkLinkButton: 'button',
     GtkListBox: 'list',
     GtkMenuButton: 'menubutton',
     GtkOverlay: 'overlay',

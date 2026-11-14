@@ -756,6 +756,25 @@ Page.adw-window {
     background-color: rgba(0, 0, 0, 0.19);
 }
 
+/* `Gtk.LinkButton` (`button.link`, web/adwaita-web/scss/_link.scss): a flat button whose label
+ * is the accent colour, underlined, on a background that stays clear in every state. Visited
+ * is 80% accent over 20% view foreground, mixed here because NativeScript CSS has no
+ * `color-mix()`: #1c71d8 over #333333. */
+.adw-button.link,
+.adw-button.link:highlighted {
+    background-color: transparent;
+}
+
+.adw-button.link .adw-button-label {
+    color: #1c71d8;
+    font-weight: 400;
+    text-decoration: underline;
+}
+
+.adw-button.link.visited .adw-button-label {
+    color: #2165b7;
+}
+
 .adw-button.suggested-action:highlighted {
     background-color: #1c71d8;
 }
@@ -2286,6 +2305,20 @@ Page.ns-dark.adw-window {
 
 .ns-dark .adw-button.flat:highlighted {
     background-color: rgba(255, 255, 255, 0.22);
+}
+
+/* Dark `button.link`: accent #78aeed; visited is that 80% over 20% white (#93bef1). */
+.ns-dark .adw-button.link,
+.ns-dark .adw-button.link:highlighted {
+    background-color: transparent;
+}
+
+.ns-dark .adw-button.link .adw-button-label {
+    color: #78aeed;
+}
+
+.ns-dark .adw-button.link.visited .adw-button-label {
+    color: #93bef1;
 }
 
 /* The same for buttons in an `.osd` container: dark `.adw-button` is the same specificity as
