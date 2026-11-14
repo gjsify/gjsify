@@ -2132,6 +2132,16 @@ gh release create v0.1.7 --notes "$(gjsify release-notes v0.1.7 --compare)"
 
 Lookup order: `--metainfo`, then `gjsify.ship.releases`, then `gjsify.flatpak.releases`, then the file named by `gjsify.site.metainfo`. The metainfo reader takes the untagged `<description>` of each `<release>` (`xml:lang` translations are skipped): `<p>` becomes a paragraph, `<ul>`/`<ol>` with `<li>` become `- ` items, `<em>`/`<code>`/`<strong>` become `*…*`/`` `…` ``/`**…**`, and entities are decoded. Newest entry first, as in the file, so `--compare` uses the next entry down.
 
+### `gjsify flatpark`
+
+Write a FlatPark package (`registry/<app-id>/`) from a `gjsify ship --stage` directory and the `.gjsify-release.json` record of the packed `linux-tar-flatpak` artifact. Files only: no network, no hashing, and the output is byte-identical across runs. `url`, `sha256` and `size` come from the record; a missing record aborts.
+
+```bash
+gjsify flatpark --out packages/flatpark/eu.example.App                 # stage and release dir under the ship out dir
+gjsify flatpark --out pkg --stage ship/stage --release-dir ship/out    # explicit inputs
+gjsify flatpark --out pkg --repo owner/name --tag-prefix v             # release URL source
+```
+
 ### `gjsify credits`
 
 Derive contributor credits from the git history and write them as `credits.json`, for an About dialog or a README. Authors and `Co-authored-by:` trailers are read from the log with `.mailmap` applied. The output holds names only, never e-mail addresses.
