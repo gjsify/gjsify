@@ -25,6 +25,10 @@
 //     {@link redactSecrets} first. `publish-readback.ts`'s rule carries over
 //     unchanged: never claim what was not established.
 
+// The import cycle with `edge.ts` is safe: it uses this file's exports only inside functions.
+import { createChromeBackend } from './chrome.js';
+import { createEdgeBackend } from './edge.js';
+
 /** The stores `webext submit` knows by name. A store it does not know is refused by name, not by a missing case. */
 export type StoreId = 'chrome' | 'edge' | 'amo';
 
@@ -105,8 +109,8 @@ export interface StoreDescriptor {
 }
 
 export const STORES: Readonly<Record<StoreId, StoreDescriptor>> = {
-    chrome: { id: 'chrome', label: 'Chrome Web Store', implemented: false, createsListings: false },
-    edge: { id: 'edge', label: 'Edge Add-ons', implemented: false, createsListings: false },
+    chrome: { id: 'chrome', label: 'Chrome Web Store', implemented: true, createsListings: false },
+    edge: { id: 'edge', label: 'Edge Add-ons', implemented: true, createsListings: false },
     amo: { id: 'amo', label: 'addons.mozilla.org', implemented: false, createsListings: false },
 };
 
@@ -317,6 +321,8 @@ export interface StoreStatusResult {
     readonly state: StoreSubmissionState;
     /** The version the store reports, when it reports one. */
     readonly version?: string;
+    /** True while the store is still ingesting an async upload (Chrome `lastAsyncUploadState: IN_PROGRESS`); the shared poll loop keeps waiting on it. */
+    readonly ingesting?: boolean;
     /** One line naming the evidence this state rests on — it goes in the report verbatim. */
     readonly detail: string;
 }
@@ -335,6 +341,21 @@ export interface StoreUploadResult {
 
 export interface StorePublishResult {
     readonly state: StoreSubmissionState;
+    /** The store's handle for the pending publish, when it answers asynchronously (Edge's `Location`). */
+    readonly operationId?: string;
+    readonly detail: string;
+}
+
+/** Which of a store's two asynchronous steps an operation id belongs to. */
+export type StoreOperationKind = 'upload' | 'publish';
+
+/**
+ * One READ of an asynchronous operation, classified. A backend never polls; the
+ * shared layer loops on this. A failed operation is not a state here — it THROWS
+ * the matching error class, like every other verb.
+ */
+export interface StoreOperationResult {
+    readonly state: 'in-progress' | 'succeeded';
     readonly detail: string;
 }
 
@@ -366,6 +387,10 @@ export interface StoreBackend {
     upload(input: StoreUploadInput): Promise<StoreUploadResult>;
     publish(input: StorePublishInput): Promise<StorePublishResult>;
     status(): Promise<StoreStatusResult>;
+    /** Read an asynchronous operation once (Edge: the 202's `Location` id). Absent on a store whose uploads are not operations. */
+    operation?(kind: StoreOperationKind, operationId: string, version?: string): Promise<StoreOperationResult>;
+    /** A read-only call that proves the credentials work, for `--dry-run`. Resolves when they do, throws otherwise. */
+    verifyCredentials?(): Promise<void>;
 }
 
 /** What every backend's factory takes, beside its credentials. */
@@ -378,15 +403,17 @@ export interface StoreBackendOptions {
     readonly log?: (msg: string) => void;
 }
 
-/** A store's backend factory, registered in {@link STORE_BACKENDS} by its own file. */
+/** A store's backend factory, registered in {@link STORE_BACKENDS}. */
 export type StoreBackendFactory = (credentials: StoreCredentials, options?: StoreBackendOptions) => StoreBackend;
 
 /**
- * Backend per store, EMPTY in this slice: the interface lands before the two
- * implementations so they can be written against a file neither of them owns.
- * `chrome.ts` and `edge.ts` each add their own row; nothing else changes.
+ * Backend per store. AMO has none. Registered here rather than as an import side
+ * effect of each backend file, so a backend is never silently missing.
  */
-export const STORE_BACKENDS: Partial<Record<StoreId, StoreBackendFactory>> = {};
+export const STORE_BACKENDS: Partial<Record<StoreId, StoreBackendFactory>> = {
+    chrome: createChromeBackend,
+    edge: createEdgeBackend,
+};
 
 /**
  * The backend for a store, with its credentials resolved from `env`.
