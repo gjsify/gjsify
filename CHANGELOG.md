@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.64.41](https://github.com/gjsify/gjsify/compare/v0.64.40...v0.64.41) (2026-11-14)
+
+### Features
+
+* **adwaita-nativescript:** export Gtk and Adw enums ([#2654](https://github.com/gjsify/gjsify/issues/2654)) ([de77eb6](https://github.com/gjsify/gjsify/commit/de77eb62228aa04dfc13b46ede82d1f90668f411))
+* **cli:** add gjsify flatpark package generator ([#2636](https://github.com/gjsify/gjsify/issues/2636)) ([b42bb6c](https://github.com/gjsify/gjsify/commit/b42bb6c4b1b1b2344bd3695eb3c9f7c14498c7a0))
+* **fetch:** add servername option for TLS ([#2644](https://github.com/gjsify/gjsify/issues/2644)) ([69bf73f](https://github.com/gjsify/gjsify/commit/69bf73f6b1d17ca692831a7f4903ba1538167965))
+* **napi:** add a linux-arm64 prebuild package ([#2646](https://github.com/gjsify/gjsify/issues/2646)) ([25b2e5c](https://github.com/gjsify/gjsify/commit/25b2e5cd0c68c06a348e7dbe3c7f9655a2d9357f)), closes [#2645](https://github.com/gjsify/gjsify/issues/2645)
+* **webext:** chrome and Edge store backends ([#2631](https://github.com/gjsify/gjsify/issues/2631)) ([abb2ded](https://github.com/gjsify/gjsify/commit/abb2deddf5dc5de16f663ee215411e4b1952710f)), closes [#2627](https://github.com/gjsify/gjsify/issues/2627)
+
+### Bug Fixes
+
+* **adwaita:** draw wrapped sub text on iOS ([#2649](https://github.com/gjsify/gjsify/issues/2649)) ([694450a](https://github.com/gjsify/gjsify/commit/694450a51100a0f8986c45f75c47a6d67e85326c))
+* **install:** retry a CDN 403 after a redirect ([#2643](https://github.com/gjsify/gjsify/issues/2643)) ([e24536d](https://github.com/gjsify/gjsify/commit/e24536dcc6dc1e181be6b02bb12d539830cee3b3)), closes [#2639](https://github.com/gjsify/gjsify/issues/2639)
+* **rolldown-plugin:** ship new URL assets of deps ([#2651](https://github.com/gjsify/gjsify/issues/2651)) ([8a4c725](https://github.com/gjsify/gjsify/commit/8a4c725efa6f3a149572101df3843531bffaac4c)), closes [#2650](https://github.com/gjsify/gjsify/issues/2650)
+
+### Documentation
+
+* **adr:** background and autostart have one driver per platform ([#2637](https://github.com/gjsify/gjsify/issues/2637)) ([0caea58](https://github.com/gjsify/gjsify/commit/0caea5885715394ab2b0a15b5be8fa2596a32217))
+* **status:** derive the route-D widget count ([#2647](https://github.com/gjsify/gjsify/issues/2647)) ([a960b68](https://github.com/gjsify/gjsify/commit/a960b68b02121a3d3b4aba1adc68a16bde5388df))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([70c041f](https://github.com/gjsify/gjsify/commit/70c041fbc0ba1034ff58932438131003c284fa6b))
+
 ## [0.64.40](https://github.com/gjsify/gjsify/compare/v0.64.39...v0.64.40) (2026-11-14)
 
 ### Features
