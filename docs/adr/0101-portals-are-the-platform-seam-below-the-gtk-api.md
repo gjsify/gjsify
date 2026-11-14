@@ -234,6 +234,7 @@ either of two ways.
 | OpenURI | planned | `window.open`, `location`: planned | `ACTION_VIEW` intent: planned | `ShellExecute`: planned | `NSWorkspace.open`: planned |
 | Notification | planned | Notification API: planned | `NotificationManager`: planned | toast: planned | `UNUserNotificationCenter`: planned |
 | Account (`GetUserInformation`) | planned | none (no user name in a page) | planned, limits not read | planned, limits not read | planned, limits not read |
+| Background (`RequestBackground`, `SetStatus`) | real libportal on GJS; an autostart `.desktop` file where the host has no Background portal | none (a page has no login item): refuses by name | none decided | `HKCU\Run` via `reg.exe` unpackaged; MSIX `StartupTask` not built | `SMAppService` (`mainApp` or an agent plist) through a native shim |
 
 Two rows deserve a note. The Settings row for Windows and macOS exists already, under ADR 0078, as
 OS-specific readers that produce the portal's answer shape; this ADR names it as the pattern.
