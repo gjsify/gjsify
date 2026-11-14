@@ -28,6 +28,7 @@ import { Button, GridLayout, ItemSpec, Label } from '@nativescript/core';
 import { ToastOverlayQueue } from '@gjsify/adwaita-core';
 import type { Toast, ToastScheduler } from '@gjsify/adwaita-core';
 import { activateWidgetAction } from './actions.js';
+import { builderSlotsOf } from './builder-slots.js';
 import { bannerTitleText } from './chrome.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { withSignals } from './signals.js';
@@ -51,6 +52,9 @@ const nativeScriptScheduler: ToastScheduler = {
 
 export class AdwToastOverlay extends withSignals(GridLayout) {
     static readonly GTypeName: string = 'AdwToastOverlay';
+
+    /** `Adw.ToastOverlay:child` is the one destination, so it is also the fallback. */
+    static readonly builderSlots: readonly string[] = builderSlotsOf(['child'], 'child');
 
     /** The always-visible content layer. */
     private _content: View | null = null;
@@ -127,6 +131,14 @@ export class AdwToastOverlay extends withSignals(GridLayout) {
             // Insert BELOW the toast strip so the strip paints on top.
             this.insertChild(view, 0);
         }
+    }
+
+    /**
+     * Every XML or builder child is THE child: the inherited `addChild` would drop it into the
+     * grid beside the toast strip and leave `child` null.
+     */
+    _addChildFromBuilder(_name: string, view: View): void {
+        this.child = view;
     }
 
     /** The always-visible content layer, or `null` — `Adw.ToastOverlay:child`. */
