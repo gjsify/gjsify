@@ -18,7 +18,7 @@ const APP = 'org.example.App';
 const CMD = ['/usr/bin/app'];
 
 function hostIn(dir: string): BackgroundHost {
-    return { ...realHost, configDir: () => dir };
+    return { ...realHost, configDir: () => dir, platform: () => 'other' };
 }
 const exists = (dir: string) => Gio.File.new_for_path(autostartFilePath(dir, APP)).query_exists(null);
 

@@ -10,6 +10,7 @@ import GLib from 'gi://GLib?version=2.0';
 import type Xdp from 'gi://Xdp?version=1.0';
 
 import { applyAutostartFile } from './autostart-file.js';
+import { createWindowsPortal, spawnTool } from './portal.windows.js';
 import { classifyProbeError, outcomeOf, wantsAutostart, type BackgroundOutcome } from './wish.js';
 
 export { AUTOSTART_FLAG, wantsAutostart, type BackgroundOutcome } from './wish.js';
@@ -45,6 +46,9 @@ export interface BackgroundHost {
     /** The libportal client, or `null` when the typelib is not installed. */
     loadPortal(): Promise<BackgroundPortal | null>;
     configDir(): string;
+    /** `'windows'` selects the HKCU Run key driver, which needs no portal and no typelib. */
+    platform(): 'windows' | 'other';
+    windowsPortal(appId: string): BackgroundPortal;
 }
 
 export const realHost: BackgroundHost = {
@@ -69,7 +73,14 @@ export const realHost: BackgroundHost = {
         return new module.default.Portal();
     },
     configDir: () => GLib.get_user_config_dir(),
+    platform: () => (GLib.getenv('OS') === 'Windows_NT' ? 'windows' : 'other'),
+    windowsPortal: (appId) => createWindowsPortal(spawnTool, appId) as unknown as BackgroundPortal,
 };
+
+async function portalFor(host: BackgroundHost, appId: string): Promise<BackgroundPortal | null> {
+    if (host.platform() === 'windows') return host.windowsPortal(appId);
+    return (await probeBackgroundPortal(host)) === 'present' ? await host.loadPortal() : null;
+}
 
 function call(bus: Gio.DBusConnection): Promise<unknown> {
     return new Promise((resolve, reject) => {
@@ -129,7 +140,7 @@ export async function requestBackground(
 ): Promise<BackgroundOutcome> {
     request.cancellable?.set_error_if_cancelled();
 
-    const portal = (await probeBackgroundPortal(host)) === 'present' ? await host.loadPortal() : null;
+    const portal = await portalFor(host, request.appId);
     if (portal === null) {
         if (!request.commandline) {
             throw GLib.Error.new_literal(
@@ -178,7 +189,7 @@ export async function setBackgroundStatus(
     host: BackgroundHost = realHost,
 ): Promise<void> {
     cancellable?.set_error_if_cancelled();
-    const portal = (await probeBackgroundPortal(host)) === 'present' ? await host.loadPortal() : null;
+    const portal = await portalFor(host, '');
     if (portal === null) return;
 
     await new Promise<void>((resolve, reject) => {
