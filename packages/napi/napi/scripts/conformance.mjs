@@ -61,7 +61,7 @@ const REFS_SUITES = {
 // downloads only the binary their machine can load. `packages/napi/napi` ships no
 // `prebuilds/` and no longer lists it in `files`; the directory name is
 // `platformPackageDirName()`'s `<bridge-dir>-<target>`.
-const PREBUILD_DIR = join(PKG, '..', 'napi-linux-x64', 'prebuilds', 'linux-x64');
+const PREBUILD_DIR = join(PKG, '..', `napi-linux-${process.arch}`, 'prebuilds', `linux-${process.arch}`);
 
 // A node-api addon that #includes <uv.h> links against libuv threading
 // symbols (uv_thread_create / uv_hrtime), which Node provides from its own

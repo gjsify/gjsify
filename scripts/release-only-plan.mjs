@@ -35,7 +35,7 @@ export const JOBS = {
     gtk_darwin: ['@gjsify/gtk-runtime-darwin-arm64', '@gjsify/gtk-runtime-darwin-x64'],
     gtk_win32: ['@gjsify/gtk-runtime-win32-x64', '@gjsify/gtk-runtime-win32-arm64', '@gjsify/gl-runtime-win32-x64'],
     node_gi: ['@gjsify/node-gi'],
-    napi: ['@gjsify/napi', '@gjsify/napi-darwin-arm64', '@gjsify/napi-linux-x64'],
+    napi: ['@gjsify/napi', '@gjsify/napi-darwin-arm64', '@gjsify/napi-linux-arm64', '@gjsify/napi-linux-x64'],
     node_runtime: [
         '@gjsify/node-runtime-darwin-arm64',
         '@gjsify/node-runtime-darwin-x64',

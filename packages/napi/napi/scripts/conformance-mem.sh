@@ -20,14 +20,19 @@ node scripts/conformance.mjs --build-only >/dev/null
 # The per-target package, a SIBLING of this one since ADR 0017: @gjsify/napi
 # ships no prebuilds/ of its own, so a consumer downloads only the binary their
 # machine can load. Same directory `scripts/conformance.mjs` pins.
-PRE=../napi-linux-x64/prebuilds/linux-x64
+ARCH="$(node -p process.arch)"
+PRE="../napi-linux-$ARCH/prebuilds/linux-$ARCH"
 VG="valgrind --tool=memcheck --leak-check=no --error-exitcode=42 --errors-for-leak-kinds=none"
 LOG=/tmp/conformance-mem.vg.log
 
 echo "== conformance load -> run -> exit loop under valgrind =="
 env GJS_DISABLE_JIT=1 GI_TYPELIB_PATH="$PRE" LD_LIBRARY_PATH="$PRE" \
     $VG --log-file="$LOG" \
-    gjs -m conformance/mem-loop.mjs
+    gjs -m conformance/mem-loop.mjs || {
+    echo "valgrind exited non-zero; log tail ($LOG):" >&2
+    head -c 6000 "$LOG" >&2
+    exit 1
+}
 
 grep -E "ERROR SUMMARY" "$LOG"
 grep -q "ERROR SUMMARY: 0 errors" "$LOG" || {

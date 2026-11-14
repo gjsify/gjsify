@@ -119,16 +119,36 @@ env:
 
 jobs:
   build-test:
-    name: Build & gates & conformance (GJS / Fedora 44)
+    name: Build & gates & conformance (GJS / Fedora 44 / ${{ matrix.arch }})
     # Draft PRs run only the cheap checks; `ready_for_review` starts this.
     if: ${{ github.event.pull_request.draft != true }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    # Static `include:` on purpose: `scripts/audit-runtimes.mjs --check` reads the
+    # `arch:`/`runner:` pairs to learn which `<os>-<arch>` prebuilds CI produces.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
     # Backstop: a shim regression could hang a gate or the valgrind leg; cap the
     # job rather than wait the default 6h.
     timeout-minutes: 30
     container:
-      image: ghcr.io/gjsify/ci-fedora:44
+      # build-ci-image.yml builds linux/amd64 only, so the arm64 leg runs on the
+      # bare base image and installs the toolchain the baked image carries.
+      image: ${{ matrix.arch == 'x64' && 'ghcr.io/gjsify/ci-fedora:44' || 'fedora:44' }}
     steps:
+      - name: Install the toolchain (arm64 — no baked image)
+        if: ${{ matrix.arch == 'arm64' }}
+        run: >
+          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264
+          git tar xz findutils libatomic curl unzip
+          gjs gjs-devel mozjs140-devel glib2-devel gobject-introspection gobject-introspection-devel
+          meson vala gcc gcc-c++ make pkgconf pkgconf-pkg-config ninja-build python3 valgrind libuv
+
       - name: Verify the baked toolchain
         run: |
           gjs --version
@@ -254,7 +274,12 @@ jobs:
 
       # Valgrind memcheck over a GC-stressed conformance load→run→exit loop —
       # 0 memory errors (the invalid-read/write/UAF crash class).
+      #
+      # x64 only: on aarch64 memcheck reports "uninitialised value" errors whose
+      # every frame is inside libmozjs-140 / libgjs (JSContext::setPendingException
+      # path), none in the shim — SpiderMonkey noise, not a shim defect.
       - name: Conformance memory leg (valgrind memcheck, 0 errors)
+        if: ${{ matrix.arch == 'x64' }}
         working-directory: packages/napi/napi
         run: npm run test:conformance:mem
 
