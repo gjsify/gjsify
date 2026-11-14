@@ -613,6 +613,14 @@ export const AdwSharedTreesNsTest = async () => {
             );
         });
 
+        await it("AdwToastOverlay accepts its GIR child property, 'child', and makes it THE child", () => {
+            const root = build({ tag: 'AdwToastOverlay', children: [{ tag: 'GtkLabel', slot: 'child' }] });
+
+            expect((root as unknown as { child: unknown }).child).toBe(
+                findDescendant(root, (view) => view.constructor === elementFor('GtkLabel').ctor),
+            );
+        });
+
         await it("AdwStatusPage accepts its GIR child property, 'child', as a named builder slot", () => {
             const root = build({ tag: 'AdwStatusPage', children: [{ tag: 'GtkButton', slot: 'child' }] });
 
