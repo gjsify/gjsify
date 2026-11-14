@@ -34,7 +34,16 @@ fails the day one appears. Not built here, because that suite is a device-adjace
 nobody runs in the required job, and a guard that runs nowhere is prose.
 
 
-### Four widgets are real GObject subclasses — 157 are not
+### Route D: which widgets are real GObject subclasses
+
+The count is not written here, because the old heading ("Four … 157 are not") froze one day's
+number and was wrong within weeks. Derive it: a widget is a route-D subclass when its
+`withSignals` block in `packages/nativescript-bridge/adwaita/src/widgets/` declares both
+`GTypeName` and `Properties` (`rg -l 'GTypeName' … | xargs rg -l 'Properties:'`). On 2026-11-14
+that was 18: window-title, spinner, action-row, switch-row, entry-row, combo-row, expander-row,
+button-content, split-button, carousel, tab-view, view-stack, stack, drop-down, entry,
+check-button, toggle-button, menu-button. The rest are still pure-JS twins. The account below
+is in landing order.
 
 ADR 0105 § 2's twin route was reversed on 2026-10-19: on NativeScript Android `registerClass`
 now takes a `@nativescript/core` parent, so a widget can BE its own GObject instead of carrying
