@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.64.43](https://github.com/gjsify/gjsify/compare/v0.64.42...v0.64.43) (2026-11-15)
+
+### Features
+
+* **image-generation:** flash attention for local models ([#2658](https://github.com/gjsify/gjsify/issues/2658)) ([939c0d5](https://github.com/gjsify/gjsify/commit/939c0d5d103506f50188284f649004800ce91b80))
+
+### Bug Fixes
+
+* **napi:** drop direct libmozjs link ([#2663](https://github.com/gjsify/gjsify/issues/2663)) ([2c48890](https://github.com/gjsify/gjsify/commit/2c48890c8108912a4817cb468a7a45b5ee0ef2c4))
+* **release:** publish latest with exact pins ([#2665](https://github.com/gjsify/gjsify/issues/2665)) ([39b7424](https://github.com/gjsify/gjsify/commit/39b7424ba77a9211a773cad3ce64b1722ff92d45))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([511a226](https://github.com/gjsify/gjsify/commit/511a226b12cbf8d53e01a1cbde0830ff9fb64ffc))
+
+### Tests
+
+* **nativescript-gi:** add fetch device spec ([#2664](https://github.com/gjsify/gjsify/issues/2664)) ([4cc81dd](https://github.com/gjsify/gjsify/commit/4cc81dd37866f0903621ff91dde02e77b699670c))
+
 ## [0.64.42](https://github.com/gjsify/gjsify/compare/v0.64.41...v0.64.42) (2026-11-15)
 
 ### Bug Fixes
