@@ -54,7 +54,8 @@ endforeach
 # library libmozjs-140.so.0 ... needed by libgjsifynapi.so", OnePlus 6T). libgjs
 # is always loaded and NEEDs the host's own mozjs, so the JSAPI symbols resolve
 # through the global lookup scope; shared objects may leave symbols undefined
-# (no -z defs). conformance/ asserts DT_NEEDED stays free of libmozjs.
+# (no -z defs). .github/prebuild-toolchain/musl-build.sh asserts DT_NEEDED stays
+# free of libmozjs.
 mozjs = dependency('mozjs-140')
 dependencies += mozjs.partial_dependency(compile_args: true, includes: true)
 
