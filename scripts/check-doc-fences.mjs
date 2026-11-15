@@ -990,6 +990,20 @@ const styled = readStyledClasses();
 const { sources: nsWidgets } = readWidgets(ROOT);
 const nsSpellings = readNamespaceSpellings(ROOT);
 const nsCoreProperties = readCoreProperties(ROOT);
+// The `GtkWidget` properties every `withSignals` class answers to (`widget-layout.ts`) are applied by
+// a mixin, so no class body declares them and the chain reader cannot see them. They are written
+// out once, in `GtkWidgetLayoutMembers`; read them from there rather than listing them twice.
+const widgetLayoutPath = join(ROOT, 'packages/nativescript-bridge/adwaita/src/widgets/widget-layout.ts');
+if (existsSync(widgetLayoutPath)) {
+    const layoutText = readFileSync(widgetLayoutPath, 'utf8');
+    const start = layoutText.indexOf('export declare abstract class GtkWidgetLayoutMembers');
+    const end = start === -1 ? -1 : layoutText.indexOf('\n}', start);
+    if (start !== -1 && end !== -1) {
+        for (const [, name] of layoutText.slice(start, end).matchAll(/^ {4}(?:get|set) (\w+)\(/gm)) {
+            nsCoreProperties.add(name);
+        }
+    }
+}
 const nsCoreMethods = readCoreMethods(ROOT);
 
 const sources = [

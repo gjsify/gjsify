@@ -641,7 +641,7 @@ The keys are the signals: <kbd>Enter</kbd> is `activate`, <kbd>Escape</kbd> is
 
     // Fires once the user STOPS typing, not on every keystroke.
     search.connect('search-changed', () => applyFilter(search.text));
-    search.connect('stop-search', () => search.set_visible(false));
+    search.connect('stop-search', () => { search.visible = false; });
     ```
   </Fragment>
   <Fragment slot="blueprint">
@@ -670,7 +670,7 @@ The keys are the signals: <kbd>Enter</kbd> is `activate`, <kbd>Escape</kbd> is
 
     // Fires once the user STOPS typing, not on every keystroke.
     search.connect('search-changed', () => applyFilter(search.text));
-    search.connect('stop-search', () => search.set_visible(false));
+    search.connect('stop-search', () => { search.visible = false; });
     ```
   </Fragment>
 </AdwWidget>
