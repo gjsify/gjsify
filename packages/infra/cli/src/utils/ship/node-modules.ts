@@ -227,7 +227,8 @@ function listPackageFiles(root: string, target?: NodeModulesTarget, skipped?: st
                 if (entry.name === 'node_modules') continue;
                 // A multi-platform addon ships `prebuilds/<os>-<arch>/` for every platform; the foreign ones
                 // are dead weight at best, and a binary of the wrong architecture in the payload at worst.
-                const platform = target === undefined ? null : prebuildPlatformOf(posix.join(...relative(root, full).split(sep)));
+                const platform =
+                    target === undefined ? null : prebuildPlatformOf(posix.join(...relative(root, full).split(sep)));
                 if (platform !== null && (platform[0] !== target!.os || platform[1] !== target!.cpu)) {
                     skipped?.push(posix.join(...relative(root, full).split(sep)));
                     continue;
@@ -268,7 +269,8 @@ export function stageNodeModules(closure: NodeModulesClosure, bundleDir: string)
                 source: { kind: 'file', path: abs },
             });
         }
-        for (let i = before; i < skippedPrebuilds.length; i++) skippedPrebuilds[i] = `${pkg.name}/${skippedPrebuilds[i]}`;
+        for (let i = before; i < skippedPrebuilds.length; i++)
+            skippedPrebuilds[i] = `${pkg.name}/${skippedPrebuilds[i]}`;
     }
     return files;
 }

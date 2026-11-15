@@ -196,7 +196,9 @@ export default async () => {
             const root = project();
             install(root, 'addon', { name: 'addon' }, { 'prebuilds/darwin-arm64/a.node': '1' });
             install(root, 'plain', { name: 'plain' }, { 'lib/index.js': '2' });
-            const closure = resolveNodeModulesClosure(['addon', 'plain'], root, { target: { os: 'linux', cpu: 'x64' } });
+            const closure = resolveNodeModulesClosure(['addon', 'plain'], root, {
+                target: { os: 'linux', cpu: 'x64' },
+            });
             const paths = stageNodeModules(closure, 'lib').map((f) => f.path);
             expect(closure.skippedPrebuilds).toStrictEqual(['addon/prebuilds/darwin-arm64']);
             expect(paths).toStrictEqual([
