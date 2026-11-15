@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.64.42](https://github.com/gjsify/gjsify/compare/v0.64.41...v0.64.42) (2026-11-15)
+
+### Bug Fixes
+
+* **cli:** skip foreign prebuilds in ship nodeModules ([#2662](https://github.com/gjsify/gjsify/issues/2662)) ([149bd5e](https://github.com/gjsify/gjsify/commit/149bd5ee63726693ce48d76decbe907a1b40b68b))
+
+### Maintenance
+
+* **napi:** napi-linux-arm64 is on npm ([#2661](https://github.com/gjsify/gjsify/issues/2661)) ([e95eab0](https://github.com/gjsify/gjsify/commit/e95eab0357d1697871598129b1f58677726f3125))
+* update native prebuilds [skip ci] ([6e0f578](https://github.com/gjsify/gjsify/commit/6e0f578a296dd7f0710342820fe9708d479b4e22))
+
 ## [0.64.41](https://github.com/gjsify/gjsify/compare/v0.64.40...v0.64.41) (2026-11-14)
 
 ### Features
