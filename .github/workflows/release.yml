@@ -235,6 +235,16 @@ jobs:
       - name: Bootstrap the build toolchain (cold trees only)
         run: .github/scripts/bootstrap-cold-tree.sh "${{ inputs.runtime || 'node' }}"
 
+      # ADR 0145: `latest` publishes its intra-repo pins EXACT, as `next` does (ADR 0111). With
+      # carets, `npm install -g @gjsify/cli@<previous>` resolved siblings to the version this
+      # sweep was still publishing, and every consumer CI that bootstrapped the CLI in that
+      # window hit a 404 tarball. Same slot as publish-next's rewrite: after install (the
+      # lockfile describes the committed tree), before the build. Versions stay as committed;
+      # the script re-reads the tree and fails if a `workspace:^|~` survived.
+      - name: Pin intra-repo dependencies exactly
+        if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
+        run: node scripts/next-channel-version.mjs --write --pins-only
+
       - name: Build packages
         run: PATH="$PWD/node_modules/.bin:$PATH" gjsify run build
 

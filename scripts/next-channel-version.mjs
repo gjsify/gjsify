@@ -55,6 +55,15 @@
  *     --build <n>        monotonic counter; default $GITHUB_RUN_NUMBER
  *     --source-sha <sha> commit the sweep is built from; written as `gitHead`
  *     --github-output    append `version=…` + `base=…` to $GITHUB_OUTPUT
+ *   node scripts/next-channel-version.mjs --write --pins-only   # the `latest` sweep's rewrite
+ *
+ * `--pins-only` IS THE SAME SPEC REWRITE FOR THE STABLE SWEEP (ADR 0145), and nothing
+ * else: versions and `gitHead` stay as committed. A caret on `latest` let
+ * `npm install -g @gjsify/cli@0.64.40` resolve `@gjsify/net@^0.64.40` to `0.64.41` while
+ * the ~200-package v0.64.41 sweep was still running; npm already listed the version, the
+ * tarball still answered 404, and every consumer's CI that bootstrapped the CLI in that
+ * window went red (JumpLink/beifahrer, 2026-11-14). Exact pins make an installed version's
+ * closure the one that was published with it, so a sweep in flight is invisible to it.
  *
  * `--write` implies `--check`, and re-reads the tree afterwards to assert the rewrite
  * landed: a packer that silently produced a broken tarball is what cost v0.4.20 and
@@ -81,7 +90,17 @@ import { createContext } from '../packages/infra/manifest-conformance/lib/contex
 // `scripts/verify-published-closure.mjs` states for `--phase`, for the same reason: a
 // typo in a CI step must cost a red, not a silently different mode. `--write` typed as
 // `--wrote` must not print a version and exit 0 while the job believes it rewrote.
-const KNOWN_ARGS = ['--check', '--write', '--json', '--github-output', '--build', '--source-sha', '--help', '-h'];
+const KNOWN_ARGS = [
+    '--check',
+    '--write',
+    '--json',
+    '--github-output',
+    '--build',
+    '--source-sha',
+    '--pins-only',
+    '--help',
+    '-h',
+];
 
 const argv = process.argv.slice(2);
 for (const arg of argv) {
@@ -135,6 +154,10 @@ if (has('--help') || has('-h')) {
 }
 
 const write = has('--write');
+const pinsOnly = has('--pins-only');
+if (pinsOnly && (has('--github-output') || has('--build') || has('--source-sha'))) {
+    fail('--pins-only keeps the committed version and gitHead; --github-output, --build and --source-sha do not apply');
+}
 const json = has('--json');
 
 /** Dependency blocks `gjsify pack`'s `rewriteWorkspaceDeps` walks — the same four, deliberately. */
@@ -183,7 +206,7 @@ function indentOf(source) {
 }
 
 /**
- * The packages the `next` sweep publishes: the root-workspace set, minus `private`, minus
+ * The packages a sweep publishes (`next` and `latest` alike): the root-workspace set, minus `private`, minus
  * `@girs/*` — EXACTLY what `gjsify foreach --no-private --exclude '@girs/*'` selects in
  * `release.yml`'s publish step, derived from the same manifests rather than listed here.
  *
@@ -226,7 +249,7 @@ function plan(root, version) {
                     if (!published.has(name)) {
                         failures.push(
                             `${pkg.name} (${block}) depends on ${name} via ${JSON.stringify(range)}, but ${name} is ` +
-                                'not in the `next` sweep (private, `@girs/*`, or not a workspace member). pack would ' +
+                                'not in the publish sweep (private, `@girs/*`, or not a workspace member). pack would ' +
                                 `pin it at ${version}, a version that will never exist on the registry — and unlike ` +
                                 'the ordering hazard `verify-published-closure.mjs` detects, no later publish can ' +
                                 'repair it. Either bring the dependency into the sweep or make the edge a real range.',
@@ -256,7 +279,7 @@ function plan(root, version) {
     return { ctx, sweep, published, failures, edits, edgeCount };
 }
 
-function applyEdits(root, version, edits, sourceSha) {
+function applyEdits(root, version, edits, sourceSha, pinsOnly) {
     // The root manifest first: it is what `release-train` grades a committed rewrite
     // against, and what `nextChannelVersion` derived the base from.
     const targets = [{ rel: '.', dir: root, specEdits: [] }, ...edits];
@@ -267,9 +290,11 @@ function applyEdits(root, version, edits, sourceSha) {
         const path = join(target.dir, 'package.json');
         const source = readFileSync(path, 'utf8');
         const manifest = JSON.parse(source);
-        manifest.version = version;
-        versionsWritten += 1;
-        if (sourceSha) {
+        if (!pinsOnly) {
+            manifest.version = version;
+            versionsWritten += 1;
+        }
+        if (sourceSha && !pinsOnly) {
             manifest.gitHead = sourceSha;
             headsWritten += 1;
         }
@@ -285,8 +310,8 @@ function applyEdits(root, version, edits, sourceSha) {
 const root = process.cwd();
 const rootManifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const build = flagValue('--build', process.env.GITHUB_RUN_NUMBER ?? '0');
-const version = nextChannelVersion(rootManifest.version, build);
-const sourceSha = sourceShaArg();
+const version = pinsOnly ? rootManifest.version : nextChannelVersion(rootManifest.version, build);
+const sourceSha = pinsOnly ? undefined : sourceShaArg();
 
 const report = { base: rootManifest.version, version, build: String(build) };
 if (sourceSha) report.sourceSha = sourceSha;
@@ -312,19 +337,19 @@ if (has('--check') || write) {
         // `next` on the registry without one answers that with "unknown" forever — so the
         // channel would republish 218 packages every night regardless of changes. Checking
         // after the rewrite would leave a tree the next step could still publish from.
-        if (!sourceSha) {
+        if (!sourceSha && !pinsOnly) {
             fail(
                 'nothing recorded the source commit: `--write` needs `--source-sha <sha>` or $GITHUB_SHA. ' +
                     "The nightly run skips when main's HEAD is already the commit `next` was built from, and it " +
                     'reads that from the published `gitHead`.',
             );
         }
-        const written = applyEdits(root, version, edits, sourceSha);
+        const written = applyEdits(root, version, edits, sourceSha, pinsOnly);
         // Re-read from disk rather than trusting the writes: the whole point of the
         // closure is a property of the FILES the sweep will pack, and the only way to
         // claim it is to look at them again.
         const after = plan(root, version);
-        const wrongVersion = after.sweep.filter((p) => p.manifest.version !== version);
+        const wrongVersion = pinsOnly ? [] : after.sweep.filter((p) => p.manifest.version !== version);
         const leftover = after.edits.reduce((n, e) => n + e.specEdits.length, 0);
         if (after.failures.length > 0 || wrongVersion.length > 0 || leftover > 0) {
             fail(
@@ -351,6 +376,12 @@ if (has('--github-output')) {
 
 if (json) {
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+} else if (write && pinsOnly) {
+    process.stdout.write(
+        `next-channel-version: rewrote ${report.specsRewritten} workspace spec(s) to \`workspace:*\` across ` +
+            `${report.packages} published package(s); versions untouched (${version}).\n` +
+            'This checkout must NOT be committed — `git checkout -- .` undoes it.\n',
+    );
 } else if (write) {
     process.stdout.write(
         `next-channel-version: rewrote ${report.versionsWritten} manifest version(s) to ${version} and ` +
