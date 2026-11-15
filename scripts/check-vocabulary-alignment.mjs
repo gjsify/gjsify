@@ -898,6 +898,11 @@ const NS_METHOD_ALIGNMENT = {
     'adw-bin.onLoaded': { own: ON_LOADED },
     'adw-bin.onUnloaded': { own: ON_UNLOADED_SINGLE_CHILD },
     'adw-dialog.onLoaded': { own: ON_LOADED },
+    'gtk-popover.close': {
+        own: "A popover is closed with `gtk_popover_popdown()`, which this port keeps; `close()` is the name the window's Back handling calls on the topmost open overlay (`window-base.ts`), so a popover answers it the way a dialog does and the Back button dismisses it for free.",
+    },
+    'gtk-popover.onLoaded': { own: ON_LOADED },
+    'gtk-popover.onUnloaded': { own: ON_UNLOADED_SINGLE_CHILD },
     'adw-dialog.onUnloaded': { own: ON_UNLOADED_SINGLE_CHILD },
     'gtk-overlay.onLoaded': { own: ON_LOADED },
     'gtk-overlay.onUnloaded': { own: ON_UNLOADED_SINGLE_CHILD },

@@ -76,6 +76,7 @@ export const GTK_CSS_NAMES: Readonly<Record<string, string>> = {
     GtkListBox: 'list',
     GtkMenuButton: 'menubutton',
     GtkOverlay: 'overlay',
+    GtkPopover: 'popover',
     GtkPopoverMenu: 'popover',
     GtkRevealer: 'revealer',
     GtkScrolledWindow: 'scrolledwindow',

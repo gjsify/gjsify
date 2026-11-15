@@ -318,12 +318,6 @@ const ONE_RENDERER_ONLY = {
         decision:
             "`GtkPicture` draws a `GdkPaintable` fitted by `content-fit`, and the four enum members ARE the four CSS `object-fit` values including `scale-down` (gtkpicture.c:146-205, :520-531) — an exact mapping rather than an approximation. `@nativescript/core` has an `Image` with its own `stretch` modes, which are that widget's property and not this one: fitting an image is the port's existing job, and there is no second widget to hold the fit.",
     },
-    popover: {
-        only: 'web',
-        decision:
-            'Recorded in packages/nativescript-bridge/adwaita/src/widgets/gtk-drop-down.ts:19-21 — the NativeScript file, not the browser one of the same name: "the NS subset has none, so the options open in the platform `action()` sheet, the same substitution `AdwComboRow`, `AdwSplitButton` and `GtkMenuButton` make." Upstream has no AdwPopover either — GtkPopover styled by _popovers.scss.',
-        vectors: ['POPOVER_SURFACE_VECTORS', 'POPOVER_KEY_VECTORS'],
-    },
     'preferences-row': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',

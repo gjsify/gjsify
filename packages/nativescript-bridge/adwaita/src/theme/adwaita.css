@@ -1988,6 +1988,25 @@ Page.adw-window {
     margin: 24;
 }
 
+/* ===== Gtk.Popover =====
+ *
+ * The scrim is transparent: a popover does not dim its window, it only has to catch the tap
+ * that dismisses it (`.gtk-popover-dismiss`). The card is the popover contents surface —
+ * window fill, 15 radius, 8 padding (`POPOVER_RADIUS` / `POPOVER_PADDING`) — with a hairline
+ * border standing in for the shadow this surface cannot cast. */
+.gtk-popover,
+.gtk-popover-dismiss {
+    background-color: transparent;
+}
+
+.gtk-popover-card {
+    background-color: #ffffff;
+    border-radius: 15;
+    border-width: 1;
+    border-color: rgba(0, 0, 0, 0.15);
+    padding: 8;
+}
+
 /* ===== Gtk.ListBox selected row =====
  *
  * `row:selected` is the 10% currentColor fill (_lists.scss). The rows of a boxed list are
@@ -2748,6 +2767,11 @@ Page.ns-dark.adw-window {
 
 .ns-dark .adw-dialog-card {
     background-color: #2e2e32;
+}
+
+.ns-dark .gtk-popover-card {
+    background-color: #36363a;
+    border-color: rgba(255, 255, 255, 0.15);
 }
 
 .ns-dark .adw-list-row-selected {

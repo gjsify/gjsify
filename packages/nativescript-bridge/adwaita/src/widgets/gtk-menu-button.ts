@@ -11,7 +11,8 @@
 // (`open-menu-symbolic` → About / Preferences / Quit …). libadwaita has no menu
 // button of its own; it styles the GTK one.
 //
-// FIDELITY: a native menu rather than a popover. `Gtk.MenuButton` shows an in-app popover; this
+// FIDELITY: a `menu-model` opens a native menu rather than a popover; a `popover` opens the
+// real one ({@link GtkPopover}). `Gtk.MenuButton` shows an in-app popover for both; the model
 // opens `android.widget.PopupMenu` at the button (ADR 0097 § 2), which draws sections as groups,
 // submenus as submenus and a check or radio as a checkable row, and shows an insensitive item
 // disabled. What it cannot draw (`custom`, a section label, a radio run that shares a group) is
@@ -22,12 +23,14 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss (menubutton)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import { GioMenuModel } from '@gjsify/adwaita-core';
+import { GioMenuModel, TYPE_OBJECT } from '@gjsify/adwaita-core';
 import type { AdwMenuActions, AdwMenuModel } from '@gjsify/adwaita-core';
-import type { EventData } from '@nativescript/core';
+import type { EventData, View } from '@nativescript/core';
 import { AdwImageButton } from './adw-image-button.js';
+import { builderSlotsOf } from './builder-slots.js';
+import type { GtkPopover } from './gtk-popover.js';
 import { MenuSlot } from './menu-slot.js';
-import { withProperties } from './signals.js';
+import { readDeclaredValue, withProperties } from './signals.js';
 import { showMenuPopup } from './popup-menu-view.js';
 import { xmlBoolean } from './xml-values.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
@@ -93,9 +96,33 @@ export class GtkMenuButton extends withProperties(AdwImageButton, {
                 button._slot.adopt(button.menuModel);
             },
         },
+        // `gtk_menu_button_set_popover` reparents the popover onto the button, which is what the
+        // afterNotify does with `set_parent`. Measured on GTK 4.22: the property notifies on
+        // every write and a popover set here reads `get_parent() === button` back.
+        popover: {
+            kind: 'object',
+            valueType: TYPE_OBJECT,
+            blurb: 'The popover that will be popped up when the menu button is clicked',
+            normalize: (value) => readDeclaredValue('popover', 'object', value) as GtkPopover | null,
+            afterNotify: (self) => {
+                const button = self as GtkMenuButton;
+                button.popover?.set_parent(button);
+            },
+        },
     },
 }) {
     static readonly GTypeName: string = 'GtkMenuButton';
+
+    /** `child` is the one destination, so it is also the fallback (the XML door of `Gtk.Button`). */
+    static readonly builderSlots: readonly string[] = builderSlotsOf(['child'], 'child');
+
+    /**
+     * `GtkMenuButton:popover` — shown on tap in place of the menu. When both are set GTK
+     * prefers the popover, and so does this.
+     */
+    declare popover: GtkPopover | null;
+
+    private _child: View | null = null;
 
     /**
      * The menu — a real `Gio.MenuModel` since ADR 0128 — opened as an Android `PopupMenu`
@@ -130,6 +157,48 @@ export class GtkMenuButton extends withProperties(AdwImageButton, {
         this.addEventListener('tap', () => this._openMenu());
 
         applyConstructProps(this, props);
+    }
+
+    /**
+     * `GtkMenuButton:child` — arbitrary content in place of the icon. Setting it clears the icon
+     * for as long as it is held, as GTK does (`icon-name` and `child` exclude each other);
+     * `null` brings the icon back.
+     */
+    get child(): View | null {
+        return this._child;
+    }
+
+    set child(value: View | null) {
+        if (value === this._child) return;
+        if (this._child !== null) this.removeChild(this._child);
+        this._child = value ?? null;
+        if (this._child !== null) {
+            this._image.visibility = 'collapse';
+            this.addChild(this._child);
+        } else {
+            this._image.visibility = 'visible';
+        }
+    }
+
+    set_child(view: View | null): void {
+        this.child = view;
+    }
+
+    get_child(): View | null {
+        return this.child;
+    }
+
+    /** XML inflation — every child a template declares is THE button's child. */
+    _addChildFromBuilder(_name: string, view: View): void {
+        this.child = view;
+    }
+
+    get_popover(): GtkPopover | null {
+        return this.popover;
+    }
+
+    set_popover(value: GtkPopover | null): void {
+        this.popover = value;
     }
 
     get_menu_model(): AdwMenuModel | null {
@@ -219,6 +288,11 @@ export class GtkMenuButton extends withProperties(AdwImageButton, {
     }
 
     private _openMenu(): void {
+        if (this.popover !== null) {
+            if (this.popover.open) this.popover.popdown();
+            else this.popover.popup();
+            return;
+        }
         if (this._slot.isEmpty) return;
         showMenuPopup(this, {
             tree: this._slot.tree,

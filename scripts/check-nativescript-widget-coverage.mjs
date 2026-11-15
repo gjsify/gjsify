@@ -164,6 +164,10 @@ const KNOWN_GAPS = {
         gaps: ['showMenubar'],
         why: 'The window brings the `win.` ActionMap and nothing else: a menubar strip is a desktop-window idea, and the Android activity has no menubar to show (gtk-application-window.ts).',
     },
+    'gtk-popover': {
+        gaps: ['cascadePopdown', 'hasArrow', 'mnemonicsVisible'],
+        why: 'The card is placed beside its anchor with no arrow (`pointing-to` is not accepted either), so `has-arrow` has nothing to switch; `cascade-popdown` closes a chain of submenu popovers and `mnemonics-visible` underlines accelerator letters, and this surface has neither a keyboard nor nested popovers.',
+    },
     'gtk-popover-menu': {
         gaps: ['visibleSubmenu'],
         why: 'A PopupMenu opens its submenus itself and reports no page, so there is nothing to read or write: Android owns the navigation (ADR 0097 § 2).',

@@ -53,6 +53,7 @@ const NON_ACCENT_LITERALS = {
     '#2a2a2e': 'dark $view_bg',
     '#303034': 'dark elevated surface',
     '#34343a': 'dark $card_bg',
+    '#36363a': 'dark $popover_bg (libadwaita _colors.scss), the card of a GtkPopover',
     '#3a3a40': 'dark banner strip — neutral by design, not an accent',
     '#45454c': 'dark separator/border',
     '#505053': 'libadwaita $toast_bg_color (_colors.scss:296), the same in both schemes',

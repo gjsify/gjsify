@@ -61,7 +61,7 @@ export const ADWAITA_NATIVESCRIPT_REFUSALS: Readonly<Record<string, string>> = {
     'Gtk.PopoverMenu': "The NativeScript port builds its menus through GtkMenuButton.menuModel, which takes a Gio.MenuModel object; an XML attribute is a string, and there is no view for the menu on its own (status/open-todos/adwaita-ports.md).",
     'Gtk.PopoverMenuBar': "The NativeScript port has no menu-bar view: GtkMenuButton.menuModel is its only menu-carrying widget, and it opens ONE menu from a button rather than a bar of them (status/open-todos/adwaita-ports.md).",
     'Gtk.PopoverBin': "The NativeScript port has no popover container: GtkBox.addChild appends a child eagerly and nothing in it owns a popup, so there is nothing for a second property to attach (status/open-todos/adwaita-ports.md).",
-    'Gtk.Popover': "The NativeScript port has no standalone popover surface: GtkMenuButton.menuModel builds the menu a popover would show, but the port has no view that takes arbitrary content as a popup's child (status/open-todos/adwaita-ports.md).",
+    'Gtk.Popover': "GtkPopover ships on NativeScript, but it is an overlay that appears next to an anchor inside a window (set_parent + popup); the gallery block is a free-standing, always-visible card, which this port has no state for (status/open-todos/adwaita-ports.md).",
     'Adw.SplitButton': "AdwSplitButton.menuModel takes a Gio.MenuModel object and refuses a string outright (ADR 0128); an XML attribute is a string.",
     'Adw.ToggleGroup': "AdwToggleGroup.options is an array of toggles; an XML attribute is a string.",
     'Adw.Sidebar': "AdwSidebar.items and .sections are arrays of item descriptors; an XML attribute is a string.",

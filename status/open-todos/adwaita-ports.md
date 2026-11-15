@@ -546,22 +546,25 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   `baseline-position` to align against. `AbsoluteLayout` does cover `Gtk.Fixed` exactly, so
   whether these arrive as three widgets or as two styled boxes plus one `AbsoluteLayout` is the
   open question, not the platform half.
-- **`<gtk-popover>`, `<gtk-popover-menu>`, `<gtk-popover-menu-bar>` and
-  `<gtk-popover-bin>` on NativeScript.** All four exist on the browser with their gallery
-  blocks, and all four are refused an XML template because the NativeScript port has no
-  POPUP SURFACE to put a menu in. Its menus run through a button —
-  `GtkMenuButton.menuModel`, and `GtkDropDown` documents the substitution it makes instead
-  (`packages/nativescript-bridge/adwaita/src/widgets/gtk-drop-down.ts:19-21`): the platform
-  `action()` sheet. That is a defensible phone idiom for a MENU, and it is the wrong answer
-  for the other three: `Gtk.Popover` takes arbitrary content, `Gtk.PopoverMenu` needs the
-  page stack a `GtkStack` would give, and `GtkPopoverMenuBar`'s whole behaviour is
+- **`<gtk-popover-menu>`, `<gtk-popover-menu-bar>` and `<gtk-popover-bin>` on NativeScript.**
+  All three exist on the browser with their gallery blocks, and all three are refused an XML
+  template. `Gtk.Popover` itself is built (`widgets/gtk-popover.ts`): an overlay mounted
+  above the window content the way `AdwDialog` is, placed beside its anchor by
+  `popover-placement.ts` (preferred side, flipped when it does not fit, slid back onto the
+  window), dismissed by a tap outside or by the Back button, and reachable from
+  `Gtk.MenuButton.popover`. What it does not do: the `left`/`right` sides, the arrow
+  (`has-arrow`, `pointing-to`), and a free-standing always-visible card, which is what the
+  gallery block shows — so the `popover` story stays ledgered for this target. Whether
+  Android's touch dispatch stops at the card instead of reaching the dismiss view below it
+  is UNMEASURED and owed to a device run. Still open is `Gtk.PopoverMenu`: its menus run through a
+  button — `GtkMenuButton.menuModel`, and `GtkDropDown` documents the substitution it makes
+  instead (`packages/nativescript-bridge/adwaita/src/widgets/gtk-drop-down.ts:19-21`): the
+  platform `action()` sheet. That is a defensible phone idiom for a MENU; `Gtk.PopoverMenu`
+  needs the page stack a `GtkStack` would give, and `GtkPopoverMenuBar`'s whole behaviour is
   `set_active_item`'s click-opens / hover-selects rule (gtkpopovermenubar.c:126-163), which
-  an action sheet cannot express at all — there is no bar to walk. So what is open is
-  whether a NativeScript popup is a port at all or stays the sheet: a popover is POSITIONED
-  (CSS `position`/`align`, no overflow flip in either renderer), and `@nativescript/core`
-  has no positioned overlay that is not a modal. The dismissal machinery would come free —
-  `PopoverState` and `resolvePopoverKey` are renderer-neutral (ADR 0089) — so the question is
-  the surface, not the behaviour.
+  an action sheet cannot express at all — there is no bar to walk. `PopoverState` and
+  `resolvePopoverKey` are renderer-neutral (ADR 0089), so the question is the surface of
+  the menu variants, not the behaviour.
 - **The scrolling widgets on NativeScript.** `<gtk-scrollbar>`, `<gtk-viewport>` and
   `<gtk-window-handle>` are browser elements with gallery blocks (`Gtk.ScrolledWindow` ships
   there now), and the NativeScript port has none of the three widgets, so their stories are ledgered as not

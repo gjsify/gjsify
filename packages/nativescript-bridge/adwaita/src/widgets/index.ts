@@ -180,6 +180,7 @@ export { GtkLabel } from './gtk-label.js';
 export { labelDisplayText, labelMarkupIsUnparseable } from '@gjsify/adwaita-core';
 export { AdwImageButton, DEFAULT_ICON_BUTTON_ICON_SIZE } from './adw-image-button.js';
 export { GtkMenuButton, MENU_ITEM_ACTIVATED } from './gtk-menu-button.js';
+export { GtkPopover, GTK_POPOVER_CLOSED } from './gtk-popover.js';
 export { GtkPopoverMenu } from './gtk-popover-menu.js';
 export type { MenuItemActivatedEventData } from './gtk-menu-button.js';
 export {
@@ -493,6 +494,7 @@ import { GtkTextView } from './gtk-text-view.js';
 import { GtkLabel } from './gtk-label.js';
 import { AdwImageButton } from './adw-image-button.js';
 import { GtkMenuButton } from './gtk-menu-button.js';
+import { GtkPopover } from './gtk-popover.js';
 import { GtkImage } from './gtk-image.js';
 import { AdwBanner } from './adw-banner.js';
 import { AdwAvatar } from './adw-avatar.js';
@@ -567,6 +569,7 @@ const ELEMENTS = {
     GtkLabel,
     AdwImageButton,
     GtkMenuButton,
+    GtkPopover,
     GtkImage,
     AdwBanner,
     AdwAvatar,
