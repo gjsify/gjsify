@@ -82,9 +82,18 @@ const engine = sdCppImageGeneration({
 });
 ```
 
-`availability()` is `available` when every named file exists and `unavailable` otherwise, never `downloadable`. `create()` throws and names the missing files. `LocalImageModel` takes `modelId` (required), then either `diffusionModel` or `checkpoint` (exactly one; `checkpoint` is an all-in-one file with the text encoders and VAE inside, as most SD 1.x / 2.x / XL checkpoints are), and `vae`, `llm`, `backend`, `flashAttention` (diffusion attention needs far less compute memory, which decides whether a large image fits on a small card), `defaultWidth` / `defaultHeight` (512 when absent) and `footprintBytes`. The memory check runs only when `footprintBytes` is given.
+`availability()` is `available` when every named file exists and `unavailable` otherwise, never `downloadable`. `create()` throws and names the missing files. `LocalImageModel` takes `modelId` (required), then either `diffusionModel` or `checkpoint` (exactly one; `checkpoint` is an all-in-one file with the text encoders and VAE inside, as most SD 1.x / 2.x / XL checkpoints are), and `vae`, `llm`, `backend`, `flashAttention` (diffusion attention needs far less compute memory, which decides whether a large image fits on a small card), `defaultWidth` / `defaultHeight` (512 when absent) and `footprintBytes`. `computeProfile` and `footprintBytes` decide the memory check, see below.
 
 **The GPU guard.** A Vulkan driver can hang a process instead of failing. Before going to the GPU, the engine leaves a pin in `gpuGuardDir` and removes it when the work finishes. A pin left over from a crash keeps the next run on the CPU and reports it through `onGpuPinned`. `gpu: 'on'` removes the pin.
+
+### Memory: the request decides (ADR 0145)
+
+sd.cpp streams the weights from RAM or disk to the GPU; only its compute buffers must sit on the device, and those grow with the image size (with the square of the latent tokens without flash attention, linearly with it). So the engine asks `@gjsify/machine-fit` a split requirement, not one number:
+
+- With `footprintBytes` (a measured working set at the default size) `availability()` checks that number, as before.
+- Without it, `availability()` checks `estimateSdCppRequirement(...)` at the default size, with the files' sizes as streamable, disk-backed weights. `generate()` checks the request's own size and flash attention before sd.cpp starts, and throws a `QuotaExceededError` naming the size (and, with flash attention off, that turning it on shrinks the buffer) instead of "Image generation failed" minutes later. A CPU-only run is judged by RAM alone.
+- `computeProfile` (on `LocalImageModel` and on a catalog entry) is an `SdCppComputeProfile`: base bytes, bytes per latent token, attention bytes per token², pixels per token, and the text encoder and tiled VAE floors. The default, `FLUX2_KLEIN_4B_COMPUTE`, is measured for FLUX.2 Klein 4B (MB = 1024², 8 GB RX 6600, Vulkan) and is a lower bound for larger models: it can miss a warning, never refuse a model that would run.
+- `onLog(level, text)` (any engine option) receives sd.cpp's log lines, where the compute-buffer lines a profile is calibrated from appear. sd.cpp's log callback is process-wide.
 
 ### Bundling for GJS
 

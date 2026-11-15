@@ -30,6 +30,13 @@ export {
     toNativeOptions,
 } from './sdcpp-engine.js';
 export {
+    estimateSdCppRequirement,
+    FLUX2_KLEIN_4B_COMPUTE,
+    SDCPP_DEVICE_RESERVE_BYTES,
+    type SdCppComputeProfile,
+    type SdCppRequirementInput,
+} from './sdcpp-compute.js';
+export {
     addonDir,
     addonPath,
     AddonMissingError,
