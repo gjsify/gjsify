@@ -639,6 +639,10 @@ declare module '@nativescript/core' {
         static setFlexGrow(view: View, grow: number): void;
         /** Per-child: whether an overflowing line may squeeze it (`wrap-policy`). */
         static setFlexShrink(view: View, shrink: number): void;
+        /** Per-child: force a line break before this child (`max-children-per-line`). */
+        static setFlexWrapBefore(view: View, wrap: boolean): void;
+        static getFlexGrow(view: View): number;
+        static getFlexWrapBefore(view: View): boolean;
     }
 
     /** A layout whose children are positioned by absolute left/top — `<AbsoluteLayout>`. */

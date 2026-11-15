@@ -179,7 +179,7 @@ const NOT_ON_THIS_TARGET = {
     'calendar@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-list-box>, <gtk-flow-box> and <gtk-calendar> on NativeScript": @nativescript/core ships no DatePicker and the port installs none, so the story is rendered by the other two targets only.',
     'flow-box@nativescript':
-        'status/open-todos/adwaita-ports.md, "<gtk-list-box>, <gtk-flow-box> and <gtk-calendar> on NativeScript": the port has AdwWrapBox and GtkBox but no cell that can hold a selection, so the story is rendered by the other two targets only.',
+        'status/open-todos/adwaita-ports.md, "<gtk-list-box>, <gtk-flow-box> and <gtk-calendar> on NativeScript": the port has GtkFlowBox now, without selection (no cell holds one), and no XML template for the story yet, so it is rendered by the other two targets only.',
     'list-box@nativescript':
         'packages/nativescript-bridge/adwaita/src/widgets/gtk-list-box.ts: Gtk.ListBox ships with rows and a selection mode, but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'separator@nativescript':

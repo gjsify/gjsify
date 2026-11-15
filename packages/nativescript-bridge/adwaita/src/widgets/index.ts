@@ -90,6 +90,7 @@ export { GtkButton, GTK_BUTTON_CLICKED, GTK_BUTTON_LABEL_CLASS } from './gtk-but
 export { buttonSlotAfterWrite, buttonSlotDetaches } from './button-slot.js';
 export type { ButtonSlot, ButtonSlotWrite } from './button-slot.js';
 export { GtkBox, DEFAULT_BOX_SPACING } from './gtk-box.js';
+export { GtkFlowBox } from './gtk-flow-box.js';
 export { GtkGrid } from './gtk-grid.js';
 export { gridChildAt, gridGap, gridSpacing, gridTrackCounts } from './grid-state.js';
 export type { GridPlacement } from './grid-state.js';
@@ -468,6 +469,7 @@ import { AdwSliderRow } from './adw-slider-row.js';
 import { AdwExpanderRow } from './adw-expander-row.js';
 import { GtkButton } from './gtk-button.js';
 import { GtkBox } from './gtk-box.js';
+import { GtkFlowBox } from './gtk-flow-box.js';
 import { GtkGrid } from './gtk-grid.js';
 import { GtkListBox } from './gtk-list-box.js';
 import { AdwWindow } from './adw-window.js';
@@ -541,6 +543,7 @@ const ELEMENTS = {
     AdwExpanderRow,
     GtkButton,
     GtkBox,
+    GtkFlowBox,
     GtkGrid,
     GtkListBox,
     AdwWindow,

@@ -1070,12 +1070,12 @@ export class WrapLayout extends LayoutBase {
 }
 
 /** Per-child flex hints — same WeakMap reasoning as the grid placement above. */
-const FLEX_CHILD = new WeakMap<object, { grow: number; shrink: number }>();
+const FLEX_CHILD = new WeakMap<object, { grow: number; shrink: number; wrapBefore: boolean }>();
 
 const flexOf = (view: View) => {
     let flex = FLEX_CHILD.get(view);
     if (flex === undefined) {
-        flex = { grow: 0, shrink: 1 };
+        flex = { grow: 0, shrink: 1, wrapBefore: false };
         FLEX_CHILD.set(view, flex);
     }
     return flex;
@@ -1094,6 +1094,18 @@ export class FlexboxLayout extends LayoutBase {
 
     static setFlexShrink(view: View, shrink: number): void {
         flexOf(view).shrink = shrink;
+    }
+
+    static setFlexWrapBefore(view: View, wrap: boolean): void {
+        flexOf(view).wrapBefore = wrap;
+    }
+
+    static getFlexGrow(view: View): number {
+        return flexOf(view).grow;
+    }
+
+    static getFlexWrapBefore(view: View): boolean {
+        return flexOf(view).wrapBefore;
     }
 }
 
