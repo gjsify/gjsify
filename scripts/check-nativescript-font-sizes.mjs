@@ -63,6 +63,7 @@ const RULES = {
     '.adw-slider-title': BODY,
     '.adw-slider-value': BODY,
     '.adw-button-label': BODY,
+    '.adw-progress-bar-text': ['progressbar > text: `font-size: smaller` (_progress-bar.scss:17-21)', SMALLER],
     '.adw-banner-title': ['.heading', 1],
     '.adw-window-title-title': ['headerbar .title (bold, base size)', 1],
     '.adw-window-title-subtitle': ['headerbar .subtitle: smaller (_header-bar.scss)', SMALLER],
