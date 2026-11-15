@@ -123,6 +123,7 @@ export { GtkActionBar } from './gtk-action-bar.js';
 // The pass-through containers: one child, no look of their own. `AdwSingleChildBase` is
 // the base the first four share; the pure halves are free of `@nativescript/core`.
 export { AdwBin } from './adw-bin.js';
+export { AdwBreakpointBin } from './adw-breakpoint-bin.js';
 export { GtkOverlay } from './gtk-overlay.js';
 export { GtkRevealer, NOTIFY_REVEAL_CHILD } from './gtk-revealer.js';
 export { revealerChildVisibility } from './revealer-state.js';
@@ -474,6 +475,7 @@ import { AdwApplicationWindow } from './adw-application-window.js';
 import { AdwDialog } from './adw-dialog.js';
 import { GtkActionBar } from './gtk-action-bar.js';
 import { AdwBin } from './adw-bin.js';
+import { AdwBreakpointBin } from './adw-breakpoint-bin.js';
 import { GtkOverlay } from './gtk-overlay.js';
 import { GtkRevealer } from './gtk-revealer.js';
 import { GtkScrolledWindow } from './gtk-scrolled-window.js';
@@ -546,6 +548,7 @@ const ELEMENTS = {
     AdwDialog,
     GtkActionBar,
     AdwBin,
+    AdwBreakpointBin,
     GtkOverlay,
     GtkRevealer,
     GtkScrolledWindow,

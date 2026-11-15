@@ -560,7 +560,7 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     // template has nothing to name for one, and every child of a multi-layout view is
     // paired with a slot by a method call rather than by a placement.
     'Adw.BreakpointBin':
-        'The port has no breakpoint-bin view, so its breakpoints have nowhere to live: AdwNavigationSplitView carries ONE condition on an attribute and a list of them is not markup (status/open-todos/adwaita-ports.md).',
+        'The view exists (AdwBreakpointBin), but its breakpoints are a list of conditions with setters, which is not markup an XML attribute carries: they arrive with a built tree (status/open-todos/adwaita-ports.md).',
     'Adw.MultiLayoutView':
         'The port has no multi-layout view, and what it would hold is not a view either: a layout is a GObject upstream, and AdwNavigationSplitView is ONE arrangement rather than a set of them.',
     'Adw.LayoutSlot':

@@ -187,11 +187,6 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
-    'breakpoint-bin': {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-        vectors: ['BREAKPOINT_PICK_VECTORS', 'BREAKPOINT_TRANSITION_VECTORS'],
-    },
     'bottom-sheet-bottom-bar': {
         only: 'web',
         decision:

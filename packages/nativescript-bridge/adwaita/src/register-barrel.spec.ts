@@ -63,6 +63,7 @@ export const AdwRegisterBarrelNsTest = async () => {
             const message = refusal(() => registerBarrel('adw', 'NotAdw', {}));
             expect(message.includes('already names `Adw`')).toBe(true);
             expect(elementFor('AdwBin').xmlName).toBe('adw:Bin');
+            expect(elementFor('AdwBreakpointBin').xmlName).toBe('adw:BreakpointBin');
         });
     });
 };

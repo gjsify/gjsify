@@ -45,7 +45,8 @@ import { propertyOf } from '@gjsify/adwaita-core/tags';
 import { View } from '@nativescript/core';
 
 import { capabilities } from '../capabilities.js';
-import { observeWindowSize } from '../widgets/breakpoint.js';
+import { observeViewSize, observeWindowSize } from '../widgets/breakpoint.js';
+import { AdwBreakpointBin } from '../widgets/adw-breakpoint-bin.js';
 import { type GTypeNamed, gtypeNameOf, gtypeNameOfInstance } from '../widgets/gtype-name.js';
 import { declaredBuilderReferences, declaredBuilderSlots } from '../widgets/builder-slots.js';
 import { emittedSignalsOf } from '../widgets/signals.js';
@@ -203,7 +204,8 @@ interface BuildContext {
     binds: PendingBind[];
     /** The nodes that carry `breakpoints`, wired once every id exists (a setter may name a later sibling). */
     breakpointHosts: { view: object; element: Element; node: SharedTreeNode }[];
-    observeSize: SizeSource;
+    /** Undefined unless the caller supplied one; a `breakpoints` host then picks its own (see `wireBreakpoints`). */
+    observeSize: SizeSource | undefined;
     menus: SharedTreeNode['menus'];
     scope: Readonly<Record<string, unknown>> | undefined;
     template: TemplateScope | undefined;
@@ -414,7 +416,7 @@ function buildTree(
         pending: [],
         binds: [],
         breakpointHosts: [],
-        observeSize: options.observeSize ?? observeWindowSize,
+        observeSize: options.observeSize,
         menus: node.menus,
         scope: options.scope,
         template: options.template,
@@ -588,7 +590,7 @@ export function applyBreakpoints(
         host,
         breakpoints,
         new Map(Object.entries(ids)),
-        options.observeSize ?? observeWindowSize,
+        options.observeSize,
         options.translate ?? registeredDefaultTranslate(),
     );
 }
@@ -598,7 +600,7 @@ function wireBreakpoints(
     view: View,
     breakpoints: NonNullable<SharedTreeNode['breakpoints']>,
     ids: ReadonlyMap<string, View>,
-    observeSize: SizeSource,
+    observeSize: SizeSource | undefined,
     translate?: BuildOptions['translate'],
 ): void {
     const definitions = breakpoints.map((breakpoint) => {
@@ -641,7 +643,16 @@ function wireBreakpoints(
             writeGtkProperty(target, propertyOf(property), 'authored' in slot ? slot.authored : slot.original);
         },
     });
-    observeSize(view, (size) => driver.evaluate(size));
+    // An `AdwBreakpointBin` measures itself; any other host answers to its window. A size source
+    // the caller supplied wins for both, which is how a test drives the sizes.
+    const source = observeSize ?? (view instanceof AdwBreakpointBin ? observeViewSize : observeWindowSize);
+    source(view, (size) => {
+        driver.evaluate(size);
+        if (view instanceof AdwBreakpointBin) {
+            const index = driver.current;
+            view._applyBreakpoint(index, index === null ? null : (definitions[index]?.condition ?? null));
+        }
+    });
 }
 
 /**

@@ -65,7 +65,7 @@ export const ADWAITA_NATIVESCRIPT_REFUSALS: Readonly<Record<string, string>> = {
     'Adw.SplitButton': "AdwSplitButton.menuModel takes a Gio.MenuModel object and refuses a string outright (ADR 0128); an XML attribute is a string.",
     'Adw.ToggleGroup': "AdwToggleGroup.options is an array of toggles; an XML attribute is a string.",
     'Adw.Sidebar': "AdwSidebar.items and .sections are arrays of item descriptors; an XML attribute is a string.",
-    'Adw.BreakpointBin': "The port has no breakpoint-bin view, so its breakpoints have nowhere to live: AdwNavigationSplitView carries ONE condition on an attribute and a list of them is not markup (status/open-todos/adwaita-ports.md).",
+    'Adw.BreakpointBin': "The view exists (AdwBreakpointBin), but its breakpoints are a list of conditions with setters, which is not markup an XML attribute carries: they arrive with a built tree (status/open-todos/adwaita-ports.md).",
     'Adw.MultiLayoutView': "The port has no multi-layout view, and what it would hold is not a view either: a layout is a GObject upstream, and AdwNavigationSplitView is ONE arrangement rather than a set of them.",
     'Adw.LayoutSlot': "The port has no layout-slot view, and nothing in it takes a child by ID: AdwNavigationSplitView has named panes, and a hole a layout fills is not one of them.",
     'Adw.TabView': "AdwTabView.views and .tabs are arrays; an XML attribute is a string.",
