@@ -548,7 +548,7 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
         'nothing in it owns a popup, so there is nothing for a second property to attach ' +
         '(status/open-todos/adwaita-ports.md).',
     'Gtk.Popover':
-        'The NativeScript Gtk.Popover exists, but it is an overlay that appears next to an anchor ' +
+        'GtkPopover ships on NativeScript, but it is an overlay that appears next to an anchor ' +
         'inside a window (set_parent + popup); the gallery block is a free-standing, always-visible ' +
         'card, which this port has no state for (status/open-todos/adwaita-ports.md).',
     'Adw.SplitButton':
