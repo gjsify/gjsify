@@ -758,6 +758,7 @@ On-device teapot re-validation confirmed the css-tree fix, but the teapot still 
 The slot backfill (all 80 declarable packages), `@gjsify/native-fs-bridge`, the `@gjsify/crypto` NS entry and the on-device integration suite have landed. Remaining Wellen (each a separate PR/worktree):
 
 - **Welle 5-D — `@gjsify/stream` + `@gjsify/http`-client** (M): client-side over NS' native `fetch()`; server-side (`createServer` etc.) throws ENOTSUP; `runtimes.nativescript: 'partial'`.
+- **NS `fetch()` multipart gaps** (measured on-device, emulator API 36, `specs/https-fetch.ts`): a `FormData` with a `Blob` part arrives as the string `[object Blob]` in `form`, never as a file; a `Uint8Array` body is dropped; a failed TLS handshake rejects with only `TypeError: Network request failed` (the reason is lost). Workaround today: hand-build the multipart body and pass `body.buffer` (an `ArrayBuffer`). Fix at the core: a Blob-aware `FormData`/multipart encoder and `Uint8Array` bodies in the NS fetch layer, then flip the "blob part as file" `info` line in the spec to an assertion.
 - **Welle 5-F — extend `tests/integration/nativescript/`** per pillar as 5-D lands (CI runner may need a privileged container for the NS emulator stack).
 - **Welle 5-G — `gjsify create-app --template nativescript-*`** (M): mobile-app scaffold templates. Adwaita-feel-on-mobile is an open design question — could use NS' native UI with gjsify polyfills providing the data layer.
 

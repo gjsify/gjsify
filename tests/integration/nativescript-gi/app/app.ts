@@ -38,6 +38,7 @@ import { rowsSpec } from './specs/rows.js';
 import benchSpec from './specs/bench.js';
 import inversionSpec from './specs/inversion.js';
 import foreignParentSpec from './specs/foreign-parent.js';
+import httpsFetchSpec from './specs/https-fetch.js';
 
 /**
  * The engine THIS leg claims to run on, derived from the opt-in define alone — the two legs are
@@ -82,6 +83,8 @@ async function runSuite(): Promise<void> {
             if (optedIn) await loaderProbe();
             await engineSpec(engine)();
             await gobjectVectors();
+            // Spike S3: the platform's own `fetch`, engine-independent (`@gjsify/fetch` is `none` here).
+            await httpsFetchSpec();
             if (optedIn) await listStoreVectors();
             // Settings before any other Gio.Settings or Gtk use: GIO fixes its schema source once.
             if (optedIn) await settingsVectors();
