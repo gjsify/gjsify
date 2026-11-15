@@ -48,6 +48,20 @@ The check uses FREE GPU memory: a model another server already holds (Ollama, LM
 
 `checkFit` answers `gpu`, `gpu+cpu` (split onto RAM, dedicated GPUs only), `cpu`, `unknown` or `none`. Speed is not its business: that is what `probeBackends` measures.
 
+### Device memory and streamable memory
+
+Some engines keep the weights in RAM and stream them to the GPU in blocks (stable-diffusion.cpp, llama.cpp with partial offload); only the compute buffers must sit on the device. For those, pass a `FitRequirement` instead of a number (ADR 0145):
+
+```typescript
+checkFit({ deviceBytes: 1.2e9, streamableBytes: 12.7e9, diskBacked: true }, readMachineMemory());
+```
+
+- `deviceBytes` must sit on the device that computes (compute buffers, activations).
+- `streamableBytes` may live in RAM and move to the device as needed (the weights).
+- `diskBacked: true`: the engine maps the weights from disk when RAM is short, so RAM is not a limit for them.
+
+`gpu`: one GPU holds both parts. `gpu+cpu`: a dedicated GPU holds `deviceBytes`, RAM (or disk) the rest. `cpu`: RAM holds the device part and the rest. `FitResult.requiredBytes` is the sum. A plain number means what it always meant.
+
 ## The probe and its guards
 
 - `probeBackends(candidates, budgetMs, options)` runs the candidates in order and returns the first that finishes within the budget. An explicit `setting` wins without measuring; on battery it returns `on-battery` without running anything.

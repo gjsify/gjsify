@@ -175,4 +175,58 @@ export default async () => {
             expect(checkFit(40 * GIB, machine(8 * GIB, [intel])).placement).toBe('none');
         });
     });
+
+    await describe('checkFit with a split requirement', async () => {
+        const amd = (total: number, used: number) =>
+            ({ vendor: 'amd', totalBytes: total, usedBytes: used, unified: false, source: 'sysfs' }) as const;
+        // 8 GiB card, 2 GiB held elsewhere: 6 GiB free.
+        const card6 = amd(8 * GIB, 2 * GIB);
+        const need = { deviceBytes: 1 * GIB, streamableBytes: 12 * GIB };
+
+        await it('is gpu when one GPU holds both parts', async () => {
+            const fit = checkFit({ deviceBytes: 1 * GIB, streamableBytes: 4 * GIB }, machine(2 * GIB, [card6]));
+            expect(fit).toStrictEqual({ placement: 'gpu', requiredBytes: 5 * GIB, gpu: 0 });
+        });
+        await it('is gpu+cpu when the device part fits the card and RAM holds the weights', async () => {
+            const fit = checkFit(need, machine(16 * GIB, [card6]));
+            expect(fit).toStrictEqual({ placement: 'gpu+cpu', requiredBytes: 13 * GIB, gpu: 0 });
+        });
+        await it('is cpu when only RAM holds the device part and the weights', async () => {
+            expect(checkFit(need, machine(16 * GIB, [])).placement).toBe('cpu');
+            expect(checkFit({ deviceBytes: 8 * GIB, streamableBytes: 4 * GIB }, machine(16 * GIB, [card6])).placement).toBe(
+                'cpu',
+            );
+        });
+        await it('is none when every pool is known and too small', async () => {
+            expect(checkFit(need, machine(8 * GIB, [card6])).placement).toBe('none');
+            expect(checkFit({ deviceBytes: 7 * GIB }, machine(4 * GIB, [card6])).placement).toBe('none');
+        });
+        await it('is unknown when a GPU cannot be read', async () => {
+            const unknown = { vendor: 'nvidia', unified: false, source: 'none' } as const;
+            expect(checkFit({ deviceBytes: 2 * GIB, streamableBytes: 40 * GIB }, machine(8 * GIB, [unknown])).placement).toBe(
+                'unknown',
+            );
+        });
+        await it('makes RAM irrelevant for weights the engine maps from disk', async () => {
+            const diskBacked = { ...need, diskBacked: true };
+            expect(checkFit(diskBacked, machine(2 * GIB, [card6])).placement).toBe('gpu+cpu');
+            expect(checkFit(diskBacked, machine(2 * GIB, [])).placement).toBe('cpu');
+            expect(checkFit(diskBacked, machine(512 * MIB, [])).placement).toBe('none');
+        });
+        await it('never splits onto unified memory', async () => {
+            const apple = { vendor: 'apple', totalBytes: 12 * GIB, unified: true, source: 'sysctl' } as const;
+            // 14 GiB needed, 12 GiB wired: no gpu+cpu, RAM alone decides.
+            expect(checkFit({ deviceBytes: 2 * GIB, streamableBytes: 12 * GIB }, machine(16 * GIB, [apple])).placement).toBe(
+                'cpu',
+            );
+            expect(checkFit({ deviceBytes: 2 * GIB, streamableBytes: 12 * GIB }, machine(10 * GIB, [apple])).placement).toBe(
+                'none',
+            );
+        });
+        await it('treats a missing streamable part as zero', async () => {
+            expect(checkFit({ deviceBytes: 4 * GIB }, machine(1 * GIB, [card6]))).toStrictEqual(
+                checkFit(4 * GIB, machine(1 * GIB, [card6])),
+            );
+        });
+    });
 };

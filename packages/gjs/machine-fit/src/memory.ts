@@ -211,12 +211,48 @@ function freeGpuBytes(gpu: GpuMemory, ramAvailableBytes: number): number | undef
     return gpu.unified ? Math.min(free, ramAvailableBytes) : free;
 }
 
-export function checkFit(requiredBytes: number, memory: MachineMemory): FitResult {
+/**
+ * What an engine needs when its memory is not one lump (ADR 0145). Weights that the engine
+ * streams to the device in blocks are not the same kind of need as the compute buffers that must
+ * sit on the device that computes.
+ */
+export interface FitRequirement {
+    /** Must sit on the device that computes: compute buffers, activations, KV cache kept there. */
+    readonly deviceBytes: number;
+    /** May live in RAM and be moved to the device as needed: the weights. Default 0. */
+    readonly streamableBytes?: number;
+    /** The engine maps the streamable part from disk when RAM is short, so RAM is no hard limit for it. */
+    readonly diskBacked?: boolean;
+}
+
+/**
+ * A number is a whole working set, as before. A {@link FitRequirement} splits it:
+ * `gpu` when one GPU holds both parts, `gpu+cpu` when a dedicated GPU holds `deviceBytes` and RAM
+ * (or disk) the rest, `cpu` when RAM holds the device part and the rest.
+ */
+export function checkFit(required: number | FitRequirement, memory: MachineMemory): FitResult {
     const ram = memory.ramAvailableBytes;
     const free = memory.gpus.map((gpu) => freeGpuBytes(gpu, ram));
     const best = (fits: (bytes: number, index: number) => boolean) =>
         free.findIndex((bytes, index) => bytes !== undefined && fits(bytes, index));
 
+    if (typeof required !== 'number') {
+        const device = required.deviceBytes;
+        const streamable = required.streamableBytes ?? 0;
+        const requiredBytes = device + streamable;
+        const whole = best((bytes) => bytes >= requiredBytes);
+        if (whole >= 0) return { placement: 'gpu', requiredBytes, gpu: whole };
+        const split = best(
+            (bytes, index) =>
+                !memory.gpus[index].unified && bytes >= device && (required.diskBacked === true || ram >= streamable),
+        );
+        if (split >= 0) return { placement: 'gpu+cpu', requiredBytes, gpu: split };
+        if (ram >= device + (required.diskBacked ? 0 : streamable)) return { placement: 'cpu', requiredBytes };
+        if (free.some((bytes) => bytes === undefined)) return { placement: 'unknown', requiredBytes };
+        return { placement: 'none', requiredBytes };
+    }
+
+    const requiredBytes = required;
     const whole = best((bytes) => bytes >= requiredBytes);
     if (whole >= 0) return { placement: 'gpu', requiredBytes, gpu: whole };
     // Splitting a model onto RAM only adds memory for a GPU that has its own.
