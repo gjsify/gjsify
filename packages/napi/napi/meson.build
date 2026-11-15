@@ -13,7 +13,7 @@ project('GjsifyNapi', ['c', 'cpp', 'vala'],
     version: '1.0',
     # Match GJS's own build (refs/gjs/meson.build): C++17, no RTTI, no
     # exceptions — mozjs-140 has no stable C++ ABI and is built the same way.
-    default_options: ['cpp_std=c++17', 'buildtype=plain'])
+    default_options: ['cpp_std=c++17', 'buildtype=plain', 'b_lundef=false'])
 
 host_system = host_machine.system()
 
@@ -48,10 +48,16 @@ endforeach
 # rpath) no longer holds the dylib and the load died with "Library not loaded:
 # @rpath/libmozjs-140.dylib" (v0.64.13 release). Resolving against the host
 # process needs no path at all and cannot drift with the formula layout.
+# ELF hosts too: a direct link records the DISTRO's mozjs SONAME in DT_NEEDED —
+# `libmozjs-140.so.0` on Fedora, `libmozjs-140.so` on Alpine/postmarketOS — so a
+# prebuild linked on one fails to load on the other ("Error loading shared
+# library libmozjs-140.so.0 ... needed by libgjsifynapi.so", OnePlus 6T). libgjs
+# is always loaded and NEEDs the host's own mozjs, so the JSAPI symbols resolve
+# through the global lookup scope; shared objects may leave symbols undefined
+# (no -z defs). .github/prebuild-toolchain/musl-build.sh asserts DT_NEEDED stays
+# free of libmozjs.
 mozjs = dependency('mozjs-140')
-dependencies += host_system == 'darwin' \
-    ? mozjs.partial_dependency(compile_args: true, includes: true) \
-    : mozjs
+dependencies += mozjs.partial_dependency(compile_args: true, includes: true)
 
 host_provided_link_args = host_system == 'darwin' ? ['-Wl,-undefined,dynamic_lookup'] : []
 

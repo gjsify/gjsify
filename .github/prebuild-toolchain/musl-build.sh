@@ -163,6 +163,7 @@ BRIDGES="$(mktemp)"
 cat > "$BRIDGES" <<'EOF'
 packages/node/sab-native|GjsifySabNative|SharedBuffer
 packages/infra/lightningcss-native|GjsifyLightningcss|Engine
+packages/napi/napi|GjsifyNapi|is_available
 EOF
 trap 'rm -f "$BRIDGES"' EXIT
 
@@ -188,7 +189,7 @@ apk add --no-cache \
     meson ninja-build gcc build-base pkgconf file binutils linux-headers \
     vala glib-dev gobject-introspection-dev \
     cargo rust musl-dev \
-    gjs nodejs git
+    gjs gjs-dev mozjs-dev nodejs git
 cat /etc/alpine-release
 valac --version
 meson --version
@@ -297,6 +298,25 @@ while IFS='|' read -r dir ns class; do
         rc=1
     fi
 done < "$BRIDGES"
+[ "$rc" -eq 0 ] || exit $rc
+
+# ── no prebuild may name the distro's mozjs SONAME ─────────────────────────
+# `libgjsifynapi.so` once recorded `libmozjs-140.so.0` (Fedora's SONAME) in
+# DT_NEEDED; Alpine/postmarketOS ship `libmozjs-140.so`, so the typelib failed to
+# load there ("Error loading shared library libmozjs-140.so.0 ... needed by
+# libgjsifynapi.so", OnePlus 6T). The shim resolves JSAPI through libgjs, which
+# is always loaded in a gjs process. Checked on the staged file itself so it
+# fails even when the host happens to ship the same SONAME.
+echo "--- asserting no staged library has libmozjs in DT_NEEDED"
+rc=0
+for so in "$WORKSPACE"/packages/*/*/prebuilds/"${PREBUILD}"/*.so; do
+    [ -e "$so" ] || continue
+    if readelf -d "$so" | grep NEEDED | grep -q 'libmozjs'; then
+        echo "::error file=$so::DT_NEEDED names libmozjs — the SONAME differs per distro (.so.0 Fedora, .so Alpine); resolve through libgjs instead"
+        readelf -d "$so" | grep NEEDED
+        rc=1
+    fi
+done
 [ "$rc" -eq 0 ] || exit $rc
 
 # ── load-test every prebuild under Alpine gjs ──────────────────────────────
