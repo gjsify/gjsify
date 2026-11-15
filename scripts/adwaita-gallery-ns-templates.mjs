@@ -749,7 +749,7 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     // show is `AdwToastOverlay` — which IS a View and IS in the ELEMENTS map, so
     // "not a View" was a true sentence about the wrong object.
     'Adw.Toast':
-        'AdwToastOverlay takes no XML child (it overrides no _addChildFromBuilder) and a toast is raised by calling add_toast(new Adw.Toast(...)), which is not markup.',
+        'AdwToastOverlay holds exactly one XML child (the content it overlays), but the block is titled Adw.Toast and a toast is raised by calling add_toast(new Adw.Toast(...)), which is not markup: there is no toast child to put in a template.',
     'Adw.AlertDialog': 'AdwAlertDialog extends Observable, not View: it has no place in a view tree.',
     // --- the GTK dialogs: the port has no such widget, and the members below are the ones a
     // port of each would have to reach for ---
