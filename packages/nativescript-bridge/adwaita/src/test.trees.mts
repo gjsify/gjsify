@@ -50,6 +50,9 @@ import { GtkLabelMarkupNsTest } from './label-markup.spec.js';
 import { GtkListBoxNsTest } from './gtk-list-box.spec.js';
 import { GtkControlsNsTest } from './gtk-controls.spec.js';
 import { GtkStackNsTest } from './gtk-stack.spec.js';
+import { GtkLinkButtonNsTest } from './gtk-link-button.spec.js';
+import { GtkProgressBarNsTest } from './gtk-progress-bar.spec.js';
+import { GtkSearchEntryNsTest } from './gtk-search-entry.spec.js';
 import { GtkToggleButtonNsTest } from './gtk-toggle-button.spec.js';
 import { GtkWindowMembersNsTest } from './window-members.spec.js';
 import { GtkWidgetTreeNsTest } from './widget-tree.spec.js';
@@ -131,6 +134,9 @@ run({
     GtkDropDownPropertiesNsTest,
     GtkCheckButtonPropertiesNsTest,
     GtkEntryPropertiesNsTest,
+    GtkLinkButtonNsTest,
+    GtkProgressBarNsTest,
+    GtkSearchEntryNsTest,
     GtkToggleButtonNsTest,
     GtkWidgetTreeNsTest,
     GtkButtonActionsNsTest,

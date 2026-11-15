@@ -329,6 +329,14 @@ export class GtkEntry extends withSignals(GridLayout, {
         return this.text;
     }
 
+    /**
+     * `gtk_widget_grab_focus` — put the keyboard on the field. GTK answers whether the widget
+     * took the focus; the platform's `focus()` answers the same.
+     */
+    grab_focus(): boolean {
+        return this._field.focus();
+    }
+
     /** `gtk_editable_set_text`. */
     set_text(text: string): void {
         this.text = text;

@@ -143,11 +143,11 @@ const NOT_ON_THIS_TARGET = {
     'video@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-video> on NativeScript": the platform Video covers the frames and not the overlay icon or the self-hiding controls bar, and whether those belong on a touch target is the open question, so the story is rendered by the other two targets only.',
     'progress-bar@nativescript':
-        'status/open-todos/adwaita-ports.md, "<gtk-progress-bar> on NativeScript": @nativescript/core ships a determinate Progress, but no Adwaita expression for it, so the story is rendered by the other two targets only.',
+        'status/open-todos/adwaita-ports.md, "<gtk-progress-bar> on NativeScript": Gtk.ProgressBar ships (widgets/gtk-progress-bar.ts), but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'scale@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-scale>, <gtk-spin-button>, <gtk-password-entry> and <gtk-search-entry> on NativeScript": the port has no Gtk.Scale widget yet, so the story is rendered by the other two targets only.',
     'search-entry@nativescript':
-        'status/open-todos/adwaita-ports.md, "<gtk-scale>, <gtk-spin-button>, <gtk-password-entry> and <gtk-search-entry> on NativeScript": the port has no Gtk.SearchEntry widget yet, so the story is rendered by the other two targets only.',
+        'status/open-todos/adwaita-ports.md, "<gtk-scale>, <gtk-spin-button>, <gtk-password-entry> and <gtk-search-entry> on NativeScript": Gtk.SearchEntry ships (widgets/gtk-search-entry.ts), but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'spin-button@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-scale>, <gtk-spin-button>, <gtk-password-entry> and <gtk-search-entry> on NativeScript": the port has no Gtk.SpinButton widget yet, so the story is rendered by the other two targets only.',
     'column-view@nativescript':
@@ -205,7 +205,7 @@ const NOT_ON_THIS_TARGET = {
     'toggle-button@nativescript':
         'packages/nativescript-bridge/adwaita/src/widgets/gtk-toggle-button.ts: Gtk.ToggleButton ships, with `group`, but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'link-button@nativescript':
-        'status/open-todos/adwaita-ports.md, "<gtk-link-button>, <gtk-scale-button>, <gtk-color-dialog-button> and <gtk-font-dialog-button> on NativeScript": the port has no Gtk.LinkButton widget yet, so the story is rendered by the other two targets only.',
+        'status/open-todos/adwaita-ports.md, "<gtk-link-button>, <gtk-scale-button>, <gtk-color-dialog-button> and <gtk-font-dialog-button> on NativeScript": Gtk.LinkButton ships (widgets/gtk-link-button.ts), but the NativeScript storybook registers no story for it yet, so the story is rendered by the other two targets only.',
     'scale-button@nativescript':
         'status/open-todos/adwaita-ports.md, "<gtk-link-button>, <gtk-scale-button>, <gtk-color-dialog-button> and <gtk-font-dialog-button> on NativeScript": the port has no Gtk.ScaleButton widget yet, so the story is rendered by the other two targets only.',
     'color-dialog-button@nativescript':

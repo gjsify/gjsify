@@ -168,6 +168,10 @@ const KNOWN_GAPS = {
         gaps: ['cascadePopdown', 'hasArrow', 'mnemonicsVisible'],
         why: 'The card is placed beside its anchor with no arrow (`pointing-to` is not accepted either), so `has-arrow` has nothing to switch; `cascade-popdown` closes a chain of submenu popovers and `mnemonics-visible` underlines accelerator letters, and this surface has neither a keyboard nor nested popovers.',
     },
+    'gtk-progress-bar': {
+        gaps: ['ellipsize'],
+        why: "The text row is a NativeScript Label that already truncates at the end; Pango's ellipsize mode on a progress text has nothing to choose between (gtk-progress-bar.ts). The bar is horizontal only, and `orientation` is left out with it.",
+    },
     'gtk-popover-menu': {
         gaps: ['visibleSubmenu'],
         why: 'A PopupMenu opens its submenus itself and reports no page, so there is nothing to read or write: Android owns the navigation (ADR 0097 § 2).',
@@ -379,6 +383,10 @@ const KNOWN_GAPS = {
             'visibility',
         ],
         why: 'The port is "the bare input" (gtk-entry.ts:8-10) — a `TextField` in a `GridLayout` with four properties. Three whole families of `Gtk.Entry` are absent: the two ICON packs (activatable, name, sensitive and two tooltip spellings each), the PROGRESS bar drawn inside the entry, and the INPUT-METHOD group (`im-module`, hints, purpose, emoji, overwrite, the invisible-char pair) that a NativeScript `TextField` spells with `keyboardType`/`secure`/`autocorrect` instead. `visibility` is the sharpest of them: `Gtk.Entry:visibility` is password masking, and the port already answers to `visibility` from NativeScript `View` meaning show-or-hide — the same name for two controls, which is why it is listed rather than mapped. `<gtk-entry>` declares 28 names on the web surface, this one 26; the two the web still lists are `max-length` and `placeholder-text`, which converged here.',
+    },
+    'gtk-search-entry': {
+        gaps: ['activatesDefault', 'inputHints', 'inputPurpose'],
+        why: "The three are `GtkEntry`'s own and the search field inherits the same ledger as its base (see 'gtk-entry' above): a default widget is a toplevel concept, and the input-method hints are what a NativeScript `TextField` spells with `keyboardType` instead (gtk-search-entry.ts).",
     },
     'gtk-image': {
         gaps: ['file', 'resource', 'useFallback'],

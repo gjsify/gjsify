@@ -35,6 +35,8 @@
         "adw-toast-overlay": "The overlay host. In libadwaita the paint is entirely on the `toast` node — background, 150px radius, padding, margins (_misc.scss:38-70) — which is `.adw-toast` here; `toastoverlay` has no rule of its own, being a bare container over the content.",
         "adw-toast-overlay-content": "A marker stamped on the consumer's content layer so an app can reach it. The overlay only assigns it the grid cell under the toast strip.",
         "adw-wrap-box": "A layout, not a surface — AdwWrapBox is a layout with no dedicated scss, and libadwaita indeed ships none. Direction, wrapping, justification and the child/line spacing are all properties, applied to the FlexboxLayout and its children by `_applyLayout` / `_applyChildren`.",
-        "keycap": "Scoped on purpose, and the one unprefixed name this port keeps verbatim from libadwaita: `.adw-shortcut-label .keycap` is the only rule, and `SHORTCUT_LABEL_KEYCAP_CLASS` is set nowhere but inside `AdwShortcutLabel`'s own cap boxes. A cap outside a shortcut label has no meaning to be styled — and renaming this constant is the incident the whole gate was written for."
+        "keycap": "Scoped on purpose, and the one unprefixed name this port keeps verbatim from libadwaita: `.adw-shortcut-label .keycap` is the only rule, and `SHORTCUT_LABEL_KEYCAP_CLASS` is set nowhere but inside `AdwShortcutLabel`'s own cap boxes. A cap outside a shortcut label has no meaning to be styled — and renaming this constant is the incident the whole gate was written for.",
+        "adw-search-entry": "styling hook with no look of its own: the entry carries `adw-entry` (the field, border and focus ring), and `search` is the GTK class name; the class lets an app select a search entry.",
+        "adw-search-entry-clear": "styling hook on an AdwImageButton that already carries the `adw-image-button` look; the widget toggles `visibility` imperatively, so no rule is needed."
     }
 }

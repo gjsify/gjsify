@@ -72,6 +72,8 @@ export interface AccentRule {
  */
 export const ADWAITA_NS_ACCENT_RULES: ReadonlyArray<AccentRule> = [
     { selector: '.adw-switch', property: 'background-color', role: 'fill' },
+    { selector: '.adw-progress-bar-progress', property: 'background-color', role: 'fill' },
+    { selector: '.adw-button.link .adw-button-label', property: 'color', role: 'shade' },
     { selector: '.adw-slider', property: 'color', role: 'fill' },
     { selector: '.adw-button.suggested-action', property: 'background-color', role: 'fill' },
     { selector: '.adw-button.suggested-action:highlighted', property: 'background-color', role: 'shade' },
@@ -112,6 +114,7 @@ export const ADWAITA_NS_ACCENT_RULES: ReadonlyArray<AccentRule> = [
         role: 'standalone-dark',
     },
     { selector: '.ns-dark .adw-carousel-dot.active', property: 'color', role: 'standalone-dark' },
+    { selector: '.ns-dark .adw-button.link .adw-button-label', property: 'color', role: 'standalone-dark' },
 ];
 
 /**

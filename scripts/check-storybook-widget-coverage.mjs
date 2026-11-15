@@ -223,10 +223,6 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
-    'link-button': {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
     'scale-button': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
@@ -322,10 +318,6 @@ const ONE_RENDERER_ONLY = {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
-    'progress-bar': {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
     radio: {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
@@ -370,10 +362,6 @@ const ONE_RENDERER_ONLY = {
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },
     'search-bar': {
-        only: 'web',
-        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
-    },
-    'search-entry': {
         only: 'web',
         gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
     },

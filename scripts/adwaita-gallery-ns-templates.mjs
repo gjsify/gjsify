@@ -579,7 +579,7 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     'Gtk.PasswordEntry':
         'The NativeScript port has no password entry yet: GtkEntry is the plain field and AdwPasswordEntryRow is its boxed-list row, and neither is the widget Gtk.PasswordEntry is (status/open-todos/adwaita-ports.md).',
     'Gtk.SearchEntry':
-        'The NativeScript port has no search entry yet: GtkEntry has no leading search icon, no clear button and no search-changed signal to hang them on (status/open-todos/adwaita-ports.md).',
+        'GtkSearchEntry ships on NativeScript (src/widgets/gtk-search-entry.ts), but this block has no XML template for it yet (status/open-todos/adwaita-ports.md).',
     'Gtk.ListView':
         'The NativeScript port has no list view: GtkBox.addChild appends every child eagerly, and the ' +
         'per-item factory that would replace it has no counterpart there yet (status/open-todos/adwaita-ports.md).',
@@ -668,7 +668,7 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     'Gtk.Switch':
         'The NativeScript port composes the platform Switch inside AdwSwitchRow and has no standalone one; a NativeScript Switch is one boolean, while the GTK widget also carries the backend half behind a state-set signal (status/open-todos/adwaita-ports.md).',
     'Gtk.ProgressBar':
-        "The NativeScript port has no progress widget: the nearest thing it builds is AdwSpinRow, which is a titled row with a stepper and not a bar, and the theme's CSS subset has no trough to nest anything in (status/open-todos/adwaita-ports.md).",
+        'GtkProgressBar ships on NativeScript (src/widgets/gtk-progress-bar.ts), but this block has no XML template for it yet (status/open-todos/adwaita-ports.md).',
     'Gtk.LevelBar':
         'The NativeScript port has no segmented-bar view: AdwSpinner is the only indicator it has and it takes no value, and GtkBox offers no run of equal children to divide into segments (status/open-todos/adwaita-ports.md).',
     'Gtk.Spinner':
@@ -676,7 +676,7 @@ export const ADWAITA_GALLERY_NS_REFUSALS = {
     // Four more the port has no view for, each with the NEIGHBOUR class the reason names —
     // `GtkButton` and `GtkBox` ship, so the sentences stay checkable against real members.
     'Gtk.LinkButton':
-        'The port has no link button: GtkButton takes a label and an iconName and nothing that follows a uri, so neither the destination nor the visited state it draws has anywhere to live (status/open-todos/adwaita-ports.md).',
+        'GtkLinkButton ships on NativeScript (src/widgets/gtk-link-button.ts), but this block has no XML template for it yet (status/open-todos/adwaita-ports.md).',
     'Gtk.ScaleButton':
         'The port has no scale button: GtkButton.child takes one view, and the value a scale button draws on its icon has no slider behind it (status/open-todos/adwaita-ports.md).',
     'Gtk.ColorDialogButton':

@@ -315,19 +315,14 @@ exactly why they must not be written as decisions.
   missing is the second boolean — `GtkSwitch:state`, the half that makes a slow backend
   look pending (`refs/gtk/gtk/gtkswitch.c:39-43, :637-654`) has nowhere to go in a
   one-boolean `Switch`.
-- **`<gtk-progress-bar>` on NativeScript.** libadwaita styles the GtkProgressBar node in
-  `stylesheet/widgets/_progress-bar.scss` and the browser ships the element; the
-  NativeScript port has no progress widget. The PLATFORM half is not what is missing:
-  `@nativescript/core` ships a determinate `Progress` (`value`/`maxValue`, `ui/progress`),
-  exported from the same package root this port already takes `Switch`, `Slider` and
-  `ActivityIndicator` from — unlike the checkbox above, this is not a platform survey.
-  What is open is the Adwaita EXPRESSION: `progressbar > trough > progress` has no
-  equivalent in the NativeScript CSS subset this theme is confined to, and `.osd`, the
-  text label and the fraction have no counterpart at all. So the question is what a
-  determinate Adwaita progress bar should even look like there, not whether one is
-  buildable. Its story is therefore ledgered as not rendered there
-  (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and its XML
-  template refused.
+- **`<gtk-progress-bar>` story and XML template on NativeScript.** `GtkProgressBar` is a
+  NativeScript view now (`widgets/gtk-progress-bar.ts`): a trough `GridLayout` whose
+  columns split `fraction*` from the rest, so the fill needs no measuring; `fraction`,
+  `pulse-step`, `inverted`, `show-text`, `text` and `pulse()`. It is horizontal only
+  (`orientation` and `ellipsize` are left out) and the pulse block jumps one step per
+  `pulse()` call without an animation between two calls. Its story is ledgered as not
+  rendered there (`NOT_ON_THIS_TARGET` in `scripts/check-storybook-story-parity.mjs`) and
+  its XML template refused until one exists.
 - **`<gtk-stack-switcher>`, `<gtk-stack-sidebar>` and `<gtk-notebook>` on NativeScript.**
   `Gtk.Stack` and `Gtk.StackPage` ship there now (a layout that shows one child at a time,
   built for Learn6502's shared templates), so the stack itself is no longer open. The three
@@ -442,9 +437,13 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   expander's disclosure is the one shape the port is missing where libadwaita's own is
   `AdwExpanderRow`, which it already has. So the open question is the EXPRESSION of each,
   not whether a view can be built.
-- **`<gtk-scale>`, `<gtk-spin-button>`, `<gtk-password-entry>` and
-  `<gtk-search-entry>` on NativeScript.** Four browser elements and four gallery blocks;
-  the NativeScript port has none of the widgets, so all four stories are ledgered as not
+- **`<gtk-scale>`, `<gtk-spin-button>` and `<gtk-password-entry>` on NativeScript, and the
+  `<gtk-search-entry>` story.** `GtkSearchEntry` is a NativeScript view now
+  (`widgets/gtk-search-entry.ts`, a `GtkEntry` with a leading search icon, a clear button
+  and the delayed `search-changed`); `stop-search`, `next-match`, `previous-match`,
+  `search-started` and `key-capture-widget` are keyboard shortcuts and are not emitted. Its
+  story and XML template are ledgered as not there yet. The other three browser elements and
+  gallery blocks have no NativeScript widget, so their stories are ledgered as not
   rendered there and their XML templates refused. The HEADLESS half is already shared:
   `SpinState` in `@gjsify/adwaita-core` is the `Gtk.Adjustment` all of them take, so what
   is missing is the VIEW each is built from, and each one names a neighbour that is not
@@ -489,17 +488,18 @@ state. The other four are CONTAINERS: `GtkBox` places each child into a slot it 
   over, once per column.
 - **`<gtk-link-button>`, `<gtk-scale-button>`, `<gtk-color-dialog-button>` and
   `<gtk-font-dialog-button>` on NativeScript.** All four browser elements and their gallery
-  blocks exist; the NativeScript port has none of the four, so the four stories are
+  blocks exist. `GtkLinkButton` is now a NativeScript view (`widgets/gtk-link-button.ts`):
+  `uri`, `visited`, the `activate-link` handled accumulator, and the launch through the
+  host's `launch_default_for_uri`; it still lacks a NativeScript story and an XML template
+  for its gallery block. The other three have no NativeScript widget, so their stories are
   ledgered as not rendered there and their XML templates refused. Each is a different
-  reason rather than four versions of one. A link button is `GtkButton` plus a URI and a
-  visited state, and `Button` has no `visited` either — but NativeScript could launch the
-  URI through `Utils.openUrl`, which no browser port needs to do by hand. A scale button
-  is `GtkButton` plus a popover holding a `Slider`: the parts are all in `@nativescript/core`
-  (`Button`, `Slider`), and what is missing is the composition and the icon that follows
-  the value. A colour dialog button and a font dialog button both need a CHOOSER the
-  platform does not export: the browser substitutes `<input type="color">` and a family
-  list, and there is no `@nativescript/core` view for either, so the open question there is
-  whether a colour or font picker belongs on a touch target at all.
+  reason rather than three versions of one. A scale button is `GtkButton` plus a popover
+  holding a `Slider`: the parts are all in `@nativescript/core` (`Button`, `Slider`), and
+  what is missing is the composition and the icon that follows the value. A colour dialog
+  button and a font dialog button both need a CHOOSER the platform does not export: the
+  browser substitutes `<input type="color">` and a family list, and there is no
+  `@nativescript/core` view for either, so the open question there is whether a colour or
+  font picker belongs on a touch target at all.
 - **`<adw-multi-layout-view>` and `<adw-layout-slot>` on NativeScript, and the
   `<adw-breakpoint-bin>` story.** All three browser elements, their stories and their
   gallery blocks exist, and the headless half is done — `BreakpointBinState` plus the two

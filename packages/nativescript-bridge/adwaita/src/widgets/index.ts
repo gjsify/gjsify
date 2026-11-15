@@ -175,6 +175,9 @@ export type { GtkWrapModeNick } from './gtk-text-view.js';
 export { boxChildTrack, boxSpacingChanges, boxTrackPlan, normalizeBoxSpacing } from './box-layout.js';
 export type { BoxOrientation } from './box-layout.js';
 export { GtkLabel } from './gtk-label.js';
+export { GtkProgressBar } from './gtk-progress-bar.js';
+export { GtkSearchEntry, SEARCH_CHANGED as SEARCH_ENTRY_SEARCH_CHANGED } from './gtk-search-entry.js';
+export { GtkLinkButton, GTK_LINK_BUTTON_ACTIVATE_LINK, GTK_LINK_BUTTON_VISITED_CLASS } from './gtk-link-button.js';
 // The text reduction is headless (`@gjsify/adwaita-core`, ADR 0004) — the web label draws
 // through the same one — re-exported here for consumers.
 export { labelDisplayText, labelMarkupIsUnparseable } from '@gjsify/adwaita-core';
@@ -492,6 +495,9 @@ import { GtkFrame } from './gtk-frame.js';
 import { GtkSeparator } from './gtk-separator.js';
 import { GtkTextView } from './gtk-text-view.js';
 import { GtkLabel } from './gtk-label.js';
+import { GtkProgressBar } from './gtk-progress-bar.js';
+import { GtkSearchEntry } from './gtk-search-entry.js';
+import { GtkLinkButton } from './gtk-link-button.js';
 import { AdwImageButton } from './adw-image-button.js';
 import { GtkMenuButton } from './gtk-menu-button.js';
 import { GtkPopover } from './gtk-popover.js';
@@ -567,6 +573,9 @@ const ELEMENTS = {
     GtkSeparator,
     GtkTextView,
     GtkLabel,
+    GtkLinkButton,
+    GtkProgressBar,
+    GtkSearchEntry,
     AdwImageButton,
     GtkMenuButton,
     GtkPopover,

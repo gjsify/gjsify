@@ -393,6 +393,19 @@ Page.adw-window {
  * `$button_color`, i.e. currentColor at 10% (_entries.scss:9 with
  * _buttons.scss:1), the same fill `.adw-button` carries, at `$button_radius`
  * 9px (_common.scss:8). */
+/* `entry.search` shows the magnifying glass at 70% foreground and, once there is text, the
+ * clear button; both sit inside the one filled box the entry already draws. */
+.adw-search-entry-icon {
+    opacity: 0.7;
+    margin: 0 6 0 0;
+    vertical-align: middle;
+}
+
+.adw-search-entry .adw-image-button.adw-search-entry-clear {
+    margin: 0 0 0 4;
+    vertical-align: middle;
+}
+
 .adw-entry {
     background-color: rgba(0, 0, 0, 0.08);
     border-radius: 9;
@@ -754,6 +767,25 @@ Page.adw-window {
 
 .adw-button.flat:highlighted {
     background-color: rgba(0, 0, 0, 0.19);
+}
+
+/* `Gtk.LinkButton` (`button.link`, web/adwaita-web/scss/_link.scss): a flat button whose label
+ * is the accent colour, underlined, on a background that stays clear in every state. Visited
+ * is 80% accent over 20% view foreground, mixed here because NativeScript CSS has no
+ * `color-mix()`: #1c71d8 over #333333. */
+.adw-button.link,
+.adw-button.link:highlighted {
+    background-color: transparent;
+}
+
+.adw-button.link .adw-button-label {
+    color: #1c71d8;
+    font-weight: 400;
+    text-decoration: underline;
+}
+
+.adw-button.link.visited .adw-button-label {
+    color: #2165b7;
 }
 
 .adw-button.suggested-action:highlighted {
@@ -1789,6 +1821,40 @@ Page.adw-window {
     background-color: rgba(0, 0, 0, 0.05);
 }
 
+/* `progressbar` (web/adwaita-web/scss/_progress_bar.scss, libadwaita _progress-bar.scss): an 8px
+ * trough that is 15% of the foreground, a rounded accent fill inside it, a 150 minimum width, and
+ * the text row beneath in the dimmed small face. `.osd` drops the trough and thins the bar to 2px. */
+.adw-progress-bar {
+    min-width: 150;
+}
+
+.adw-progress-bar-trough {
+    height: 8;
+    border-radius: 4;
+    background-color: rgba(0, 0, 0, 0.12);
+}
+
+.adw-progress-bar-progress {
+    border-radius: 4;
+    background-color: #3584e4;
+}
+
+.adw-progress-bar-text {
+    font-size: 12.22;
+    horizontal-align: center;
+    margin-top: 4;
+}
+
+.adw-progress-bar.osd .adw-progress-bar-trough {
+    height: 2;
+    border-radius: 0;
+    background-color: transparent;
+}
+
+.adw-progress-bar.osd .adw-progress-bar-progress {
+    border-radius: 0;
+}
+
 /* `separator` (_misc.scss): a 1px line in the border colour. */
 .adw-separator {
     background-color: rgba(0, 0, 0, 0.15);
@@ -2288,6 +2354,20 @@ Page.ns-dark.adw-window {
     background-color: rgba(255, 255, 255, 0.22);
 }
 
+/* Dark `button.link`: accent #78aeed; visited is that 80% over 20% white (#93bef1). */
+.ns-dark .adw-button.link,
+.ns-dark .adw-button.link:highlighted {
+    background-color: transparent;
+}
+
+.ns-dark .adw-button.link .adw-button-label {
+    color: #78aeed;
+}
+
+.ns-dark .adw-button.link.visited .adw-button-label {
+    color: #93bef1;
+}
+
 /* The same for buttons in an `.osd` container: dark `.adw-button` is the same specificity as
  * the light rule above and later, so it would win without these. */
 .ns-dark .osd .adw-button {
@@ -2720,6 +2800,15 @@ Page.ns-dark.adw-window {
 
 .ns-dark .adw-check-button:highlighted {
     background-color: rgba(255, 255, 255, 0.07);
+}
+
+/* Dark progressbar: the trough is 15% of the white foreground; the fill stays the accent. */
+.ns-dark .adw-progress-bar-trough {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.ns-dark .adw-progress-bar.osd .adw-progress-bar-trough {
+    background-color: transparent;
 }
 
 .ns-dark .adw-separator,
