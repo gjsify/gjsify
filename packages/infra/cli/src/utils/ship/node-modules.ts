@@ -82,6 +82,10 @@ export interface NodeModulesClosure {
     skippedForTarget: string[];
     /** Dependencies the project asked to leave out, and that were reached. */
     excluded: string[];
+    /** The platform the closure was resolved for; `stageNodeModules` drops other platforms' `prebuilds/` by it. */
+    target?: NodeModulesTarget;
+    /** Package-relative `prebuilds/<os>-<arch>` directories left out by {@link stageNodeModules}, for the log. */
+    skippedPrebuilds?: string[];
 }
 
 function readManifest(dir: string): Manifest | null {
@@ -196,20 +200,40 @@ export function resolveNodeModulesClosure(
         skippedOptional: skippedOptional.sort(),
         skippedForTarget: skippedForTarget.sort(),
         excluded: excluded.sort(),
+        target,
     };
+}
+
+/**
+ * `prebuilds/<os>-<arch>[-musl|+libc]` (node-gyp-build / prebuildify) as `[os, arch]`, or `null` for
+ * a name that is not one. Only a directory DIRECTLY below `prebuilds/` counts: `src/linux-x64` is
+ * somebody's source tree.
+ */
+function prebuildPlatformOf(relDir: string): [string, string] | null {
+    const m = /^(?:.*\/)?prebuilds\/([a-z0-9]+)-([a-z0-9_]+)(?:[-+][a-z0-9]+)?$/.exec(relDir);
+    return m === null ? null : [m[1], m[2]];
 }
 
 /**
  * Every file of one package, package-relative, without the `node_modules` directories inside it —
  * those are separate packages of the closure, or not wanted at all.
  */
-function listPackageFiles(root: string): string[] {
+function listPackageFiles(root: string, target?: NodeModulesTarget, skipped?: string[]): string[] {
     const out: string[] = [];
     const walk = (current: string): void => {
         for (const entry of readdirSync(current, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
             const full = join(current, entry.name);
             if (entry.isDirectory()) {
-                if (entry.name !== 'node_modules') walk(full);
+                if (entry.name === 'node_modules') continue;
+                // A multi-platform addon ships `prebuilds/<os>-<arch>/` for every platform; the foreign ones
+                // are dead weight at best, and a binary of the wrong architecture in the payload at worst.
+                const platform =
+                    target === undefined ? null : prebuildPlatformOf(posix.join(...relative(root, full).split(sep)));
+                if (platform !== null && (platform[0] !== target!.os || platform[1] !== target!.cpu)) {
+                    skipped?.push(posix.join(...relative(root, full).split(sep)));
+                    continue;
+                }
+                walk(full);
             } else if (entry.isSymbolicLink()) {
                 throw new Error(
                     `gjsify ship: ${full} is a symlink. The payload has to be self-contained — a package that ` +
@@ -233,8 +257,11 @@ function modeOf(rel: string, abs: string): number {
 /** The closure as stage-relative files, under `<bundleDir>/node_modules/`. */
 export function stageNodeModules(closure: NodeModulesClosure, bundleDir: string): StagedFile[] {
     const files: StagedFile[] = [];
+    const skippedPrebuilds: string[] = [];
+    closure.skippedPrebuilds = skippedPrebuilds;
     for (const pkg of closure.packages) {
-        for (const rel of listPackageFiles(pkg.dir)) {
+        const before = skippedPrebuilds.length;
+        for (const rel of listPackageFiles(pkg.dir, closure.target, skippedPrebuilds)) {
             const abs = join(pkg.dir, ...rel.split('/'));
             files.push({
                 path: posix.join(bundleDir, 'node_modules', pkg.dest, rel),
@@ -242,6 +269,8 @@ export function stageNodeModules(closure: NodeModulesClosure, bundleDir: string)
                 source: { kind: 'file', path: abs },
             });
         }
+        for (let i = before; i < skippedPrebuilds.length; i++)
+            skippedPrebuilds[i] = `${pkg.name}/${skippedPrebuilds[i]}`;
     }
     return files;
 }
