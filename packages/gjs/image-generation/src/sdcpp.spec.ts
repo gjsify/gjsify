@@ -236,6 +236,15 @@ export default async () => {
             expect(await measured.availability()).toBe('unavailable');
         });
 
+        await it('passes flash attention on to the context', async () => {
+            const { addon, contexts } = recordingAddon();
+            const engine = await createSdCppEngine(async () => addon, {
+                local: { modelId: 'mine', diffusionModel: model, flashAttention: true },
+            }).create();
+            expect(contexts).toStrictEqual([{ diffusionModelPath: model, diffusionFlashAttn: true }]);
+            await engine.destroy();
+        });
+
         await it('opens the context with the given paths and generates at the default size', async () => {
             const { addon, contexts } = recordingAddon();
             const engine = await createSdCppEngine(async () => addon, {
