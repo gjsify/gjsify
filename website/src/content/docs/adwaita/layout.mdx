@@ -652,26 +652,6 @@ label swaps.
     }
     ```
   </Fragment>
-  <Fragment slot="nativescript">
-    ```ts
-    import Adw from 'gi://Adw?version=1';
-    import Gtk from 'gi://Gtk?version=4.0';
-
-    const bin = new Adw.BreakpointBin();
-    bin.set_size_request(150, 60);
-
-    const caption = new Gtk.Label({ label: 'Wide', ellipsize: Gtk.EllipsizeMode.END });
-    caption.add_css_class('title-1');
-    bin.set_child(caption);
-
-    // A breakpoint writes properties while its condition holds, and the LAST
-    // one that matches wins. Leaving it restores the values the setters
-    // captured when they were added.
-    const narrow = new Adw.Breakpoint(Adw.BreakpointCondition.parse('max-width: 200px'));
-    narrow.add_setter(caption, 'label', 'Narrow');
-    bin.add_breakpoint(narrow);
-    ```
-  </Fragment>
 </AdwWidget>
 
 ## Multi Layout View
