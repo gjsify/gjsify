@@ -36,6 +36,7 @@ export type NamedColorVariable =
     | 'sidebar-bg-color'
     | 'sidebar-fg-color'
     | 'dialog-bg-color'
+    | 'popover-bg-color'
     | 'headerbar-bg-color';
 
 /** One declaration in `theme/adwaita.css` that carries a named colour. */
@@ -254,6 +255,7 @@ export const ADWAITA_NS_NAMED_COLOR_RULES: ReadonlyArray<NamedColorRule> = [
         fallback: 'rgba(0, 0, 0, 0.8)',
     },
     { selector: '.adw-dialog-card', property: 'background-color', variable: 'dialog-bg-color', fallback: '#fafafb' },
+    { selector: '.gtk-popover-card', property: 'background-color', variable: 'popover-bg-color', fallback: '#ffffff' },
     {
         selector: '.adw-shortcut-label-cap-text',
         property: 'color',
@@ -489,6 +491,12 @@ export const ADWAITA_NS_NAMED_COLOR_RULES: ReadonlyArray<NamedColorRule> = [
         fallback: '#2a2a2e',
     },
     { selector: '.ns-dark .adw-text-view-input', property: 'color', variable: 'view-fg-color', fallback: '#ffffff' },
+    {
+        selector: '.ns-dark .gtk-popover-card',
+        property: 'background-color',
+        variable: 'popover-bg-color',
+        fallback: '#36363a',
+    },
     {
         selector: '.ns-dark .adw-dialog-card',
         property: 'background-color',

@@ -28,7 +28,16 @@ const THEME = join(ROOT, 'packages/nativescript-bridge/adwaita/src/theme/adwaita
 const TABLE = join(ROOT, 'packages/nativescript-bridge/adwaita/src/widgets/named-colors-theme.ts');
 
 /** Backgrounds the theme uses for window / view / card / sidebar / dialog surfaces. */
-const SURFACE_BACKGROUNDS = new Set(['#fafafb', '#ffffff', '#ebebed', '#222226', '#2e2e32', '#2a2a2e', '#34343a']);
+const SURFACE_BACKGROUNDS = new Set([
+    '#fafafb',
+    '#ffffff',
+    '#ebebed',
+    '#222226',
+    '#2e2e32',
+    '#2a2a2e',
+    '#34343a',
+    '#36363a',
+]);
 const LIGHT_FOREGROUND = 'rgba(0, 0, 0, 0.8)';
 const DARK_FOREGROUND = '#ffffff';
 
