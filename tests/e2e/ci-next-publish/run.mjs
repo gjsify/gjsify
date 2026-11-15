@@ -28,6 +28,7 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -397,6 +398,55 @@ describe('the wiring in release.yml', () => {
             /next-channel-version\.mjs --write/,
             'the rewrite is what carries the version and the SHA into the tarballs',
         );
+    });
+
+    it('the `latest` sweep pins exactly too: the rewrite sits after install and before the build (ADR 0145)', () => {
+        const body = jobBody('publish');
+        const step = (name) => body.findIndex((l) => l.trim() === `- name: ${name}`);
+        const install = step('Install dependencies (gjsify install --immutable)');
+        const pin = step('Pin intra-repo dependencies exactly');
+        const build = step('Build packages');
+        const publish = step('Publish packages to npm');
+        assert.ok(install >= 0 && pin >= 0 && build >= 0 && publish >= 0, 'a step was renamed or removed');
+        assert.ok(
+            install < pin && pin < build,
+            'rewriting before install breaks `--immutable`; after the build is too late',
+        );
+        const pinStep = body.slice(pin, build).join('\n');
+        assert.match(pinStep, /next-channel-version\.mjs --write --pins-only/);
+        assert.doesNotMatch(
+            pinStep,
+            /--source-sha|--github-output|--build/,
+            'a stable sweep keeps its committed version',
+        );
+        // The same gate as the publish step: an audit or asset-only run must not rewrite.
+        const gate = (from, to) =>
+            body
+                .slice(from, to)
+                .find((l) => /^\s+if:/.test(l))
+                ?.trim();
+        assert.equal(gate(pin, build), gate(publish, publish + 3));
+    });
+
+    it('`--pins-only` keeps the committed version and refuses the flags that would change it', () => {
+        const NCV = join(MONOREPO_ROOT, 'scripts', 'next-channel-version.mjs');
+        const root = JSON.parse(readFileSync(join(MONOREPO_ROOT, 'package.json'), 'utf8'));
+        const report = JSON.parse(
+            execFileSync(process.execPath, [NCV, '--check', '--pins-only', '--json'], {
+                cwd: MONOREPO_ROOT,
+                encoding: 'utf8',
+            }),
+        );
+        assert.equal(report.version, root.version);
+        assert.ok(report.specRewrites > 0, 'main still declares carets, so there is something to pin');
+        for (const extra of [['--build', '3'], ['--source-sha', HEAD], ['--github-output']]) {
+            const r = spawnSync(process.execPath, [NCV, '--check', '--pins-only', ...extra], {
+                cwd: MONOREPO_ROOT,
+                encoding: 'utf8',
+            });
+            assert.notEqual(r.status, 0, `--pins-only ${extra[0]} must fail`);
+            assert.match(r.stderr, /--pins-only keeps the committed version/);
+        }
     });
 
     it('the probe package the decision reads is one the sweep actually publishes', () => {

@@ -8,6 +8,8 @@
   `scripts/decide-next-publish.mjs` (the three skip guards);
   [docs/publishing.md](../publishing.md); consumer guidance in
   [docs/consuming-the-next-channel.md](../consuming-the-next-channel.md)
+- Extended by: ADR [0145](0145-latest-publishes-exact-intra-repo-pins.md) — decision 4's spec
+  rewrite now also runs for `latest` (`--pins-only`)
 
 ## Context
 

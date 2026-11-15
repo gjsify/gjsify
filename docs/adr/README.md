@@ -163,6 +163,7 @@ the TODO records the *what's left*.
 | [0142](0142-a-fifth-linux-container-the-tarball.md) | A fifth Linux container: `linux-tar`, and a Flatpak-optimised variant that adds `gschemas.compiled` | Accepted |
 | [0143](0143-gjsify-flatpark-writes-a-flatpark-package.md) | `gjsify flatpark` writes a FlatPark package from a ship stage and a release record | Accepted |
 | [0144](0144-background-and-autostart-have-one-driver-per-platform.md) | Background running and autostart join `@gjsify/xdp`, with one driver per platform | Accepted |
+| [0145](0145-latest-publishes-exact-intra-repo-pins.md) | `latest` publishes intra-repo pins exactly, like `next` | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

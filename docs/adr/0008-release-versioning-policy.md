@@ -5,8 +5,11 @@
 - **Amended by [0111](0111-next-prerelease-channel.md) (2026-10-13)** for the `next` prerelease
   channel only: there the train's intra-repo pins are published EXACT rather than as the caret of
   decision 2, because two adjacent `next` versions are minutes apart and a caret would admit the
-  stable release beside the prerelease. `latest` is unchanged — decision 2 holds as written for
-  every released version.
+  stable release beside the prerelease. `latest` was unchanged then.
+- **Amended by [0145](0145-latest-publishes-exact-intra-repo-pins.md) (2026-11-15):** `latest` now
+  publishes exact intra-repo pins too (the same CI-only spec rewrite, versions untouched). The
+  committed specs stay `workspace:^`; decision 2's contract is unchanged, its published form is
+  tighter.
 
 ## Context
 
