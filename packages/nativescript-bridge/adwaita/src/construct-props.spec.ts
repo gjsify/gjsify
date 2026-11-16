@@ -62,6 +62,16 @@ class WidgetShape extends NsViewShape {
     closeHandler: (() => void) | null = null;
     private _size = 48;
     private _text = '';
+    private _classes: string[] = [];
+
+    /** The list/string split of the real widgets: reads back a LIST, writes a whitespace-separated STRING. */
+    get styleClasses(): string[] {
+        return [...this._classes];
+    }
+
+    set styleClasses(value: string | null | undefined) {
+        this._classes = [...new Set((value ?? '').split(/\s+/).filter(Boolean))];
+    }
 
     get size(): number {
         return this._size;
@@ -232,6 +242,32 @@ export default async () => {
             applyConstructProps(widget, ported);
             expect(widget.horizontalAlignment).toBe('center');
             expect(widget.verticalAlignment).toBe('stretch');
+        });
+    });
+
+    await describe('applyConstructProps — styleClasses', async () => {
+        await it('takes the whitespace-separated string the setter reads', () => {
+            // Typed, so this line is the TS2322 the bag used to answer (string -> string[]).
+            const props: ConstructProps<WidgetShape> = { styleClasses: 'a  b a' };
+            const widget = new WidgetShape();
+            applyConstructProps(widget, props);
+            expect(widget.styleClasses.join(',')).toBe('a,b');
+        });
+
+        await it('takes the list the getter hands back, in order, instead of crashing the setter', () => {
+            const props: ConstructProps<WidgetShape> = { styleClasses: ['zzz', 'aaa', 'zzz'] };
+            const widget = new WidgetShape();
+            applyConstructProps(widget, props);
+            expect(widget.styleClasses.join(',')).toBe('zzz,aaa');
+        });
+
+        await it('leaves null and undefined to the setter and the skip rule', () => {
+            const widget = new WidgetShape();
+            applyConstructProps(widget, { styleClasses: 'a' });
+            applyConstructProps(widget, { styleClasses: undefined });
+            expect(widget.styleClasses.join(',')).toBe('a');
+            applyConstructProps(widget, { styleClasses: null });
+            expect(widget.styleClasses.join(',')).toBe('');
         });
     });
 };
