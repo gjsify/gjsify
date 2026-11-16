@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.64.45](https://github.com/gjsify/gjsify/compare/v0.64.44...v0.64.45) (2026-11-16)
+
+### Features
+
+* **machine-fit:** split device and streamable memory ([#2666](https://github.com/gjsify/gjsify/issues/2666)) ([12c065b](https://github.com/gjsify/gjsify/commit/12c065beb53ceba3416ffd0b6449e93c1ef2ab70))
+* **webext:** add the submit subcommand ([#2634](https://github.com/gjsify/gjsify/issues/2634)) ([a3b4ba0](https://github.com/gjsify/gjsify/commit/a3b4ba0b13e4b4386c69429a55bec1187b6f2c5d))
+* **webext:** bound the store submission drive ([#2633](https://github.com/gjsify/gjsify/issues/2633)) ([8559cdc](https://github.com/gjsify/gjsify/commit/8559cdcf8c3d66576a5c9b5a6e37cd1f72059833)), closes [#2631](https://github.com/gjsify/gjsify/issues/2631)
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([bff7323](https://github.com/gjsify/gjsify/commit/bff7323e564a29a913279eb2c2cd86db1511ace6))
+
 ## [0.64.44](https://github.com/gjsify/gjsify/compare/v0.64.43...v0.64.44) (2026-11-16)
 
 ### Features
