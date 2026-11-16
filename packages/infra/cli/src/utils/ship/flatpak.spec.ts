@@ -26,7 +26,7 @@ import {
     MIGRATED_FLATPAK_KEYS,
     pickFlatpakBuildKeys,
     resolveShipFlatpakSettings,
-    SCALABLE_ICONS_CLEANUP,
+    scalableAppIconCleanup,
 } from './flatpak-config.js';
 import { renderShipFlatpakManifest } from './flatpak.js';
 import { LAYOUTS } from './layout.js';
@@ -90,6 +90,8 @@ function soleModule(m: Record<string, unknown> = manifest()): FlatpakModule {
     expect(modules.length).toBe(1);
     return modules[0] as FlatpakModule;
 }
+
+const APP_ID = 'org.example.Hello';
 
 export default async () => {
     await describe('renderShipFlatpakManifest', async () => {
@@ -454,6 +456,7 @@ export default async () => {
                 ship: { flatpak: { runtime: 'freedesktop', runtimeVersion: '24.08' } },
                 flatpak: {},
                 kind: 'app',
+                appId: APP_ID,
             });
             expect(settings.runtime).toBe('org.freedesktop.Platform');
             expect(settings.sdk).toBe('org.freedesktop.Sdk');
@@ -465,6 +468,7 @@ export default async () => {
                 ship: {},
                 flatpak: { runtimeVersion: '49' },
                 kind: 'app',
+                appId: APP_ID,
             });
             expect(settings.runtimeVersion).toBe('49');
             expect(warnings.length).toBe(1);
@@ -482,6 +486,7 @@ export default async () => {
                 ship: { flatpak: { runtimeVersion: '50' } },
                 flatpak: { runtimeVersion: '47', finishArgs: ['--share=network'] },
                 kind: 'app',
+                appId: APP_ID,
             });
             expect(settings.runtimeVersion).toBe('50');
             expect(settings.finishArgs).toStrictEqual(['--share=network']);
@@ -496,6 +501,7 @@ export default async () => {
                 ship: {},
                 flatpak: { runtime: 'gnome', finishArgs: [], cleanup: ['/include'] },
                 kind: 'app',
+                appId: APP_ID,
             });
             expect(warnings.length).toBe(1);
             const at = (key: string) => warnings[0]?.indexOf(`gjsify.flatpak.${key}`) ?? -1;
@@ -512,6 +518,7 @@ export default async () => {
                 ship: {},
                 flatpak: { name: 'Hello', summary: 'A demo', categories: ['Utility'] },
                 kind: 'app',
+                appId: APP_ID,
             });
             expect(warnings).toStrictEqual([]);
         });
@@ -534,7 +541,12 @@ export default async () => {
             // The fixture has to declare every key, or the loop below is vacuous for
             // the ones it forgot.
             for (const key of MIGRATED_FLATPAK_KEYS) expect(legacy[key] === undefined).toBe(false);
-            const { settings, warnings } = resolveShipFlatpakSettings({ ship: {}, flatpak: legacy, kind: 'app' });
+            const { settings, warnings } = resolveShipFlatpakSettings({
+                ship: {},
+                flatpak: legacy,
+                kind: 'app',
+                appId: APP_ID,
+            });
             expect(warnings.length).toBe(1);
             for (const key of MIGRATED_FLATPAK_KEYS) expect(warnings[0]).toContain(`gjsify.flatpak.${key}`);
             // …and each value actually reached the settings, so "named in the warning"
@@ -546,8 +558,8 @@ export default async () => {
             expect(settings.finishArgs).toStrictEqual(legacy.finishArgs);
             // The project's own glob, in its own position, with the one entry
             // `ship` appends for a `kind: 'app'` behind it — the key is the only
-            // one of the six that is not purely the author's (`SCALABLE_ICONS_CLEANUP`).
-            expect(settings.cleanup).toStrictEqual([...legacy.cleanup, SCALABLE_ICONS_CLEANUP]);
+            // one of the six that is not purely the author's (`scalableAppIconCleanup`).
+            expect(settings.cleanup).toStrictEqual([...legacy.cleanup, scalableAppIconCleanup(APP_ID)]);
         });
 
         await it('resolves both spellings for `gjsify flatpak init` too', async () => {
@@ -580,29 +592,39 @@ export default async () => {
             // `ghcr.io/gjsify/ci-fedora:44`; the rasters `LAYOUTS.linux.icon`
             // stages are the other half, and are not enough on their own because
             // appstreamcli PREFERS the scalable icon and does not fall back.
-            const app = resolveShipFlatpakSettings({ ship: {}, flatpak: {}, kind: 'app' });
-            expect(app.settings.cleanup).toStrictEqual([SCALABLE_ICONS_CLEANUP]);
+            const app = resolveShipFlatpakSettings({ ship: {}, flatpak: {}, kind: 'app', appId: APP_ID });
+            expect(app.settings.cleanup).toStrictEqual([scalableAppIconCleanup(APP_ID)]);
             // A CLI stages no icon at all, so there is nothing to remove and no
             // reason to put a glob in somebody's manifest.
-            const cli = resolveShipFlatpakSettings({ ship: {}, flatpak: {}, kind: 'cli' });
+            const cli = resolveShipFlatpakSettings({ ship: {}, flatpak: {}, kind: 'cli', appId: APP_ID });
             expect(cli.settings.cleanup).toStrictEqual([]);
+        });
+
+        await it('keeps every other scalable icon, such as an extra badge', async () => {
+            // Regression: the cleanup used to be the whole `scalable` directory and
+            // took Curlew's `curlew-protocol-*.svg` badges with it (v0.2.0-rc.1).
+            const { settings } = resolveShipFlatpakSettings({ ship: {}, flatpak: {}, kind: 'app', appId: APP_ID });
+            expect(settings.cleanup).toStrictEqual(['/share/icons/hicolor/scalable/apps/org.example.Hello.svg']);
+            expect(settings.cleanup.includes('/share/icons/hicolor/scalable')).toBe(false);
+            expect(settings.cleanup.some((p) => p.includes('protocol'))).toBe(false);
         });
 
         await it('does not give a project that already wrote the glob a second one', async () => {
             // The workaround this replaces is exactly this line in a consumer's
             // `package.json`; appending blindly would emit it twice.
             const { settings } = resolveShipFlatpakSettings({
-                ship: { flatpak: { cleanup: [SCALABLE_ICONS_CLEANUP, '/include'] } },
+                ship: { flatpak: { cleanup: [scalableAppIconCleanup(APP_ID), '/include'] } },
                 flatpak: {},
                 kind: 'app',
+                appId: APP_ID,
             });
-            expect(settings.cleanup).toStrictEqual([SCALABLE_ICONS_CLEANUP, '/include']);
+            expect(settings.cleanup).toStrictEqual([scalableAppIconCleanup(APP_ID), '/include']);
         });
 
         await it('gives a CLI no display sockets and an app the GUI set', async () => {
-            const cli = resolveShipFlatpakSettings({ ship: {}, flatpak: {}, kind: 'cli' });
+            const cli = resolveShipFlatpakSettings({ ship: {}, flatpak: {}, kind: 'cli', appId: APP_ID });
             expect(cli.settings.finishArgs).toStrictEqual([]);
-            const app = resolveShipFlatpakSettings({ ship: {}, flatpak: {}, kind: 'app' });
+            const app = resolveShipFlatpakSettings({ ship: {}, flatpak: {}, kind: 'app', appId: APP_ID });
             expect(app.settings.finishArgs).toContain('--socket=wayland');
         });
 
@@ -611,9 +633,10 @@ export default async () => {
                 ship: { flatpak: { sdkExtensions: ['org.freedesktop.Sdk.Extension.node24'] } },
                 flatpak: {},
                 kind: 'cli',
+                appId: APP_ID,
             });
             expect(derived.settings.appendPath).toStrictEqual(['/usr/lib/sdk/node24/bin', '/app/bin']);
-            const bare = resolveShipFlatpakSettings({ ship: {}, flatpak: {}, kind: 'cli' });
+            const bare = resolveShipFlatpakSettings({ ship: {}, flatpak: {}, kind: 'cli', appId: APP_ID });
             expect(bare.settings.appendPath).toStrictEqual([]);
         });
     });
