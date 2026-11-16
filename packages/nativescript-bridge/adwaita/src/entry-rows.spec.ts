@@ -35,6 +35,7 @@ import {
     NS_INSENSITIVE_OPACITY,
     NS_PASSWORD_ENTRY_ROW_CLASS,
     applyEntryRowState,
+    applyEntryRowTitles,
     applyPasswordEntryRowState,
     type EntryRowViews,
     type PasswordEntryRowViews,
@@ -137,6 +138,13 @@ export const AdwEntryRowsNsTest = async () => {
         await it('keeps the pencil class list intact while it is sensitive', () => {
             const { views } = makeRow();
             expect(views.editIcon.className).toBe(NS_EDIT_ICON_CLASS);
+        });
+
+        await it('puts the title on the empty placeholder too, not only the small label', () => {
+            const views = { emptyTitle: { text: '' }, title: { text: '' } };
+            applyEntryRowTitles(views, 'Paperless address');
+            expect(views.emptyTitle.text).toBe('Paperless address');
+            expect(views.title.text).toBe('Paperless address');
         });
 
         await it('dims the disabled pencil by $strong_disabled_opacity, not --disabled-opacity', () => {
