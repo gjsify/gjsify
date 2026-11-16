@@ -165,6 +165,7 @@ the TODO records the *what's left*.
 | [0144](0144-background-and-autostart-have-one-driver-per-platform.md) | Background running and autostart join `@gjsify/xdp`, with one driver per platform | Accepted |
 | [0145](0145-latest-publishes-exact-intra-repo-pins.md) | `latest` publishes intra-repo pins exactly, like `next` | Accepted |
 | [0146](0146-machine-fit-splits-device-and-streamable-memory.md) | Machine fit tells device memory from streamable weights, and image generation sizes its compute by the request | Accepted |
+| [0147](0147-node-sqlite-on-nativescript-binds-the-platform-sqlite.md) | `node:sqlite` on NativeScript binds the platform's SQLite, one driver per OS | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
