@@ -87,7 +87,7 @@ registers it on `startup`, so the names your app writes always resolve to a
 glyph your app ships. **On by default.**
 
 The subset is the same one `@gjsify/adwaita-web` compiles into its stylesheet
-(41 glyphs, 19.9 KiB compiled, 26.5 KiB as the base64 the bundle travels as), so
+(76 glyphs, 35.9 KiB compiled, 47.9 KiB as the base64 the bundle travels as), so
 one `icon-name` means one glyph on the browser, on GTK and on NativeScript.
 `scripts/check-bundled-icon-parity.mjs` fails when the two lists drift apart.
 

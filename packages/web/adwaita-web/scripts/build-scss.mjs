@@ -59,7 +59,8 @@ import {
     mediaPlaylistRepeatSymbolic,
     starredSymbolic,
 } from '@gjsify/adwaita-icons/status';
-import { dialogWarningSymbolic } from '@gjsify/adwaita-icons/status';
+import { dialogWarningSymbolic, networkTransmitReceiveSymbolic } from '@gjsify/adwaita-icons/status';
+import { objectSelectSymbolic } from '@gjsify/adwaita-icons/actions';
 import {
     emojiActivitiesSymbolic,
     emojiBodySymbolic,
@@ -74,7 +75,7 @@ import {
 } from '@gjsify/adwaita-icons/categories';
 import { editFindSymbolic } from '@gjsify/adwaita-icons/actions';
 import { faceSmileSymbolic } from '@gjsify/adwaita-icons/emotes';
-import { emblemSystemSymbolic } from '@gjsify/adwaita-icons/legacy';
+import { emblemSystemSymbolic, utilitiesTerminalSymbolic, webBrowserSymbolic } from '@gjsify/adwaita-icons/legacy';
 import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';
 import { applicationXExecutableSymbolic } from '@gjsify/adwaita-icons/mimetypes';
 import {
@@ -242,6 +243,12 @@ const ICONS = {
     // own entry prefix.
     'face-smile': faceSmileSymbolic,
     'dialog-warning': dialogWarningSymbolic,
+    // The window glyphs a consumer app names (beifahrer#91): selection check, browser,
+    // terminal and the transfer indicator.
+    'object-select': objectSelectSymbolic,
+    'web-browser': webBrowserSymbolic,
+    'utilities-terminal': utilitiesTerminalSymbolic,
+    'network-transmit-receive': networkTransmitReceiveSymbolic,
     // `<gtk-expander>`'s disclosure arrow — all THREE of `_expanders.scss`'s
     // `-gtk-icon-source` values, because the stylesheet swaps between them on `:checked`
     // and on `:dir(rtl)` and the web partial swaps the mask instead.

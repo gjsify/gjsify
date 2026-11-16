@@ -103,6 +103,21 @@ export default async () => {
         });
     });
 
+    await describe('window icons a consumer app names (JumpLink/beifahrer#91)', async () => {
+        await it('bundles the five glyphs an app window needs', () => {
+            const names = bundledNames();
+            for (const name of [
+                'dialog-warning-symbolic',
+                'object-select-symbolic',
+                'web-browser-symbolic',
+                'utilities-terminal-symbolic',
+                'network-transmit-receive-symbolic',
+            ]) {
+                expect(names.includes(name)).toBe(true);
+            }
+        });
+    });
+
     await describe('arm 1: every bundled name resolves TO the bundle when it is authoritative', async () => {
         // The general form of the `legacy` defect in this file's header: a glyph filed in a
         // directory GTK does not scan is present, registered, and never drawn.
