@@ -171,8 +171,34 @@ export function createChromeBackend(credentials: StoreCredentials, options: Stor
         }
     };
 
+    /** `--dry-run`: the token exchange plus one `fetchStatus` GET. Nothing is uploaded or published. */
+    const verifyCredentials = async (): Promise<void> => {
+        const res = await call(`${API_ROOT}/v2/${name}:fetchStatus`, { method: 'GET' });
+        if (res.ok) return;
+        const detail = await describe(res);
+        if (res.status === 401) {
+            throw fail(res.status, `fetchStatus refused the access token: ${detail}. ${TOKEN_HINT}`);
+        }
+        if (res.status === 403) {
+            throw fail(
+                res.status,
+                `fetchStatus is forbidden: ${detail}. The Google account behind CHROME_WEB_STORE_REFRESH_TOKEN is not a ` +
+                    'publisher of this item, or CHROME_WEB_STORE_PUBLISHER_ID / CHROME_WEB_STORE_ITEM_ID name someone else’s item — ' +
+                    'check both ids, or renew the refresh token with the account that owns the item.',
+            );
+        }
+        if (res.status === 404) {
+            throw fail(
+                res.status,
+                `fetchStatus found no such item: ${detail}. Check CHROME_WEB_STORE_PUBLISHER_ID and CHROME_WEB_STORE_ITEM_ID.`,
+            );
+        }
+        throw fail(res.status, `fetchStatus failed: ${detail}`);
+    };
+
     return {
         store: 'chrome',
+        verifyCredentials,
 
         async upload(input: StoreUploadInput): Promise<StoreUploadResult> {
             refuseIfBusy(await readStatus(), input.version);

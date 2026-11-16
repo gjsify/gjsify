@@ -245,6 +245,24 @@ export default async () => {
             f.cleanup();
         });
 
+        await it('dry run on the real chrome backend says verified, with one token call and one read', async () => {
+            const f = fixture();
+            const urls: string[] = [];
+            const fetchImpl = (async (url: string) => {
+                urls.push(url);
+                return new Response(url.includes('oauth2') ? JSON.stringify({ access_token: 'tok-abc' }) : '{}', {
+                    status: 200,
+                });
+            }) as unknown as typeof fetch;
+            const r = await run(f, { dryRun: true, fetchImpl });
+            expect(r.code).toBe(0);
+            expect(r.out.includes('credentials accepted')).toBe(true);
+            expect(r.out.includes('unverified')).toBe(false);
+            expect(urls.length).toBe(2);
+            expect(urls[1]!.endsWith(':fetchStatus')).toBe(true);
+            f.cleanup();
+        });
+
         await it('dry run with dead credentials exits 1 and leaks nothing', async () => {
             const f = fixture();
             const r = await run(f, {

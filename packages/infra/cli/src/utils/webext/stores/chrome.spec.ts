@@ -413,6 +413,72 @@ export default async () => {
             expect(error.message).toContain('<redacted>');
         });
 
+        await describe('verifyCredentials (--dry-run)', async () => {
+            await it('makes one token call and one fetchStatus GET, nothing else', async () => {
+                const { fetchImpl, calls } = fakeFetch((c) =>
+                    isToken(c) ? tokenOk : isStatus(c) ? { json: {} } : undefined,
+                );
+                await createChromeBackend(CREDENTIALS, { fetchImpl }).verifyCredentials!();
+                expect(calls.length).toBe(2);
+                expect(isToken(calls[0]!)).toBe(true);
+                expect(calls[1]!.method).toBe('GET');
+                expect(calls[1]!.url).toBe(`https://chromewebstore.googleapis.com/v2/${NAME}:fetchStatus`);
+                expect(calls.some((c) => isUpload(c) || isPublish(c))).toBe(false);
+            });
+
+            await it('names CHROME_WEB_STORE_REFRESH_TOKEN for an invalid_grant', async () => {
+                const { fetchImpl, calls } = fakeFetch((c) =>
+                    isToken(c)
+                        ? { status: 400, json: { error: 'invalid_grant', error_description: 'Bad Request' } }
+                        : undefined,
+                );
+                const error = await rejected(() =>
+                    createChromeBackend(CREDENTIALS, { fetchImpl }).verifyCredentials!(),
+                );
+                expect(error instanceof StoreApiError).toBe(true);
+                expect(error.message).toContain('invalid_grant');
+                expect(error.message).toContain('CHROME_WEB_STORE_REFRESH_TOKEN');
+                expect(calls.length).toBe(1);
+                noSecrets(error.message);
+            });
+
+            await it('names the publisher and item id for a 404', async () => {
+                const { fetchImpl } = fakeFetch((c) =>
+                    isToken(c) ? tokenOk : { status: 404, json: { error: { message: 'Item not found' } } },
+                );
+                const error = await rejected(() =>
+                    createChromeBackend(CREDENTIALS, { fetchImpl }).verifyCredentials!(),
+                );
+                expect((error as StoreApiError).httpStatus).toBe(404);
+                expect(error.message).toContain('CHROME_WEB_STORE_PUBLISHER_ID');
+                expect(error.message).toContain('CHROME_WEB_STORE_ITEM_ID');
+                noSecrets(error.message);
+            });
+
+            await it('names the ids and the token for a 403, without leaking', async () => {
+                const { fetchImpl } = fakeFetch((c) =>
+                    isToken(c)
+                        ? tokenOk
+                        : { status: 403, text: `denied ${CANARY_SECRET} ${CANARY_REFRESH} Bearer ${CANARY_ACCESS}` },
+                );
+                const error = await rejected(() =>
+                    createChromeBackend(CREDENTIALS, { fetchImpl }).verifyCredentials!(),
+                );
+                expect((error as StoreApiError).httpStatus).toBe(403);
+                expect(error.message).toContain('CHROME_WEB_STORE_ITEM_ID');
+                expect(error.message).toContain('CHROME_WEB_STORE_REFRESH_TOKEN');
+                noSecrets(error.message);
+            });
+
+            await it('names the token hint for a 401 on fetchStatus', async () => {
+                const { fetchImpl } = fakeFetch((c) => (isToken(c) ? tokenOk : { status: 401, text: 'expired' }));
+                const error = await rejected(() =>
+                    createChromeBackend(CREDENTIALS, { fetchImpl }).verifyCredentials!(),
+                );
+                expect(error.message).toContain('CHROME_WEB_STORE_REFRESH_TOKEN');
+            });
+        });
+
         await it('is registered for createStoreBackend and marked implemented', async () => {
             expect(STORES.chrome.implemented).toBe(true);
             const { fetchImpl } = fakeFetch(() => undefined);
