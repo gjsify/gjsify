@@ -35,6 +35,11 @@ export default async () => {
             expect(html.includes('prefers-color-scheme:dark')).toBe(true);
             expect(html.includes('width=device-width')).toBe(true);
         });
+        await it('never breaks a permission name mid-word', async () => {
+            // `overflow-wrap:anywhere` shrank the name column to one letter: `tabGroups` broke apart
+            expect(html.includes('overflow-wrap:anywhere')).toBe(false);
+            expect(html.includes('td:first-child{width:1%;white-space:nowrap}')).toBe(true);
+        });
         await it('translates the page chrome per language', async () => {
             expect(html.includes('alt="Bildschirmfoto"')).toBe(true);
         });
