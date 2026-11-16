@@ -67,7 +67,9 @@ export type ConstructProps<T, Shadowed extends object = object> = Partial<
                 ? T[K] | number
                 : K extends ValueProp
                   ? T[K] | ValueProps[K & ValueProp]
-                  : T[K];
+                  : K extends StyleClassesProp
+                    ? T[K] | string
+                    : T[K];
         } & Shadowed
     >
 >;
@@ -117,6 +119,17 @@ export interface ValueProps {
     model: string;
     adjustment: AdwAdjustmentInput;
 }
+
+/**
+ * `styleClasses` is the one key whose getter hands back a LIST (`string[]`, GTK's `css-classes`)
+ * while the setter takes the STRING the XML attribute carries (`AdwStyleClassesInput`). Read off
+ * the getter alone the bag admitted only the array, so `new Gtk.ListBox({ styleClasses: 'boxed-list' })`
+ * — the spelling the setter was written for — was `TS2322` while an array compiled and then threw
+ * `e.split is not a function` at runtime. The bag therefore admits BOTH and {@link applyConstructProps}
+ * joins the array into the string the setter reads; the setter itself stays string-only, because
+ * widening it would drag an array into the ATTRIBUTE door, which has no coercer for one.
+ */
+export type StyleClassesProp = 'styleClasses';
 
 /** The keys {@link ValueProps} declares — {@link ConstructProps} widens exactly these. */
 export type ValueProp = keyof ValueProps;
@@ -276,12 +289,13 @@ export function applyConstructProps(target: object, props?: Readonly<Record<stri
             );
         }
         if (value === undefined) continue;
+        const coerced = key === 'styleClasses' && Array.isArray(value) ? value.join(' ') : value;
         const axis = (ALIGNMENT_AXES as Readonly<Record<string, 'horizontal' | 'vertical' | undefined>>)[key];
         (target as Record<string, unknown>)[key] =
             axis !== undefined
                 ? nsAlignment(value, axis)
                 : Object.hasOwn(ICON_SIZE_PROPS, key)
                   ? iconSizeNickOf(value)
-                  : value;
+                  : coerced;
     }
 }
