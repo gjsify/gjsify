@@ -189,6 +189,60 @@ export default async () => {
             expect(warnings[0]!.includes('Dark screenshot 3')).toBe(true);
         });
 
+        await it('pairs dark screenshots by image name when some are missing', async () => {
+            const warnings: string[] = [];
+            const shot = (name: string, dark = false) =>
+                `<screenshot${dark ? ' environment="gnome:dark"' : ''}><image>https://example.org/${name}</image></screenshot>`;
+            const metainfo = parseMetainfo(
+                `<component><id>a.b</id><name>A</name><screenshots>${[
+                    shot('desktop.png'),
+                    shot('popup.png'),
+                    shot('options.png'),
+                    shot('confirm.png'),
+                    shot('popup-dark.png', true),
+                    shot('options-dark.png', true),
+                    shot('confirm-dark.png', true),
+                ].join('')}</screenshots></component>`,
+                (message) => warnings.push(message),
+            );
+            expect(metainfo.screenshots.map((s) => s.dark?.url)).toStrictEqual([
+                undefined,
+                'https://example.org/popup-dark.png',
+                'https://example.org/options-dark.png',
+                'https://example.org/confirm-dark.png',
+            ]);
+            expect(warnings.length).toBe(0);
+        });
+
+        await it('pairs dark screenshots by caption when the names differ', async () => {
+            const metainfo = parseMetainfo(
+                `<component><id>a.b</id><name>A</name><screenshots>
+  <screenshot><image>https://example.org/x1.png</image><caption>First</caption></screenshot>
+  <screenshot><image>https://example.org/x2.png</image><caption>Second</caption></screenshot>
+  <screenshot environment="gnome:dark"><image>https://example.org/y9.png</image><caption>Second</caption></screenshot>
+</screenshots></component>`,
+            );
+            expect(metainfo.screenshots[0]!.dark).toBeUndefined();
+            expect(metainfo.screenshots[1]!.dark?.url).toBe('https://example.org/y9.png');
+        });
+
+        await it('drops a dark screenshot that matches nothing, with a warning', async () => {
+            const warnings: string[] = [];
+            const metainfo = parseMetainfo(
+                `<component><id>a.b</id><name>A</name><screenshots>
+  <screenshot><image>https://example.org/a.png</image></screenshot>
+  <screenshot><image>https://example.org/b.png</image></screenshot>
+  <screenshot environment="gnome:dark"><image>https://example.org/a-dark.png</image></screenshot>
+  <screenshot environment="gnome:dark"><image>https://example.org/zzz-dark.png</image></screenshot>
+</screenshots></component>`,
+                (message) => warnings.push(message),
+            );
+            expect(metainfo.screenshots[0]!.dark?.url).toBe('https://example.org/a-dark.png');
+            expect(metainfo.screenshots[1]!.dark).toBeUndefined();
+            expect(warnings.length).toBe(1);
+            expect(warnings[0]!.includes('Dark screenshot 2')).toBe(true);
+        });
+
         await it('picks the file by language and scheme, falling back to the untagged and the light one', async () => {
             await withFixture(async (root) => {
                 for (const name of ['list-de.png', 'list-dark.png', 'list-dark-de.png']) {

@@ -130,9 +130,21 @@ function isDark(screenshot: XmlElement): boolean {
     return (screenshot.attrs.environment ?? '').endsWith(':dark');
 }
 
+/** The file name of an image URL without extension, query, `dark`/`light` marker or case: `…/Popup-dark.png` → `popup`. */
+function imageStem(url: string): string {
+    const name = (url.split(/[?#]/)[0] ?? '').split('/').at(-1) ?? '';
+    return name
+        .replace(/\.[^.]+$/, '')
+        .toLowerCase()
+        .replace(/(^|[-_.])(dark|light)(?=$|[-_.])/g, '')
+        .replace(/^[-_.]+|[-_.]+$/g, '');
+}
+
 /**
- * The n-th dark screenshot is the dark twin of the n-th light one, in document order, and never a
- * slide of its own. A dark screenshot with no light partner is dropped with a warning.
+ * A dark screenshot is the dark twin of the light one with the same image name (`popup.png` and
+ * `popup-dark.png`), else of the one with the same caption, and never a slide of its own. Only a
+ * metainfo where no dark screenshot can be identified that way is paired by document order. A dark
+ * screenshot without a partner is dropped with a warning rather than attached to an arbitrary one.
  */
 function parseScreenshots(screenshots: XmlElement[], warn: (message: string) => void): MetainfoScreenshot[] {
     const light = screenshots.filter((screenshot) => !isDark(screenshot));
@@ -140,10 +152,32 @@ function parseScreenshots(screenshots: XmlElement[], warn: (message: string) => 
         ...parseImages(screenshot),
         caption: singleLocalized(screenshot, 'caption') ?? null,
     }));
-    for (const [index, dark] of screenshots.filter(isDark).entries()) {
+    const darks = screenshots.filter(isDark);
+    const claimed = new Set<number>();
+    const identify = (dark: XmlElement): number => {
+        const images = parseImages(dark);
+        const stem = imageStem(images.url);
+        const caption = singleLocalized(dark, 'caption')?.source;
+        const free = (index: number) => !claimed.has(index);
+        const byName =
+            stem === '' ? -1 : result.findIndex((shot, index) => free(index) && imageStem(shot.url) === stem);
+        if (byName !== -1) return byName;
+        if (!caption) return -1;
+        return result.findIndex((shot, index) => free(index) && shot.caption?.source === caption);
+    };
+
+    const partners = darks.map((dark) => {
+        const index = identify(dark);
+        if (index !== -1) claimed.add(index);
+        return index;
+    });
+    const byOrder = partners.every((index) => index === -1);
+
+    for (const [n, dark] of darks.entries()) {
+        const index = byOrder ? n : partners[n]!;
         const partner = result[index];
-        if (partner) partner.dark = parseImages(dark);
-        else warn(`Dark screenshot ${index + 1} of the metainfo has no light screenshot to pair with; dropping it`);
+        if (partner && index !== -1) partner.dark = parseImages(dark);
+        else warn(`Dark screenshot ${n + 1} of the metainfo has no light screenshot to pair with; dropping it`);
     }
     return result;
 }
