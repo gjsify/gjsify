@@ -48,10 +48,13 @@ Node semantic in TypeScript. A NativeScript backend only has to implement that s
    `include.gradle`). `AndroidSQLiteDriver` is accepted as a degraded fallback with the OS's SQLite
    version; the driver reports which one it got.
 3. **iOS driver: the system `SQLite3` C functions** through the NativeScript iOS bridge.
-4. **The extended result code is part of the contract.** `androidx.sqlite` throws
-   `SQLiteException` carrying the primary code only, as far as the public API goes. Whether the
-   extended code is recoverable (for example from the message) is unverified. Until a device run
-   settles it, the Android driver reports the primary code, and this ADR stays Proposed.
+4. **The error code is the primary code; the extended one is derived, best effort.** Measured
+   (Spike): `SQLiteException` surfaces in JS as `android.database.SQLException` whose message is
+   `Error code: <primary>, message: <sqlite3_errmsg>`, with no accessor for the extended code. The
+   driver parses the primary code out of the message and maps the well-known constraint messages
+   (`UNIQUE constraint failed` → 2067, `NOT NULL …` → 1299, `FOREIGN KEY …` → 787, `CHECK …` →
+   275). A rowid primary-key clash reads `UNIQUE constraint failed: t.id` too, so it reports 2067
+   where SQLite says 1555; that ambiguity is documented, not hidden.
 5. **Package layout:** the two drivers live in `packages/nativescript-bridge/sqlite`
    (`@gjsify/native-sqlite-bridge`, `nativescript: "native"`, other slots `none`, same convention
    as `native-fs-bridge`); `@gjsify/sqlite` depends on it only through the nativescript slot.
@@ -68,16 +71,71 @@ Node semantic in TypeScript. A NativeScript backend only has to implement that s
 - The first implementation can be verified only on a device/emulator (arm64-v8a and x86_64 for the
   emulator); unit specs use a fake driver for the JS-side mapping, the real driver is covered by
   an e2e under `tests/e2e/`.
-- Android `BLOB` and `INTEGER` > 2^53 cross the Java bridge as `byte[]` and `long`; the driver
-  converts to `Uint8Array` and `bigint` explicitly rather than relying on bridge coercion.
+- `BLOB` and `INTEGER` > 2^53 do NOT convert on their own (Spike): see § Spike. The driver binds
+  a 64-bit integer as `java.lang.Long.parseLong(String(v))` and reads it back as
+  `BigInt(String(getLong(i)))`; a blob is read as an indexable `byte[]` and copied into a
+  `Uint8Array` (`& 0xff`).
 - `:memory:` and file databases both work through the driver; the default path for relative
   names is the app's `getDatabasePath` directory, which is a documented divergence from Node's
   cwd-relative open.
 - Not decided: `react-native` slot (declaration-only), and whether the iOS driver should be
   shared with a future Swift/ObjC consumer.
 
+## Spike (2026-11-16, Android emulator API 36, x86_64, `androidx.sqlite:*:2.5.2`)
+
+A throwaway NativeScript app (`@nativescript/android` 9.1.1, Vite 8) called the driver classes
+from JS. Measured, all through `BundledSQLiteDriver`:
+
+| Question | Result |
+|---|---|
+| `:memory:` and file database (`getDatabasePath`) | works |
+| SQLite version | 3.46.0, from the AAR, not the OS image |
+| FTS5 (`CREATE VIRTUAL TABLE … USING fts5`, `MATCH`) | works; compile options list `ENABLE_FTS3/4/5` |
+| `PRAGMA journal_mode=WAL` | answers `wal` |
+| prepare / bind (1-based) / `step` / `reset` + `clearBindings` reuse / `close` | works |
+| `bindNull`, `getColumnType` (NULL = 5), `getDouble`, `getText` (UTF-8 incl. ä€ö) | works |
+| `INTEGER` > 2^53 | `bindLong(i, 9007199254740993n)` throws "Failed resolving method"; `bindLong(i, Number(v))` rounds; `bindLong(i, java.lang.Long.parseLong(str))` is exact. `getLong` returns an object whose `String()` is exact → `BigInt(String(x))` |
+| `new java.lang.Long(str)` as the argument | WRONG value (stored 2791); do not use |
+| `BLOB` | bind a `Array.create('byte', n)`; `getBlob` returns an indexable `byte[]` (signed), not a `Uint8Array` |
+| Extended error code | not reachable: only `Error code: <primary>, message: …` (decision 4) |
+| 10 000-row `step()` + `getLong` + `getText` read | 72 ms |
+
+Two findings that are not about SQLite:
+
+- **The NativeScript metadata generator drops `androidx.sqlite` unless it is whitelisted.** An app
+  with `whitelist-plugins-usages: true` in `App_Resources/Android/native-api-usage.json` (the
+  Learn6502 and Steuererklärung shells have it) sees `androidx.sqlite` as `undefined` at run
+  time. The consuming app must list `androidx.sqlite.driver.bundled:BundledSQLiteDriver`,
+  `androidx.sqlite.driver:AndroidSQLiteDriver`, `androidx.sqlite:SQLiteDriver`,
+  `…:SQLiteConnection`, `…:SQLiteStatement`, `…:SQLiteException`. This is the answer to the
+  "where is the dependency declared" question: the Gradle line in the app's `app.gradle`
+  (`include.gradle` of a plugin works the same way) plus those whitelist entries; the package
+  documents both.
+- The classes sit in `androidx.sqlite.driver.bundled` (`BundledSQLiteDriver`) and `androidx.sqlite`
+  (the interfaces); `Application.android.context` is not set at app start, use
+  `Utils.android.getApplicationContext()`.
+
+## What the driver must still build (why this is not a thin wrapper)
+
+`NativeSqliteModule` is shaped by the GObject binding, not by the C API alone. The Spike shows
+`androidx.sqlite` lacks several of its members, each needing an adapter written in TS:
+
+- `Statement.bind_parameter_index/name`, `bind_parameter_count`: no API. Needs a small SQL
+  tokenizer for `?`, `?NNN`, `:a`, `@a`, `$a` (skipping strings, comments, quoted identifiers).
+- `Database.exec(script)`: `prepare` compiles ONE statement; `sqlite3_exec` semantics need
+  statement-boundary splitting, i.e. the same tokenizer plus `CREATE TRIGGER … BEGIN … END`.
+- `Database.changes` / `last_insert_rowid`: `SELECT changes(), last_insert_rowid()` after each write.
+- `Database.in_transaction` (`sqlite3_get_autocommit`): no API found in the public surface; the
+  `SQLiteKt.inTransaction` helper is unverified.
+- `Statement.expanded_sql`, `column_decltype`: no API.
+- `bind_blob` takes `GLib.Bytes | Uint8Array`, `column_blob` returns `GLib.Bytes`; the module type
+  names GLib, which NativeScript does not have, so `NativeSqliteModule` needs a GLib-free
+  restatement before a second backend can implement it.
+
 ## Open
 
-- Verify extended error codes on `sqlite-bundled` (decision 4).
-- Measure `step()` throughput across the bridge for a 10 000-row read (ADR 0123 benchmark shape).
-- Decide where the Gradle dependency is declared so `gjsify ship` / the NS composer picks it up.
+- Implement the package against the list above (not started; the Spike carries the decision).
+- `in_transaction`: verify `SQLiteKt.inTransaction`, else track `BEGIN`/`COMMIT`/`SAVEPOINT` result
+  state through `SELECT`-less means.
+- Measure against the ADR 0123 benchmark shape (the 72 ms above is the read half only).
+- iOS driver: unchanged, not started.
