@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.64.47](https://github.com/gjsify/gjsify/compare/v0.64.46...v0.64.47) (2026-11-16)
+
+### Bug Fixes
+
+* **adwaita-ns:** place the popover card on Android ([#2680](https://github.com/gjsify/gjsify/issues/2680)) ([8fce6b0](https://github.com/gjsify/gjsify/commit/8fce6b0072429fb4723d91b06c54dd17a42351c4))
+* **adwaita-ns:** show the entry row's empty title ([#2679](https://github.com/gjsify/gjsify/issues/2679)) ([47e478c](https://github.com/gjsify/gjsify/commit/47e478c7cdb4f7a634fbe1d0d66ee2fa364f28a6))
+* **cli:** verify Chrome credentials in dry run ([#2681](https://github.com/gjsify/gjsify/issues/2681)) ([32109bd](https://github.com/gjsify/gjsify/commit/32109bd535a19114f68ae707cd64f7ac33a3aabf))
+* **site:** keep permission names whole in preview ([#2682](https://github.com/gjsify/gjsify/issues/2682)) ([da2f189](https://github.com/gjsify/gjsify/commit/da2f1898efa07d792bb42f321d7f9e8fb183ea87))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([155108d](https://github.com/gjsify/gjsify/commit/155108d77cd36605a4f6a1e3672ccaf9ba333fa8))
+
 ## [0.64.46](https://github.com/gjsify/gjsify/compare/v0.64.45...v0.64.46) (2026-11-16)
 
 ### Features
