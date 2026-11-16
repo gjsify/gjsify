@@ -10,6 +10,10 @@
         ".": {
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
+        },
+        "./driver": {
+            "types": "./lib/types/driver.d.ts",
+            "default": "./lib/esm/driver.js"
         }
     },
     "files": [
