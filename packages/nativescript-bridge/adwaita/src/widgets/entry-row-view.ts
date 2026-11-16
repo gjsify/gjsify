@@ -105,6 +105,19 @@ export function entryRowClassName(base: string, state: EntryRowRenderState): str
 }
 
 /**
+ * Put the row's `title` on BOTH of its title labels. `empty_title` and `title` are bound to
+ * the same property in adw-entry-row.ui; the inherited `_applyLabels` only knows the second,
+ * so without this the large placeholder (the one visible while the row is empty) stays blank.
+ */
+export function applyEntryRowTitles(
+    views: { emptyTitle: { text: string }; title: { text: string } },
+    title: string,
+): void {
+    views.emptyTitle.text = title;
+    views.title.text = title;
+}
+
+/**
  * Paint one entry-row render snapshot.
  *
  * The two titles are the endpoints of libadwaita's cross-fade (C:433-439): GTK

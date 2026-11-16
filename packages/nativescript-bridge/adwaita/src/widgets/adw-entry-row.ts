@@ -65,7 +65,7 @@ import { AdwActionRow } from './adw-action-row.js';
 import { GtkImage } from './gtk-image.js';
 import { applyTemplateXalign } from './gtk-label.js';
 import { AdwImageButton } from './adw-image-button.js';
-import { NS_EDIT_ICON_CLASS, NS_ENTRY_ROW_CLASS, applyEntryRowState } from './entry-row-view.js';
+import { NS_EDIT_ICON_CLASS, NS_ENTRY_ROW_CLASS, applyEntryRowState, applyEntryRowTitles } from './entry-row-view.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
 import { readDeclaredValue, withProperties } from './signals.js';
 
@@ -237,6 +237,8 @@ export class AdwEntryRow extends withProperties(AdwActionRow, {
         applyTemplateXalign(emptyTitle, 0);
         this._textStack.insertChild(emptyTitle, 0);
         this._emptyTitle = emptyTitle;
+        // A title given through the constructor bag was applied before the label above existed.
+        this._applyLabels();
 
         const field = new TextField();
         field.className = 'adw-entry-field';
@@ -407,6 +409,16 @@ export class AdwEntryRow extends withProperties(AdwActionRow, {
                 textChanged: this._textChanged,
             }),
         );
+    }
+
+    /**
+     * Runs from the inherited constructor's `notify::title`, before `_emptyTitle` exists:
+     * the constructor re-applies once the label is there.
+     */
+    protected override _applyLabels(): void {
+        super._applyLabels();
+        if (this._emptyTitle)
+            applyEntryRowTitles({ emptyTitle: this._emptyTitle, title: this._titleLabel }, this.title);
     }
 
     /** Paint one render snapshot through the shared (spec-driven) painter. */
