@@ -115,8 +115,15 @@ export function pickFlatpakBuildKeys(
 export const DEFAULT_SHIP_FLATPAK_BRANCH = 'stable';
 
 /**
- * The scalable icon directory a `kind: 'app'` Flatpak drops before
+ * The cleanup entry that drops the app's OWN scalable icon
+ * (`scalable/apps/<appId>.svg`) from a `kind: 'app'` Flatpak before
  * `appstreamcli compose` reads the tree.
+ *
+ * ONLY THAT FILE, never the `scalable` directory. The compose failure concerns
+ * the app icon alone; removing the whole directory also deleted every extra icon
+ * an app ships via `gjsify.ship.extraFiles` (Curlew's
+ * `scalable/apps/curlew-protocol-*.svg` badges vanished from the v0.2.0-rc.1
+ * Flatpak and the UI showed missing icons).
  *
  * THE OTHER HALF OF `LAYOUTS.linux.icon`, and the half that cannot live in the
  * layout: the stage is one payload for four Linux formats (ADR 0024 § 2) and the
@@ -146,11 +153,15 @@ export const DEFAULT_SHIP_FLATPAK_BRANCH = 'stable';
  * icon without gdk-pixbuf at all. Reported as an `Upstream (AppStream, file by
  * hand)` issue rather than filed there (root AGENTS.md).
  */
-export const SCALABLE_ICONS_CLEANUP = '/share/icons/hicolor/scalable';
+export function scalableAppIconCleanup(appId: string): string {
+    return `/share/icons/hicolor/scalable/apps/${appId}.svg`;
+}
 
 export interface ShipFlatpakInput {
     ship: ConfigDataShip;
     flatpak: ConfigDataFlatpak;
+    /** The application id; names the one scalable icon the cleanup removes. */
+    appId: string;
     /** Decides the finish-args default: a GUI app needs a display, a CLI does not. */
     kind: 'app' | 'cli';
 }
@@ -193,10 +204,12 @@ export function resolveShipFlatpakSettings(input: ShipFlatpakInput): ResolvedShi
         // APPENDED to what the project declared, not defaulted to — the one entry
         // here that is not the author's choice. A project with its own `cleanup`
         // list would otherwise lose the entry that keeps its own Flatpak buildable
-        // (see {@link SCALABLE_ICONS_CLEANUP}), and `??` cannot express "ours as
-        // well as theirs". Deduplicated so a project that already wrote the glob —
-        // the workaround this replaces — gets one, and in ITS position.
-        cleanup: [...new Set([...(cleanup ?? []), ...(input.kind === 'app' ? [SCALABLE_ICONS_CLEANUP] : [])])],
+        // (see {@link scalableAppIconCleanup}), and `??` cannot express "ours as
+        // well as theirs". Deduplicated so a project that already wrote the old
+        // glob gets one, and in ITS position.
+        cleanup: [
+            ...new Set([...(cleanup ?? []), ...(input.kind === 'app' ? [scalableAppIconCleanup(input.appId)] : [])]),
+        ],
     };
 
     return { settings, warnings: fromLegacy.length === 0 ? [] : [deprecationWarning(fromLegacy)] };

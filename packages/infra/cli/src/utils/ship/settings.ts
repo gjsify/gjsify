@@ -312,7 +312,7 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
     // Resolved here rather than in the packer, because the packer may run on a
     // host with no `package.json` at all (ADR 0024 § A2) — and because the
     // finish-args default depends on `kind`, which is a project fact.
-    const flatpakSettings = resolveShipFlatpakSettings({ ship, flatpak, kind });
+    const flatpakSettings = resolveShipFlatpakSettings({ ship, flatpak, kind, appId });
     warnings.push(...flatpakSettings.warnings);
 
     // `gjsify.ship.nestedBundles`/`helperExecutables` describe what the DARWIN
