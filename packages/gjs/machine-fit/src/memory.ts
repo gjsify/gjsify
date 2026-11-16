@@ -212,7 +212,7 @@ function freeGpuBytes(gpu: GpuMemory, ramAvailableBytes: number): number | undef
 }
 
 /**
- * What an engine needs when its memory is not one lump (ADR 0145). Weights that the engine
+ * What an engine needs when its memory is not one lump (ADR 0146). Weights that the engine
  * streams to the device in blocks are not the same kind of need as the compute buffers that must
  * sit on the device that computes.
  */

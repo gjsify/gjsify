@@ -50,7 +50,7 @@ The check uses FREE GPU memory: a model another server already holds (Ollama, LM
 
 ### Device memory and streamable memory
 
-Some engines keep the weights in RAM and stream them to the GPU in blocks (stable-diffusion.cpp, llama.cpp with partial offload); only the compute buffers must sit on the device. For those, pass a `FitRequirement` instead of a number (ADR 0145):
+Some engines keep the weights in RAM and stream them to the GPU in blocks (stable-diffusion.cpp, llama.cpp with partial offload); only the compute buffers must sit on the device. For those, pass a `FitRequirement` instead of a number (ADR 0146):
 
 ```typescript
 checkFit({ deviceBytes: 1.2e9, streamableBytes: 12.7e9, diskBacked: true }, readMachineMemory());

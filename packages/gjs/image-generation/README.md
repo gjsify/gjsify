@@ -86,7 +86,7 @@ const engine = sdCppImageGeneration({
 
 **The GPU guard.** A Vulkan driver can hang a process instead of failing. Before going to the GPU, the engine leaves a pin in `gpuGuardDir` and removes it when the work finishes. A pin left over from a crash keeps the next run on the CPU and reports it through `onGpuPinned`. `gpu: 'on'` removes the pin.
 
-### Memory: the request decides (ADR 0145)
+### Memory: the request decides (ADR 0146)
 
 sd.cpp streams the weights from RAM or disk to the GPU; only its compute buffers must sit on the device, and those grow with the image size (with the square of the latent tokens without flash attention, linearly with it). So the engine asks `@gjsify/machine-fit` a split requirement, not one number:
 

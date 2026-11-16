@@ -55,7 +55,7 @@ Highlights of 0.54.0:
   takes a split `{ deviceBytes, streamableBytes, diskBacked }` next to a number, and
   `@gjsify/image-generation` uses it: `generate()` throws a `QuotaExceededError` naming the
   size (and flash attention, when off) before sd.cpp starts, instead of "Image generation
-  failed" after minutes. `SdCppCommonOptions.onLog` forwards sd.cpp's log (ADR 0145).
+  failed" after minutes. `SdCppCommonOptions.onLog` forwards sd.cpp's log (ADR 0146).
 
 Fixes worth knowing: `@gjsify/napi` installs on a cold tree again (#1983),
 `tty.ReadStream#setRawMode` restores the terminal on exit (#1940), `child_process` emits

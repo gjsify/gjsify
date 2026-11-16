@@ -1,4 +1,4 @@
-// The compute estimate against what sd.cpp measured (ADR 0145), and the size check on made-up
+// The compute estimate against what sd.cpp measured (ADR 0146), and the size check on made-up
 // machines. The addon is never loaded here.
 
 import { describe, expect, it } from '@gjsify/unit';
@@ -95,9 +95,9 @@ export default async () => {
         };
 
         await it('lets a size through that fits', async () => {
-            expect(run({ width: 1024, height: 1024, flashAttention: true, weightsBytes: 12 * GIB, memory: desktop })).toBe(
-                undefined,
-            );
+            expect(
+                run({ width: 1024, height: 1024, flashAttention: true, weightsBytes: 12 * GIB, memory: desktop }),
+            ).toBe(undefined);
         });
 
         await it('throws a QuotaExceededError naming the size, with the flash attention tip', async () => {

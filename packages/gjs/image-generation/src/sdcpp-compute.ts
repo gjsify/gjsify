@@ -1,4 +1,4 @@
-// What a request costs the device, and the check that runs before sd.cpp is asked (ADR 0145).
+// What a request costs the device, and the check that runs before sd.cpp is asked (ADR 0146).
 // Pure: bytes in, a FitRequirement out, so it is testable on a made-up machine.
 
 import { checkFit, type FitRequirement, type MachineMemory } from '@gjsify/machine-fit';
