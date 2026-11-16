@@ -18,7 +18,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -378,4 +378,28 @@ test('resetClip, relCurveTo, copyPage/showPage', () => {
 
     cr.$dispose();
     s.$dispose();
+});
+
+test('PDFSurface writes a one-page PDF; wrapSurfaceHandle fans PDF out', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'node-gi-pdf-'));
+    const file = join(dir, 'out.pdf');
+    try {
+        const s = new cairo.PDFSurface(file, 200, 100);
+        assert.equal(s.getType(), cairo.SurfaceType.PDF);
+        assert.ok(s instanceof cairo.Surface);
+        s.setSize(300, 150);
+        const cr = new cairo.Context(s);
+        assert.ok(cr.getTarget() instanceof cairo.PDFSurface, 'getTarget fans out to PDFSurface');
+        cr.setSourceRGB(1, 0, 0);
+        cr.rectangle(10, 10, 50, 50);
+        cr.fill();
+        cr.showPage();
+        s.finish();
+        cr.$dispose();
+        s.$dispose();
+        const bytes = readFileSync(file);
+        assert.equal(bytes.subarray(0, 5).toString('latin1'), '%PDF-');
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
 });

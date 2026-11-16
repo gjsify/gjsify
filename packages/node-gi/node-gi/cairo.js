@@ -486,6 +486,23 @@ export class Surface {
     }
 }
 
+/** A PDF file surface (`cairo_pdf_surface_*`), sizes in points. */
+export class PDFSurface extends Surface {
+    constructor(filename, width, height) {
+        super();
+        setHandle(this, engine().pdfSurfaceCreate(filename, width, height));
+    }
+
+    /** Change the size of subsequent pages. */
+    setSize(width, height) {
+        c.pdfSurfaceSetSize(this[H], width, height);
+    }
+
+    get [Symbol.toStringTag]() {
+        return 'PDFSurface';
+    }
+}
+
 /** An in-memory image surface (`cairo_image_surface_*`). */
 export class ImageSurface extends Surface {
     constructor(format, width, height) {
@@ -603,7 +620,8 @@ export class Path {}
 // Fan a surface handle out to the concrete subclass by cairo runtime type —
 // mirrors CairoSurface::from_c_ptr (only the image surface has a subclass here).
 function wrapSurfaceHandle(handle) {
-    return wrapRaw(c.surfaceGetType(handle) === SurfaceType.IMAGE ? ImageSurface : Surface, handle);
+    const t = c.surfaceGetType(handle);
+    return wrapRaw(t === SurfaceType.IMAGE ? ImageSurface : t === SurfaceType.PDF ? PDFSurface : Surface, handle);
 }
 
 // Fan a pattern handle out to the concrete subclass by cairo runtime type —
@@ -658,6 +676,7 @@ const cairo = {
     Context,
     Surface,
     ImageSurface,
+    PDFSurface,
     Pattern,
     SolidPattern,
     Gradient,

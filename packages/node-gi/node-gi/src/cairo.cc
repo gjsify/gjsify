@@ -20,7 +20,7 @@
 // in-fill/in-stroke, getSource, the toy-text API: selectFontFace/setFontSize/
 // showText/textPath/textExtents/fontExtents), Surface + ImageSurface (headless pixels),
 // SolidPattern, LinearGradient/RadialGradient (color stops), SurfacePattern
-// (extend/filter), Path handles. Deferred: region, PDF/SVG/PS surfaces,
+// (extend/filter), Path handles. PDFSurface (create/setSize). Deferred: region, SVG/PS surfaces,
 // text/font ops (showText/selectFontFace — canvas2d text rides PangoCairo).
 //
 // The JS wrapper classes live in the L1 module (cairo.js); each instance holds
@@ -32,6 +32,9 @@
 #include "common.h"
 
 #include <cairo.h>
+#if CAIRO_HAS_PDF_SURFACE
+#include <cairo-pdf.h>
+#endif
 #include <string.h>  // memcpy
 
 #include <vector>
@@ -394,6 +397,35 @@ void InitCairo(Napi::Env env, Napi::Object exports) {
             return env.Undefined();
           }
           return MakeCairoHandle(env, s, CairoKind::Surface);
+        }));
+  // PDFSurface(filename, width, height) — gjs CairoPDFSurface::constructor_impl.
+  c.Set("pdfSurfaceCreate", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+#if CAIRO_HAS_PDF_SURFACE
+          std::string path = info[0].ToString().Utf8Value();
+          cairo_surface_t* s = cairo_pdf_surface_create(path.c_str(), Num(info, 1), Num(info, 2));
+          if (!CheckStatus(env, cairo_surface_status(s), "surface")) {
+            cairo_surface_destroy(s);
+            return env.Undefined();
+          }
+          return MakeCairoHandle(env, s, CairoKind::Surface);
+#else
+          Napi::Error::New(env, "could not create PDF surface, recompile cairo with PDF support.")
+              .ThrowAsJavaScriptException();
+          return env.Undefined();
+#endif
+        }));
+  c.Set("pdfSurfaceSetSize", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
+          Napi::Env env = info.Env();
+#if CAIRO_HAS_PDF_SURFACE
+          cairo_surface_t* s = SfcArg(env, info);
+          if (s == nullptr) return env.Undefined();
+          cairo_pdf_surface_set_size(s, Num(info, 1), Num(info, 2));
+          CheckStatus(env, cairo_surface_status(s), "surface");
+#else
+          Napi::Error::New(env, "PDF support not compiled in").ThrowAsJavaScriptException();
+#endif
+          return env.Undefined();
         }));
   c.Set("imageSurfaceCreateFromPNG", Napi::Function::New(env, +[](const Napi::CallbackInfo& info) -> Napi::Value {
           Napi::Env env = info.Env();
