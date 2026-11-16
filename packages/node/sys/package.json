@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/sys",
-    "version": "0.64.45",
+    "version": "0.64.46",
     "description": "Node.js sys module for Gjs (alias for util)",
     "type": "module",
     "module": "lib/esm/index.js",

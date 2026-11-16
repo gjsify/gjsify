@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.64.46](https://github.com/gjsify/gjsify/compare/v0.64.45...v0.64.46) (2026-11-16)
+
+### Features
+
+* **adwaita-app:** bundle five window icons ([#2676](https://github.com/gjsify/gjsify/issues/2676)) ([1862ab7](https://github.com/gjsify/gjsify/commit/1862ab7117c02a6cced240377822130fa9a17937))
+* **adwaita-ns:** close Image/Label/Entry/ScrolledWindow gaps ([#2671](https://github.com/gjsify/gjsify/issues/2671)) ([cc19d43](https://github.com/gjsify/gjsify/commit/cc19d433f4d6772dd67a0f5e3b645fc844aeda16))
+* **node-gi:** add cairo.PDFSurface ([#2674](https://github.com/gjsify/gjsify/issues/2674)) ([1438f46](https://github.com/gjsify/gjsify/commit/1438f464061b68ad6853f2965081d7644713463e)), closes [#2670](https://github.com/gjsify/gjsify/issues/2670)
+* **ship:** add desktopExecArgs for Exec= line ([#2672](https://github.com/gjsify/gjsify/issues/2672)) ([05bca57](https://github.com/gjsify/gjsify/commit/05bca57aee8fe3df1d14b6166404501b21a9f0a8))
+* **system-accounts:** reach GOA over D-Bus ([#2668](https://github.com/gjsify/gjsify/issues/2668)) ([77ad0be](https://github.com/gjsify/gjsify/commit/77ad0be466a8c0fe67436ed73e55fc20da5455ef))
+
+### Bug Fixes
+
+* **adwaita-nativescript:** accept string styleClasses in ctor bag ([#2677](https://github.com/gjsify/gjsify/issues/2677)) ([c49cfc3](https://github.com/gjsify/gjsify/commit/c49cfc392326f3cd90f6a67f06d50145b1d6c2f2))
+* **adwaita-ns:** route MenuButton popover slot ([#2669](https://github.com/gjsify/gjsify/issues/2669)) ([c44f8f1](https://github.com/gjsify/gjsify/commit/c44f8f169f5baa76cac2cb8bdc1a09bfc58fe5ad))
+* **ship:** keep extra scalable icons in flatpak ([#2667](https://github.com/gjsify/gjsify/issues/2667)) ([ed9d495](https://github.com/gjsify/gjsify/commit/ed9d4954896989eaa656e14f1eb9fcdf72e59dca))
+* **site:** pair dark screenshots by name ([#2675](https://github.com/gjsify/gjsify/issues/2675)) ([682c47c](https://github.com/gjsify/gjsify/commit/682c47c84a53e70834ddadf3c809e1cc12fdbafc))
+* **webext:** submit reads only what it needs ([#2673](https://github.com/gjsify/gjsify/issues/2673)) ([191f4c6](https://github.com/gjsify/gjsify/commit/191f4c66fbf56cd3179e6f25ad3f2b754f7b2283))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([396da09](https://github.com/gjsify/gjsify/commit/396da095869676c2fb0b1670ecc951ecc87f6a8d))
+
 ## [0.64.45](https://github.com/gjsify/gjsify/compare/v0.64.44...v0.64.45) (2026-11-16)
 
 ### Features
