@@ -340,6 +340,11 @@
       "status": "full",
       "note": "`isAndroid`/`isIOS`/`isNativeScript`, `assertNativeScript()`, `platformInfo()` (OS version, SDK level, device model, manufacturer) via `android.os.Build` + `UIDevice`. Keyed on runtime globals only \u2014 no `@nativescript/core` value import."
     },
+    "@gjsify/native-sqlite-bridge": {
+      "status": "partial",
+      "note": "`node:sqlite` driver for NativeScript (ADR 0147): Android over `androidx.sqlite` `BundledSQLiteDriver` (SQLite from the AAR), iOS a stub that throws. Parameter names, multi-statement `exec`, `changes`/`last_insert_rowid`, `in_transaction` and the error code are TypeScript adapters specced off-device against a fake driver; the Java conversions are measured by a Spike, not yet by an on-device e2e.",
+      "missing": "iOS driver (system SQLite3 C functions, ADR 0147 decision 3); on-device e2e of the Android driver; extended error codes (constraint codes are derived from the message, a rowid clash reads 2067 not 1555); `expanded_sql`/`column_decltype` have no androidx API; `in_transaction` is tracked, not read from SQLite."
+    },
     "@gjsify/nativescript-vite": {
       "status": "full",
       "note": "Vite-8 composer for NativeScript apps: `defineNativescriptConfig()` loads `@nativescript/vite`'s config and fixes the Vite-8/Rolldown incompatibilities at compose time (major-gated: function-alias drop, `@rollup/plugin-commonjs` removal, ns-typescript-check strip), stubs missing framework peers via Node synchronous hooks, applies the SBG bundle-sync fix (stable chunk names + `emptyOutDir`), then spreads `gjsifyNativescript()`. Only hard dep: `@gjsify/vite-plugin-gjsify`."

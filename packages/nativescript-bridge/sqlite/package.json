@@ -62,5 +62,13 @@
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"
     },
-    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/sqlite#readme"
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/sqlite#readme",
+    "peerDependencies": {
+        "@nativescript/core": "*"
+    },
+    "peerDependenciesMeta": {
+        "@nativescript/core": {
+            "optional": true
+        }
+    }
 }
