@@ -397,6 +397,65 @@ config file is committed and an environment variable is not:
 The AMO row exists in the table so the shape of a third backend is fixed before one is written,
 and so `submit --store amo` refuses by name rather than by a missing case.
 
+### One bounded poll layer, nine end states, and which failures may be sent twice
+
+Both APIs answer a write before they have done it, so the client has to wait — and a wait is
+where a release either gets a verdict or gets submitted twice. The waiting lives in ONE place,
+`utils/webext/stores/poll.ts`: the backends poll nothing, and that file owns the deadline, the
+backoff and the clock. `now` and `sleep` are injected the way `publish-readback.ts` injects them,
+so the suite exercises a 600 s budget without waiting a millisecond. The default deadline **is**
+`publish-readback.ts`'s 600 s, borrowed rather than derived — nothing comparable has been
+measured against a store, and `--timeout` is what a real observation changes. One deadline covers
+all four phases: two budgets would make the wall clock twice what `--timeout` promises.
+
+`driveSubmission` returns a pure value — verdict, exit code, redacted detail, a phase trace — and
+the subcommand only prints it. Nine verdicts, because the store's three asynchronous answers
+("busy", "accepted", "I cannot say") are facts an operator acts on differently:
+
+| Code | Verdict | What it means | Call again? |
+|---|---|---|---|
+| 0 | `uploaded` | the draft holds this version; no publish was asked for | — |
+| 0 | `submitted` | the store confirms a submission for this version | — |
+| 0 | `published` | the store reports this version live | — |
+| 0 | `already-there` | the store was already on this version | — |
+| 0 | `in-review` | a submission is in review; this run changed nothing | later |
+| 1 | `rejected` | the store refused it (a 4xx, a failed operation) | no |
+| 1 | `failed` | a repeatable failure that did not stop repeating | yes |
+| 3 | `unresolved` | accepted and never resolved inside the deadline | yes |
+| 4 | `unverifiable` | the store gave a handle this client cannot read | no |
+
+`in-review` exits **0**, which is this amendment's decision and the one most worth arguing: the
+state means the PREVIOUS submit worked, nothing in this run failed, and the way out (Chrome's
+`:cancelSubmission`; Edge documents none) is the person's call and never the command's. The step
+that calls `submit` sits behind an environment with a required reviewer, so a red there costs a
+human a re-run of a workflow that did its job — and a check that cries wolf is one somebody
+switches off. Exit 0 never *claims* a submission: the verdict is its own field. This is the same
+"three outcomes, not one non-zero exit" the section below already recorded. `unresolved` gets its
+own code because its remedy is the opposite of `failed`'s — call again later, unchanged, and
+expect progress. **`2` is deliberately absent:** `cli-app.ts` exits 2 for a usage error, and an
+exit code meaning two things is one nobody can branch on.
+
+Whether a failed call may be sent again is **two** questions, and collapsing them is how a
+release submits twice. First the failure's class: no HTTP answer, 408, 429 or a 5xx is
+repeatable; any other 4xx is the store's verdict on that request and never is; Edge's failed
+operation arrives as a 2xx body the backend already turned into an error carrying HTTP 200, which
+is correctly *not* repeatable. Then the verb: a read costs one request, and an `upload` POST
+writes the draft — a slot, not a queue entry, so the same zip twice leaves the same draft. A
+`publish` POST **creates** a submission and is therefore NEVER resent blind. After one with no
+HTTP answer, `status()` decides: a submission or a published version means it arrived; a draft for
+our version proves it did not and buys exactly one replay; anything else ends the drive at
+`unresolved`, because a re-run of the whole command starts from a status read and is the safe
+retry. Retries are capped at 3 with a 1/2/4 s backoff, 5/15/30 s for a 429 — neither backend
+reads `Retry-After` yet, which is the obvious next refinement and is written down rather than
+left to be rediscovered. A status answer about another version is ignored, so nothing claims what
+was not established.
+
+Two gaps this layer names instead of papering over: a publish that returns only an operation id
+on a backend with no `operation()` is `unverifiable` **before** any poll, because waiting would
+only make a capability gap look like a slow store; and the in-progress value above is documented
+as `UPLOAD_IN_PROGRESS` while `chrome.ts` matches `IN_PROGRESS`, which is a discrepancy in the
+Chrome backend and not in this layer.
+
 ### What this slice builds, and what it refuses to claim
 
 - One `StoreBackend` with `upload`, `publish` and `status`, a `fetchImpl` injected the way
