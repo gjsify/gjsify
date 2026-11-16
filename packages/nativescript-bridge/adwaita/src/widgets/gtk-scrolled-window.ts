@@ -53,7 +53,9 @@
 // WHAT IT DOES NOT DO. The scrollbar itself is the platform's, so `always`, `automatic` and
 // `external` cannot be told apart — only `never` changes anything. `has-frame` is held but no
 // frame is drawn, and the content-size, kinetic and overlay-scrolling knobs have nothing to
-// reach; each is a name in `check-nativescript-widget-coverage.mjs`.
+// reach; each is a name in `check-nativescript-widget-coverage.mjs`. `propagate-natural-width`
+// is held and drawn nowhere (a ScrollView under a non-fixed parent already takes its content's
+// width, GTK's TRUE case); `propagate-natural-height` is enforced, see `_applyHeightRequest`.
 //
 // Reference: refs/gtk gtk/gtkscrolledwindow.c (GtkScrolledWindow)
 // Copyright (c) The GTK Team. LGPLv2.1+.
@@ -92,6 +94,8 @@ export class GtkScrolledWindow extends AdwSingleChildBase {
     private _hscrollbarPolicy: GtkPolicyNick = DEFAULT_SCROLLBAR_POLICY;
     private _vscrollbarPolicy: GtkPolicyNick = DEFAULT_SCROLLBAR_POLICY;
     private _hasFrame = false;
+    private _propagateNaturalWidth = false;
+    private _propagateNaturalHeight = false;
     private _hadjustment: GtkAdjustment | null = null;
     private _vadjustment: GtkAdjustment | null = null;
     private _listening = false;
@@ -235,7 +239,45 @@ export class GtkScrolledWindow extends AdwSingleChildBase {
 
     private _applyHeightRequest(): void {
         const request = super.heightRequest;
-        this._scroll.height = request > 0 && policyScrolls(this._vscrollbarPolicy) ? request : 'auto';
+        // `propagate-natural-height` hands the child's own height up instead of pinning the window to
+        // the request (`gtk_scrolled_window_measure` adds the child's natural size to the natural
+        // request), and a `ScrollView` measured unbounded already answers with exactly that.
+        const pinned = request > 0 && policyScrolls(this._vscrollbarPolicy) && !this._propagateNaturalHeight;
+        this._scroll.height = pinned ? request : 'auto';
+    }
+
+    /**
+     * `Gtk.ScrolledWindow:propagate-natural-width` — whether the window asks its parent for the
+     * child's natural width. FALSE by pspec default.
+     *
+     * HELD AND READ BACK; THE VALUE CHANGES NOTHING DRAWN, which is a declared divergence and not
+     * an omission. A `ScrollView` has no width of its own to be minimal: laid out under a parent
+     * that does not fix its width (an auto `GridLayout` column, `halign: center`) it already takes
+     * its content's width, and under a fixed one it takes that. That is GTK's TRUE case on every
+     * setting. Reproducing FALSE (a window that asks for `min-content-width` and scrolls the rest)
+     * would need the size-negotiation pass a `GridLayout` cell does not run. A `.blp` that sets it
+     * (`propagate-natural-width: true` on a tab strip) therefore lays out as written.
+     */
+    get propagateNaturalWidth(): boolean {
+        return this._propagateNaturalWidth;
+    }
+
+    set propagateNaturalWidth(raw: boolean | string) {
+        this._propagateNaturalWidth = xmlBoolean(raw, this._propagateNaturalWidth);
+    }
+
+    /**
+     * `Gtk.ScrolledWindow:propagate-natural-height` — whether the window asks its parent for the
+     * child's natural height. FALSE by pspec default. Enforced: TRUE releases the pin a
+     * `height-request` puts on a vertically scrolling window (see `heightRequest` above).
+     */
+    get propagateNaturalHeight(): boolean {
+        return this._propagateNaturalHeight;
+    }
+
+    set propagateNaturalHeight(raw: boolean | string) {
+        this._propagateNaturalHeight = xmlBoolean(raw, this._propagateNaturalHeight);
+        this._applyHeightRequest();
     }
 
     /** `Gtk.ScrolledWindow:has-frame` — held and read back; no frame is drawn (see the header). */

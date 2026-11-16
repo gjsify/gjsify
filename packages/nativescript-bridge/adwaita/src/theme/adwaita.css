@@ -133,7 +133,8 @@ Page.adw-window {
  * those from `oklab(from var(--…-bg-color) …)` (_colors.scss:168-193), and the
  * standalone colour that comes out is not a literal anywhere in the tree, so porting
  * it means doing the oklab conversion per scheme rather than copying a number. */
-.dimmed {
+.dimmed,
+.dim-label {
     opacity: 0.55;
 }
 

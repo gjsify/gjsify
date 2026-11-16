@@ -34,8 +34,11 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { Image } from '@nativescript/core';
+import { adwaitaAccent, onAdwaitaAccentChanged } from '@gjsify/adwaita-core';
 import { scaleDip } from '../app-scale.js';
-import { onAdwaitaColorSchemeChanged, themeIconColor } from './color-scheme.js';
+import { adwaitaColorScheme, onAdwaitaColorSchemeChanged, themeIconColor } from './color-scheme.js';
+import { imageClassColor } from './image-style-classes.js';
+import { classNameWith, normalizeStyleClasses, withCssClass, withoutCssClass } from './style-classes.js';
 import { DEFAULT_ICON_COLOR } from './icon-path.js';
 import { drawIcon, onIconsChanged } from './icon-render.js';
 import {
@@ -78,7 +81,9 @@ export class GtkImage extends withSignals(Image) {
     // decides. Neither IS the rendered size — {@link iconPixelSize} computes that.
     private _iconSize: GtkIconSizeNick = 'inherit';
     private _pixelSize = PIXEL_SIZE_UNSET;
+    private _styleClasses: string[] = [];
     private _unsubScheme: (() => void) | null = null;
+    private _unsubAccent: (() => void) | null = null;
     private _unsubIcons: (() => void) | null = null;
 
     constructor(props?: ConstructProps<GtkImage>) {
@@ -100,12 +105,17 @@ export class GtkImage extends withSignals(Image) {
         this.addEventListener('loaded', () => {
             this._syncThemeColor();
             this._unsubScheme ??= onAdwaitaColorSchemeChanged(() => this._syncThemeColor());
+            // `accent` in `styleClasses` is a colour the bitmap is drawn in, so it has to follow a
+            // runtime accent change by re-rendering (see `image-style-classes.ts`).
+            this._unsubAccent ??= onAdwaitaAccentChanged(() => this._syncThemeColor());
             // A resource path an application adds changes what a name draws (ADR 0116 § 4).
             this._unsubIcons ??= onIconsChanged(() => this._render());
         });
         this.addEventListener('unloaded', () => {
             this._unsubScheme?.();
             this._unsubScheme = null;
+            this._unsubAccent?.();
+            this._unsubAccent = null;
             this._unsubIcons?.();
             this._unsubIcons = null;
         });
@@ -113,10 +123,10 @@ export class GtkImage extends withSignals(Image) {
         applyConstructProps(this, props);
     }
 
-    /** Adopt the active scheme's default fill (no-op if the caller pinned a colour). */
+    /** Adopt the fill the style classes and the active scheme ask for (no-op if the caller pinned a colour). */
     private _syncThemeColor(): void {
         if (this._explicitColor) return;
-        const next = themeIconColor();
+        const next = imageClassColor(this._styleClasses, adwaitaAccent(), adwaitaColorScheme()) ?? themeIconColor();
         if (next === this._iconColor) return;
         this._iconColor = next;
         this._render();
@@ -171,6 +181,56 @@ export class GtkImage extends withSignals(Image) {
         this._explicitColor = true;
         this._iconColor = value || DEFAULT_ICON_COLOR;
         this._render();
+    }
+
+    /**
+     * `GtkWidget:css-classes`, spelled `styleClasses` for the reason `style-classes.ts` records.
+     * From XML a space-separated list — `<gtk:Image styleClasses="dim-label" />` — and what a
+     * `.blp` `styles [...]` block becomes.
+     *
+     * The classes ride on `className` beside the widget's own `adw-icon`, so the stylesheet's
+     * rules that reach an icon apply (`.dim-label` and `.dimmed` are an opacity). COLOUR does not
+     * go through the stylesheet: the glyph is a bitmap in its fill colour, so `accent` is
+     * resolved into that colour and follows the scheme and the accent (`image-style-classes.ts`).
+     * An `iconColor` pin outranks the class, as an explicit colour outranks a stylesheet's.
+     */
+    get styleClasses(): string[] {
+        return [...this._styleClasses];
+    }
+
+    set styleClasses(value: string | null | undefined) {
+        this._setClasses(normalizeStyleClasses(value));
+    }
+
+    /** `gtk_widget_add_css_class`. A class the image already carries is a no-op. */
+    add_css_class(name: string): void {
+        this._setClasses(withCssClass(this._styleClasses, name));
+    }
+
+    /** `gtk_widget_remove_css_class`. A class it does not carry is a no-op. */
+    remove_css_class(name: string): void {
+        this._setClasses(withoutCssClass(this._styleClasses, name));
+    }
+
+    /** `gtk_widget_has_css_class`. */
+    has_css_class(name: string): boolean {
+        return this._styleClasses.includes((name ?? '').trim());
+    }
+
+    /** `gtk_widget_get_css_classes` — the list, without the widget's own CSS name. */
+    get_css_classes(): string[] {
+        return [...this._styleClasses];
+    }
+
+    /** `gtk_widget_set_css_classes` — REPLACES the list, as in C. */
+    set_css_classes(names: readonly string[]): void {
+        this._setClasses(normalizeStyleClasses([...names].join(' ')));
+    }
+
+    private _setClasses(classes: readonly string[]): void {
+        this._styleClasses = [...classes];
+        this.className = classNameWith('adw-icon', this._styleClasses);
+        this._syncThemeColor();
     }
 
     /**

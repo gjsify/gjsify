@@ -65,8 +65,10 @@ import popoverPlacementTestSuite from './popover-placement.spec.js';
 import gridStateTestSuite from './grid-state.spec.js';
 import listBoxStateTestSuite from './list-box-state.spec.js';
 import nsLengthTestSuite from './ns-length.spec.js';
+import imageStyleClassesTestSuite from './image-style-classes.spec.js';
 
 run({
+    imageStyleClassesTestSuite,
     bottomSheetDragTestSuite,
     bottomSheetInsetsTestSuite,
     headerBarBalanceTestSuite,

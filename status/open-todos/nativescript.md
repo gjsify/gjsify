@@ -819,6 +819,9 @@ is extending that to the three status roles and then wiring them into
 `accent-theme.ts`-style override tables, because an app can change the accent at runtime
 and `.accent` has to follow it.
 
+Progress: `.accent` now reaches a `Gtk.Image` (resolved into the bitmap colour, `image-style-classes.ts`);
+the Label and the three status roles are still open.
+
 Setting the two properties on the Label is NOT the fix, and this is the trap worth
 writing down: NativeScript drops a CSS value for any property a widget set as a LOCAL one
 (`properties/index.js:585-598`, the reason `status/nativescript-theme-classes.json`

@@ -220,7 +220,7 @@ export const AdwConstructVectorsNsTest = async () => {
             // carries is the seam's own: every widget signal, then the declared signals, then one
             // `notify::` per declared property, in declaration order.
             expect(emitted('GtkEntry')).toBe(
-                'map,unmap,changed,activate,notify::text,notify::text-length,notify::max-length,notify::placeholder-text,notify::editable',
+                'map,unmap,changed,activate,notify::text,notify::text-length,notify::max-length,notify::placeholder-text,notify::width-chars,notify::max-width-chars,notify::editable',
             );
             expect(emitted('GtkDropDown')).toBe('map,unmap,notify::model,notify::selected,notify::selected-item');
             expect(emitted('GtkStack')).toBe('map,unmap,notify::visible-child,notify::visible-child-name');
