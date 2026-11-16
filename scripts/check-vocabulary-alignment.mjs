@@ -603,6 +603,9 @@ const NS_PROPERTY_ALIGNMENT = {
     'gtk-label.styleClasses': {
         own: 'The same slot, the same collision, the third instance — libadwaita puts every label look in a style class (`.title-1`, `.dimmed`, `_labels.scss`), so a label that cannot carry one from markup carries none. `add_css_class` beside it is the GIR spelling, and it is the one the gallery snippets use; this is the XML attribute door, which cannot be a method.',
     },
+    'gtk-image.styleClasses': {
+        own: 'The same slot and the same collision as `gtk-label.styleClasses` above: `GtkWidget:css-classes` is the key and `cssClasses` is a name `ViewBase` owns as a live `Set<string>`, so the port spells it `styleClasses`.',
+    },
     'adw-header-bar.styleClasses': {
         own: 'The same slot on the same surface, for the same reason as `gtk-button.styleClasses` above: `Adw.HeaderBar:css-classes` is the key, and `cssClasses` is a name `ViewBase` already owns as a live `Set<string>` that the CSS engine rebuilds on every `className` write.',
     },

@@ -306,6 +306,28 @@ export const AdwSharedTreesNsTest = async () => {
             ]);
         });
 
+        await it('an image carries the classes and puts them on className', () => {
+            const root = build({ tag: 'GtkImage', styleClasses: ['accent', 'dim-label'] }) as unknown as {
+                styleClasses: string[];
+                className: string;
+            };
+
+            expect(root.styleClasses).toStrictEqual(['accent', 'dim-label']);
+            expect(root.className.split(' ')).toContain('adw-icon');
+            expect(root.className.split(' ')).toContain('dim-label');
+        });
+
+        await it('an image with an iconColor pin keeps the pin over the accent class', () => {
+            const image = build({ tag: 'GtkImage' }) as unknown as {
+                iconColor: string;
+                styleClasses: string | string[];
+            };
+            image.iconColor = '#123456';
+            image.styleClasses = 'accent';
+
+            expect(image.iconColor).toBe('#123456');
+        });
+
         await it('a widget without a class list refuses them BY NAME', () => {
             expect(() => build({ tag: 'AdwClamp', styleClasses: ['card'] })).toThrow('takes no style classes');
         });
