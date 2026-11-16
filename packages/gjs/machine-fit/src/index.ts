@@ -25,6 +25,7 @@ export {
     parseNvidiaSmi,
     readMachineMemory,
     type FitPlacement,
+    type FitRequirement,
     type FitResult,
     type FootprintInput,
     type GpuMemory,

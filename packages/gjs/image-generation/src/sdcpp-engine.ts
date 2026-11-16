@@ -3,7 +3,7 @@
 // N-API engine moves in as it is). It takes the addon as a parameter; `./sdcpp.ts`
 // hands it over.
 
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 
 import type { ModelEntry, ModelStore } from '@gjsify/model-store';
 import {
@@ -30,6 +30,7 @@ import type {
     ImageResult,
 } from './engine.js';
 import { encodePng } from './encode.js';
+import { assertSdCppSizeFits, estimateSdCppRequirement, type SdCppComputeProfile } from './sdcpp-compute.js';
 import { currentTarget, hasPrebuiltBins, runningOnGjs } from './sdcpp-bin.js';
 
 export const SDCPP_ENGINE: EngineInfo = { name: 'sd.cpp', locality: 'local' };
@@ -52,6 +53,8 @@ export interface ImageModelEntry extends ModelEntry {
     readonly defaultHeight: number;
     /** Working set at defaultWidth/defaultHeight, measured, not derived from file size. */
     readonly footprintBytes: number;
+    /** How the compute memory grows with the request size; default `FLUX2_KLEIN_4B_COMPUTE`. */
+    readonly computeProfile?: SdCppComputeProfile;
 }
 
 /** Fields every sd.cpp engine takes, whatever supplies the model files. */
@@ -67,6 +70,12 @@ export interface SdCppCommonOptions {
     readonly onGpuPinned?: (pin: GpuPin) => void;
     /** The machine `availability()` asks. */
     readonly probe?: MachineProbe;
+    /**
+     * Receives sd.cpp's log lines (`level`: debug, info, warn or error). The compute-buffer and
+     * auto-fit lines are what a compute profile for a new model is calibrated from. sd.cpp's log
+     * callback is process-wide: the last engine to set one receives the lines of every engine.
+     */
+    readonly onLog?: (level: string, text: string) => void;
 }
 
 /** The model comes from a {@link ModelStore}: fetched, verified and placed by the store. */
@@ -112,6 +121,11 @@ export interface LocalImageModel {
      * machine is too small, and the model simply tries to load.
      */
     readonly footprintBytes?: number;
+    /**
+     * How the compute memory grows with the request size, for the check that runs when no
+     * `footprintBytes` is given. Default `FLUX2_KLEIN_4B_COMPUTE`.
+     */
+    readonly computeProfile?: SdCppComputeProfile;
 }
 
 export interface SdCppLocalOptions extends SdCppCommonOptions {
@@ -154,7 +168,7 @@ export interface NativeContext {
 export interface SdAddon {
     StableDiffusionContext: { create(options: Record<string, unknown>): Promise<NativeContext> };
     setProgressCallback(callback: ((data: { step: number; steps: number; time: number }) => void) | null): void;
-    setLogCallback?(callback: ((level: number, message: string) => void) | null): void;
+    setLogCallback?(callback: ((data: { level: number | string; text: string }) => void) | null): void;
 }
 
 export class GenerationAborted extends Error {
@@ -231,8 +245,12 @@ interface ModelSource {
     readonly modelId: string;
     readonly backend: string | undefined;
     readonly footprintBytes: number | undefined;
+    readonly flashAttention: boolean | undefined;
+    readonly computeProfile: SdCppComputeProfile | undefined;
     readonly width: number;
     readonly height: number;
+    /** Total size of the model files, when it is cheap to say; never reads their bytes. */
+    weightsBytes(): number | undefined;
     availability(): Promise<Availability>;
     /** Make the files present (a store downloads here) and say where they are. */
     prepare(options: EngineCreateOptions): Promise<ModelPaths>;
@@ -246,8 +264,14 @@ function storeSource<E extends ImageModelEntry>(options: SdCppEngineOptions<E>):
         modelId: entry.modelId,
         backend: entry.backend,
         footprintBytes: entry.footprintBytes,
+        flashAttention: undefined,
+        computeProfile: entry.computeProfile,
         width: entry.defaultWidth,
         height: entry.defaultHeight,
+        weightsBytes: () => {
+            const names = [entry.diffusionModel, entry.vae, entry.llm];
+            return entry.files.filter((f) => names.includes(f.file)).reduce((sum, f) => sum + f.bytes, 0);
+        },
         availability: async () => store.availability(entry.id),
         async prepare(createOptions) {
             const resolved = await store.install(entry.id, {
@@ -279,8 +303,17 @@ function localSource(model: LocalImageModel): ModelSource {
         modelId: model.modelId,
         backend: model.backend,
         footprintBytes: model.footprintBytes,
+        flashAttention: model.flashAttention,
+        computeProfile: model.computeProfile,
         width: model.defaultWidth ?? LOCAL_DEFAULT_SIZE,
         height: model.defaultHeight ?? LOCAL_DEFAULT_SIZE,
+        weightsBytes: () => {
+            let total = 0;
+            for (const file of [model.diffusionModel, model.checkpoint, model.vae, model.llm]) {
+                if (file && existsSync(file)) total += statSync(file).size;
+            }
+            return total;
+        },
         availability: async () => (missingFiles(model).length === 0 ? 'available' : 'unavailable'),
         async prepare() {
             const missing = missingFiles(model);
@@ -336,6 +369,13 @@ function isCpuOnly(backend: string | undefined): boolean {
     return backend.split(',').every((part) => part.trim().toLowerCase() === 'cpu');
 }
 
+const LOG_LEVELS = ['debug', 'info', 'warn', 'error'];
+
+/** sd.cpp numbers its levels (0 debug … 3 error); the callback gets them as names. */
+function logLevelName(level: number | string): string {
+    return typeof level === 'number' ? (LOG_LEVELS[level] ?? String(level)) : level;
+}
+
 /** {@link sdCppImageGeneration} with the addon loader passed in. */
 export function createSdCppEngine<E extends ImageModelEntry = ImageModelEntry>(
     loadAddon: () => Promise<SdAddon>,
@@ -370,9 +410,21 @@ export function createSdCppEngine<E extends ImageModelEntry = ImageModelEntry>(
             const probe = options.probe ?? systemProbe();
             if (onBattery(probe)) return 'unavailable';
             if (!hasPrebuiltBins(currentTarget(probe), runningOnGjs())) return 'unavailable';
+            const memory = readMachineMemory(probe);
             if (source.footprintBytes !== undefined) {
-                const memory = readMachineMemory(probe);
                 if (checkFit(source.footprintBytes, memory).placement === 'none') return 'unavailable';
+            } else {
+                const requirement = estimateSdCppRequirement({
+                    width: source.width,
+                    height: source.height,
+                    flashAttention: source.flashAttention,
+                    weightsBytes: source.weightsBytes(),
+                    profile: source.computeProfile,
+                });
+                const cpuOnly = isCpuOnly(source.backend) || gpuSetting === 'off';
+                if (checkFit(requirement, cpuOnly ? { ...memory, gpus: [] } : memory).placement === 'none') {
+                    return 'unavailable';
+                }
             }
             return source.availability();
         },
@@ -387,6 +439,10 @@ export function createSdCppEngine<E extends ImageModelEntry = ImageModelEntry>(
 
             const open = async (): Promise<void> => {
                 addon ??= await loadAddon();
+                if (options.onLog) {
+                    const onLog = options.onLog;
+                    addon.setLogCallback?.(({ level, text }) => onLog(logLevelName(level), text));
+                }
                 const cpuOnly = gpuBarred();
                 const modelOptions = contextOptions(paths);
                 if (cpuOnly && !modelOptions.backend) {
@@ -401,6 +457,17 @@ export function createSdCppEngine<E extends ImageModelEntry = ImageModelEntry>(
 
             const generate = async (request: ImageRequest): Promise<ImageResult> => {
                 const { width, height } = resolveSize(request, source);
+                if (source.footprintBytes === undefined) {
+                    assertSdCppSizeFits({
+                        width,
+                        height,
+                        flashAttention: source.flashAttention,
+                        weightsBytes: source.weightsBytes(),
+                        profile: source.computeProfile,
+                        memory: readMachineMemory(options.probe ?? systemProbe()),
+                        cpuOnly: !gpu,
+                    });
+                }
                 const native = toNativeOptions(request, width, height);
                 const images = await context!.generateImage(native);
                 const image = images[0];
@@ -450,6 +517,7 @@ export function createSdCppEngine<E extends ImageModelEntry = ImageModelEntry>(
                 async destroy(): Promise<void> {
                     context?.close();
                     context = undefined;
+                    if (options.onLog) addon?.setLogCallback?.(null);
                 },
             };
         },

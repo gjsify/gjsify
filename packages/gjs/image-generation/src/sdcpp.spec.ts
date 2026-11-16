@@ -222,18 +222,74 @@ export default async () => {
             expect(await absent.availability()).toBe('unavailable');
         });
 
-        await it('checks the memory only when a footprint is given', async () => {
+        await it('measures the memory by a footprint when given, else by the estimate', async () => {
             const tight = machine({ freemem: 100 * 1024 * 1024 });
-            const unknown = createSdCppEngine(async () => noAddon, {
-                local: { modelId: 'mine', diffusionModel: model },
-                probe: tight,
-            });
-            expect(await unknown.availability()).toBe('available');
+            const roomy = machine({ freemem: 8 * GIB });
+            const local = { modelId: 'mine', diffusionModel: model };
+            // No footprint: the estimate's floor (compute buffers + sd.cpp reserve) is over 100 MB.
+            expect(await createSdCppEngine(async () => noAddon, { local, probe: tight }).availability()).toBe(
+                'unavailable',
+            );
+            expect(await createSdCppEngine(async () => noAddon, { local, probe: roomy }).availability()).toBe(
+                'available',
+            );
             const measured = createSdCppEngine(async () => noAddon, {
-                local: { modelId: 'mine', diffusionModel: model, footprintBytes: 200 * 1024 * 1024 },
+                local: { ...local, footprintBytes: 200 * 1024 * 1024 },
                 probe: tight,
             });
             expect(await measured.availability()).toBe('unavailable');
+            const smallFootprint = createSdCppEngine(async () => noAddon, {
+                local: { ...local, footprintBytes: 50 * 1024 * 1024 },
+                probe: tight,
+            });
+            expect(await smallFootprint.availability()).toBe('available');
+        });
+
+        await it('refuses a request that does not fit before calling the addon', async () => {
+            let generated = 0;
+            const addon = fakeAddon();
+            const create = addon.StableDiffusionContext.create;
+            addon.StableDiffusionContext.create = async (options) => {
+                const context = await create(options);
+                const generateImage = context.generateImage;
+                context.generateImage = async (native) => {
+                    generated++;
+                    return generateImage(native);
+                };
+                return context;
+            };
+            const tiny = machine({ freemem: 100 * 1024 * 1024 });
+            const engine = await createSdCppEngine(async () => addon, {
+                local: { modelId: 'mine', diffusionModel: model },
+                probe: tiny,
+            }).create();
+            let error: DOMException | undefined;
+            try {
+                await engine.generate({ prompt: 'cat', width: 1024, height: 1536 });
+            } catch (caught) {
+                error = caught as DOMException;
+            }
+            expect(error?.name).toBe('QuotaExceededError');
+            expect(error?.message).toContain('1024x1536');
+            expect(generated).toBe(0);
+            await engine.destroy();
+        });
+
+        await it('passes the log on, naming the level', async () => {
+            const lines: string[] = [];
+            const hook: { emit?: (data: { level: number | string; text: string }) => void } = {};
+            const addon = fakeAddon();
+            addon.setLogCallback = (callback) => {
+                hook.emit = callback ?? undefined;
+            };
+            const engine = await createSdCppEngine(async () => addon, {
+                local: { modelId: 'mine', diffusionModel: model },
+                onLog: (level, text) => lines.push(`${level}:${text}`),
+            }).create();
+            hook.emit!({ level: 1, text: 'compute buffer size: 329 MB' });
+            hook.emit!({ level: 'error', text: 'boom' });
+            expect(lines).toStrictEqual(['info:compute buffer size: 329 MB', 'error:boom']);
+            await engine.destroy();
         });
 
         await it('passes flash attention on to the context', async () => {
