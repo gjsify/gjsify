@@ -432,7 +432,9 @@ export default async () => {
                         ? { status: 400, json: { error: 'invalid_grant', error_description: 'Bad Request' } }
                         : undefined,
                 );
-                const error = await rejected(() => createChromeBackend(CREDENTIALS, { fetchImpl }).verifyCredentials!());
+                const error = await rejected(() =>
+                    createChromeBackend(CREDENTIALS, { fetchImpl }).verifyCredentials!(),
+                );
                 expect(error instanceof StoreApiError).toBe(true);
                 expect(error.message).toContain('invalid_grant');
                 expect(error.message).toContain('CHROME_WEB_STORE_REFRESH_TOKEN');
@@ -444,7 +446,9 @@ export default async () => {
                 const { fetchImpl } = fakeFetch((c) =>
                     isToken(c) ? tokenOk : { status: 404, json: { error: { message: 'Item not found' } } },
                 );
-                const error = await rejected(() => createChromeBackend(CREDENTIALS, { fetchImpl }).verifyCredentials!());
+                const error = await rejected(() =>
+                    createChromeBackend(CREDENTIALS, { fetchImpl }).verifyCredentials!(),
+                );
                 expect((error as StoreApiError).httpStatus).toBe(404);
                 expect(error.message).toContain('CHROME_WEB_STORE_PUBLISHER_ID');
                 expect(error.message).toContain('CHROME_WEB_STORE_ITEM_ID');
@@ -457,7 +461,9 @@ export default async () => {
                         ? tokenOk
                         : { status: 403, text: `denied ${CANARY_SECRET} ${CANARY_REFRESH} Bearer ${CANARY_ACCESS}` },
                 );
-                const error = await rejected(() => createChromeBackend(CREDENTIALS, { fetchImpl }).verifyCredentials!());
+                const error = await rejected(() =>
+                    createChromeBackend(CREDENTIALS, { fetchImpl }).verifyCredentials!(),
+                );
                 expect((error as StoreApiError).httpStatus).toBe(403);
                 expect(error.message).toContain('CHROME_WEB_STORE_ITEM_ID');
                 expect(error.message).toContain('CHROME_WEB_STORE_REFRESH_TOKEN');
@@ -466,7 +472,9 @@ export default async () => {
 
             await it('names the token hint for a 401 on fetchStatus', async () => {
                 const { fetchImpl } = fakeFetch((c) => (isToken(c) ? tokenOk : { status: 401, text: 'expired' }));
-                const error = await rejected(() => createChromeBackend(CREDENTIALS, { fetchImpl }).verifyCredentials!());
+                const error = await rejected(() =>
+                    createChromeBackend(CREDENTIALS, { fetchImpl }).verifyCredentials!(),
+                );
                 expect(error.message).toContain('CHROME_WEB_STORE_REFRESH_TOKEN');
             });
         });
