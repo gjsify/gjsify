@@ -27,7 +27,7 @@ import { GioMenuModel, TYPE_OBJECT } from '@gjsify/adwaita-core';
 import type { AdwMenuActions, AdwMenuModel } from '@gjsify/adwaita-core';
 import type { EventData, View } from '@nativescript/core';
 import { AdwImageButton } from './adw-image-button.js';
-import { builderSlotsOf } from './builder-slots.js';
+import { builderSlotsOf, resolveBuilderSlot } from './builder-slots.js';
 import type { GtkPopover } from './gtk-popover.js';
 import { MenuSlot } from './menu-slot.js';
 import { readDeclaredValue, withProperties } from './signals.js';
@@ -62,6 +62,9 @@ interface MenuButtonMenu {
     readonly _slot: MenuSlot;
     readonly menuModel: AdwMenuModel | null;
 }
+
+/** The names `_addChildFromBuilder` honours; `child` is the fallback. */
+const MENU_BUTTON_SLOTS = ['child', 'popover'] as const;
 
 // `withProperties` and not a second `withSignals`: {@link AdwImageButton} is already
 // `withSignals(GridLayout)`, so `connect`, `emit` and `notify` come down the chain and answer
@@ -113,8 +116,11 @@ export class GtkMenuButton extends withProperties(AdwImageButton, {
 }) {
     static readonly GTypeName: string = 'GtkMenuButton';
 
-    /** `child` is the one destination, so it is also the fallback (the XML door of `Gtk.Button`). */
-    static readonly builderSlots: readonly string[] = builderSlotsOf(['child'], 'child');
+    /**
+     * `popover:` in a `.blp` is an object-valued property, which the shared tree carries as a
+     * slot (as `bottom-bar:` on a bottom sheet); `child` is the fallback for a bare child.
+     */
+    static readonly builderSlots: readonly string[] = builderSlotsOf(MENU_BUTTON_SLOTS, 'child');
 
     /**
      * `GtkMenuButton:popover` — shown on tap in place of the menu. When both are set GTK
@@ -188,9 +194,10 @@ export class GtkMenuButton extends withProperties(AdwImageButton, {
         return this.child;
     }
 
-    /** XML inflation — every child a template declares is THE button's child. */
-    _addChildFromBuilder(_name: string, view: View): void {
-        this.child = view;
+    /** XML inflation — a `popover` slot is the popover, every other child THE button's child. */
+    _addChildFromBuilder(name: string, view: View): void {
+        if (resolveBuilderSlot(name, MENU_BUTTON_SLOTS, 'child') === 'popover') this.popover = view as GtkPopover;
+        else this.child = view;
     }
 
     get_popover(): GtkPopover | null {

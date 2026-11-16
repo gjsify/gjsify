@@ -633,6 +633,33 @@ export const AdwSharedTreesNsTest = async () => {
             );
         });
 
+        // `popover: Popover {…}` on a `Gtk.MenuButton` is the PROPERTY, not the button's child:
+        // before the slot was declared the builder refused it ("Known slots: child"), and
+        // `_addChildFromBuilder` would have made the popover the button's content.
+        await it("Gtk.MenuButton takes its GIR property 'popover' as the popover, not as its child", () => {
+            const root = build({
+                tag: 'GtkMenuButton',
+                children: [{ tag: 'GtkPopover', slot: 'popover', children: [{ tag: 'GtkLabel' }] }],
+            }) as unknown as { popover: unknown; child: unknown };
+
+            expect((root.popover as object | null)?.constructor === elementFor('GtkPopover').ctor).toBe(true);
+            expect(root.child).toBe(null);
+        });
+
+        await it("Gtk.MenuButton keeps a 'child' slot as its content beside a popover", () => {
+            const root = build({
+                tag: 'GtkMenuButton',
+                children: [
+                    { tag: 'GtkLabel', slot: 'child' },
+                    { tag: 'GtkPopover', slot: 'popover' },
+                ],
+            }) as unknown as { popover: unknown; child: unknown };
+
+            expect(root.child === null).toBe(false);
+            expect(root.popover === null).toBe(false);
+            expect(root.child === root.popover).toBe(false);
+        });
+
         await it("AdwStatusPage accepts its GIR child property, 'child', as a named builder slot", () => {
             const root = build({ tag: 'AdwStatusPage', children: [{ tag: 'GtkButton', slot: 'child' }] });
 
