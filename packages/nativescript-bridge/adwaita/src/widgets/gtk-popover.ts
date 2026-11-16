@@ -131,8 +131,10 @@ export class GtkPopover extends withProperties(AdwSingleChildBase, {
 
         const card = new GridLayout();
         card.className = `${GTK_POPOVER_CLASS}-card`;
-        card.addColumn(new ItemSpec(1, 'star'));
-        card.addRow(new ItemSpec(1, 'star'));
+        // AUTO, not star: a star cell fills what a left/top-aligned card is offered, so the card
+        // measured as wide as the window (1484 DIP for a 184 DIP child) on Android.
+        card.addColumn(new ItemSpec(1, 'auto'));
+        card.addRow(new ItemSpec(1, 'auto'));
         card.horizontalAlignment = 'left';
         card.verticalAlignment = 'top';
         // A handler at the card, so a tap on it ends there instead of falling to the dismiss view.
@@ -248,8 +250,10 @@ export class GtkPopover extends withProperties(AdwSingleChildBase, {
         const last = this._placed;
         if (last !== null && last.left === left && last.top === top) return;
         this._placed = { left, top };
-        this._card.marginLeft = left;
-        this._card.marginTop = top;
+        // translate, not margins: on Android a margin written after the first layout pass left the
+        // card at the corner (measured on an emulator), while a translation moves it reliably.
+        this._card.translateX = left;
+        this._card.translateY = top;
         this._card.opacity = 1;
     }
 

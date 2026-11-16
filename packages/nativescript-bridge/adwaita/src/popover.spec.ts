@@ -172,8 +172,8 @@ export const GtkPopoverNsTest = async () => {
             place(popover, { x: 0, y: 0 }, { width: 400, height: 800 });
             place(card, { x: 0, y: 0 }, { width: 120, height: 100 });
             inside(popover)._place();
-            expect(card.marginLeft).toBe(100);
-            expect(card.marginTop).toBe(146);
+            expect(card.translateX).toBe(100);
+            expect(card.translateY).toBe(146);
             expect(card.opacity).toBe(1);
             popover.close();
         });
@@ -186,7 +186,7 @@ export const GtkPopoverNsTest = async () => {
             place(popover, { x: 0, y: 0 }, { width: 400, height: 800 });
             place(inside(popover)._card, { x: 0, y: 0 }, { width: 120, height: 100 });
             inside(popover)._place();
-            expect(inside(popover)._card.marginTop).toBe(750 - 6 - 100);
+            expect(inside(popover)._card.translateY).toBe(750 - 6 - 100);
             popover.close();
         });
     });
