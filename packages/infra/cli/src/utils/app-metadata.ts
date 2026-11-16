@@ -163,10 +163,10 @@ export function renderDesktopEntry(inputs: AppMetadataInputs): string {
     return substitute(loadDesktopTemplate(), {
         NAME: inputs.name,
         SUMMARY: m.summary ?? inputs.name,
-        COMMAND: [
-            inputs.command,
-            ...(inputs.desktopExecArgs ?? []).map((arg) => quoteExecArg(arg, inputs.configKey)),
-        ].join(' ') + execFieldCode(mimetypes),
+        COMMAND:
+            [inputs.command, ...(inputs.desktopExecArgs ?? []).map((arg) => quoteExecArg(arg, inputs.configKey))].join(
+                ' ',
+            ) + execFieldCode(mimetypes),
         APP_ID: inputs.appId,
         CATEGORIES_LINE: categoriesLine,
         KEYWORDS_LINE: keywordsLine,
