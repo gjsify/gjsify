@@ -2,7 +2,7 @@
 
 The accounts a user already set up on their system: find them, read their mail server settings, log in without asking for a password again. The interface is the capabilities a caller needs; a driver per platform maps the system's account store onto them ([ADR 0095](../../../docs/adr/0095-system-accounts-are-asked-by-capability.md)).
 
-Part of the [gjsify](https://github.com/gjsify/gjsify) project. **Tier 3 (experimental, ADR 0003)**: new, one driver, no promise yet.
+Part of the [gjsify](https://github.com/gjsify/gjsify) project. **Tier 3 (experimental, ADR 0003)**: new, two Linux drivers, no promise yet.
 
 ## Installation
 
@@ -45,7 +45,7 @@ for (const account of await accounts.listAccounts('mail')) {
 
 | Platform | State |
 |---|---|
-| Linux, GNOME | **driver**: GNOME Online Accounts through `libgoa` (`gi://Goa?version=1.0&optional`). A host without the typelib still starts and reports empty capabilities |
+| Linux, GNOME | **driver**: GNOME Online Accounts through `libgoa` (`gi://Goa?version=1.0&optional`) when the typelib is present, otherwise straight over D-Bus (`org.gnome.OnlineAccounts`, Gio only). Flatpak runtimes ship no libgoa (org.gnome.Platform 51: none), so a sandboxed app with `--talk-name=org.gnome.OnlineAccounts` takes the D-Bus path. With no daemon reachable both answer empty capabilities-style: no accounts, `no-account-store`, retried on the next call |
 | Linux without GOA, macOS, Windows | no driver; empty capabilities. Whether a platform offers a usable account store to third-party apps is **unexplored**, not ruled out |
 | Android, iOS, browser | not served (`gjsify.runtimes`: only `gjs` is `native`) |
 
@@ -56,6 +56,7 @@ IMAP and SMTP passwords are looked up under the ids GOA keeps them under (`imap-
 `libgoa` has no constructor that takes a connection: `Goa.Client.new` dials the session bus. `src/fake-goa.ts` therefore exports the interfaces it calls (`ObjectManager`, `PasswordBased`, `OAuth2Based`, and the few bus methods a client needs) on a peer-to-peer `Gio.DBusServer` and points the session address at it, so the driver runs libgoa's own client code with no GNOME session, no real account and no keyring. Dummy secrets are compared, never printed.
 
 - GLib caches the session connection per process. Run the suite through `test:gjs`, which starts it with a dead bus path; the fake refuses to go on if the process is already bound to a real bus, so a developer's accounts never reach a test.
+- `src/dbus.ts` (the D-Bus driver) sits behind an `AccountStore` interface, so `dbus.spec.ts` asserts it against a fake on Node and GJS; `src/dbus-gio.ts` is the thin Gio object-manager client, covered for the unreachable bus only. A test against a real daemon is not registered: `test:gjs` pins a dead bus on purpose.
 - The mapping from account fields to the contract (host/port splitting, `tls`/`starttls`/`none` from the two flags and the port, which password ids to try) is pure and runs on Node too.
 - Not covered: a real session bus, a real provider (the OAuth2 path has run against the fake only), and a host whose `libgoa` is genuinely missing (the empty-capabilities path is tested by passing no namespace).
 - The `&optional` import costs a top-level await in the bundle that reaches it, and a `@gjsify/unit` run wedges on it (ADR 0085 clause 5). The specs therefore reach the driver (`src/goa.ts`) directly; only `createSystemAccounts` (`src/system-accounts.ts`) carries the flag.
