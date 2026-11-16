@@ -380,6 +380,7 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
         fontFiles: discovered.fontFiles,
         extraFiles: ship.extraFiles ?? {},
         execArgs: ship.execArgs ?? [],
+        desktopExecArgs: ship.desktopExecArgs ?? [],
         executables: resolveShipExecutables({
             declared: ship.executables,
             binaryName,

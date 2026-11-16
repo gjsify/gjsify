@@ -49,6 +49,7 @@ function settings(overrides: Partial<ShipSettings> = {}): ShipSettings {
         fontFiles: [],
         extraFiles: {},
         execArgs: [],
+        desktopExecArgs: [],
         executables: [],
         outDir: 'ship',
         arch: 'x64',

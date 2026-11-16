@@ -37,6 +37,8 @@ export interface ScaffoldInputs {
     command: string;
     kind: 'app' | 'cli';
     flatpak: ConfigDataFlatpak;
+    /** `gjsify.ship.desktopExecArgs`, when the project declares it. */
+    desktopExecArgs?: readonly string[];
 }
 
 /** `gjsify.flatpak` IS an `AppMetadata` plus Flatpak's own keys. */
@@ -47,6 +49,7 @@ function toMetadataInputs(inputs: ScaffoldInputs): AppMetadataInputs {
         command: inputs.command,
         kind: inputs.kind,
         metadata: inputs.flatpak,
+        desktopExecArgs: inputs.desktopExecArgs,
         channel: 'flathub',
         configKey: 'gjsify.flatpak',
     };

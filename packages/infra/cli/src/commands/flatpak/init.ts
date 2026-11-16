@@ -235,6 +235,7 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
             command,
             kind,
             flatpak,
+            desktopExecArgs: configData.ship?.desktopExecArgs,
         };
 
         const missing = validateScaffoldInputs(scaffold);

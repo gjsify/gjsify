@@ -727,6 +727,14 @@ export interface ConfigDataShip extends AppMetadata {
     /** Arguments the launcher appends before the user's own. */
     execArgs?: string[];
     /**
+     * Arguments for the desktop entry's `Exec=` line, after the command and before the `%u`/`%f`
+     * field code. Separate from `execArgs` on purpose: `execArgs` is baked into the launcher
+     * script, so it applies to every invocation including the CLI; this one only changes what a
+     * menu click runs. An app whose binary is both CLI and GUI (`curlew` alone errors, `curlew
+     * window` opens the window) needs `["window"]` here and nothing in `execArgs`.
+     */
+    desktopExecArgs?: string[];
+    /**
      * Further executables of the SAME package, beside the primary one `gjsify.main` names.
      *
      * Each is one more launcher over the one shared bundle directory: the primary stays

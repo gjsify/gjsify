@@ -570,7 +570,8 @@ already ships a Flatpak often needs no `gjsify.ship` block at all.
     "extraFiles": {                        // prefix-relative destination: project-relative source
       "share/my-app/data.json": "assets/data.json"
     },
-    "execArgs": ["--gapplication-service"] // arguments the launcher passes before the user's
+    "execArgs": ["--gapplication-service"], // arguments the launcher passes before the user's
+    "desktopExecArgs": ["window"]          // arguments for the .desktop `Exec=` line only
   }
 }
 ```
