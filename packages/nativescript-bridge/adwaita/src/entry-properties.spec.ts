@@ -100,7 +100,7 @@ export const GtkEntryPropertiesNsTest = async () => {
             // string through the XML builder; this reads it off the class.
             expect(emittedSignalsOf(Gtk.Entry).join()).toBe(
                 'map,unmap,changed,activate,notify::text,notify::text-length,notify::max-length,' +
-                    'notify::placeholder-text,notify::editable',
+                    'notify::placeholder-text,notify::width-chars,notify::max-width-chars,notify::editable',
             );
         });
 

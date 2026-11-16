@@ -83,10 +83,23 @@
 // it built: whether Android's OWN `setSingleLine`/`setMaxLines` precedence then renders the same
 // line count GTK does is unverified off a device.
 //
-// WHAT IT DOES NOT DO: `attributes`, `natural-wrap-mode`, `wrap-mode`, `width-chars`,
-// `max-width-chars`, `tabs`, `yalign` and the mnemonic-widget link are declared gaps
-// in `check-nativescript-widget-coverage.mjs` — that gate holds the list, so it is not restated
-// here. `yalign` is a continuum on the view's OWN `verticalAlignment` (four positions), which
+// `WIDTH-CHARS`, `MAX-WIDTH-CHARS` AND `NATURAL-WRAP-MODE` ARE DECLARED, HELD AND READ BACK, AND
+// DRAW NOTHING. All three are inputs to GTK's size negotiation (`get_default_widths` for the two
+// character counts, the natural-size wrap pass for the mode) and NativeScript has no counterpart
+// for any of them: its `View` has `minWidth` but no maximum, no character-relative unit exists
+// (everything here is DIPs), and a `GridLayout` cell runs no natural-size pass. `width-chars`
+// could be turned into a `minWidth` only by guessing an average glyph width the CSS engine has
+// not yet resolved at construction, and `minWidth` is also `width-request` — two properties on one
+// platform field, the later write silently winning. So the values are validated like GTK's pspecs
+// (the same `-1` floor `@gjsify/adwaita-core` pins for the web element, an unknown
+// `natural-wrap-mode` throws) and kept, so a `.blp` that carries them builds and its
+// declared intent survives a round trip; a label that must be a given width says so with
+// `width-request`. The divergence is the ledger row for `gtk-label` in
+// `check-nativescript-widget-coverage.mjs`.
+//
+// WHAT IT DOES NOT DO: `attributes`, `wrap-mode`, `tabs`, `single-line-mode`, `yalign` and the
+// mnemonic-widget link are declared gaps in `check-nativescript-widget-coverage.mjs` — that gate
+// holds the list, so it is not restated here. `yalign` is a continuum on the view's OWN `verticalAlignment` (four positions), which
 // `Gtk.Align` already answers to on every widget (`gtk-align.ts`): a second claim on it would
 // report a snap as agreement twice over, the collision `xalign` does NOT have.
 //
@@ -96,6 +109,8 @@ import { Label, type EventData } from '@nativescript/core';
 
 import {
     DEFAULT_LABEL_LINES,
+    DEFAULT_LABEL_MAX_WIDTH_CHARS,
+    DEFAULT_LABEL_WIDTH_CHARS,
     DEFAULT_LABEL_XALIGN,
     HandledAccumulator,
     createAppInfo,
@@ -108,6 +123,8 @@ import {
     labelMarkupRender,
     normalizeLabelEllipsize,
     normalizeLabelLines,
+    normalizeLabelMaxWidthChars,
+    normalizeLabelWidthChars,
     normalizeLabelXalign,
     LABEL_JUSTIFICATIONS,
     type LabelEllipsizeMode,
@@ -130,6 +147,11 @@ export const ACTIVATE_LINK = 'activate-link';
 const appInfo = createAppInfo(nativePlatformHost);
 
 type Edge = 'start' | 'center' | 'end';
+
+/** `Gtk.NaturalWrapMode`'s three nicks, in enum order (`GTK_NATURAL_WRAP_INHERIT` = 0). */
+export const LABEL_NATURAL_WRAP_MODES = ['inherit', 'none', 'word'] as const;
+
+export type LabelNaturalWrapMode = (typeof LABEL_NATURAL_WRAP_MODES)[number];
 
 /** The three `xalign` values `textAlignment` can state exactly, and the edge each one is. */
 const XALIGN_EDGES: ReadonlyMap<number, Edge> = new Map([
@@ -187,6 +209,9 @@ export class GtkLabel extends withSignals(Label) {
     private _useUnderline = false;
     private _ellipsize: LabelEllipsizeMode = 'none';
     private _lines = -1;
+    private _widthChars = DEFAULT_LABEL_WIDTH_CHARS;
+    private _maxWidthChars = DEFAULT_LABEL_MAX_WIDTH_CHARS;
+    private _naturalWrapMode: LabelNaturalWrapMode = 'inherit';
     private _styleClasses: string[] = [];
     private _xalign = DEFAULT_LABEL_XALIGN;
     private _xalignWritten = false;
@@ -270,7 +295,7 @@ export class GtkLabel extends withSignals(Label) {
      *
      * NativeScript's own name for it is `textWrap`, which stays reachable; this is the GIR
      * spelling over the same platform property, so a snippet ported off GJS runs verbatim.
-     * `wrap-mode` and `natural-wrap-mode` are the declared gaps beside it — the platform
+     * `wrap-mode` is the declared gap beside it — the platform
      * wraps at word boundaries and offers no choice. Does NOT reapply {@link lines}:
      * MEASURED (`@gjsify/adwaita-core`'s `label.ts` header), `wrap` plays no part in
      * whether `lines` has an effect, only {@link ellipsize} does.
@@ -318,6 +343,55 @@ export class GtkLabel extends withSignals(Label) {
     set lines(raw: number | string) {
         this._lines = normalizeLabelLines(xmlNumber(raw, DEFAULT_LABEL_LINES));
         this._applyLines();
+    }
+
+    /**
+     * `Gtk.Label:width-chars` — the label's minimum width in characters; `-1` (default) leaves it
+     * to the text. Clamped to that floor as the property system clamps it. Held and read back,
+     * drawn nowhere: see the header.
+     */
+    get widthChars(): number {
+        return this._widthChars;
+    }
+
+    set widthChars(raw: number | string) {
+        this._widthChars = normalizeLabelWidthChars(xmlNumber(raw, DEFAULT_LABEL_WIDTH_CHARS));
+    }
+
+    /**
+     * `Gtk.Label:max-width-chars` — the width in characters past which the label stops asking for
+     * more room (it wraps or ellipsizes instead); `-1` (default) sets no cap. Held and read back,
+     * drawn nowhere: NativeScript has no maximum width (see the header).
+     */
+    get maxWidthChars(): number {
+        return this._maxWidthChars;
+    }
+
+    set maxWidthChars(raw: number | string) {
+        this._maxWidthChars = normalizeLabelMaxWidthChars(xmlNumber(raw, DEFAULT_LABEL_MAX_WIDTH_CHARS));
+    }
+
+    /**
+     * `Gtk.Label:natural-wrap-mode` — how the label wraps when it computes its NATURAL size (not
+     * when it is allocated): `inherit` (default) follows `wrap-mode`, `none` makes the natural
+     * width the unwrapped line, `word` wraps at word boundaries. Takes a nick or the
+     * `Gtk.NaturalWrapMode` constant; reads back as the nick. Held, drawn nowhere (see the header).
+     */
+    get naturalWrapMode(): LabelNaturalWrapMode {
+        return this._naturalWrapMode;
+    }
+
+    set naturalWrapMode(raw: LabelNaturalWrapMode | number | string) {
+        const mode: LabelNaturalWrapMode | undefined = (LABEL_NATURAL_WRAP_MODES as readonly unknown[]).includes(raw)
+            ? (raw as LabelNaturalWrapMode)
+            : LABEL_NATURAL_WRAP_MODES[xmlNumber(raw, -1)];
+        if (mode === undefined) {
+            throw new TypeError(
+                `'${String(raw)}' is not a Gtk.NaturalWrapMode, so it cannot be 'natural-wrap-mode'. The members ` +
+                    `are ${LABEL_NATURAL_WRAP_MODES.join(', ')}, or their values 0 to 2.`,
+            );
+        }
+        this._naturalWrapMode = mode;
     }
 
     /**

@@ -74,6 +74,13 @@
 // does, out of `theme/adwaita.css`, where a `.ns-dark` rule can answer the light/dark
 // question an inline value could not.
 //
+// `width-chars` AND `max-width-chars` (`GtkEditable`) ARE DECLARED, HELD AND READ BACK, AND DRAW
+// NOTHING. They are a character-width request to GTK's size negotiation; NativeScript sizes in
+// DIPs, has no maximum width, and keeps `minWidth` for `width-request` — so turning a character
+// count into one would guess an average glyph width and fight `width-request` for the field.
+// The `-1` floor is the pspec's. A field that must be a given width says so with
+// `width-request`; the divergence is the `gtk-entry` row of `check-nativescript-widget-coverage.mjs`.
+//
 // `Gtk.Entry:activates-default` is deliberately absent: libadwaita vendors no
 // `adw-entry.c`, so it would be a guess. `AdwEntryRow` carries an `activatesDefault`
 // because `Adw.EntryRow` IS vendored and states its semantics, and the `max-length`
@@ -110,6 +117,11 @@ export const ACTIVATE = 'activate';
 
 /** `Gtk.Editable::changed` — every change of the text, typed or set. */
 export const CHANGED = 'changed';
+
+/** The `-1` floor of `GtkEditable:width-chars` / `max-width-chars`, applied to a whole number. */
+function normalizeEntryCharCount(value: number): number {
+    return Number.isFinite(value) ? Math.max(-1, Math.trunc(value)) : -1;
+}
 
 /**
  * The entry a declared property's {@link DeclaredProperty.normalize} reads its siblings off.
@@ -183,6 +195,20 @@ export class GtkEntry extends withSignals(GridLayout, {
             changed: () => true,
             afterNotify: (self) => (self as GtkEntry)._applyPlaceholderText(),
         },
+        'width-chars': {
+            kind: 'int',
+            default: -1,
+            blurb: 'Number of characters to leave space for in the entry',
+            // The pspec floors at -1 (as for `Gtk.Label`, `set_property('width-chars', -5)` warns and
+            // holds -1). HELD AND READ BACK, DRAWN NOWHERE — see the module header.
+            normalize: (value) => normalizeEntryCharCount(readDeclaredValue('width-chars', 'int', value) as number),
+        },
+        'max-width-chars': {
+            kind: 'int',
+            default: -1,
+            blurb: 'The desired maximum width of the entry, in characters',
+            normalize: (value) => normalizeEntryCharCount(readDeclaredValue('max-width-chars', 'int', value) as number),
+        },
         editable: {
             kind: 'boolean',
             default: true,
@@ -230,6 +256,15 @@ export class GtkEntry extends withSignals(GridLayout, {
 
     /** Placeholder shown while the entry is empty (`Gtk.Entry:placeholder-text`). */
     declare placeholderText: string;
+
+    /**
+     * `GtkEditable:width-chars` — characters of room the entry asks for; `-1` leaves it to the
+     * platform. Held, not drawn (module header).
+     */
+    declare widthChars: number;
+
+    /** `GtkEditable:max-width-chars` — the most room, in characters, the entry asks for; `-1` is no cap. */
+    declare maxWidthChars: number;
 
     /** Whether the entry accepts edits (`GtkEditable:editable`). */
     declare editable: boolean;
