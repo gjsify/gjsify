@@ -472,3 +472,31 @@ Chrome backend and not in this layer.
   after which the `DOCUMENTED` markers above become `MEASURED` and the real `uploadState` and
   `status` transitions are written down. Until that has run, this section is a reading of two
   references and nothing more.
+
+### The command: `gjsify webext submit`
+
+```sh
+gjsify webext submit --store chrome|edge [--zip <path>] [--dry-run] [--submit] [--timeout <s>]
+```
+
+The logic is `utils/webext/submit.ts`; the subcommand only reads flags and `process.env`. The
+order keeps a bad run away from the store, because a refusal after a network call is a refusal
+too late: store known and implemented (`amo` refuses by name) → `--submit` only when `$GITHUB_REF`
+is `refs/tags/…` → `--timeout` valid → the store's `store.json` preflight → the zip exists →
+credentials → then either the dry run or the drive.
+
+- **Default is a draft.** The zip is uploaded and nothing is submitted; `--submit` also asks for
+  review and is refused off a tag.
+- **`store.json` is a preflight, never a payload.** It is read from `<listing-dir>/<cws|edge>/`
+  (`--listing-dir`, default `dist/listing`). A missing file or a required field with status
+  `missing` stops the run before any request; `manual` fields are listed, not blocking.
+- **`--dry-run`** resolves credentials and makes exactly one read through `verifyCredentials`
+  (Edge: an operation GET on an unknown id; Chrome has none yet and says the credentials are
+  unverified). It uploads nothing.
+- **The zip** defaults to `<outDir>/<name>-<version>-<target>.zip` for the project's first target
+  of that browser, which is what `webext zip` writes; `--zip` overrides.
+- **Credentials** come from `resolveStoreCredentials` (environment) and never from a flag. Every
+  line printed passes through `redactSecrets`, and a spec plants a canary to prove it.
+- **Exit codes** are `SUBMIT_EXIT_CODES` verbatim (0, 1, 3, 4); a refusal before the drive exits 1.
+  Rerunning with the same version exits 0. A submission stuck in review is cancelled in the Chrome
+  dashboard (`:cancelSubmission`); the command never cancels.
