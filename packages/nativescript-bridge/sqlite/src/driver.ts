@@ -1,5 +1,5 @@
 // The SqliteDriverModule contract (`@gjsify/sqlite-native/driver`) over any androidx.sqlite
-// shaped backend — ADR 0146. Everything androidx leaves out lives here, in plain TypeScript
+// shaped backend — ADR 0147. Everything androidx leaves out lives here, in plain TypeScript
 // with no Java in sight, so it runs (and is specced) under Node against a fake backend:
 // parameter names and count, multi-statement `exec`, `changes` / `last_insert_rowid`,
 // `in_transaction`, statement lifetime and the error code.
@@ -54,7 +54,7 @@ const CONSTRAINT_CODES: [RegExp, number][] = [
  * A backend failure as an Error whose `message` is SQLite's text and whose `code` is the
  * result code. androidx reports `Error code: <primary>, message: <errmsg>` and nothing
  * more, so the extended code of a constraint failure is recovered from the message
- * (a rowid clash therefore reads 2067, not 1555: ADR 0146 decision 4).
+ * (a rowid clash therefore reads 2067, not 1555: ADR 0147 decision 4).
  */
 export function toDriverError(cause: unknown): Error {
     const raw = cause as { message?: unknown; nativeException?: { getMessage?: () => unknown } } | null;
@@ -143,7 +143,13 @@ class Statement implements SqliteStatement {
         raw.close();
     }
     reset(): void {
-        guarded(() => this.#live().reset());
+        const raw = this.#live();
+        try {
+            raw.reset();
+        } catch {
+            // sqlite3_reset() repeats the error of the last step(), which step() already
+            // reported; surfacing it again would replace the caller's SqliteError.
+        }
     }
     clear_bindings(): void {
         guarded(() => this.#live().clearBindings());

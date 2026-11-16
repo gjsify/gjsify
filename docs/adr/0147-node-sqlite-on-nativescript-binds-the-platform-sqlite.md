@@ -1,4 +1,4 @@
-# 146. `node:sqlite` on NativeScript binds the platform's SQLite, one driver per OS
+# 147. `node:sqlite` on NativeScript binds the platform's SQLite, one driver per OS
 
 - Status: **Proposed** (2026-11-16)
 - Date: 2026-11-16
@@ -132,10 +132,26 @@ Two findings that are not about SQLite:
   names GLib, which NativeScript does not have, so `NativeSqliteModule` needs a GLib-free
   restatement before a second backend can implement it.
 
+## Device proof (2026-11-16, emulator API 36, `import { DatabaseSync } from 'node:sqlite'`)
+
+A throwaway NativeScript app (`--app nativescript`, workspace builds of `@gjsify/sqlite` and
+`@gjsify/native-sqlite-bridge`) ran green: `:memory:` (SQLite 3.46.0), named parameters, `run()`
+(`changes`, `lastInsertRowid`), `all()`, file DB under the app database directory, FTS5, BigInt
+round trip (`9007199254740993n`), BLOB as `Uint8Array`, `BEGIN`/`ROLLBACK` with `isTransaction`,
+UNIQUE failure as `SqliteError` with `errcode` 2067, syntax error with `errcode` 1.
+
+Two findings from the run, both fixed in the driver:
+
+- `open(path, flags)` with `file:` handling: the URI flag is always on in `DatabaseSync`, so only a
+  path that actually starts with `file:` is rejected.
+- `sqlite3_reset()` repeats the error of the last `step()`; `Statement.reset()` now swallows it,
+  otherwise the raw Java exception replaced the `SqliteError`.
+
+The app is not committed; there is no automated device test yet.
+
 ## Open
 
-- Implement the package against the list above (not started; the Spike carries the decision).
-- `in_transaction`: verify `SQLiteKt.inTransaction`, else track `BEGIN`/`COMMIT`/`SAVEPOINT` result
-  state through `SELECT`-less means.
+- A repeatable device test (the proof above is a manual run).
+- `in_transaction` is tracked from the statement text; `SQLiteKt.inTransaction` stays unverified.
 - Measure against the ADR 0123 benchmark shape (the 72 ms above is the read half only).
 - iOS driver: unchanged, not started.

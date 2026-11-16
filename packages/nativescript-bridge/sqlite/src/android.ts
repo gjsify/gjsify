@@ -1,5 +1,5 @@
 // The Android backend: androidx.sqlite's BundledSQLiteDriver through the NativeScript Java
-// bridge — ADR 0146. Everything that is a JS-vs-Java conversion lives here; everything
+// bridge — ADR 0147. Everything that is a JS-vs-Java conversion lives here; everything
 // that is SQLite semantics lives in driver.ts.
 //
 // The conversions are the Spike's findings, not guesses:
@@ -104,11 +104,11 @@ function resolvePath(path: string, create: boolean): string {
 export function createAndroidBackend(): RawBackend {
     return {
         open(path: string, mode: number, uri: boolean): RawConnection {
-            if (uri) throw new Error('file: URIs are not supported by the Android node:sqlite driver');
+            if (uri && path.startsWith('file:')) throw new Error('file: URIs are not supported by the Android node:sqlite driver');
             if (typeof androidx === 'undefined' || !androidx?.sqlite?.driver?.bundled) {
                 throw new Error(
                     'androidx.sqlite is not available: add `androidx.sqlite:sqlite-bundled` to the app and list the ' +
-                        'androidx.sqlite classes in App_Resources/Android/native-api-usage.json (ADR 0146)',
+                        'androidx.sqlite classes in App_Resources/Android/native-api-usage.json (ADR 0147)',
                 );
             }
             const driver = new androidx.sqlite.driver.bundled.BundledSQLiteDriver();

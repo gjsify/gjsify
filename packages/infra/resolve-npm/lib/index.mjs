@@ -455,7 +455,6 @@ export const ALIASES_NODE_FOR_NATIVESCRIPT = {
     perf_hooks: '@gjsify/empty',
     diagnostics_channel: '@gjsify/empty',
     domain: '@gjsify/empty',
-    sqlite: '@gjsify/empty',
     sys: '@gjsify/empty',
     zlib: '@gjsify/empty',
 
@@ -463,6 +462,8 @@ export const ALIASES_NODE_FOR_NATIVESCRIPT = {
     assert: '@gjsify/assert',
     'assert/strict': '@gjsify/assert',
     async_hooks: '@gjsify/async_hooks',
+    // Partial: Android binds androidx.sqlite via @gjsify/native-sqlite-bridge (ADR 0147); iOS throws on open.
+    sqlite: '@gjsify/sqlite',
     buffer: '@gjsify/buffer',
     // `@gjsify/module` (not `@gjsify/empty`): provides the named exports
     // `createRequire` / `builtinModules` / `isBuiltin`, so `import { createRequire }
