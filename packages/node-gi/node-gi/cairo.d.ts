@@ -163,6 +163,12 @@ export class Surface {
     $dispose(): void;
 }
 
+/** cairo PDF file surface (`cairo_pdf_surface_*`); sizes in points. */
+export class PDFSurface extends Surface {
+    constructor(filename: string, width: number, height: number);
+    setSize(width: number, height: number): void;
+}
+
 /** cairo image surface (`cairo_image_surface_*`). */
 export class ImageSurface extends Surface {
     constructor(format: number, width: number, height: number);
@@ -238,6 +244,7 @@ declare const cairo: {
     Context: typeof Context;
     Surface: typeof Surface;
     ImageSurface: typeof ImageSurface;
+    PDFSurface: typeof PDFSurface;
     Pattern: typeof Pattern;
     SolidPattern: typeof SolidPattern;
     Gradient: typeof Gradient;

@@ -979,7 +979,7 @@ the full surface `@gjsify/canvas2d-core` draws through (headless Canvas 2D).
 The native binding paints **byte-for-byte identically to GJS** (verified
 pixel-for-pixel against `gjs -m`, incl. gradients / repeating surface patterns /
 dashed strokes / path round-trips — `test/cairo-canvas2d.test.mjs`). Deferred:
-region objects and the PDF/SVG/PS surfaces. The toy text API
+region objects and the SVG/PS surfaces (`PDFSurface` ships: `new cairo.PDFSurface(file, w, h)`, `setSize`). The toy text API
 (`selectFontFace`/`setFontSize`/`showText`/`textPath`/`textExtents`/`fontExtents`) is bound as GJS
 shapes it; canvas2d text still rides PangoCairo.
 
