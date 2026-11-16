@@ -311,9 +311,10 @@ The metainfo stays the only source; the standard AppStream 1.0 attributes pick t
 
 - An `<image xml:lang="…">` is the translation of the untagged image. The `/<lang>/` page shows the
   image of its language and falls back to the untagged one.
-- A `<screenshot>` whose `environment` ends in `:dark` is the dark twin of a light one: the n-th
-  dark screenshot pairs with the n-th non-dark one, in document order. It is never a slide of its
-  own; one without a partner is dropped with a warning. A dark twin without an image for the
+- A `<screenshot>` whose `environment` ends in `:dark` is the dark twin of a light one: it pairs with
+  the non-dark screenshot of the same image name (`popup.png` and `popup-dark.png`), else of the same
+  `<caption>`; only a metainfo where none of its dark screenshots can be identified that way is paired
+  in document order. It is never a slide of its own; one without a partner is dropped with a warning. A dark twin without an image for the
   page's language uses its untagged image, and a light screenshot without a twin has no dark
   version.
 - The `<picture>` lists the dark AVIF, WebP and PNG `<source>`s with
