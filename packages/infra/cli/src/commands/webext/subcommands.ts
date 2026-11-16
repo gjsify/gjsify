@@ -12,7 +12,12 @@ import type { Command } from '../../types/index.js';
 import { dispatchSite } from '../../utils/site-dispatch.js';
 import { runSubmit } from '../../utils/webext/submit.js';
 import { buildWebext, type BundleRequest } from '../../utils/webext/build.js';
-import { resolveWebextConfig, selectTargets, type ResolvedWebext } from '../../utils/webext/config.js';
+import {
+    resolveSubmitProject,
+    resolveWebextConfig,
+    selectTargets,
+    type ResolvedWebext,
+} from '../../utils/webext/config.js';
 import {
     defaultDevProfile,
     resolveWebExt,
@@ -38,6 +43,12 @@ function loadConfig(cwd: string): ResolvedWebext {
     const manifest = join(cwd, 'package.json');
     if (!existsSync(manifest)) throw new Error(`gjsify webext: no package.json in ${cwd}.`);
     return resolveWebextConfig(JSON.parse(readFileSync(manifest, 'utf8')), cwd);
+}
+
+function loadSubmitProject(cwd: string): ReturnType<typeof resolveSubmitProject> {
+    const manifest = join(cwd, 'package.json');
+    if (!existsSync(manifest)) throw new Error(`gjsify webext: no package.json in ${cwd}.`);
+    return resolveSubmitProject(JSON.parse(readFileSync(manifest, 'utf8')), cwd);
 }
 
 /** `--define K=V` entries on top of the config's map, the way `gjsify build` spells them. */
@@ -371,7 +382,7 @@ export const webextSubmitCommand: Command<unknown, SubmitArgs> = {
             submit: args.submit,
             timeoutSeconds: args.timeout,
             listingDir: args.listingDir,
-            project: loadConfig(cwd),
+            project: loadSubmitProject(cwd),
             env: process.env,
             out: (line) => console.log(line),
             err: (line) => console.error(line),

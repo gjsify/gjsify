@@ -280,6 +280,49 @@ export function resolveWebextConfig(
     };
 }
 
+/**
+ * What `webext submit` needs: the package name and version, the targets (to find the default zip)
+ * and the output folder. It uploads a zip somebody else built, so it neither needs nor checks the
+ * manifest, scripts or pages: a project with its own build script (Beifahrer) declares only
+ * `gjsify.webext.listing`, and must still be able to submit.
+ */
+export function resolveSubmitProject(
+    pkg: PackageShape,
+    root: string,
+): Pick<ResolvedWebext, 'root' | 'name' | 'version' | 'targets' | 'outDir'> {
+    const raw = pkg.gjsify?.webext;
+    if (raw !== undefined && !isRecord(raw)) throw new Error('gjsify webext: `gjsify.webext` must be an object.');
+    const block = (raw ?? {}) as WebextConfig;
+    const problems: string[] = [];
+    const targetIds = block.targets ?? [...DEFAULT_WEBEXT_TARGETS];
+    const targets: WebextTarget[] = [];
+    if (!Array.isArray(targetIds) || targetIds.length === 0) {
+        problems.push('`targets` must be a non-empty array of target names.');
+    } else {
+        for (const id of targetIds) {
+            try {
+                targets.push(parseWebextTarget(String(id)));
+            } catch (err) {
+                problems.push((err as Error).message.replace(/^gjsify webext: /, ''));
+            }
+        }
+    }
+    if (problems.length > 0) {
+        throw new Error(
+            `gjsify webext: \`gjsify.webext\` in ${join(root, 'package.json')}:\n  - ${problems.join('\n  - ')}`,
+        );
+    }
+    return {
+        root,
+        name: block.name ?? defaultArtifactName(pkg.name),
+        version: pkg.version ?? '0.0.0',
+        targets,
+        outDir: isAbsolute(block.outDir ?? '.output')
+            ? (block.outDir as string)
+            : resolve(root, block.outDir ?? '.output'),
+    };
+}
+
 function defaultExists(path: string, kind: 'file' | 'dir'): boolean {
     if (!existsSync(path)) return false;
     const stat = statSync(path);

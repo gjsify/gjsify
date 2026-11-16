@@ -5,7 +5,13 @@ import { join, resolve } from 'node:path';
 
 import { tinyPng } from '../ship/icon-fixture.spec.js';
 import { buildWebext, zipEntriesOf, zipTimestamp, type BundleRequest } from './build.js';
-import { defaultArtifactName, iconSourceForSize, resolveWebextConfig, selectTargets } from './config.js';
+import {
+    defaultArtifactName,
+    iconSourceForSize,
+    resolveSubmitProject,
+    resolveWebextConfig,
+    selectTargets,
+} from './config.js';
 import { svgIconFiles, webextIconPaths } from './icons.js';
 import { defaultDevProfile, resolveWebExt, webExtRunArgs } from './launch.js';
 import {
@@ -130,6 +136,21 @@ export default async () => {
             const root = project({ 'manifest.json': '{}' });
             expect(thrown(() => resolveWebextConfig({ gjsify: { webext: {} } }, root))).toContain('nothing to build');
             rmSync(root, { recursive: true, force: true });
+        });
+
+        await it('resolves a submit project from a package that only declares a listing', async () => {
+            const project = resolveSubmitProject(
+                { name: 'beifahrer', version: '0.1.32', gjsify: { webext: { listing: {}, targets: ['edge-mv3'] } } },
+                '/x',
+            );
+            expect(project.name).toBe('beifahrer');
+            expect(project.version).toBe('0.1.32');
+            expect(project.targets.map((t) => t.id)).toStrictEqual(['edge-mv3']);
+            expect(project.outDir).toBe(resolve('/x', '.output'));
+            expect(resolveSubmitProject({ name: 'p' }, '/x').targets.length > 0).toBe(true);
+            expect(
+                thrown(() => resolveSubmitProject({ gjsify: { webext: { targets: ['chrome-mv2'] } } }, '/x')),
+            ).toContain('removed Manifest V2');
         });
 
         await it('selects targets by name and names what is configured', async () => {
