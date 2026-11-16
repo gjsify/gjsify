@@ -1,7 +1,14 @@
 // Pure mapping from an account store's flat fields to the contract. No GI import, so every
 // host asserts it, whatever the driver underneath.
 
-import type { AccountService, ConnectionSecurity, CredentialPurpose, MailSettings, ServerSettings } from './types.js';
+import type {
+    Account,
+    AccountService,
+    ConnectionSecurity,
+    CredentialPurpose,
+    MailSettings,
+    ServerSettings,
+} from './types.js';
 
 export interface HostPort {
     readonly host: string;
@@ -109,4 +116,26 @@ export function enabledServices(
  */
 export function passwordIds(purpose: CredentialPurpose): readonly string[] {
     return purpose === 'imap' ? ['imap-password', 'password', ''] : ['smtp-password', 'imap-password', 'password', ''];
+}
+
+export interface AccountFields {
+    readonly id: string;
+    readonly provider: string;
+    readonly providerName: string;
+    readonly identity: string;
+    readonly label: string;
+    readonly present: Readonly<Record<AccountService, boolean>>;
+    readonly disabled: Readonly<Record<AccountService, boolean>>;
+}
+
+/** The contract's `Account` from an account store's flat fields. */
+export function accountFrom(fields: AccountFields): Account {
+    return {
+        id: fields.id,
+        provider: fields.provider,
+        providerName: fields.providerName,
+        identity: fields.identity,
+        label: fields.label,
+        services: enabledServices(fields.present, fields.disabled),
+    };
 }

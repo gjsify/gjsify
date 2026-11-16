@@ -7,7 +7,7 @@ import GLib from 'gi://GLib?version=2.0';
 import Gio from 'gi://Gio?version=2.0';
 import type Goa from 'gi://Goa?version=1.0';
 
-import { enabledServices, mailSettingsFrom, passwordIds } from './mapping.js';
+import { accountFrom, mailSettingsFrom, passwordIds } from './mapping.js';
 import { isUnavailable, noAccountStore } from './no-account-store.js';
 import type {
     Account,
@@ -99,27 +99,25 @@ function tokenOf(proxy: Goa.OAuth2Based): Promise<[string, number] | undefined> 
 function toAccount(object: Goa.Object): Account | undefined {
     const account = object.get_account();
     if (!account) return undefined;
-    return {
+    return accountFrom({
         id: account.id ?? '',
         provider: account.provider_type ?? '',
         providerName: account.provider_name ?? '',
         identity: account.identity ?? '',
         label: account.presentation_identity ?? '',
-        services: enabledServices(
-            {
-                mail: !!object.get_mail(),
-                calendar: !!object.get_calendar(),
-                contacts: !!object.get_contacts(),
-                files: !!object.get_files(),
-            },
-            {
-                mail: !!account.mail_disabled,
-                calendar: !!account.calendar_disabled,
-                contacts: !!account.contacts_disabled,
-                files: !!account.files_disabled,
-            },
-        ),
-    };
+        present: {
+            mail: !!object.get_mail(),
+            calendar: !!object.get_calendar(),
+            contacts: !!object.get_contacts(),
+            files: !!object.get_files(),
+        },
+        disabled: {
+            mail: !!account.mail_disabled,
+            calendar: !!account.calendar_disabled,
+            contacts: !!account.contacts_disabled,
+            files: !!account.files_disabled,
+        },
+    });
 }
 
 export function createGoaAccounts({
