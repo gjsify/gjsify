@@ -64,6 +64,15 @@ export default async () => {
             expect(settings.release).toBe('1');
         });
 
+        await it('resolves desktopExecArgs apart from execArgs, defaulting to none', async () => {
+            expect(resolveShipSettings(input()).settings.desktopExecArgs).toStrictEqual([]);
+            const { settings } = resolveShipSettings(
+                input({ ship: { appId: 'org.example.Hello', desktopExecArgs: ['window'] } }),
+            );
+            expect(settings.desktopExecArgs).toStrictEqual(['window']);
+            expect(settings.execArgs).toStrictEqual([]);
+        });
+
         await it('reads metadata from gjsify.flatpak when gjsify.ship omits it', async () => {
             const { settings, metadata } = resolveShipSettings(
                 input({

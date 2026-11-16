@@ -1646,6 +1646,7 @@ Packing the same build twice gives byte-identical files. [How It Works](/gjsify/
 | `fonts` | none | Font files or a directory of them, staged into `share/fonts/<appId>/`. See [Fonts](#fonts) below. |
 | `extraFiles` | `{}` | Extra payload entries: prefix-relative destination to project-relative source. |
 | `execArgs` | `[]` | Arguments the launcher appends before the user's own. |
+| `desktopExecArgs` | `[]` | Arguments for the desktop entry's `Exec=` line only, after the command and before the `%u`/`%f` field code. Unlike `execArgs` they are not baked into the launcher, so a binary that is both CLI and GUI (`curlew window`) keeps a working CLI. Quoted per the Desktop Entry spec; a newline is refused. |
 | `flatpak` | derived | The Flatpak half: `runtime` (`gnome`/`freedesktop`), `runtimeVersion`, `branch` (`stable`), `sdkExtensions`, `appendPath`, `finishArgs`, `cleanup`. |
 | `sign` | none | Default signing identity per OS: `{ "darwin": { "identity": "…" }, "win32": { "identity": "…" } }`. An IDENTITY only. `linux` is not a valid key and is refused, because a `.deb` or `.rpm` is signed by the repository that serves it. |
 

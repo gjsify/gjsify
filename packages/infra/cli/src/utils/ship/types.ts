@@ -380,7 +380,7 @@ export interface ShipMimeType {
  *    by the payload's own paths. There is no scriptlet to key off it either:
  *    fontconfig scans the directory and caches lazily per user, measured rather
  *    than assumed.
- *  - `kind`, `execArgs` — read by the planner and the metadata renderers, all of
+ *  - `kind`, `execArgs`, `desktopExecArgs` — read by the planner and the metadata renderers, all of
  *    which have run by the time a stage exists. `appId` was on this line and
  *    MOVED: the Flatpak packer needs it at pack time twice over — it is the
  *    manifest's `id` and the ref `flatpak build-bundle` exports — and neither is
@@ -664,6 +664,14 @@ export interface ShipSettings extends PackSettings {
     extraFiles: Record<string, string>;
     /** Arguments appended to the launcher's `exec` line. */
     execArgs: string[];
+    /**
+     * Arguments for the desktop entry's `Exec=` line only (`gjsify.ship.desktopExecArgs`).
+     *
+     * Not `execArgs`: that one is baked into the launcher script and so reaches the CLI too,
+     * which breaks a binary that is both CLI and GUI (`curlew` errors on purpose,
+     * `curlew window` opens the window). This one leaves the launcher untouched.
+     */
+    desktopExecArgs: string[];
     /** The further executables with their entries; narrows {@link PackSettings.executables}. */
     executables: ShipExecutable[];
     /** Output root; `stage/`, `overlay/` and `out/` hang under it. */

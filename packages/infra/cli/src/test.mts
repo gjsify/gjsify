@@ -25,6 +25,7 @@ import androidIconsSuite from './utils/ship/android-icons.spec.js';
 import shipIcoSuite from './utils/ship/ico.spec.js';
 import shipIcnsSuite from './utils/ship/icns.spec.js';
 import shipSettingsSuite from './utils/ship/settings.spec.js';
+import appMetadataSuite from './utils/app-metadata.spec.js';
 import shipEntryInterpreterSuite from './utils/ship/entry-interpreter.spec.js';
 import shipLocalesSuite from './utils/ship/discover-locales.spec.js';
 import shipFontsSuite from './utils/ship/discover-fonts.spec.js';
@@ -333,6 +334,7 @@ run(
         shipIcoSuite,
         shipIcnsSuite,
         shipSettingsSuite,
+        appMetadataSuite,
         shipEntryInterpreterSuite,
         shipLocalesSuite,
         shipFontsSuite,

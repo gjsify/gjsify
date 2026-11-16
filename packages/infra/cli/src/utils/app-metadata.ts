@@ -61,6 +61,12 @@ export interface AppMetadataInputs {
     /** `'app'` renders a desktop-application component, `'cli'` a console one. */
     kind: 'app' | 'cli';
     metadata: AppMetadata;
+    /**
+     * Arguments placed in the desktop entry's `Exec=` after {@link command} and
+     * before the `%u`/`%f` field code (`gjsify.ship.desktopExecArgs`). Only the
+     * launcher entry sees them; the binary itself is unchanged.
+     */
+    desktopExecArgs?: readonly string[];
     /** Distribution channel (ADR 0113, 0139). `<url type="donation">` is emitted only where `support` is `external-link`. */
     channel?: string;
     /**
@@ -157,12 +163,36 @@ export function renderDesktopEntry(inputs: AppMetadataInputs): string {
     return substitute(loadDesktopTemplate(), {
         NAME: inputs.name,
         SUMMARY: m.summary ?? inputs.name,
-        COMMAND: `${inputs.command}${execFieldCode(mimetypes)}`,
+        COMMAND:
+            [inputs.command, ...(inputs.desktopExecArgs ?? []).map((arg) => quoteExecArg(arg, inputs.configKey))].join(
+                ' ',
+            ) + execFieldCode(mimetypes),
         APP_ID: inputs.appId,
         CATEGORIES_LINE: categoriesLine,
         KEYWORDS_LINE: keywordsLine,
         MIMETYPES_LINE: mimetypesLine,
     });
+}
+
+const EXEC_RESERVED = /[\s"'\\><~|&;$*?#()`]/;
+
+/**
+ * One `Exec=` argument per the Desktop Entry spec: `%` doubles (else it is a
+ * field code), an argument with a reserved character goes in double quotes with
+ * `"`, backtick, `$` and `\` backslash-escaped, and every backslash doubles
+ * again for the key-value string layer. A newline cannot be expressed at all.
+ */
+function quoteExecArg(arg: string, configKey: string): string {
+    if (/[\r\n]/.test(arg)) {
+        throw new Error(
+            `${configKey}.desktopExecArgs contains ${JSON.stringify(arg)}: a newline cannot appear in a desktop entry's Exec= line.`,
+        );
+    }
+    const text = arg.replace(/%/g, '%%');
+    if (text === '') return '""';
+    if (!EXEC_RESERVED.test(text)) return text;
+    const quoted = text.replace(/(["`$\\])/g, '\\$1').replace(/\\/g, '\\\\');
+    return `"${quoted}"`;
 }
 
 /** The `Exec=` field code implied by the declared MIME types. */

@@ -516,6 +516,7 @@ async function assemble(args: ShipOptions): Promise<void> {
         command: settings.binaryName,
         kind: settings.kind,
         metadata,
+        desktopExecArgs: settings.desktopExecArgs,
         channel,
         configKey: 'gjsify.ship',
         copyrightYear: new Date(mtime * 1000).getUTCFullYear(),
