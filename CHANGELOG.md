@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.64.44](https://github.com/gjsify/gjsify/compare/v0.64.43...v0.64.44) (2026-11-16)
+
+### Features
+
+* **adwaita-nativescript:** add AdwBreakpointBin ([#2655](https://github.com/gjsify/gjsify/issues/2655)) ([a0bbb11](https://github.com/gjsify/gjsify/commit/a0bbb119626d0c1b92a68ffcb519d9fac61ce291))
+* **adwaita-nativescript:** add GtkFlowBox ([#2659](https://github.com/gjsify/gjsify/issues/2659)) ([7676147](https://github.com/gjsify/gjsify/commit/76761475aa511fdff72e2e1be00b66e8d4d0eb61))
+* **adwaita-nativescript:** add GtkPopover ([#2657](https://github.com/gjsify/gjsify/issues/2657)) ([db7b733](https://github.com/gjsify/gjsify/commit/db7b733d2b63fbf9e7443cc45fcf7ad9a4252ad8))
+* **adwaita-nativescript:** add link, progress and search widgets ([#2656](https://github.com/gjsify/gjsify/issues/2656)) ([934c9da](https://github.com/gjsify/gjsify/commit/934c9da78f6b433ad1adb00ce3baa2e9ee50ce5f))
+
+### Bug Fixes
+
+* **adwaita-nativescript:** declare AdwToastOverlay child slot ([#2653](https://github.com/gjsify/gjsify/issues/2653)) ([06db043](https://github.com/gjsify/gjsify/commit/06db0431a642269af1bb0b663ff682742292a87e))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([9fa81e5](https://github.com/gjsify/gjsify/commit/9fa81e55954a4c0302face895ac029ff17ca3af4))
+* update native prebuilds [skip ci] ([ffdc961](https://github.com/gjsify/gjsify/commit/ffdc961eaf7477c42407b5c6ea66846eb7b7b607))
+
 ## [0.64.43](https://github.com/gjsify/gjsify/compare/v0.64.42...v0.64.43) (2026-11-15)
 
 ### Features
