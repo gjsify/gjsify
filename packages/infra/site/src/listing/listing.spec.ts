@@ -294,6 +294,28 @@ export default async () => {
             expect(sets.byLanguage.de?.[0]?.file.includes('/de/')).toBe(true);
         });
 
+        await it('takes the source set from <dir>/<source>/ when the directory itself holds none', async () => {
+            const dir = join(root, 'by-lang');
+            mkdirSync(join(dir, 'en'), { recursive: true });
+            mkdirSync(join(dir, 'de'), { recursive: true });
+            writeFileSync(join(dir, 'en', '01-hero.png'), 'x');
+            writeFileSync(join(dir, 'de', '01-hero.png'), 'x');
+            const sets = await listingScreenshots(meta, config({ screenshots: 'by-lang' }), root, {});
+            expect(sets.source.length).toBe(1);
+            expect(sets.source[0]?.file.includes('/en/')).toBe(true);
+            expect(sets.byLanguage.de?.[0]?.file.includes('/de/')).toBe(true);
+        });
+
+        await it('drops a leading ordinal from file names, since the output numbers them itself', async () => {
+            const dir = join(root, 'ordinals');
+            mkdirSync(dir, { recursive: true });
+            writeFileSync(join(dir, '01-hero.png'), 'x');
+            writeFileSync(join(dir, '2_popup.png'), 'x');
+            writeFileSync(join(dir, '3.png'), 'x');
+            const sets = await listingScreenshots(meta, config({ screenshots: 'ordinals' }), root, {});
+            expect(sets.source.map((shot) => shot.slug).join(',')).toBe('hero,popup,3');
+        });
+
         await it('renders Edge promo per language and keeps Chrome shared', async () => {
             const en = { name: 'Example', summary: 'Does one thing' };
             const de = { name: 'Example', summary: 'Macht eine Sache' };

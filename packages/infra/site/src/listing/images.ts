@@ -31,7 +31,8 @@ async function imagesIn(dir: string): Promise<SourceShot[]> {
         .filter((entry) => entry.isFile() && IMAGE_FILE.test(entry.name))
         .map((entry) => entry.name)
         .sort();
-    return names.map((name) => ({ file: join(dir, name), slug: imageSlug(name) }));
+    // The output numbers files itself; `01-hero.png` would otherwise become `01-01-hero.png`.
+    return names.map((name) => ({ file: join(dir, name), slug: imageSlug(name.replace(/^\d+[-_](?=.)/, '')) }));
 }
 
 /**
@@ -49,15 +50,20 @@ export async function listingScreenshots(
         const dir = resolve(root, config.screenshots);
         if (!existsSync(dir))
             throw new Error(`gjsify.webext.listing.screenshots: "${config.screenshots}" does not exist`);
-        const byLanguage: Record<string, SourceShot[]> = {};
-        for (const language of others) {
-            const sub = languageCandidates(language)
+        const subdir = (language: string) =>
+            languageCandidates(language)
                 .map((candidate) => join(dir, candidate))
                 .find((candidate) => existsSync(candidate));
+        const byLanguage: Record<string, SourceShot[]> = {};
+        for (const language of others) {
+            const sub = subdir(language);
             const set = sub ? await imagesIn(sub) : [];
             if (set.length > 0) byLanguage[language] = set;
         }
-        return { source: await imagesIn(dir), byLanguage };
+        let source = await imagesIn(dir);
+        const sourceSub = subdir(config.sourceLanguage);
+        if (source.length === 0 && sourceSub) source = await imagesIn(sourceSub);
+        return { source, byLanguage };
     }
     if (!config.repository) {
         throw new Error(
