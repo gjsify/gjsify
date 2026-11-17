@@ -72,6 +72,8 @@ export interface StoreSpec {
     searchTerms?: boolean;
     /** The dashboard's form, in the order a person fills it in. */
     form: FormFieldSpec[];
+    /** Which images the store takes once per language, and the page that says so. */
+    localized: { screenshots: boolean; promo: boolean; url: string };
 }
 
 /** Accepts `cws,edge`, `all` or one store; anything else names the offender. */
@@ -88,6 +90,7 @@ export function parseStores(value: string): Store[] {
 
 const CWS_IMAGES = 'https://developer.chrome.com/docs/webstore/images';
 const EDGE_PUBLISH = 'https://learn.microsoft.com/en-us/microsoft-edge/extensions/publish/publish-extension';
+const CWS_LISTING = 'https://developer.chrome.com/docs/webstore/cws-dashboard-listing';
 const AMO_LISTING = 'https://extensionworkshop.com/documentation/develop/create-an-appealing-listing/';
 
 export const STORE_SPECS: Record<Store, StoreSpec> = {
@@ -134,6 +137,8 @@ export const STORE_SPECS: Record<Store, StoreSpec> = {
             { key: 'privacyUrl', label: 'Privacy policy URL', required: true },
             { key: 'supportUrl', label: 'Support URL', required: false },
         ],
+        // "The small tile and Marquee promo tile cannot be localized."
+        localized: { screenshots: true, promo: false, url: CWS_LISTING },
     },
     edge: {
         label: 'Edge Add-ons',
@@ -169,6 +174,8 @@ export const STORE_SPECS: Record<Store, StoreSpec> = {
             { key: 'privacyUrl', label: 'Privacy policy URL', required: false },
             { key: 'supportUrl', label: 'Support URL', required: false },
         ],
+        // Logo, both tiles and the screenshots are each "one per language".
+        localized: { screenshots: true, promo: true, url: EDGE_PUBLISH },
     },
     amo: {
         label: 'Firefox Add-ons (AMO)',
@@ -195,5 +202,7 @@ export const STORE_SPECS: Record<Store, StoreSpec> = {
             { key: 'supportUrl', label: 'Support site', required: false },
             { key: 'privacyUrl', label: 'Privacy policy', required: false },
         ],
+        // "You can only load one set of screenshots, although you can localize their descriptions."
+        localized: { screenshots: false, promo: false, url: AMO_LISTING },
     },
 };

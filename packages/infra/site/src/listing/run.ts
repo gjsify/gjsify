@@ -11,6 +11,7 @@ import { loadCatalogs } from '../site-data/load.js';
 import { buildListingModel, type Issue, type ListingModel, type StoreEntry } from './build.js';
 import { parseListingConfig, type ListingConfig } from './config.js';
 import {
+    hasOwnPromo,
     letterboxColor,
     listingScreenshots,
     renderIcon,
@@ -129,7 +130,8 @@ export async function runListing(options: ListingOptions): Promise<ListingResult
     const previews: PreviewStore[] = [];
     for (const store of stores) {
         const entries = model.stores[store] ?? {};
-        const shotResult = renderScreenshots(store, shots, background, write);
+        const spec = STORE_SPECS[store];
+        const shotResult = renderScreenshots(store, shots.source, background, write);
         issues.push(...shotResult.issues);
         for (const [language, entry] of Object.entries(entries)) {
             const dir = `${store}/${language}`;
@@ -146,29 +148,57 @@ export async function runListing(options: ListingOptions): Promise<ListingResult
         if (icon?.bytes) await emit(`${store}/${icon.name}`, icon.bytes);
         for (const image of shotResult.images)
             if (image.bytes) await emit(`${store}/screenshots/${image.name}`, image.bytes);
-        const promo: StoreFiles['promo'] = {};
-        const first = Object.values(entries)[0];
-        for (const tile of STORE_SPECS[store].promo) {
-            if (!first) break;
-            const rendered = renderPromo(tile, {
-                name: first.name,
-                summary: first.summary,
-                background: light,
-                foreground: readableText(light),
-                iconHref,
-            });
-            if (rendered.bytes) await emit(`${store}/${rendered.name}`, rendered.bytes);
-            promo[tile.kind] = rendered.name;
+        const source = entries[config.sourceLanguage] ?? Object.values(entries)[0];
+        const promoFor = async (entry: StoreEntry, prefix: string): Promise<StoreFiles['promo']> => {
+            const tiles: StoreFiles['promo'] = {};
+            for (const tile of spec.promo) {
+                const rendered = renderPromo(tile, {
+                    name: entry.name,
+                    summary: entry.summary,
+                    background: light,
+                    foreground: readableText(light),
+                    iconHref,
+                });
+                if (rendered.bytes) await emit(`${store}/${prefix}${rendered.name}`, rendered.bytes);
+                tiles[tile.kind] = `${prefix}${rendered.name}`;
+            }
+            return tiles;
+        };
+        const promo = source ? await promoFor(source, '') : {};
+        // Only a language whose set differs from the source one gets its own directory.
+        const byLanguage: NonNullable<StoreFiles['byLanguage']> = {};
+        for (const [language, entry] of Object.entries(entries)) {
+            if (language === config.sourceLanguage || !source) continue;
+            const own = spec.localized.screenshots ? shots.byLanguage[language] : undefined;
+            const ownPromo = hasOwnPromo(store, entry, source);
+            if (!own && !ownPromo) continue;
+            const local: NonNullable<StoreFiles['byLanguage']>[string] = {};
+            if (own) {
+                const result = renderScreenshots(store, own, background, write);
+                issues.push(...result.issues);
+                for (const image of result.images)
+                    if (image.bytes) await emit(`${store}/${language}/screenshots/${image.name}`, image.bytes);
+                local.screenshots = result.images.map((image) => `${language}/screenshots/${image.name}`);
+            }
+            if (ownPromo) local.promo = await promoFor(entry, `${language}/`);
+            byLanguage[language] = local;
         }
         const files: StoreFiles = {
             icon: icon?.name,
             screenshots: shotResult.images.map((image) => `screenshots/${image.name}`),
             promo,
+            ...(Object.keys(byLanguage).length > 0 ? { byLanguage } : {}),
         };
         const manifest = storeManifest({ app: metainfo.id, store, entries, files });
         await emit(`${store}/store.json`, `${JSON.stringify(manifest, null, 2)}\n`);
         previews.push({ manifest, entries, files });
-        index[store] = { languages: entries, screenshots: files.screenshots, icon: files.icon, promo };
+        index[store] = {
+            languages: entries,
+            screenshots: files.screenshots,
+            icon: files.icon,
+            promo,
+            ...(files.byLanguage ? { byLanguage: files.byLanguage } : {}),
+        };
     }
     await emit('listing.json', `${JSON.stringify({ version: 1, app: metainfo.id, stores: index }, null, 2)}\n`);
 

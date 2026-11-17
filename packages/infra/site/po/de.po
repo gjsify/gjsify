@@ -516,6 +516,24 @@ msgstr "Wer sie bereitstellt, kann dabei die üblichen Zugriffsprotokolle eines 
 msgid "See the hosting provider's notice"
 msgstr "Hinweis des Hosting-Anbieters"
 
+msgid "Screenshots {min}–{max}, {width}×{height}"
+msgstr "Bildschirmfotos {min}–{max}, {width}×{height}"
+
+msgid "screenshots per language"
+msgstr "Bildschirmfotos je Sprache"
+
+msgid "one screenshot set for all languages"
+msgstr "ein Satz Bildschirmfotos für alle Sprachen"
+
+msgid "promo tiles per language"
+msgstr "Werbekacheln je Sprache"
+
+msgid "promo tiles shared by all languages"
+msgstr "Werbekacheln für alle Sprachen gleich"
+
+msgid "no promo tiles"
+msgstr "keine Werbekacheln"
+
 msgid "missing"
 msgstr "fehlt"
 
