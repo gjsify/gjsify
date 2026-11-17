@@ -1,9 +1,14 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it } from '@gjsify/unit';
 
 import { parseMetainfo } from '../site-data/metainfo.js';
 import { parseCatalog } from '../site-data/po.js';
 import { buildListingModel, checkEntry, type StoreEntry } from './build.js';
 import { parseListingConfig } from './config.js';
+import { hasOwnPromo, listingScreenshots } from './images.js';
 import { fitInto, parseHexColor, planPlacement } from './fit.js';
 import { parseStores, STORE_SPECS } from './limits.js';
 import { promoFileName, promoSvg } from './promo.js';
@@ -246,6 +251,81 @@ export default async () => {
             );
             expect(svg.includes('<image')).toBe(true);
             expect(svg.includes('text-anchor')).toBe(false);
+        });
+    });
+
+    await describe('listing per language', async () => {
+        const root = mkdtempSync(join(tmpdir(), 'listing-lang-'));
+        for (const name of ['a.png', 'a-de.png']) writeFileSync(join(root, name), 'x');
+        const meta = parseMetainfo(`<component><id>eu.example.app</id><name>Example</name><summary>S</summary>
+          <screenshots><screenshot type="default"><image>https://raw.githubusercontent.com/o/r/v1/a.png</image>
+          <image xml:lang="de">https://raw.githubusercontent.com/o/r/v1/a-de.png</image></screenshot></screenshots></component>`);
+        const cfg = config({ repository: 'o/r' });
+
+        await it('flags what each store localizes', async () => {
+            expect(STORE_SPECS.cws.localized.screenshots).toBe(true);
+            expect(STORE_SPECS.cws.localized.promo).toBe(false);
+            expect(STORE_SPECS.edge.localized.promo).toBe(true);
+            expect(STORE_SPECS.amo.localized.screenshots).toBe(false);
+        });
+
+        await it('picks the xml:lang image from the metainfo', async () => {
+            const sets = await listingScreenshots(meta, cfg, root, {});
+            expect(sets.source[0]?.slug).toBe('a');
+            expect(sets.byLanguage.de?.[0]?.slug).toBe('a-de');
+        });
+
+        await it('has no per-language set without a translated image', async () => {
+            const plain = parseMetainfo(
+                '<component><id>x</id><name>E</name><summary>S</summary><screenshots><screenshot><image>https://raw.githubusercontent.com/o/r/v1/a.png</image></screenshot></screenshots></component>',
+            );
+            const sets = await listingScreenshots(plain, cfg, root, {});
+            expect(Object.keys(sets.byLanguage).length).toBe(0);
+        });
+
+        await it('reads <dir>/<lang>/ subdirectories of a configured directory', async () => {
+            const dir = join(root, 'shots');
+            mkdirSync(join(dir, 'de'), { recursive: true });
+            writeFileSync(join(dir, '1.png'), 'x');
+            writeFileSync(join(dir, 'de', '1.png'), 'x');
+            const sets = await listingScreenshots(meta, config({ screenshots: 'shots' }), root, {});
+            expect(sets.source.length).toBe(1);
+            expect(sets.byLanguage.de?.length).toBe(1);
+            expect(sets.byLanguage.de?.[0]?.file.includes('/de/')).toBe(true);
+        });
+
+        await it('renders Edge promo per language and keeps Chrome shared', async () => {
+            const en = { name: 'Example', summary: 'Does one thing' };
+            const de = { name: 'Example', summary: 'Macht eine Sache' };
+            expect(hasOwnPromo('edge', de, en)).toBe(true);
+            expect(hasOwnPromo('cws', de, en)).toBe(false);
+            expect(hasOwnPromo('amo', de, en)).toBe(false);
+            expect(hasOwnPromo('edge', en, en)).toBe(false);
+            const spec = { width: 440, height: 280 };
+            const svg = promoSvg(spec, { ...de, background: '#fff', foreground: '#000' });
+            expect(svg.includes('Macht eine Sache')).toBe(true);
+        });
+
+        await it('lists per-language files in store.json', async () => {
+            const m = storeManifest({
+                app: 'x',
+                store: 'edge',
+                entries: { en: entry(), de: entry() },
+                files: {
+                    screenshots: ['screenshots/01-a.png'],
+                    promo: { small: 'promo-small-440x280.png' },
+                    byLanguage: {
+                        de: {
+                            screenshots: ['de/screenshots/01-a.png'],
+                            promo: { small: 'de/promo-small-440x280.png' },
+                        },
+                    },
+                },
+            });
+            const shots = m.fields.find((f) => f.key === 'screenshots')!;
+            expect(shots.filesByLanguage?.de?.[0]).toBe('de/screenshots/01-a.png');
+            const tile = m.fields.find((f) => f.key === 'promoSmall')!;
+            expect(tile.filesByLanguage?.de?.[0]).toBe('de/promo-small-440x280.png');
         });
     });
 };

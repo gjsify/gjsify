@@ -3,7 +3,8 @@ import { readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 import { decodeImageFile, decodeImageFileAtSize, svgToPng } from '../render/image-backend.js';
-import { imageSlug, resolveScreenshots, type ScreenshotOptions } from '../site-data/screenshots.js';
+import { languageCandidates } from '../site-data/po.js';
+import { imageSlug, resolveScreenshots, screenshotFile, type ScreenshotOptions } from '../site-data/screenshots.js';
 import type { Metainfo } from '../site-data/types.js';
 import { fitInto, parseHexColor, planPlacement } from './fit.js';
 import type { Issue } from './build.js';
@@ -16,19 +17,47 @@ export interface SourceShot {
     slug: string;
 }
 
-/** The files to publish: a configured directory of PNGs, else the metainfo's own screenshots. */
+export interface ShotSets {
+    /** The source-language set; what every language without its own set shows. */
+    source: SourceShot[];
+    /** Only the languages whose set differs from `source`. */
+    byLanguage: Record<string, SourceShot[]>;
+}
+
+const IMAGE_FILE = /\.(png|jpe?g|webp)$/i;
+
+async function imagesIn(dir: string): Promise<SourceShot[]> {
+    const names = (await readdir(dir, { withFileTypes: true }))
+        .filter((entry) => entry.isFile() && IMAGE_FILE.test(entry.name))
+        .map((entry) => entry.name)
+        .sort();
+    return names.map((name) => ({ file: join(dir, name), slug: imageSlug(name) }));
+}
+
+/**
+ * The files to publish: a configured directory of PNGs (optionally with a `<lang>/` subdirectory per
+ * language), else the metainfo's own screenshots (with their `xml:lang` images).
+ */
 export async function listingScreenshots(
     metainfo: Metainfo,
     config: ListingConfig,
     root: string,
     options: Omit<ScreenshotOptions, 'root' | 'repository'>,
-): Promise<SourceShot[]> {
+): Promise<ShotSets> {
+    const others = config.languages.filter((language) => language !== config.sourceLanguage);
     if (config.screenshots) {
         const dir = resolve(root, config.screenshots);
         if (!existsSync(dir))
             throw new Error(`gjsify.webext.listing.screenshots: "${config.screenshots}" does not exist`);
-        const names = (await readdir(dir)).filter((name) => /\.(png|jpe?g|webp)$/i.test(name)).sort();
-        return names.map((name) => ({ file: join(dir, name), slug: imageSlug(name) }));
+        const byLanguage: Record<string, SourceShot[]> = {};
+        for (const language of others) {
+            const sub = languageCandidates(language)
+                .map((candidate) => join(dir, candidate))
+                .find((candidate) => existsSync(candidate));
+            const set = sub ? await imagesIn(sub) : [];
+            if (set.length > 0) byLanguage[language] = set;
+        }
+        return { source: await imagesIn(dir), byLanguage };
     }
     if (!config.repository) {
         throw new Error(
@@ -36,7 +65,22 @@ export async function listingScreenshots(
         );
     }
     const shots = await resolveScreenshots(metainfo, { ...options, root, repository: config.repository });
-    return shots.map(({ file, slug }) => ({ file, slug }));
+    const byLanguage: Record<string, SourceShot[]> = {};
+    for (const language of others) {
+        const files = shots.map((shot) => screenshotFile(shot, language, 'light'));
+        if (files.some((file, index) => file.file !== shots[index]?.file))
+            byLanguage[language] = files.map(({ file, slug }) => ({ file, slug }));
+    }
+    return { source: shots.map(({ file, slug }) => ({ file, slug })), byLanguage };
+}
+
+/** Whether a language needs tiles of its own: the store localizes them and the text differs from the source. */
+export function hasOwnPromo(
+    store: Store,
+    entry: { name: string; summary: string },
+    source: { name: string; summary: string },
+): boolean {
+    return STORE_SPECS[store].localized.promo && (entry.name !== source.name || entry.summary !== source.summary);
 }
 
 export interface RenderedImage {

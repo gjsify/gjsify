@@ -1,6 +1,7 @@
 import type { StoreEntry } from '../listing/build.js';
+import { STORE_SPECS } from '../listing/limits.js';
 import type { StoreFiles, StoreManifest } from '../listing/store-json.js';
-import { esc } from './html.js';
+import { esc, plain } from './html.js';
 
 export interface PreviewStore {
     manifest: StoreManifest;
@@ -21,12 +22,26 @@ const CSS = `:root{color-scheme:light dark;--bg:#f6f5f4;--fg:#1e1e1e;--card:#fff
 main{max-width:60rem;margin:0 auto}h1,h2,h3{line-height:1.2}
 .store{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:1rem;margin:1rem 0}
 .head{display:flex;gap:1rem;align-items:center;flex-wrap:wrap}.head img{width:64px;height:64px;border-radius:12px}
-.summary{color:var(--muted);margin:.25rem 0}.desc{white-space:pre-line}
+.rules{color:var(--muted);font-size:.9em;margin:.25rem 0}.summary{color:var(--muted);margin:.25rem 0}.desc{white-space:pre-line}
 .tiles,.shots{display:grid;gap:.5rem;grid-template-columns:repeat(auto-fill,minmax(min(100%,16rem),1fr))}
 img{max-width:100%;height:auto;border:1px solid var(--line);border-radius:6px}
 table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid var(--line);padding:.25rem .5rem;text-align:left;vertical-align:top;overflow-wrap:break-word}td:first-child{width:1%;white-space:nowrap}
 .badge{font-size:.8em;padding:0 .4em;border-radius:4px;border:1px solid var(--line)}.missing{color:#c01c28;font-weight:600}
 a{color:var(--accent)}`;
+
+/** One line of what this store takes and which images it asks for once per language. */
+function rules(store: StoreManifest['store'], t: (msgid: string) => string): string {
+    const spec = STORE_SPECS[store];
+    const { width, height, min, max } = spec.screenshots;
+    const parts = [
+        plain(t('Screenshots {min}–{max}, {width}×{height}'), { min, max, width, height }),
+        spec.localized.screenshots ? t('screenshots per language') : t('one screenshot set for all languages'),
+    ];
+    if (spec.promo.length > 0)
+        parts.push(spec.localized.promo ? t('promo tiles per language') : t('promo tiles shared by all languages'));
+    else parts.push(t('no promo tiles'));
+    return parts.join(' · ');
+}
 
 const image = (store: string, path: string, alt: string) =>
     `<img src="${esc(`${store}/${path}`)}" alt="${esc(alt)}" loading="lazy">`;
@@ -34,7 +49,10 @@ const image = (store: string, path: string, alt: string) =>
 function language(store: PreviewStore, lang: string, entry: StoreEntry, t: (msgid: string) => string): string {
     const { manifest, files } = store;
     const id = manifest.store;
-    const tiles = [files.promo.small, files.promo.marquee].filter((file): file is string => file !== undefined);
+    const own = files.byLanguage?.[lang];
+    const promo = own?.promo ?? files.promo;
+    const screenshots = own?.screenshots ?? files.screenshots;
+    const tiles = [promo.small, promo.marquee].filter((file): file is string => file !== undefined);
     const rows = manifest.fields
         .map((field) => {
             const status = {
@@ -58,7 +76,7 @@ function language(store: PreviewStore, lang: string, entry: StoreEntry, t: (msgi
 <div class="head">${files.icon ? image(id, files.icon, '') : ''}<div><strong>${esc(entry.name)}</strong><p class="summary">${esc(entry.summary)}</p></div></div>
 ${tiles.length ? `<div class="tiles">${tiles.map((file) => image(id, file, t('Promo tile'))).join('')}</div>` : ''}
 <p class="desc">${esc(entry.description)}</p>
-${files.screenshots.length ? `<div class="shots">${files.screenshots.map((file) => image(id, file, t('Screenshot'))).join('')}</div>` : ''}
+${screenshots.length ? `<div class="shots">${screenshots.map((file) => image(id, file, t('Screenshot'))).join('')}</div>` : ''}
 ${permissions}
 <details><summary>${esc(t('Form fields'))}</summary><table>${rows}</table></details></section>`;
 }
@@ -74,7 +92,7 @@ export function storePreviewHtml({ app, stores, t }: PreviewInput): string {
             const sections = Object.entries(store.entries)
                 .map(([code, entry]) => language(store, code, entry, t(code)))
                 .join('\n');
-            return `<article class="store" id="${esc(store.manifest.store)}"><h2>${esc(store.manifest.label)}</h2>\n${sections}</article>`;
+            return `<article class="store" id="${esc(store.manifest.store)}"><h2>${esc(store.manifest.label)}</h2>\n<p class="rules">${esc(rules(store.manifest.store, t(first ?? 'en')))}</p>\n${sections}</article>`;
         })
         .join('\n');
     return `<!doctype html>

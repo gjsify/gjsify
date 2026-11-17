@@ -9,6 +9,8 @@ export interface StoreFiles {
     icon?: string;
     screenshots: string[];
     promo: { small?: string; marquee?: string };
+    /** Only languages whose images differ from the source set (`<lang>/…` paths); the rest show the shared files. */
+    byLanguage?: Record<string, { screenshots?: string[]; promo?: { small?: string; marquee?: string } }>;
 }
 
 export interface ManifestField {
@@ -23,6 +25,8 @@ export interface ManifestField {
     /** Short values per language (`*` for those that do not depend on it). */
     values?: Record<string, string | string[]>;
     files?: string[];
+    /** Per-language files where they differ from `files`. */
+    filesByLanguage?: Record<string, string[]>;
     /** Characters per language, for the text fields. */
     lengths?: Record<string, number>;
 }
@@ -63,6 +67,14 @@ export function storeManifest({ app, store, entries, files }: StoreManifestInput
         return out;
     };
     const everyLanguage = (values: Record<string, unknown>) => languages.every((language) => language in values);
+    const localFiles = (pick: (local: NonNullable<StoreFiles['byLanguage']>[string]) => string[] | undefined) => {
+        const out: Record<string, string[]> = {};
+        for (const [language, local] of Object.entries(files.byLanguage ?? {})) {
+            const own = pick(local);
+            if (own) out[language] = own;
+        }
+        return Object.keys(out).length > 0 ? { filesByLanguage: out } : {};
+    };
     const promoFor = (key: FormKey) => {
         const kind = key === 'promoSmall' ? 'small' : 'marquee';
         return { tile: spec.promo.find((promo) => promo.kind === kind), file: files.promo[kind] };
@@ -109,6 +121,7 @@ export function storeManifest({ app, store, entries, files }: StoreManifestInput
                     size: { width: spec.screenshots.width, height: spec.screenshots.height },
                     count: { min: spec.screenshots.min, max: spec.screenshots.max },
                     files: files.screenshots,
+                    ...localFiles((local) => local.screenshots),
                 };
                 present = files.screenshots.length >= spec.screenshots.min;
                 break;
@@ -118,6 +131,10 @@ export function storeManifest({ app, store, entries, files }: StoreManifestInput
                 details = {
                     ...(tile ? { size: { width: tile.width, height: tile.height } } : {}),
                     files: file ? [file] : [],
+                    ...localFiles((local) => {
+                        const own = local.promo?.[tile?.kind ?? 'small'];
+                        return own ? [own] : undefined;
+                    }),
                 };
                 present = file !== undefined;
                 break;

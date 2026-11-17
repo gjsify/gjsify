@@ -515,6 +515,24 @@ msgstr ""
 msgid "See the hosting provider's notice"
 msgstr ""
 
+msgid "Screenshots {min}–{max}, {width}×{height}"
+msgstr ""
+
+msgid "screenshots per language"
+msgstr ""
+
+msgid "one screenshot set for all languages"
+msgstr ""
+
+msgid "promo tiles per language"
+msgstr ""
+
+msgid "promo tiles shared by all languages"
+msgstr ""
+
+msgid "no promo tiles"
+msgstr ""
+
 msgid "missing"
 msgstr ""
 

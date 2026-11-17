@@ -57,5 +57,29 @@ export default async () => {
             });
             expect(page.includes('class="missing"')).toBe(true);
         });
+        await it('shows each language its own images and states the store rules', async () => {
+            const byLanguage = {
+                de: { screenshots: ['de/screenshots/01-a.png'], promo: { small: 'de/promo-small-440x280.png' } },
+            };
+            const own = { ...files, byLanguage };
+            const m = storeManifest({ app: 'x', store: 'edge', entries: { en: entry, de: entry }, files: own });
+            const page = storePreviewHtml({
+                app: 'x',
+                stores: [{ manifest: m, entries: { en: entry, de: entry }, files: own }],
+                t: () => (msgid) => msgid,
+            });
+            expect(page.includes('src="edge/de/screenshots/01-a.png"')).toBe(true);
+            expect(page.includes('src="edge/screenshots/01-a.png"')).toBe(true);
+            expect(page.includes('Screenshots 1–6, 1280×800')).toBe(true);
+            expect(page.includes('promo tiles per language')).toBe(true);
+            const amo = storeManifest({ app: 'x', store: 'amo', entries: { en: entry }, files });
+            const amoPage = storePreviewHtml({
+                app: 'x',
+                stores: [{ manifest: amo, entries: { en: entry }, files }],
+                t: () => (msgid) => msgid,
+            });
+            expect(amoPage.includes('one screenshot set for all languages')).toBe(true);
+            expect(amoPage.includes('no promo tiles')).toBe(true);
+        });
     });
 };
