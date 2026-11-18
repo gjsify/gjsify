@@ -1338,6 +1338,48 @@ app-support {
   color: var(--muted);
 }
 
+/* The store switcher: links to one page per store, so it needs no script. */
+.ext-stores {
+  padding-block: 1rem 0;
+}
+
+.ext-stores ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ext-stores a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.ext-stores a[aria-current='page'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.ext-stores a[data-suggested] {
+  border-style: dashed;
+}
+
+.ext-suggest {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
 .component-more {
   margin: 0.25rem 0 0;
   font-size: 0.9rem;

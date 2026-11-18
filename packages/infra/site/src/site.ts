@@ -37,7 +37,7 @@ import {
     type DeveloperContext,
     type DeveloperView,
 } from './render/developer.js';
-import { renderExtensionPage } from './render/extension.js';
+import { renderExtensionPage, storeVariants } from './render/extension.js';
 import { ogCardSvg, type OgCardInput } from './render/og-card.js';
 import type { MarkdownOptions } from './render/markdown.js';
 import {
@@ -445,6 +445,9 @@ async function buildAppSite(build: Build): Promise<SiteBuildResult> {
         await writePage(target.out, `${lang}/index.html`, renderPage(ctx));
         if (hasSupport) await writePage(target.out, `${lang}/support/index.html`, renderSupportPage(ctx));
         if (data.extension) await writePage(target.out, `${lang}/extension/index.html`, renderExtensionPage(ctx));
+        for (const family of storeVariants(data)) {
+            await writePage(target.out, `${lang}/extension/${family}/index.html`, renderExtensionPage(ctx, family));
+        }
         if (privacyStatements) {
             await writePage(target.out, `${lang}/privacy/index.html`, renderPrivacyPage(ctx, privacyStatements[lang]!));
         }
@@ -465,6 +468,7 @@ async function buildAppSite(build: Build): Promise<SiteBuildResult> {
         address(pageUrl),
         ...(hasSupport ? [address(supportUrl)] : []),
         ...(data.extension ? [address(extensionUrl)] : []),
+        ...storeVariants(data).map((family) => address((siteData, lang) => extensionUrl(siteData, lang, family))),
         ...(privacyStatements ? [address(privacyUrl)] : []),
         ...(legalNoticeStatements ? [address(legalNoticeUrl)] : []),
     ];

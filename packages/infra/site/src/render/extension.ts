@@ -1,9 +1,13 @@
+import { FAMILY_STORE, STORE_SPECS, type Store } from '../listing/limits.js';
 import {
+    extensionForFamily,
+    extensionVariants,
     isAllSites,
     type DownloadTarget,
     type ExtensionBrowser,
     type ExtensionFamily,
     type ExtensionPermission,
+    type Screenshot,
     type SiteData,
 } from '../site-data/index.js';
 import { esc, fmt, plain } from './html.js';
@@ -43,6 +47,54 @@ const FAMILY_ICONS: Record<ExtensionFamily, IconName> = {
 
 export function familyName(family: ExtensionFamily, t: Translate): string {
     return { chromium: t('Chromium'), firefox: t('Firefox'), edge: t('Edge'), safari: t('Safari') }[family];
+}
+
+/** What a store page calls its browser: the Chromium family's store is the Chrome Web Store. */
+export function storeBrowserName(family: ExtensionFamily, t: Translate): string {
+    return family === 'chromium' ? t('Chrome') : familyName(family, t);
+}
+
+const EDGE_LABEL = /edge/i;
+
+/**
+ * The downloads that belong to one store page. Chrome and Edge are both `chromium` targets; a
+ * target counts as Edge's when its label says so (an `Edge extension` archive, or a `label` set in
+ * `gjsify.site.downloads`). Safari has no store: it is the macOS app, preferring the builds that
+ * say they carry the extension.
+ */
+export function familyTargets(data: SiteData, family: ExtensionFamily): DownloadTarget[] {
+    const all = data.downloads.targets;
+    if (family === 'safari') {
+        const mac = all.filter((target) => target.os === 'darwin');
+        const carrying = mac.filter((target) => target.safariExtension);
+        return carrying.length > 0 ? carrying : mac;
+    }
+    const wanted = data.extension?.component;
+    const os = family === 'firefox' ? 'firefox' : 'chromium';
+    return all.filter(
+        (target) =>
+            target.os === os &&
+            (!wanted || target.component === wanted) &&
+            (family === 'firefox' || (family === 'edge') === EDGE_LABEL.test(target.label)),
+    );
+}
+
+/**
+ * The screenshots a store would show: no more than it takes, and in one shared set where the store
+ * takes only one (AMO), else each language's own. Limits come from `STORE_SPECS`, the same table
+ * `gjsify webext listing` checks its images against.
+ */
+export function storeScreenshots(screenshots: readonly Screenshot[], store: Store): Screenshot[] {
+    const spec = STORE_SPECS[store];
+    return screenshots.slice(0, spec.screenshots.max).map((screenshot) =>
+        spec.localized.screenshots
+            ? screenshot
+            : {
+                  ...screenshot,
+                  byLanguage: {},
+                  dark: screenshot.dark ? { ...screenshot.dark, byLanguage: {} } : undefined,
+              },
+    );
 }
 
 /**
@@ -100,9 +152,15 @@ function familyList(families: readonly ExtensionFamily[], t: Translate): string 
     return families.map((family) => familyName(family, t)).join(', ');
 }
 
+/** Chrome and Edge ask the publisher to justify each permission; AMO shows only the browser's own sentence. */
+function justified(ctx: RenderContext): boolean {
+    const store = ctx.variant ? FAMILY_STORE[ctx.variant as keyof typeof FAMILY_STORE] : undefined;
+    return store === undefined || STORE_SPECS[store].justifiesPermissions;
+}
+
 function permissionItem(entry: ExtensionPermission, ctx: RenderContext, all: readonly ExtensionBrowser[]): string {
     const { t, lang, data } = ctx;
-    const extra = data.extension?.explanations[entry.name]?.[lang];
+    const extra = justified(ctx) ? data.extension?.explanations[entry.name]?.[lang] : undefined;
     const builtIn = entry.host
         ? hostText(entry.name, t)
         : own.call(PERMISSION_TEXT, entry.name)
@@ -177,7 +235,7 @@ function installTargets(data: SiteData): Map<ExtensionFamily, DownloadTarget[]> 
 
 /** The split button and the dialog of the app page, limited to the extension's own downloads. */
 function install(ctx: RenderContext): string {
-    const targets = [...installTargets(ctx.data).values()].flat();
+    const targets = ctx.variant ? familyTargets(ctx.data, ctx.variant) : [...installTargets(ctx.data).values()].flat();
     return targets.length > 0 ? downloadWidget(ctx, targets) : '';
 }
 
@@ -214,12 +272,11 @@ function facts(ctx: RenderContext): string {
     const { data, t, lang } = ctx;
     const extension = data.extension!;
     const browsers = extension.browsers;
-    const targets = installTargets(data);
     const sizeLines = perBrowser(
         browsers,
         (browser) =>
             sizeLabel(
-                (targets.get(browser.family) ?? []).find((target) => target.available && target.size)?.size,
+                familyTargets(data, browser.family).find((target) => target.available && target.size)?.size,
                 lang,
             ) || undefined,
         t,
@@ -270,6 +327,37 @@ ${icon('chevron-right', { class: 'link-external' })}
 </section>`;
 }
 
+/**
+ * The way between the stores: plain links to one page per store, so it works without JavaScript and
+ * every store page has an address a listing or a mail can point at. `extension-stores` only marks
+ * the link that fits the visitor's own browser.
+ */
+function storeSwitch(ctx: RenderContext, variants: readonly ExtensionFamily[]): string {
+    if (variants.length === 0) return '';
+    const { data, lang, t } = ctx;
+    const link = (href: string, label: string, current: boolean, family?: ExtensionFamily) =>
+        `<li><a href="${esc(href)}"${current ? ' aria-current="page"' : ''}${family ? ` data-store="${family}"` : ''}>${family ? icon(FAMILY_ICONS[family]) : ''}<span>${esc(label)}</span><small class="ext-suggest" hidden>${esc(t('Your browser'))}</small></a></li>`;
+    return `<nav class="column ext-stores" aria-label="${esc(t('Browser'))}">
+<extension-stores>
+<ul>
+${link(extensionUrl(data, lang), t('All browsers'), ctx.variant === undefined)}
+${variants.map((family) => link(extensionUrl(data, lang, family), storeBrowserName(family, t), ctx.variant === family, family)).join('\n')}
+</ul>
+</extension-stores>
+</nav>`;
+}
+
+/** Safari has no store to install from: the extension ships in the macOS app. */
+function safariNote(ctx: RenderContext): string {
+    if (ctx.variant !== 'safari') return '';
+    const { data, t, lang } = ctx;
+    const app = localized(data.app.name, lang);
+    return `<section class="ext-section ext-store-note">
+<h2>${esc(t('Install'))}</h2>
+<p>${esc(plain(t('Safari has no extension store. The extension comes with the {app} app for macOS; install the app, then turn the extension on in Safari → Settings → Extensions.'), { app }))} <a href="${esc(pageUrl(data, lang))}">${esc(t('About the app'))}</a></p>
+</section>`;
+}
+
 function header(ctx: RenderContext): string {
     const { data, lang } = ctx;
     const [first] = data.extension!.browsers;
@@ -287,26 +375,60 @@ ${screenshotBand(ctx)}
 </header>`;
 }
 
-/** `/<lang>/extension/`: the store-listing page, built from the manifests; see ADR 0109's amendment. */
-export function renderExtensionPage(page: RenderContext): string {
-    const ctx: RenderContext = { ...page, view: 'extension' };
+/**
+ * The page as one store shows it. The data is narrowed here, once, so every section below reads
+ * the same `data` it always did: that browser's manifest and permissions, the store's screenshot
+ * count and (for AMO) its single shared set.
+ */
+function forFamily(page: RenderContext, family: ExtensionFamily): RenderContext | undefined {
+    const extension = page.data.extension && extensionForFamily(page.data.extension, family);
+    if (!extension) return undefined;
+    const store = FAMILY_STORE[family as keyof typeof FAMILY_STORE] as Store | undefined;
+    return {
+        ...page,
+        variant: family,
+        browserName: storeBrowserName(family, page.t),
+        data: {
+            ...page.data,
+            extension,
+            screenshots: store ? storeScreenshots(page.data.screenshots, store) : page.data.screenshots,
+        },
+    };
+}
+
+/** The browsers that get a page of their own; empty when the extension has only one. */
+export function storeVariants(data: SiteData): ExtensionFamily[] {
+    return extensionVariants(data.extension);
+}
+
+/**
+ * `/<lang>/extension/` (the overview) and `/<lang>/extension/<family>/` (one store's page): the
+ * store-listing page, built from the manifests; see ADR 0109's amendment.
+ */
+export function renderExtensionPage(page: RenderContext, family?: ExtensionFamily): string {
+    const variants = storeVariants(page.data);
+    const narrowed = family ? forFamily(page, family) : undefined;
+    if (family && !narrowed) throw new Error(`The extension has no ${family} manifest`);
+    const ctx: RenderContext = { ...(narrowed ?? page), view: 'extension' };
     const { data, lang } = ctx;
     return documentPage(
         appShell(ctx),
         appPageMeta(ctx, 'extension'),
         `${header(ctx)}
+${storeSwitch(ctx, variants)}
 <main>
 <div class="column ext-layout">
 ${facts(ctx)}
 <div class="ext-main">
 ${needsApp(ctx)}
+${safariNote(ctx)}
 <section class="ext-section about">
 <h2>${esc(ctx.t('About'))}</h2>
 ${blocks(data.app.description, lang)}
 </section>
 ${permissions(ctx)}
 ${dataSection(ctx)}
-${worksIn(ctx)}
+${ctx.variant ? '' : worksIn(ctx)}
 </div>
 </div>
 </main>`,
