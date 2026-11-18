@@ -233,10 +233,32 @@ function installTargets(data: SiteData): Map<ExtensionFamily, DownloadTarget[]> 
     return groups;
 }
 
+/**
+ * A store page always has one primary action. When no build is tagged for the browser, Edge takes
+ * the Chromium builds (it installs them), Safari the app page, and anything else the releases.
+ */
+function fallbackAction(ctx: RenderContext, family: ExtensionFamily): string {
+    const { data, t, lang } = ctx;
+    if (family === 'edge') {
+        const chromium = familyTargets(data, 'chromium');
+        if (chromium.length > 0) return downloadWidget(ctx, chromium);
+    }
+    const [href, label] =
+        family === 'safari'
+            ? [pageUrl(data, lang), t('About the app')]
+            : data.downloads.hasReleases
+              ? [data.downloads.releasesUrl, t('All releases')]
+              : [pageUrl(data, lang), t('About the app')];
+    return `<div class="download">
+<a class="button download-cta" href="${esc(href)}"><span class="download-label">${esc(label)}</span></a>
+</div>`;
+}
+
 /** The split button and the dialog of the app page, limited to the extension's own downloads. */
 function install(ctx: RenderContext): string {
     const targets = ctx.variant ? familyTargets(ctx.data, ctx.variant) : [...installTargets(ctx.data).values()].flat();
-    return targets.length > 0 ? downloadWidget(ctx, targets) : '';
+    if (targets.length > 0) return downloadWidget(ctx, targets);
+    return ctx.variant ? fallbackAction(ctx, ctx.variant) : '';
 }
 
 /** One line per distinct value: a single value when every browser agrees, else each browser named. */
@@ -391,7 +413,9 @@ function forFamily(page: RenderContext, family: ExtensionFamily): RenderContext 
         data: {
             ...page.data,
             extension,
-            screenshots: store ? storeScreenshots(page.data.screenshots, store) : page.data.screenshots,
+            screenshots: store
+                ? storeScreenshots(page.data.listingScreenshots ?? page.data.screenshots, store)
+                : page.data.screenshots,
         },
     };
 }

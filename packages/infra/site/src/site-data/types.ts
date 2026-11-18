@@ -488,6 +488,11 @@ export interface SiteData {
         icon?: string;
     };
     screenshots: Screenshot[];
+    /**
+     * The listing's own screenshots (`gjsify.webext.listing.screenshots`), which the extension's store
+     * pages show instead of the metainfo set. Absent when none are configured.
+     */
+    listingScreenshots?: Screenshot[];
     releases: Release[];
     latestRelease: LatestRelease | null;
     downloads: {

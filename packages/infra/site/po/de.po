@@ -249,6 +249,12 @@ msgstr "Die Erweiterung erklärt, dass sie keine Daten erhebt."
 msgid "Works in"
 msgstr "Funktioniert in"
 
+msgid "About the app"
+msgstr "Über die App"
+
+msgid "All releases"
+msgstr "Alle Versionen"
+
 msgid "Website"
 msgstr "Webseite"
 
@@ -296,9 +302,6 @@ msgstr "Installieren"
 
 msgid "Safari has no extension store. The extension comes with the {app} app for macOS; install the app, then turn the extension on in Safari → Settings → Extensions."
 msgstr "Safari hat keinen Erweiterungs-Store. Die Erweiterung kommt mit der App {app} für macOS; installiere die App und schalte die Erweiterung dann in Safari → Einstellungen → Erweiterungen ein."
-
-msgid "About the app"
-msgstr "Über die App"
 
 msgid "About"
 msgstr "Über"
@@ -422,9 +425,6 @@ msgstr "Über die Browser-Erweiterung"
 
 msgid "Operating system"
 msgstr "Betriebssystem"
-
-msgid "All releases"
-msgstr "Alle Versionen"
 
 msgid "All download options"
 msgstr "Alle Download-Optionen"

@@ -248,6 +248,12 @@ msgstr ""
 msgid "Works in"
 msgstr ""
 
+msgid "About the app"
+msgstr ""
+
+msgid "All releases"
+msgstr ""
+
 msgid "Website"
 msgstr ""
 
@@ -294,9 +300,6 @@ msgid "Install"
 msgstr ""
 
 msgid "Safari has no extension store. The extension comes with the {app} app for macOS; install the app, then turn the extension on in Safari → Settings → Extensions."
-msgstr ""
-
-msgid "About the app"
 msgstr ""
 
 msgid "About"
@@ -420,9 +423,6 @@ msgid "About the browser extension"
 msgstr ""
 
 msgid "Operating system"
-msgstr ""
-
-msgid "All releases"
 msgstr ""
 
 msgid "All download options"

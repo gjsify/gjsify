@@ -229,6 +229,65 @@ export default async () => {
                 expect(renderExtensionPage(context())).not.toContain('extension/edge/');
             });
 
+            await it('gives every store page exactly one primary action', async () => {
+                const edge = {
+                    ...extension.browsers[1]!,
+                    family: 'edge' as const,
+                };
+                const bare = () =>
+                    context({
+                        browsers: [...extension.browsers, edge, safari],
+                        required: extension.required.map((entry) => ({
+                            ...entry,
+                            families: [...entry.families, 'edge' as const, 'safari' as const],
+                        })),
+                    });
+                for (const family of ['firefox', 'chromium', 'edge', 'safari'] as const) {
+                    const html = renderExtensionPage(bare(), family);
+                    expect(html.split('download-cta"').length - 1).toBe(1);
+                }
+                expect(renderExtensionPage(bare(), 'safari')).toContain('href="/x/en/"');
+                expect(renderExtensionPage(withSafari(), 'safari').split('download-cta"').length - 1).toBe(1);
+            });
+
+            await it('shows the listing screenshots per store, and the metainfo set elsewhere', async () => {
+                const rendition = (name: string) => ({
+                    width: 2560,
+                    height: 1600,
+                    displayWidth: 1280,
+                    frameless: false,
+                    formats: {
+                        avif: [{ url: `/x/img/${name}.avif`, width: 1280 }],
+                        webp: [{ url: `/x/img/${name}.webp`, width: 1280 }],
+                        png: [{ url: `/x/img/${name}.png`, width: 1280 }],
+                    },
+                });
+                const file = (slug: string) => ({ url: slug, file: slug, slug });
+                const shot = (slug: string, byLanguage = {}) => ({ ...file(slug), caption: null, byLanguage });
+                const withListing = () => {
+                    const ctx = context();
+                    ctx.data.screenshots = [shot('meta')] as never;
+                    ctx.data.listingScreenshots = [
+                        shot('store-1', { de: file('store-1-de') }),
+                        shot('store-2'),
+                    ] as never;
+                    ctx.images = new Map(
+                        ['meta', 'store-1', 'store-1-de', 'store-2'].map((name) => [name, rendition(name)]),
+                    ) as never;
+                    return ctx;
+                };
+                const chrome = renderExtensionPage(withListing(), 'chromium');
+                expect(chrome).toContain('/x/img/store-1.png');
+                expect(chrome).toContain('/x/img/store-2.png');
+                expect(chrome).not.toContain('/x/img/meta.png');
+                const german = withListing();
+                german.lang = 'de';
+                expect(renderExtensionPage(german, 'chromium')).toContain('/x/img/store-1-de.png');
+                expect(renderExtensionPage(german, 'firefox')).not.toContain('/x/img/store-1-de.png');
+                expect(renderExtensionPage(withListing())).toContain('/x/img/meta.png');
+                expect(renderExtensionPage(withListing())).not.toContain('/x/img/store-1.png');
+            });
+
             await it('limits screenshots to what the store takes and shares one set where it takes one', async () => {
                 const shot = (n: number) =>
                     ({ source: { name: `${n}.png` }, byLanguage: { de: { name: `${n}-de.png` } } }) as never;

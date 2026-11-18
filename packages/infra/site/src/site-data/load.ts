@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { parseSiteConfig, type RootManifest } from './config.js';
 import { buildDownloadTargets, recordedArtifact } from './downloads.js';
 import { loadExtension } from './extension.js';
@@ -11,13 +11,16 @@ import type { NetworkOptions } from './network.js';
 import { minimumAge } from './oars.js';
 import { completeLocalized, languageCandidates, parseCatalog, type Catalog } from './po.js';
 import { loadRelatedApps } from './related.js';
-import { resolveScreenshots } from './screenshots.js';
+import { listingScreenshots } from '../listing/images.js';
+import { parseListingConfig, type ListingManifest } from '../listing/config.js';
+import { imageSlug, resolveScreenshots } from './screenshots.js';
 import type {
     DescriptionBlock,
     LatestRelease,
     Localized,
     Metainfo,
     Release,
+    Screenshot,
     SiteConfig,
     SiteData,
     Stats,
@@ -80,6 +83,32 @@ function warnMissingTranslations(
             );
         }
     }
+}
+
+/**
+ * The screenshots the store listing publishes, as page screenshots: the source set, each language's
+ * own set where there is one. Read by `listingScreenshots`, so the page and `webext listing` agree.
+ */
+export async function loadListingScreenshots(
+    manifest: RootManifest,
+    metainfo: Metainfo,
+    root: string,
+): Promise<Screenshot[]> {
+    const config = parseListingConfig(manifest as ListingManifest);
+    const sets = await listingScreenshots(metainfo, config, root, {});
+    // The listing's slug is the bare file name, which `en/01.png` and `de/01.png` share; the page's
+    // image map is keyed by slug, so here it is the path below the repository.
+    const file = (path: string) => ({ url: path, file: path, slug: imageSlug(relative(root, path)) });
+    return sets.source.map((shot, index) => ({
+        ...file(shot.file),
+        caption: null,
+        byLanguage: Object.fromEntries(
+            Object.entries(sets.byLanguage).flatMap(([language, set]) => {
+                const own = set[index];
+                return own ? [[language, file(own.file)]] : [];
+            }),
+        ),
+    }));
 }
 
 /** Collects everything the pages need into one object. Network failures degrade to warnings. */
@@ -195,6 +224,11 @@ export async function loadSiteData(options: LoadOptions): Promise<SiteData> {
         ? await loadExtension(config.extension, options.root, config.languages)
         : undefined;
 
+    const listingShots =
+        extension && manifest.gjsify?.webext?.listing?.screenshots
+            ? await loadListingScreenshots(manifest, metainfo, options.root)
+            : undefined;
+
     const releases: Release[] = metainfo.releases.map((release) => ({
         ...release,
         description: completeBlocks(release.description),
@@ -219,6 +253,7 @@ export async function loadSiteData(options: LoadOptions): Promise<SiteData> {
             icon,
         },
         screenshots,
+        listingScreenshots: listingShots,
         releases,
         latestRelease,
         downloads: {

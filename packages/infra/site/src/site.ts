@@ -207,7 +207,11 @@ async function processScreenshots(
         urlBase: `${data.config.base}img/`,
         pixelated: data.config.theme.imageRendering === 'pixelated',
     };
-    const files = new Map(data.screenshots.flatMap(screenshotFiles).map((file) => [file.slug, file]));
+    const files = new Map(
+        [...data.screenshots, ...(data.listingScreenshots ?? [])]
+            .flatMap(screenshotFiles)
+            .map((file) => [file.slug, file]),
+    );
     const entries = await Promise.all(
         [...files.values()].map(
             async (file) => [file.slug, await processImage(file.file, file.slug, options)] as const,

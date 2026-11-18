@@ -26,7 +26,7 @@ import {
 } from './downloads.js';
 import { parseFlathubStats, parseFlathubSummary } from './flathub.js';
 import { fetchLatestRelease, parseLatestRelease } from './github.js';
-import { loadSiteData } from './load.js';
+import { loadListingScreenshots, loadSiteData } from './load.js';
 import { parseMetainfo } from './metainfo.js';
 import { loadLegalNoticeStatements } from './legal-notice.js';
 import { loadPrivacyStatements } from './privacy.js';
@@ -1161,6 +1161,26 @@ export default async () => {
             expect(epcPayload({ name: 'X', iban: 'DE89370400440532013000' })).toBe(
                 'BCD\n002\n1\nSCT\n\nX\nDE89370400440532013000\n\n\n\n',
             );
+        });
+    });
+
+    await describe('listing screenshots on the page', async () => {
+        await it('keeps a language directory apart from the source one, though the files share names', async () => {
+            const root = mkdtempSync(join(tmpdir(), 'gjsify-site-shots-'));
+            for (const language of ['en', 'de']) {
+                mkdirSync(join(root, 'shots', language), { recursive: true });
+                writeFileSync(join(root, 'shots', language, '01-hero.png'), 'x');
+            }
+            const manifest = {
+                gjsify: { webext: { listing: { metainfo: 'm.xml', languages: ['en', 'de'], screenshots: 'shots' } } },
+            };
+            const [shot] = await loadListingScreenshots(
+                manifest,
+                parseMetainfo('<component><id>x</id><name>E</name><summary>S</summary></component>'),
+                root,
+            );
+            expect(shot!.slug).not.toBe(shot!.byLanguage.de!.slug);
+            rmSync(root, { recursive: true, force: true });
         });
     });
 };

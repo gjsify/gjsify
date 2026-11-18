@@ -283,6 +283,17 @@ export default async () => {
             expect(Object.keys(sets.byLanguage).length).toBe(0);
         });
 
+        await it('takes the source language subdirectory when the directory has no loose files', async () => {
+            const dir = join(root, 'shots-by-language');
+            mkdirSync(join(dir, 'en'), { recursive: true });
+            mkdirSync(join(dir, 'de'), { recursive: true });
+            writeFileSync(join(dir, 'en', '1.png'), 'x');
+            writeFileSync(join(dir, 'de', '1.png'), 'x');
+            const sets = await listingScreenshots(meta, config({ screenshots: 'shots-by-language' }), root, {});
+            expect(sets.source.length).toBe(1);
+            expect(sets.byLanguage.de?.length).toBe(1);
+        });
+
         await it('reads <dir>/<lang>/ subdirectories of a configured directory', async () => {
             const dir = join(root, 'shots');
             mkdirSync(join(dir, 'de'), { recursive: true });
