@@ -837,7 +837,7 @@ export const REAL_EXPECTATIONS = [
             ],
         },
         lost: [],
-        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the fifty-one probes are fewer than thirty-three distinct probes.',
+        note: 'The three `templates/*/src/main-window.blp` differ in one string, so this tree is also the next two with the title changed. Three entries, one shape: a parser that passes here passes all three, and the fifty-two probes are fewer than thirty-four distinct probes.',
     },
     {
         file: 'templates/adw-game/src/main-window.blp',
@@ -2439,5 +2439,44 @@ export const REAL_EXPECTATIONS = [
             ],
         },
         lost: [],
+    },
+    {
+        file: 'packages/framework/adwaita-app/src/switcher-shell.blp',
+        node: {
+            tag: 'AdwBin',
+            template: 'AdwaitaAppSwitcherShell',
+            children: [
+                {
+                    tag: 'AdwToolbarView',
+                    id: 'toolbar_view',
+                    slot: 'child',
+                    children: [
+                        {
+                            tag: 'AdwHeaderBar',
+                            id: 'header_bar',
+                            slot: 'top',
+                            children: [
+                                {
+                                    tag: 'AdwViewSwitcher',
+                                    id: 'switcher',
+                                    slot: 'title-widget',
+                                    props: { policy: 'wide', stack: 'stack' },
+                                },
+                            ],
+                        },
+                        { tag: 'AdwViewSwitcherBar', id: 'switcher_bar', slot: 'bottom', props: { stack: 'stack' } },
+                        { tag: 'AdwViewStack', id: 'stack', slot: 'content' },
+                    ],
+                },
+            ],
+        },
+        lost: [
+            {
+                kind: 'comment',
+                line: 4,
+                detail: 'four comment lines saying why the template is an Adw.Bin and where the pages and the breakpoint come from; neither exit carries them',
+            },
+        ],
+        note: 'The view-switcher shell of `@gjsify/adwaita-app`: a template whose ONLY child is a final layout container, because libadwaita lets no class subclass `Adw.ToolbarView`. Both switchers name the stack that follows them, forward, as in the view-stack-pages probe. The stack itself is empty in the source; its pages are data-driven and added in TypeScript, so this is the first real file whose content slot holds a node with no props and no children.',
     },
 ];

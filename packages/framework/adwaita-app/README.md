@@ -217,6 +217,17 @@ more helpful and would show a licence line on Windows that Linux does not.
   **no GI imports**, so it runs (and is tested) under Node as well as GJS.
 - `licenseTypeFor(spdxId): Gtk.License`, `hasAppdataConstructor(namespace?): boolean`.
 
+### Switcher shell
+
+`createSwitcherShell(window, { pages, narrowWidth? }): SwitcherShell` — for apps with a
+few top-level views. An `Adw.ToolbarView` with an `Adw.HeaderBar` holding an
+`Adw.ViewSwitcher` (wide), an `Adw.ViewSwitcherBar` at the bottom (narrow), and an
+`Adw.ViewStack` filled from `pages` (`{ name, title, icon, widget }`). `window` owns the
+`Adw.Breakpoint` (`max-width: 599sp` by default) that reveals the bottom bar and hides
+the header switcher. Returns `{ widget, stack, headerBar, toolbarView, switcher,
+switcherBar, breakpoint }` — pack buttons into `headerBar`, add your own setters to
+`breakpoint`.
+
 ### Navigation shell
 
 - `createNavShell(window, options): NavShell` — builds the

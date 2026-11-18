@@ -23,6 +23,9 @@ export type { BundledIconPreference, BundledIconThemeOptions } from './icon-them
 export { createNavShell } from './nav-shell.js';
 export type { NavShell, NavShellHeaderFunc, NavShellOptions } from './nav-shell.js';
 
+export { createSwitcherShell } from './switcher-shell.js';
+export type { SwitcherPage, SwitcherShell, SwitcherShellOptions } from './switcher-shell.js';
+
 export { LoadToken, loadIntoStack } from './view-loader.js';
 export type { LoadIntoStackOptions } from './view-loader.js';
 
