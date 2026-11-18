@@ -1,5 +1,13 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { DavClient, DavError, basicAuth, bearerAuth, parseMultistatus } from './index.js';
+import {
+    DavClient,
+    DavError,
+    DavSyncTokenError,
+    basicAuth,
+    bearerAuth,
+    parseMultistatus,
+    parseRetryAfter,
+} from './index.js';
 
 interface Call {
     method: string;
@@ -195,6 +203,64 @@ export default async () => {
                     err = e;
                 }
                 expect(err instanceof DavError && err.isPreconditionFailed).toBe(true);
+            }
+        });
+        await it('carries Retry-After as milliseconds', async () => {
+            const m = mock([{ status: 429, headers: { 'Retry-After': '120' } }, { status: 503 }]);
+            const c = m.client();
+            const errors: unknown[] = [];
+            for (const run of [() => c.delete('https://x.example/a'), () => c.delete('https://x.example/b')]) {
+                try {
+                    await run();
+                } catch (e) {
+                    errors.push(e);
+                }
+            }
+            expect(errors[0] instanceof DavError && errors[0].retryAfterMs).toBe(120000);
+            expect(errors[1] instanceof DavError && errors[1].retryAfterMs).toBe(null);
+        });
+        await it('parses both Retry-After forms', async () => {
+            const now = Date.parse('2026-10-12T08:00:00Z');
+            expect(parseRetryAfter('5', now)).toBe(5000);
+            expect(parseRetryAfter('Mon, 12 Oct 2026 08:01:00 GMT', now)).toBe(60000);
+            expect(parseRetryAfter('Mon, 12 Oct 2026 07:00:00 GMT', now)).toBe(0);
+            expect(parseRetryAfter('soon', now)).toBe(null);
+            expect(parseRetryAfter(null, now)).toBe(null);
+        });
+        await it('throws DavSyncTokenError for a rejected sync token', async () => {
+            const url = 'https://dav.example.org/calendars/bernard/work/';
+            const rejected: Reply[] = [
+                { status: 403, body: '<?xml version="1.0"?><D:error xmlns:D="DAV:"><D:valid-sync-token/></D:error>' },
+                { status: 409 },
+                { status: 507 },
+            ];
+            for (const reply of rejected) {
+                let err: unknown;
+                try {
+                    await mock([reply]).client().sync(url, 'tok-old');
+                } catch (e) {
+                    err = e;
+                }
+                expect(err instanceof DavSyncTokenError).toBe(true);
+                expect(err instanceof DavError && err.status).toBe(reply.status);
+            }
+        });
+        await it('keeps other refusals of a sync as DavError', async () => {
+            const url = 'https://dav.example.org/calendars/bernard/work/';
+            const other: Array<[Reply, string | null]> = [
+                [{ status: 403, body: '<D:error xmlns:D="DAV:"><D:need-privileges/></D:error>' }, 'tok-old'],
+                [{ status: 403 }, null],
+                [{ status: 401 }, 'tok-old'],
+            ];
+            for (const [reply, token] of other) {
+                let err: unknown;
+                try {
+                    await mock([reply]).client().sync(url, token);
+                } catch (e) {
+                    err = e;
+                }
+                expect(err instanceof DavError).toBe(true);
+                expect(err instanceof DavSyncTokenError).toBe(false);
             }
         });
         await it('DELETE sends If-Match', async () => {

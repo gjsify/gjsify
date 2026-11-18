@@ -28,20 +28,74 @@ export interface DavClientOptions {
     fetch?: FetchLike;
 }
 
+export interface DavErrorDetails {
+    /** The server's Retry-After (429, 503), in milliseconds from when the answer arrived. */
+    retryAfterMs?: number | null;
+    /** Local name of the precondition in a `DAV:error` body (RFC 4918 §16), e.g. `valid-sync-token`. */
+    precondition?: string | null;
+}
+
 export class DavError extends Error {
+    readonly retryAfterMs: number | null;
+    readonly precondition: string | null;
+
     constructor(
         readonly status: number,
         readonly url: string,
         readonly method: string,
         message?: string,
+        details: DavErrorDetails = {},
     ) {
         super(message ?? `DAV ${method} ${url} failed with ${status}`);
         this.name = 'DavError';
+        this.retryAfterMs = details.retryAfterMs ?? null;
+        this.precondition = details.precondition ?? null;
     }
     /** If-Match / If-None-Match precondition failed: the object changed or already exists. */
     get isPreconditionFailed(): boolean {
         return this.status === 412;
     }
+}
+
+/** The server no longer accepts the sync token (RFC 6578 §3.2): drop it and read the collection in full. */
+export class DavSyncTokenError extends DavError {
+    constructor(cause: DavError) {
+        super(cause.status, cause.url, cause.method, `DAV sync token rejected by ${cause.url} (${cause.status})`, {
+            retryAfterMs: cause.retryAfterMs,
+            precondition: cause.precondition,
+        });
+        this.name = 'DavSyncTokenError';
+    }
+}
+
+/** Retry-After is either delay-seconds or an HTTP-date (RFC 9110 §10.2.3). */
+export function parseRetryAfter(value: string | null, now: number = Date.now()): number | null {
+    if (value === null) return null;
+    const text = value.trim();
+    if (/^\d+$/.test(text)) return Number(text) * 1000;
+    const at = Date.parse(text);
+    return Number.isNaN(at) ? null : Math.max(0, at - now);
+}
+
+function preconditionOf(body: string): string | null {
+    return /<(?:[\w-]+:)?error\b[^>]*>\s*<(?:[\w-]+:)?([\w-]+)/.exec(body)?.[1] ?? null;
+}
+
+async function errorFrom(res: Response, url: string, method: string): Promise<DavError> {
+    const body = await res.text().catch(() => '');
+    return new DavError(res.status, url, method, undefined, {
+        retryAfterMs: parseRetryAfter(res.headers.get('retry-after')),
+        precondition: preconditionOf(body),
+    });
+}
+
+/**
+ * RFC 6578 says 403 with `DAV:valid-sync-token`; servers in the wild also answer 409 or 507, and
+ * some send no body. Any other named precondition is a different refusal and stays a DavError.
+ */
+function isTokenRejection(err: DavError): boolean {
+    if (err.precondition === 'valid-sync-token') return true;
+    return err.precondition === null && (err.status === 403 || err.status === 409 || err.status === 507);
 }
 
 export interface Discovery {
@@ -116,10 +170,7 @@ export class DavClient {
             headers: { 'Content-Type': 'application/xml; charset=utf-8', Depth: depth },
             body,
         });
-        if (res.status !== 207) {
-            await res.text().catch(() => '');
-            throw new DavError(res.status, url, method);
-        }
+        if (res.status !== 207) throw await errorFrom(res, url, method);
         return { ms: parseMultistatus(await res.text()), url: res.url || url };
     }
 
@@ -220,9 +271,19 @@ export class DavClient {
         return this.objects(ms.responses, kind, url);
     }
 
-    /** RFC 6578 delta sync. Pass `null` for the initial sync. A 403/409/507 means the token is stale: resync. */
+    /**
+     * RFC 6578 delta sync. Pass `null` for the initial sync. A rejected token throws
+     * `DavSyncTokenError`: drop the token and read the collection in full.
+     */
     async sync(collectionUrl: string, token: string | null): Promise<SyncResult> {
-        const { ms, url } = await this.xml('REPORT', collectionUrl, syncCollectionBody(token), '1');
+        let answer: { ms: Multistatus; url: string };
+        try {
+            answer = await this.xml('REPORT', collectionUrl, syncCollectionBody(token), '1');
+        } catch (err) {
+            if (token !== null && err instanceof DavError && isTokenRejection(err)) throw new DavSyncTokenError(err);
+            throw err;
+        }
+        const { ms, url } = answer;
         const changed: DavObject[] = [];
         const deleted: string[] = [];
         for (const r of ms.responses) {
@@ -248,16 +309,16 @@ export class DavClient {
         if (options.ifMatch) headers['If-Match'] = options.ifMatch;
         if (options.ifNoneMatch) headers['If-None-Match'] = '*';
         const res = await this.request('PUT', url, { headers, body: data });
+        if (res.status < 200 || res.status >= 300) throw await errorFrom(res, url, 'PUT');
         await res.text().catch(() => '');
-        if (res.status < 200 || res.status >= 300) throw new DavError(res.status, url, 'PUT');
         return { etag: res.headers.get('etag') };
     }
 
     async delete(url: string, options: { ifMatch?: string } = {}): Promise<void> {
         const headers: Record<string, string> = options.ifMatch ? { 'If-Match': options.ifMatch } : {};
         const res = await this.request('DELETE', url, { headers });
+        if (res.status < 200 || res.status >= 300) throw await errorFrom(res, url, 'DELETE');
         await res.text().catch(() => '');
-        if (res.status < 200 || res.status >= 300) throw new DavError(res.status, url, 'DELETE');
     }
 
     private objects(responses: DavResponse[], kind: DavKind, base: string): DavObject[] {

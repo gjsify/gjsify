@@ -1,7 +1,8 @@
-export { DavClient, DavError } from './client.js';
+export { DavClient, DavError, DavSyncTokenError, parseRetryAfter } from './client.js';
 export type {
     Collection,
     DavClientOptions,
+    DavErrorDetails,
     DavKind,
     DavObject,
     Discovery,
