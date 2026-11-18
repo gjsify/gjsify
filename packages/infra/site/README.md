@@ -98,6 +98,12 @@ Only what the metainfo cannot carry is configured, in `gjsify.webext.listing` of
 catalogues like the page strings. The privacy URL comes from `<url type="privacy">`, else
 `privacyUrl`, else `<siteUrl><lang>/privacy/` when `gjsify.site.privacy` is set.
 
+`screenshots` replaces the metainfo screenshots with a directory of images, taken in name order. A
+`<lang>/` subdirectory holds one language's set; the source language's set may sit in the directory
+itself or in its own `<lang>/` subdirectory. A leading ordinal (`01-hero.png`) is dropped from the
+output name, because the output numbers the files itself. Stores that localize screenshots (Chrome,
+Edge) get each language's set; AMO gets the source set.
+
 ## Support pages and SEO
 
 With `gjsify.site.support` set, a build also writes `/<base><lang>/support/index.html` (title
