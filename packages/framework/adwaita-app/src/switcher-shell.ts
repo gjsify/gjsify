@@ -3,9 +3,13 @@
 // bar holds an Adw.ViewSwitcher, with an Adw.ViewSwitcherBar at the bottom that
 // an Adw.Breakpoint reveals on narrow windows, over an Adw.ViewStack. Apps with
 // two to five top-level views (calendar / tasks / board) build exactly this.
+// The widget tree is `switcher-shell.blp`; this file holds the logic.
 
 import Adw from 'gi://Adw?version=1';
+import GObject from 'gi://GObject?version=2.0';
 import type Gtk from 'gi://Gtk?version=4.0';
+
+import Template, { type Children, GTypeName, InternalChildren } from './switcher-shell.blp';
 
 /** One top-level page of the switcher. */
 export interface SwitcherPage {
@@ -27,10 +31,62 @@ export interface SwitcherShellOptions {
     narrowWidth?: number;
 }
 
+// `extends Children` on a merged interface, never fields: GJS installs the internal
+// children in `registerClass`, and a field would shadow them with `undefined`.
+// oxlint-disable-next-line no-unsafe-declaration-merging -- intentional: GJS installs the internal children
+export interface SwitcherShellWidget extends Children {}
+
+/**
+ * The switcher shell widget: header bar + switcher, bottom switcher bar, page stack.
+ * Set it as window content; {@link createSwitcherShell} also attaches the breakpoint.
+ */
+export class SwitcherShellWidget extends Adw.Bin {
+    static {
+        // GJS resolves Adw types lazily; GtkBuilder only sees types already registered, so a
+        // type the template names but the code never touched fails as "Invalid object type".
+        for (const type of [Adw.ToolbarView, Adw.HeaderBar, Adw.ViewSwitcher, Adw.ViewSwitcherBar, Adw.ViewStack]) {
+            GObject.type_ensure(type.$gtype);
+        }
+        GObject.registerClass({ GTypeName, Template, InternalChildren }, this);
+    }
+
+    /** The page stack; select with `set_visible_child_name`. */
+    get stack(): Adw.ViewStack {
+        return this._stack;
+    }
+
+    /** Header bar — pack buttons / menus into it. */
+    get headerBar(): Adw.HeaderBar {
+        return this._header_bar;
+    }
+
+    /** The toolbar view, for extra top or bottom bars. */
+    get toolbarView(): Adw.ToolbarView {
+        return this._toolbar_view;
+    }
+
+    /** The wide switcher in the header title. */
+    get switcher(): Adw.ViewSwitcher {
+        return this._switcher;
+    }
+
+    /** The narrow-window bottom bar. */
+    get switcherBar(): Adw.ViewSwitcherBar {
+        return this._switcher_bar;
+    }
+
+    /** Add the pages, in switcher order. */
+    setPages(pages: readonly SwitcherPage[]): void {
+        for (const page of pages) {
+            this._stack.add_titled_with_icon(page.widget, page.name, page.title, page.icon);
+        }
+    }
+}
+
 /** The pieces a consumer fills in. */
 export interface SwitcherShell {
     /** Top-level widget — set as the window content. */
-    widget: Adw.ToolbarView;
+    widget: SwitcherShellWidget;
     /** The page stack; select with `set_visible_child_name`. */
     stack: Adw.ViewStack;
     /** Header bar — pack buttons / menus into it. */
@@ -46,33 +102,28 @@ export interface SwitcherShell {
 }
 
 /**
- * Build the switcher shell into `window` (which owns the narrow breakpoint).
+ * Build the switcher shell and attach its narrow breakpoint to `window`.
  * Below `narrowWidth` the header switcher hides and the bottom bar reveals —
  * one navigation at a time, never both.
  */
 export function createSwitcherShell(window: Adw.ApplicationWindow, options: SwitcherShellOptions): SwitcherShell {
-    const stack = new Adw.ViewStack();
-    for (const page of options.pages) {
-        stack.add_titled_with_icon(page.widget, page.name, page.title, page.icon);
-    }
-
-    const switcher = new Adw.ViewSwitcher({ stack, policy: Adw.ViewSwitcherPolicy.WIDE });
-    const headerBar = new Adw.HeaderBar();
-    headerBar.set_title_widget(switcher);
-
-    const switcherBar = new Adw.ViewSwitcherBar({ stack });
-
-    const toolbarView = new Adw.ToolbarView();
-    toolbarView.add_top_bar(headerBar);
-    toolbarView.add_bottom_bar(switcherBar);
-    toolbarView.set_content(stack);
+    const widget = new SwitcherShellWidget();
+    widget.setPages(options.pages);
 
     const breakpoint = Adw.Breakpoint.new(
         Adw.BreakpointCondition.parse(`max-width: ${(options.narrowWidth ?? 600) - 1}sp`),
     );
-    breakpoint.add_setter(switcherBar, 'reveal', true);
-    breakpoint.add_setter(switcher, 'visible', false);
+    breakpoint.add_setter(widget.switcherBar, 'reveal', true);
+    breakpoint.add_setter(widget.switcher, 'visible', false);
     window.add_breakpoint(breakpoint);
 
-    return { widget: toolbarView, stack, headerBar, toolbarView, switcher, switcherBar, breakpoint };
+    return {
+        widget,
+        stack: widget.stack,
+        headerBar: widget.headerBar,
+        toolbarView: widget.toolbarView,
+        switcher: widget.switcher,
+        switcherBar: widget.switcherBar,
+        breakpoint,
+    };
 }

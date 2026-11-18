@@ -1,0 +1,25 @@
+using Gtk 4.0;
+using Adw 1;
+
+// Adw.Bin and not Adw.ToolbarView: libadwaita's layout containers are FINAL types, so
+// only a Bin can be the class this template belongs to. The pages are data-driven and
+// are added by `switcher-shell.ts`; the narrow breakpoint belongs to the WINDOW and is
+// attached by `createSwitcherShell`.
+template $AdwaitaAppSwitcherShell: Adw.Bin {
+  child: Adw.ToolbarView toolbar_view {
+    [top]
+    Adw.HeaderBar header_bar {
+      title-widget: Adw.ViewSwitcher switcher {
+        policy: wide;
+        stack: stack;
+      };
+    }
+
+    [bottom]
+    Adw.ViewSwitcherBar switcher_bar {
+      stack: stack;
+    }
+
+    content: Adw.ViewStack stack {};
+  };
+}
