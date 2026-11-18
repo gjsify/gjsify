@@ -327,6 +327,11 @@ export interface ExtensionData {
 export interface Screenshot extends ScreenshotFile {
     /** The metainfo caption, translated where the metainfo or a catalogue has a translation. */
     caption: Localized | null;
+    /**
+     * The artwork is already composed (window, shadow, backdrop), like the listing's store images:
+     * the carousel adds no frame of its own.
+     */
+    composed?: boolean;
     /** The `xml:lang` renditions of the light artwork; the language without one gets the file above. */
     byLanguage: Record<string, ScreenshotFile>;
     /** The `environment="…:dark"` twin, when the metainfo has one. It falls back to the light artwork. */

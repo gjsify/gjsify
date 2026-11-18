@@ -324,7 +324,7 @@ export function frameAttribute(
     ctx: Pick<RenderContext, 'images' | 'lang'>,
     screenshot: Screenshot,
 ): 'none' | undefined {
-    return shown(ctx, screenshot)?.frameless === true ? 'none' : undefined;
+    return screenshot.composed || shown(ctx, screenshot)?.frameless === true ? 'none' : undefined;
 }
 
 /** The screenshots, at the bottom of the brand-coloured masthead. */

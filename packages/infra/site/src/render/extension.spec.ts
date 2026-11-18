@@ -268,8 +268,8 @@ export default async () => {
                     const ctx = context();
                     ctx.data.screenshots = [shot('meta')] as never;
                     ctx.data.listingScreenshots = [
-                        shot('store-1', { de: file('store-1-de') }),
-                        shot('store-2'),
+                        { ...shot('store-1', { de: file('store-1-de') }), composed: true },
+                        { ...shot('store-2'), composed: true },
                     ] as never;
                     ctx.images = new Map(
                         ['meta', 'store-1', 'store-1-de', 'store-2'].map((name) => [name, rendition(name)]),
@@ -280,6 +280,8 @@ export default async () => {
                 expect(chrome).toContain('/x/img/store-1.png');
                 expect(chrome).toContain('/x/img/store-2.png');
                 expect(chrome).not.toContain('/x/img/meta.png');
+                expect(chrome).toContain('data-frame="none"');
+                expect(renderExtensionPage(withListing())).not.toContain('data-frame="none"');
                 const german = withListing();
                 german.lang = 'de';
                 expect(renderExtensionPage(german, 'chromium')).toContain('/x/img/store-1-de.png');

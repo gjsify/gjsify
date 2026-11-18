@@ -102,6 +102,7 @@ export async function loadListingScreenshots(
     return sets.source.map((shot, index) => ({
         ...file(shot.file),
         caption: null,
+        composed: true,
         byLanguage: Object.fromEntries(
             Object.entries(sets.byLanguage).flatMap(([language, set]) => {
                 const own = set[index];

@@ -335,9 +335,9 @@ h1 {
   border-radius: var(--radius);
 }
 
-/* Only a CTA with the toggle beside it gives up its right corners: without a release there is no
- * split, just the button to the source or the releases. */
-.download-split .download-cta {
+/* Only a CTA with the toggle beside it gives up its right corners: with no build to offer (an
+ * "All download options" button alone) there is no split, and a flat edge would read as clipped. */
+.download-split .download-cta:not(:last-child) {
   border-radius: var(--radius) 0 0 var(--radius);
 }
 
