@@ -10,6 +10,7 @@ import appdataSuite from './appdata.spec.js';
 import dockReopenSuite from './dock-reopen.spec.js';
 import devHooksSuite from './dev-hooks.spec.js';
 import dialogModelSuite from './dialog-model.spec.js';
+import launchArgvSuite from './launch-argv.spec.js';
 import localeDirSuite from './locale-dir.spec.js';
 import localeEnvSuite from './locale-env.spec.js';
 import navModelSuite from './nav-model.spec.js';
@@ -23,6 +24,7 @@ run({
     devHooksSuite,
     dockReopenSuite,
     dialogModelSuite,
+    launchArgvSuite,
     localeDirSuite,
     localeEnvSuite,
     navModelSuite,

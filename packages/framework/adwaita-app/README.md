@@ -67,7 +67,15 @@ promise-job queue under `run()`).
   `flags`, `css`, `about` (`AboutInfo`) or `aboutAppdata`
   (`CreateAboutDialogOptions`, see below), `quitAction` (default on, `<primary>q`),
   `devtools` (`true` | `InstallDevtoolsOptions` | omitted = env-gated),
-  `bundledIcons` (default on — see below), `iconDir`, `onStartup`.
+  `bundledIcons` (default on — see below), `iconDir`, `onStartup`, `argv`.
+  `argv` is what GApplication is launched with; default is the program name plus
+  the process arguments. An app started from a CLI subcommand (`tool gui`) passes
+  `[programName]`: GApplication reads every other non-option argument as a file
+  to open and refuses it unless the app has `HANDLES_OPEN`. `runApplication(app,
+  argv)` takes the same list directly. Both also work inside a `GLib.MainLoop`
+  the host already iterates: `runAsync` only fires after the script's main loop
+  has ended, so there `activate` never came; the app is run from an idle source
+  instead.
   `iconDir` is the app's own `data/icons` root. An app run from its build tree
   has no launcher exporting `XDG_DATA_DIRS`, so GTK cannot find the app icon
   (the About dialog shows an empty square). On `startup`, when the icon theme
