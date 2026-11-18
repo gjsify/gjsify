@@ -180,6 +180,22 @@ export function devLinkRoot(startDir: string): string {
 }
 
 /**
+ * The `tsc` arguments for a project that may carry a dev link (gjsify#2249).
+ *
+ * A linked package is a symlink into the checkout, and TypeScript follows it to
+ * the realpath by default. Its peer dependencies then resolve from the
+ * CHECKOUT's `node_modules`, so the consumer sees two copies of the same types
+ * (`McpServer` is not assignable to `McpServer`). `--preserveSymlinks` keeps
+ * resolution in the consumer tree, which is what an unlinked install does.
+ * An explicit `--preserveSymlinks` in either spelling wins.
+ */
+export function tscArgsUnderLink(args: readonly string[], linked: boolean): string[] {
+    if (!linked) return [...args];
+    if (args.some((arg) => arg.toLowerCase().split('=')[0] === '--preservesymlinks')) return [...args];
+    return [...args, '--preserveSymlinks'];
+}
+
+/**
  * Turn `override.checkout` into the workspace list behind it, or refuse.
  *
  * A DEAD LINK IS AN ERROR WITH A PATH, never a quiet fall back to the registry:
