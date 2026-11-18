@@ -1,5 +1,13 @@
 import { describe, it, expect } from '@gjsify/unit';
-import { DavClient, DavError, DavSyncTokenError, basicAuth, bearerAuth, parseMultistatus, parseRetryAfter } from './index.js';
+import {
+    DavClient,
+    DavError,
+    DavSyncTokenError,
+    basicAuth,
+    bearerAuth,
+    parseMultistatus,
+    parseRetryAfter,
+} from './index.js';
 
 interface Call {
     method: string;
