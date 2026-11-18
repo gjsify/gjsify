@@ -186,6 +186,14 @@ export default async () => {
     });
 
     await describe('renderWxs', async () => {
+        await it('writes InstallerVersion 500 for arm64 (msiexec refuses Arm64 below it) and 200 otherwise', async () => {
+            const at = (archLabel: string): string =>
+                renderWxs({ settings: SETTINGS, files: FILES, programDirName: 'Ship Demo', archLabel });
+            expect(at('arm64')).toContain('<Package InstallerVersion="500"');
+            expect(at('x64')).toContain('<Package InstallerVersion="200"');
+            expect(at('x86')).toContain('<Package InstallerVersion="200"');
+        });
+
         await it('nests each file under the directory it lives in', async () => {
             const wxs = render();
             expect(wxs).toContain('<Directory Id="INSTALLDIR" Name="Ship Demo">');
