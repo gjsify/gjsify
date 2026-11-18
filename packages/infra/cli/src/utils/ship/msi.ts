@@ -308,6 +308,11 @@ export function renderWxs(input: WxsInput): string {
     // Component silently installing into `%ProgramFiles(x86)%` is the wrong
     // kind of thing to find out by running the artifact.
     const win64 = archLabel !== 'x86';
+    // An Arm64 package (summary Template `Arm64;1033`) is a Windows Installer 5.0
+    // feature: msiexec refuses it with 1620 when the summary Version word is below
+    // 500 (measured on Windows 11 ARM64). x64/x86 stay at 200 so their packages
+    // do not change.
+    const installerVersion = archLabel === 'arm64' ? 500 : 200;
     const productVersion = msiProductVersion(settings.version);
     // `Name <email>` is `PackSettings.maintainer`'s shape; ARP shows `Publisher`
     // to a human, and an address in that field reads as a mistake.
@@ -440,7 +445,7 @@ export function renderWxs(input: WxsInput): string {
         `    <Product Id="${msiProductCode(settings, archLabel)}" Name="${xmlEscape(settings.name)}" ` +
             `Language="1033" Version="${productVersion}" Manufacturer="${xmlEscape(manufacturer)}" ` +
             `UpgradeCode="${msiUpgradeCode(settings)}">`,
-        `        <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" ` +
+        `        <Package InstallerVersion="${installerVersion}" Compressed="yes" InstallScope="perMachine" ` +
             `Manufacturer="${xmlEscape(manufacturer)}" Description="${xmlEscape(settings.summary)}" />`,
         // The whole reason `UpgradeCode` is derived from the app id: this is what
         // takes the previous version off before laying the new one down.
