@@ -11,7 +11,7 @@ import type { NetworkOptions } from './network.js';
 import { minimumAge } from './oars.js';
 import { completeLocalized, languageCandidates, parseCatalog, type Catalog } from './po.js';
 import { loadRelatedApps } from './related.js';
-import { listingScreenshots } from '../listing/images.js';
+import { darkTwin, listingScreenshots } from '../listing/images.js';
 import { parseListingConfig, type ListingManifest } from '../listing/config.js';
 import { imageSlug, resolveScreenshots } from './screenshots.js';
 import type {
@@ -93,23 +93,40 @@ export async function loadListingScreenshots(
     manifest: RootManifest,
     metainfo: Metainfo,
     root: string,
+    warn?: (message: string) => void,
 ): Promise<Screenshot[]> {
     const config = parseListingConfig(manifest as ListingManifest);
     const sets = await listingScreenshots(metainfo, config, root, {});
     // The listing's slug is the bare file name, which `en/01.png` and `de/01.png` share; the page's
     // image map is keyed by slug, so here it is the path below the repository.
     const file = (path: string) => ({ url: path, file: path, slug: imageSlug(relative(root, path)) });
-    return sets.source.map((shot, index) => ({
-        ...file(shot.file),
-        caption: null,
-        composed: true,
-        byLanguage: Object.fromEntries(
-            Object.entries(sets.byLanguage).flatMap(([language, set]) => {
-                const own = set[index];
-                return own ? [[language, file(own.file)]] : [];
-            }),
-        ),
-    }));
+    const twin = (shot: { file: string } | undefined) => {
+        const found = shot && darkTwin(config, root, shot.file);
+        return found ? file(found) : undefined;
+    };
+    let missing = 0;
+    const shots = sets.source.map((shot, index): Screenshot => {
+        const byLanguage: Record<string, ReturnType<typeof file>> = {};
+        const darkByLanguage: Record<string, ReturnType<typeof file>> = {};
+        for (const [language, set] of Object.entries(sets.byLanguage)) {
+            const own = set[index];
+            if (!own) continue;
+            byLanguage[language] = file(own.file);
+            const dark = twin(own);
+            if (dark) darkByLanguage[language] = dark;
+        }
+        const screenshot: Screenshot = { ...file(shot.file), caption: null, composed: true, byLanguage };
+        const dark = twin(shot);
+        if (dark) screenshot.dark = { default: dark, byLanguage: darkByLanguage };
+        else if (config.screenshotsDark) missing++;
+        return screenshot;
+    });
+    if (missing > 0) {
+        warn?.(
+            `${missing} of ${shots.length} listing screenshots have no twin in "${config.screenshotsDark}" and stay light in dark mode`,
+        );
+    }
+    return shots;
 }
 
 /** Collects everything the pages need into one object. Network failures degrade to warnings. */
@@ -227,7 +244,7 @@ export async function loadSiteData(options: LoadOptions): Promise<SiteData> {
 
     const listingShots =
         extension && manifest.gjsify?.webext?.listing?.screenshots
-            ? await loadListingScreenshots(manifest, metainfo, options.root)
+            ? await loadListingScreenshots(manifest, metainfo, options.root, warn)
             : undefined;
 
     const releases: Release[] = metainfo.releases.map((release) => ({

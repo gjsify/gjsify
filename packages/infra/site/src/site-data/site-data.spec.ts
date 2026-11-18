@@ -1182,5 +1182,42 @@ export default async () => {
             expect(shot!.slug).not.toBe(shot!.byLanguage.de!.slug);
             rmSync(root, { recursive: true, force: true });
         });
+
+        await it('pairs dark twins by file name within the language folder, falling back to light', async () => {
+            const root = mkdtempSync(join(tmpdir(), 'gjsify-site-dark-'));
+            for (const language of ['en', 'de']) {
+                mkdirSync(join(root, 'shots', language), { recursive: true });
+                writeFileSync(join(root, 'shots', language, '01-a.png'), 'x');
+                writeFileSync(join(root, 'shots', language, '02-b.png'), 'x');
+            }
+            mkdirSync(join(root, 'dark', 'en'), { recursive: true });
+            mkdirSync(join(root, 'dark', 'de'), { recursive: true });
+            writeFileSync(join(root, 'dark', 'en', '01-a.png'), 'x');
+            writeFileSync(join(root, 'dark', 'de', '01-a.png'), 'x');
+            const manifest = {
+                gjsify: {
+                    webext: {
+                        listing: {
+                            metainfo: 'm.xml',
+                            languages: ['en', 'de'],
+                            screenshots: 'shots',
+                            screenshotsDark: 'dark',
+                        },
+                    },
+                },
+            };
+            const warnings: string[] = [];
+            const [a, b] = await loadListingScreenshots(
+                manifest,
+                parseMetainfo('<component><id>x</id><name>E</name><summary>S</summary></component>'),
+                root,
+                (message) => warnings.push(message),
+            );
+            expect(a!.dark!.default.file).toBe(join(root, 'dark', 'en', '01-a.png'));
+            expect(a!.dark!.byLanguage.de!.file).toBe(join(root, 'dark', 'de', '01-a.png'));
+            expect(b!.dark).toBe(undefined);
+            expect(warnings.length).toBe(1);
+            rmSync(root, { recursive: true, force: true });
+        });
     });
 };

@@ -294,6 +294,22 @@ export default async () => {
             expect(sets.byLanguage.de?.length).toBe(1);
         });
 
+        await it('ignores screenshotsDark: the store kit holds only the light set', async () => {
+            const dir = join(root, 'with-dark');
+            mkdirSync(join(dir, 'light'), { recursive: true });
+            mkdirSync(join(dir, 'dark'), { recursive: true });
+            writeFileSync(join(dir, 'light', '1-a.png'), 'x');
+            writeFileSync(join(dir, 'dark', '1-a.png'), 'x');
+            writeFileSync(join(dir, 'dark', '2-only-dark.png'), 'x');
+            const cfg = config({ screenshots: 'with-dark/light', screenshotsDark: 'with-dark/dark' });
+            expect(cfg.screenshotsDark).toBe('with-dark/dark');
+            const sets = await listingScreenshots(meta, cfg, root, {});
+            expect(sets.source.length).toBe(1);
+            expect(sets.source.every((shot) => !shot.file.includes('/dark/'))).toBe(true);
+            expect(Object.keys(sets.byLanguage).length).toBe(0);
+            expect(() => config({ screenshotsDark: '/abs' })).toThrow();
+        });
+
         await it('reads <dir>/<lang>/ subdirectories of a configured directory', async () => {
             const dir = join(root, 'shots');
             mkdirSync(join(dir, 'de'), { recursive: true });
