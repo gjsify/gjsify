@@ -35,6 +35,7 @@ for (const account of await accounts.listAccounts('mail')) {
 | `capabilities()` | what THIS host can answer: `services` it lists, `credentials` kinds it hands out. Both empty without an account store |
 | `listAccounts(service?)` | `Account[]` (id, provider, identity, label, enabled services). Empty when the store cannot be reached |
 | `getMailSettings(account)` | `{ sender, imap?, smtp? }`, each server as host, port, `security` (`tls` / `starttls` / `none`) and user name; or `Unavailable` |
+| `getDavSettings(account, kind)` | CalDAV (`calendar`) or CardDAV (`contacts`): `{ url, username?, acceptInvalidCertificates }`, or `Unavailable`. Transport settings only; credentials via `getCredentials(account, 'dav')` |
 | `getCredentials(account, purpose)` | `{ kind: 'password', secret }`, `{ kind: 'oauth2', token, expiresAt }`, or `Unavailable` |
 
 **A missing capability is a value, never an exception.** `Unavailable` carries a `reason`: `no-account-store`, `unknown-account`, `not-supported` (the account has no mail server, no credentials) or `credentials-unavailable` (the store would not hand the secret out). The ADR's `Credentials` has two members; the third is how that rule is spelled for a call that has to return one.

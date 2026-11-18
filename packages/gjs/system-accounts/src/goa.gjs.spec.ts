@@ -53,7 +53,13 @@ const OAUTH_ACCOUNT: FakeAccount = {
     oauth2: { token: TOKEN, expiresIn: 3600 },
 };
 
-const CALENDAR_ONLY: FakeAccount = { id: 'cal_1', provider: 'caldav', calendar: true, contacts: true };
+const CALENDAR_ONLY: FakeAccount = {
+    id: 'cal_1',
+    provider: 'caldav',
+    identity: 'me@example.org',
+    calendar: { uri: 'https://dav.example.org/cal/', acceptSslErrors: true },
+    contacts: true,
+};
 const SWITCHED_OFF: FakeAccount = { id: 'off_1', mail: MAIL_ACCOUNT.mail, disabled: { mail: true }, files: true };
 const LOCKED_PASSWORD: FakeAccount = { id: 'locked_1', mail: MAIL_ACCOUNT.mail, passwords: {} };
 
@@ -184,6 +190,49 @@ export default async () => {
         });
     });
 
+    await describe('GOA driver: DAV settings', async () => {
+        await driverIt('maps the calendar URL, user and certificate flag', async () => {
+            const { accounts, list } = await driver(goa, ALL);
+            const dav = await accounts.getDavSettings(byId(list, 'cal_1'), 'calendar');
+            if (isUnavailable(dav)) throw new Error(`unexpectedly unavailable: ${dav.reason}`);
+            expect(dav.url).toBe('https://dav.example.org/cal/');
+            expect(dav.username).toBe('me@example.org');
+            expect(dav.acceptInvalidCertificates).toBe(true);
+        });
+
+        await driverIt('maps the contacts URL with the certificate check on', async () => {
+            const { accounts, list } = await driver(goa, ALL);
+            const dav = await accounts.getDavSettings(byId(list, 'cal_1'), 'contacts');
+            if (isUnavailable(dav)) throw new Error(`unexpectedly unavailable: ${dav.reason}`);
+            expect(dav.url).toBe('https://contacts.example.test/');
+            expect(dav.acceptInvalidCertificates).toBe(false);
+        });
+
+        await driverIt('answers not-supported for an account without the service', async () => {
+            const { accounts, list } = await driver(goa, ALL);
+            const dav = await accounts.getDavSettings(byId(list, 'oauth_1'), 'calendar');
+            expect(isUnavailable(dav) && dav.reason === 'not-supported').toBe(true);
+        });
+
+        await driverIt('answers unknown-account for a stale id', async () => {
+            const { accounts, list } = await driver(goa, ALL);
+            const dav = await accounts.getDavSettings({ ...byId(list, 'cal_1'), id: 'gone' }, 'calendar');
+            expect(isUnavailable(dav) && dav.reason === 'unknown-account').toBe(true);
+        });
+
+        await driverIt('lists the accounts with a contacts service', async () => {
+            const { accounts } = await driver(goa, ALL);
+            expect((await accounts.listAccounts('contacts')).map((a) => a.id).join(',')).toBe('cal_1');
+        });
+
+        await driverIt('reads the DAV password under the generic id', async () => {
+            const withDav: FakeAccount = { ...CALENDAR_ONLY, passwords: { password: SECRET } };
+            const { accounts, list } = await driver(goa, [withDav]);
+            const credentials = await accounts.getCredentials(byId(list, 'cal_1'), 'dav');
+            expect(credentials.kind === 'password' && credentials.secret === SECRET).toBe(true);
+        });
+    });
+
     await describe('GOA driver: credentials', async () => {
         await driverIt('returns the purpose-specific password', async () => {
             const { accounts, list } = await driver(goa, ALL);
@@ -261,6 +310,7 @@ export default async () => {
                 services: [],
             };
             expect(isUnavailable(await system.getMailSettings(account))).toBe(true);
+            expect(isUnavailable(await system.getDavSettings(account, 'calendar'))).toBe(true);
             const credentials = await system.getCredentials(account, 'imap');
             expect(credentials.kind === 'unavailable' && credentials.reason === 'no-account-store').toBe(true);
         });

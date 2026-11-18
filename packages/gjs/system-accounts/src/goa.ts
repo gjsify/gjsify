@@ -7,13 +7,15 @@ import GLib from 'gi://GLib?version=2.0';
 import Gio from 'gi://Gio?version=2.0';
 import type Goa from 'gi://Goa?version=1.0';
 
-import { accountFrom, mailSettingsFrom, passwordIds } from './mapping.js';
+import { accountFrom, davSettingsFrom, mailSettingsFrom, passwordIds } from './mapping.js';
 import { isUnavailable, noAccountStore } from './no-account-store.js';
 import type {
     Account,
     AccountService,
     Credentials,
     CredentialPurpose,
+    DavKind,
+    DavSettings,
     MailSettings,
     SystemAccounts,
     Unavailable,
@@ -178,6 +180,19 @@ export function createGoaAccounts({
                     useTls: mail.smtp_use_tls,
                     authenticate: mail.smtp_use_auth,
                 },
+            });
+            return settings ?? unavailable('not-supported');
+        },
+
+        async getDavSettings(account: Account, kind: DavKind): Promise<DavSettings | Unavailable> {
+            const object = await find(account);
+            if (isUnavailable(object)) return object;
+            const service = kind === 'calendar' ? object.get_calendar() : object.get_contacts();
+            if (!service) return unavailable('not-supported');
+            const settings = davSettingsFrom({
+                uri: service.uri ?? '',
+                userName: object.get_account()?.identity ?? '',
+                acceptSslErrors: service.accept_ssl_errors,
             });
             return settings ?? unavailable('not-supported');
         },

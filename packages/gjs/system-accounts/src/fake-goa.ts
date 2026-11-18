@@ -21,14 +21,19 @@ export interface FakeMail {
     readonly smtp?: { host: string; user: string; ssl: boolean; tls: boolean; auth: boolean };
 }
 
+export interface FakeDav {
+    readonly uri: string;
+    readonly acceptSslErrors?: boolean;
+}
+
 export interface FakeAccount {
     readonly id: string;
     readonly provider?: string;
     readonly identity?: string;
     readonly disabled?: Partial<Record<AccountService, boolean>>;
     readonly mail?: FakeMail;
-    readonly calendar?: boolean;
-    readonly contacts?: boolean;
+    readonly calendar?: boolean | FakeDav;
+    readonly contacts?: boolean | FakeDav;
     readonly files?: boolean;
     /** Secret id → dummy secret. */
     readonly passwords?: Readonly<Record<string, string>>;
@@ -76,6 +81,11 @@ function dbusError(message: string): Error {
 const str = (value: string) => new GLib.Variant('s', value);
 const bool = (value: boolean) => new GLib.Variant('b', value);
 
+function davProps(dav: true | FakeDav, fallbackUri: string): Record<string, GLib.Variant> {
+    const { uri, acceptSslErrors } = dav === true ? { uri: fallbackUri, acceptSslErrors: false } : dav;
+    return { Uri: str(uri), AcceptSslErrors: bool(!!acceptSslErrors) };
+}
+
 function accountPath(account: FakeAccount): string {
     return `${ROOT}/Accounts/${account.id}`;
 }
@@ -117,8 +127,8 @@ function managedObjects(
                 SmtpUseTls: bool(!!mail.smtp?.tls),
             };
         }
-        if (account.calendar) interfaces[`${NS}.Calendar`] = { Uri: str('https://calendar.example.test/') };
-        if (account.contacts) interfaces[`${NS}.Contacts`] = { Uri: str('https://contacts.example.test/') };
+        if (account.calendar) interfaces[`${NS}.Calendar`] = davProps(account.calendar, 'https://calendar.example.test/');
+        if (account.contacts) interfaces[`${NS}.Contacts`] = davProps(account.contacts, 'https://contacts.example.test/');
         if (account.files) interfaces[`${NS}.Files`] = { Uri: str('https://files.example.test/') };
         if (account.passwords) interfaces[`${NS}.PasswordBased`] = {};
         if (account.oauth2) interfaces[`${NS}.OAuth2Based`] = { ClientId: str('fake-client'), ClientSecret: str('') };

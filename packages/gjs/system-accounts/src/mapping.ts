@@ -6,6 +6,8 @@ import type {
     AccountService,
     ConnectionSecurity,
     CredentialPurpose,
+    DavSettings,
+    MailProtocol,
     MailSettings,
     ServerSettings,
 } from './types.js';
@@ -40,14 +42,14 @@ const IMPLICIT_TLS_PORT = { imap: 993, smtp: 465 } as const;
 const DEFAULT_PORT = {
     imap: { tls: 993, starttls: 143, none: 143 },
     smtp: { tls: 465, starttls: 587, none: 25 },
-} as const satisfies Record<CredentialPurpose, Record<ConnectionSecurity, number>>;
+} as const satisfies Record<MailProtocol, Record<ConnectionSecurity, number>>;
 
 /**
  * The two flags an account store keeps for transport security. When neither is set the
  * port still tells: 993/465 is TLS from the first byte, which some stores leave unflagged.
  */
 export function securityFromFlags(
-    protocol: CredentialPurpose,
+    protocol: MailProtocol,
     useSsl: boolean,
     useTls: boolean,
     explicitPort?: number,
@@ -67,7 +69,7 @@ export interface ServerFields {
 }
 
 /** `undefined` when the account names no host. */
-export function serverSettingsFrom(protocol: CredentialPurpose, fields: ServerFields): ServerSettings | undefined {
+export function serverSettingsFrom(protocol: MailProtocol, fields: ServerFields): ServerSettings | undefined {
     const { host, port: explicitPort } = splitHostPort(fields.host);
     if (!host) return undefined;
     const security = securityFromFlags(protocol, fields.useSsl, fields.useTls, explicitPort);
@@ -115,6 +117,7 @@ export function enabledServices(
  * IMAP password because one login often serves both and the store keeps it once.
  */
 export function passwordIds(purpose: CredentialPurpose): readonly string[] {
+    if (purpose === 'dav') return ['password', ''];
     return purpose === 'imap' ? ['imap-password', 'password', ''] : ['smtp-password', 'imap-password', 'password', ''];
 }
 
@@ -137,5 +140,23 @@ export function accountFrom(fields: AccountFields): Account {
         identity: fields.identity,
         label: fields.label,
         services: enabledServices(fields.present, fields.disabled),
+    };
+}
+
+export interface DavFields {
+    readonly uri: string;
+    /** What the user logs in as; empty when the store names none. */
+    readonly userName: string;
+    readonly acceptSslErrors: boolean;
+}
+
+/** `undefined` when the store holds no usable http(s) URL for the service. */
+export function davSettingsFrom(fields: DavFields): DavSettings | undefined {
+    const url = fields.uri.trim();
+    if (!/^https?:\/\/[^/\s]+/i.test(url)) return undefined;
+    return {
+        url,
+        ...(fields.userName ? { username: fields.userName } : {}),
+        acceptInvalidCertificates: fields.acceptSslErrors,
     };
 }
