@@ -26,8 +26,7 @@ export class SwitcherShellStory extends StoryWidget {
     }
 
     initialize(): void {
-        const page = (label: string): Gtk.Widget =>
-            new Gtk.Label({ label, cssClasses: ['title-2'], vexpand: true });
+        const page = (label: string): Gtk.Widget => new Gtk.Label({ label, cssClasses: ['title-2'], vexpand: true });
         const shell = createSwitcherShell(new Adw.ApplicationWindow(), {
             pages: [
                 { name: 'calendar', title: 'Calendar', icon: 'x-office-calendar-symbolic', widget: page('Calendar') },

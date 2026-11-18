@@ -67,7 +67,9 @@ export function createSwitcherShell(window: Adw.ApplicationWindow, options: Swit
     toolbarView.add_bottom_bar(switcherBar);
     toolbarView.set_content(stack);
 
-    const breakpoint = Adw.Breakpoint.new(Adw.BreakpointCondition.parse(`max-width: ${(options.narrowWidth ?? 600) - 1}sp`));
+    const breakpoint = Adw.Breakpoint.new(
+        Adw.BreakpointCondition.parse(`max-width: ${(options.narrowWidth ?? 600) - 1}sp`),
+    );
     breakpoint.add_setter(switcherBar, 'reveal', true);
     breakpoint.add_setter(switcher, 'visible', false);
     window.add_breakpoint(breakpoint);
