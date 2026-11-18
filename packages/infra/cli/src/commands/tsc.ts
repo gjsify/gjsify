@@ -29,6 +29,7 @@ import { forceExit } from '../utils/force-exit.js';
 import { nodeBinary } from '../utils/run-node.js';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import { spawnToCompletion } from '../utils/spawn.js';
+import { devLinkPath, devLinkRoot, tscArgsUnderLink } from '../utils/dev-link.js';
 
 interface TscOptions {
     tscArgs: string[];
@@ -69,10 +70,13 @@ export const tscCommand: Command<unknown, TscOptions> = {
         // When `_` has anything beyond the command name, it already
         // includes both flags AND any bare positionals in the original
         // order — use it directly. Fall back to the explicit positional
-        // array for the args-free invocation.
-        const tscArgs = overflow.length > 0 ? overflow : explicit;
-
+        // array for the args-free invocation. Under a dev link, peer
+        // resolution must stay in the consumer tree (gjsify#2249).
         const cwd = process.cwd();
+        const tscArgs = tscArgsUnderLink(
+            overflow.length > 0 ? overflow : explicit,
+            existsSync(devLinkPath(devLinkRoot(cwd))),
+        );
         // Anchor resolution at the workspace root so a sub-package `cwd`
         // (e.g. `packages/web/fetch`) still finds the hoisted `@gjsify/tsc`
         // at the root's `node_modules`. Falls back to cwd for standalone

@@ -46,6 +46,7 @@ import {
     removeLocalIgnore,
     resolveCheckoutWorkspaces,
     scanDevLinks,
+    tscArgsUnderLink,
     writeDevLinkOverride,
 } from './dev-link.js';
 import { linkCommand, unlinkCommand } from '../commands/link.js';
@@ -678,6 +679,27 @@ export default async () => {
             expect(removeLocalIgnore(root)).toBe('absent');
             expect(readFileSync(excludePath, 'utf-8')).toContain(DEV_LINK_FILE);
             rmSync(root, { recursive: true, force: true });
+        });
+    });
+
+    await describe('tscArgsUnderLink (gjsify#2249)', async () => {
+        await it('leaves an unlinked project untouched', async () => {
+            expect(tscArgsUnderLink(['--noEmit'], false)).toStrictEqual(['--noEmit']);
+        });
+        await it('keeps peer resolution in the consumer tree under a link', async () => {
+            expect(tscArgsUnderLink(['--noEmit', '-p', 'tsconfig.json'], true)).toStrictEqual([
+                '--noEmit',
+                '-p',
+                'tsconfig.json',
+                '--preserveSymlinks',
+            ]);
+        });
+        await it('lets an explicit --preserveSymlinks win', async () => {
+            expect(tscArgsUnderLink(['--preserveSymlinks', 'false'], true)).toStrictEqual([
+                '--preserveSymlinks',
+                'false',
+            ]);
+            expect(tscArgsUnderLink(['--preservesymlinks=false'], true)).toStrictEqual(['--preservesymlinks=false']);
         });
     });
 };
