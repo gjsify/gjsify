@@ -22,6 +22,10 @@ export default async () => {
             expect((await noAccountStore.listAccounts()).length).toBe(0);
             expect((await noAccountStore.listAccounts('mail')).length).toBe(0);
         });
+        await it('answers DAV settings with a reason', async () => {
+            const dav = await noAccountStore.getDavSettings(ACCOUNT, 'calendar');
+            expect(isUnavailable(dav) && dav.reason === 'no-account-store').toBe(true);
+        });
         await it('answers mail settings and credentials with a reason', async () => {
             const settings = await noAccountStore.getMailSettings(ACCOUNT);
             expect(isUnavailable(settings)).toBe(true);

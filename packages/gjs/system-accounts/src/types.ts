@@ -4,8 +4,13 @@
 
 export type AccountService = 'mail' | 'calendar' | 'contacts' | 'files';
 
-/** Which login a credential is for. IMAP and SMTP can hold different secrets. */
-export type CredentialPurpose = 'imap' | 'smtp';
+export type MailProtocol = 'imap' | 'smtp';
+
+/** Which login a credential is for. IMAP and SMTP can hold different secrets; `dav` is CalDAV and CardDAV. */
+export type CredentialPurpose = MailProtocol | 'dav';
+
+/** The DAV flavour asked for: CalDAV for `calendar`, CardDAV for `contacts`. */
+export type DavKind = 'calendar' | 'contacts';
 
 export type CredentialKind = 'password' | 'oauth2';
 
@@ -40,6 +45,16 @@ export interface MailSettings {
     readonly imap?: ServerSettings;
     /** Absent when the account has no SMTP server configured. */
     readonly smtp?: ServerSettings;
+}
+
+/** Where a CalDAV or CardDAV client connects. Transport settings only: the data layer stays out (ADR 0095). */
+export interface DavSettings {
+    /** The base URL the account store holds for the service (http or https). */
+    readonly url: string;
+    /** Absent when the store names no user. */
+    readonly username?: string;
+    /** The user told the store to accept an invalid certificate for this account. */
+    readonly acceptInvalidCertificates: boolean;
 }
 
 export interface PasswordCredentials {
@@ -88,6 +103,8 @@ export interface SystemAccounts {
     /** Accounts, optionally only those set up for `service`. Empty when the store cannot be reached. */
     listAccounts(service?: AccountService): Promise<Account[]>;
     getMailSettings(account: Account): Promise<MailSettings | Unavailable>;
+    /** CalDAV (`calendar`) or CardDAV (`contacts`) base URL and user; `Unavailable` when the account has none. */
+    getDavSettings(account: Account, kind: DavKind): Promise<DavSettings | Unavailable>;
     /** The caller owns the result: it is never logged, cached or put in an error by this package. */
     getCredentials(account: Account, purpose: CredentialPurpose): Promise<Credentials>;
 }

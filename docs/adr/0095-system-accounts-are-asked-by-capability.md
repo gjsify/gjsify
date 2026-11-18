@@ -66,7 +66,8 @@ interface SystemAccounts {
 
 - Drivers for any platform other than Linux in the first release.
 - OAuth through the browser as a fallback driver.
-- Contacts and calendar (EDS) and mail itself. This package only finds accounts and credentials.
+- The calendar and contacts data layer (EDS, PIM storage, sync) and mail itself. This package finds
+  accounts, transport settings and credentials; see Amendment 1 for the DAV settings.
 - A secret store. Where a consumer keeps its own secrets stays open, see Consequences.
 
 ### Test approach
@@ -90,6 +91,27 @@ The `&optional` import costs a top-level await (ADR 0087 clause 9), and a `@gjsi
 reaches it wedges: `run()` enters a blocking `GLib.MainLoop.run()` from a promise job (ADR 0085
 clause 5). The driver and its specs therefore carry no `&optional` import; only the entry point
 `createSystemAccounts` does.
+
+## Amendment 1: calendar and contacts settings are in scope, as transport settings only
+
+A CalDAV client (reminder, via `@gjsify/dav`) wants to offer the accounts the user already has.
+That needs the same three answers mail got: which accounts, where to connect, with which login.
+
+```ts
+getDavSettings(account: Account, kind: 'calendar' | 'contacts'): Promise<DavSettings | Unavailable>;
+// DavSettings = { url; username?; acceptInvalidCertificates }
+// CredentialPurpose = 'imap' | 'smtp' | 'dav'
+```
+
+- `kind` names the service, not the protocol: `calendar` is CalDAV, `contacts` is CardDAV.
+- `listAccounts('calendar' | 'contacts')` already filters; it now has a consumer and a spec.
+- The GOA driver reads the `Calendar` / `Contacts` interface (`Uri`, `AcceptSslErrors`); the
+  user name is the account identity. The no-store driver answers `no-account-store`. A missing
+  service, or a service with no http(s) URL, is `not-supported`, never a throw.
+- `getCredentials(account, 'dav')` tries the generic secret ids (`password`, ``): GOA keeps no
+  DAV-specific id. OAuth2 accounts hand out a token as before.
+- Still out: reading or writing calendars and contacts, sync, and anything EDS owns. The package
+  hands a client its connection settings and stops there.
 
 ## Consequences
 

@@ -71,7 +71,13 @@ const OBJECTS: FakeObject[] = [
         interfaces: { Account: account('oauth_1', { ProviderType: 'google' }), Mail: MAIL, OAuth2Based: {} },
         token: [TOKEN, 3600],
     },
-    { interfaces: { Account: account('cal_1'), Calendar: {}, Contacts: {} } },
+    {
+        interfaces: {
+            Account: account('cal_1', { Identity: 'me@example.org' }),
+            Calendar: { Uri: 'https://dav.example.org/cal/', AcceptSslErrors: true },
+            Contacts: { Uri: '' },
+        },
+    },
     { interfaces: { Account: account('off_1', { MailDisabled: true }), Mail: MAIL, Files: {} } },
     { interfaces: { Account: account('locked_1'), Mail: MAIL, PasswordBased: {} }, passwords: {} },
 ];
@@ -148,6 +154,28 @@ export default async () => {
             const stale = { ...(await find(system, 'mail_1')), id: 'gone' };
             const settings = await system.getMailSettings(stale);
             expect(isUnavailable(settings) && settings.reason === 'unknown-account').toBe(true);
+        });
+    });
+
+    await describe('D-Bus driver: DAV settings', async () => {
+        await it('maps the calendar URL, user and certificate flag', async () => {
+            const system = driver(OBJECTS);
+            const dav = await system.getDavSettings(await find(system, 'cal_1'), 'calendar');
+            if (isUnavailable(dav)) throw new Error(`unexpectedly unavailable: ${dav.reason}`);
+            expect(dav.url).toBe('https://dav.example.org/cal/');
+            expect(dav.username).toBe('me@example.org');
+            expect(dav.acceptInvalidCertificates).toBe(true);
+        });
+        await it('answers not-supported for a service with no URL or an account without it', async () => {
+            const system = driver(OBJECTS);
+            const noUrl = await system.getDavSettings(await find(system, 'cal_1'), 'contacts');
+            expect(isUnavailable(noUrl) && noUrl.reason === 'not-supported').toBe(true);
+            const noService = await system.getDavSettings(await find(system, 'mail_1'), 'contacts');
+            expect(isUnavailable(noService) && noService.reason === 'not-supported').toBe(true);
+        });
+        await it('filters accounts by calendar and contacts', async () => {
+            const system = driver(OBJECTS);
+            expect((await system.listAccounts('contacts')).map((a) => a.id).join(',')).toBe('cal_1');
         });
     });
 

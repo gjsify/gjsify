@@ -7,6 +7,7 @@ export const noAccountStore: SystemAccounts = {
     capabilities: () => ({ services: [], credentials: [] }),
     listAccounts: async () => [],
     getMailSettings: async () => UNAVAILABLE,
+    getDavSettings: async () => UNAVAILABLE,
     getCredentials: async () => UNAVAILABLE,
 };
 

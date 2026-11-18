@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
+    davSettingsFrom,
     enabledServices,
     mailSettingsFrom,
     passwordIds,
@@ -157,6 +158,34 @@ export default async () => {
         await it('lets SMTP fall back to the IMAP password, never the reverse', async () => {
             expect(passwordIds('smtp')).toContain('imap-password');
             expect(passwordIds('imap')).not.toContain('smtp-password');
+        });
+    });
+
+    await describe('davSettingsFrom', async () => {
+        await it('maps the base URL, user and certificate flag', async () => {
+            const dav = davSettingsFrom({
+                uri: ' https://dav.example.org/cal/ ',
+                userName: 'me',
+                acceptSslErrors: true,
+            });
+            expect(dav?.url).toBe('https://dav.example.org/cal/');
+            expect(dav?.username).toBe('me');
+            expect(dav?.acceptInvalidCertificates).toBe(true);
+        });
+        await it('leaves the user out when the store names none', async () => {
+            const dav = davSettingsFrom({ uri: 'http://dav.example.org/', userName: '', acceptSslErrors: false });
+            expect(dav?.username).toBeUndefined();
+            expect(dav?.acceptInvalidCertificates).toBe(false);
+        });
+        await it('rejects an empty or non-http URL', async () => {
+            expect(davSettingsFrom({ uri: '', userName: 'me', acceptSslErrors: false })).toBeUndefined();
+            expect(davSettingsFrom({ uri: 'file:///x', userName: 'me', acceptSslErrors: false })).toBeUndefined();
+        });
+    });
+
+    await describe('passwordIds for dav', async () => {
+        await it('tries the generic ids only', async () => {
+            expect(passwordIds('dav').join(',')).toBe('password,');
         });
     });
 };

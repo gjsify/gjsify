@@ -6,13 +6,15 @@
 // `AccountStore`, so Node asserts it against a fake and `dbus-gio.ts` supplies the real one.
 // Secrets are read per call and neither cached, logged nor put in a message.
 
-import { accountFrom, mailSettingsFrom, passwordIds } from './mapping.js';
+import { accountFrom, davSettingsFrom, mailSettingsFrom, passwordIds } from './mapping.js';
 import { isUnavailable } from './no-account-store.js';
 import type {
     Account,
     AccountService,
     Credentials,
     CredentialPurpose,
+    DavKind,
+    DavSettings,
     MailSettings,
     SystemAccounts,
     Unavailable,
@@ -126,6 +128,19 @@ export function createDbusAccounts({ connect, now = Date.now }: DbusOptions): Sy
                     useTls: bool(mail, 'SmtpUseTls'),
                     authenticate: bool(mail, 'SmtpUseAuth'),
                 },
+            });
+            return settings ?? unavailable('not-supported');
+        },
+
+        async getDavSettings(account: Account, kind: DavKind): Promise<DavSettings | Unavailable> {
+            const object = await find(account);
+            if (isUnavailable(object)) return object;
+            const service = object.properties(kind === 'calendar' ? 'Calendar' : 'Contacts');
+            if (!service) return unavailable('not-supported');
+            const settings = davSettingsFrom({
+                uri: str(service, 'Uri'),
+                userName: str(object.properties('Account'), 'Identity'),
+                acceptSslErrors: bool(service, 'AcceptSslErrors'),
             });
             return settings ?? unavailable('not-supported');
         },
