@@ -104,6 +104,12 @@ itself or in its own `<lang>/` subdirectory. A leading ordinal (`01-hero.png`) i
 output name, because the output numbers the files itself. Stores that localize screenshots (Chrome,
 Edge) get each language's set; AMO gets the source set.
 
+`screenshotsDark` (optional) is a second directory with the same layout, holding dark twins of those
+images for the website: in dark mode the extension pages show the twin, matched by file name within
+the same language folder, so a composed backdrop can fit the dark page. A shot without a twin stays
+light (one warning per build). The twins are website-only: `webext listing` and `submit` ignore the
+key, so no dark file reaches a store kit or counts against a store's limit.
+
 ## Support pages and SEO
 
 With `gjsify.site.support` set, a build also writes `/<base><lang>/support/index.html` (title

@@ -24,6 +24,11 @@ export interface ListingConfig {
     icon?: string;
     /** Directory of PNGs used instead of the metainfo screenshots. */
     screenshots?: string;
+    /**
+     * Website-only dark twins of `screenshots`: the same layout, a twin matched by file name within the
+     * same language folder. The store kit never contains them.
+     */
+    screenshotsDark?: string;
     /** msgid: the single purpose, in one sentence. */
     singlePurpose?: string;
     /** permission or host pattern → msgid of its justification. */
@@ -95,8 +100,10 @@ export function parseListingConfig(manifest: ListingManifest, override: unknown 
     const translations =
         str(raw, 'translations', where) ?? (typeof site.translations === 'string' ? site.translations : undefined);
     const screenshots = str(raw, 'screenshots', where);
+    const screenshotsDark = str(raw, 'screenshotsDark', where);
     for (const [key, value] of [
         ['screenshots', screenshots],
+        ['screenshotsDark', screenshotsDark],
         ['translations', translations],
         ['icon', icon],
     ] as const) {
@@ -113,6 +120,7 @@ export function parseListingConfig(manifest: ListingManifest, override: unknown 
             str(raw, 'repository', where) ?? (typeof site.repository === 'string' ? site.repository : undefined),
         icon,
         screenshots,
+        screenshotsDark,
         singlePurpose: str(raw, 'singlePurpose', where),
         permissions,
         category,

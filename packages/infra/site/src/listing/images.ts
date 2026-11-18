@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 
 import { decodeImageFile, decodeImageFileAtSize, svgToPng } from '../render/image-backend.js';
 import { languageCandidates } from '../site-data/po.js';
@@ -78,6 +78,16 @@ export async function listingScreenshots(
             byLanguage[language] = files.map(({ file, slug }) => ({ file, slug }));
     }
     return { source: shots.map(({ file, slug }) => ({ file, slug })), byLanguage };
+}
+
+/**
+ * The dark twin of a listing screenshot: the same path below `gjsify.webext.listing.screenshotsDark`
+ * as the light file has below `screenshots`. Website-only; `webext listing` never calls this.
+ */
+export function darkTwin(config: ListingConfig, root: string, file: string): string | undefined {
+    if (!config.screenshots || !config.screenshotsDark) return undefined;
+    const twin = join(resolve(root, config.screenshotsDark), relative(resolve(root, config.screenshots), file));
+    return existsSync(twin) ? twin : undefined;
 }
 
 /** Whether a language needs tiles of its own: the store localizes them and the text differs from the source. */
