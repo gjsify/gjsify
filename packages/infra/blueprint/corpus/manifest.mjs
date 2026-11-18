@@ -845,4 +845,8 @@ export const CORPUS_REAL_FILES = [
     { slug: 'website_src_blueprints_adwaita_combo_row', source: 'website/src/blueprints/adwaita/combo-row.blp' },
     { slug: 'website_src_blueprints_adwaita_spin_row', source: 'website/src/blueprints/adwaita/spin-row.blp' },
     { slug: 'website_src_blueprints_adwaita_toggle_group', source: 'website/src/blueprints/adwaita/toggle-group.blp' },
+    {
+        slug: 'packages_framework_adwaita-app_src_switcher-shell',
+        source: 'packages/framework/adwaita-app/src/switcher-shell.blp',
+    },
 ];
