@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.64.48](https://github.com/gjsify/gjsify/compare/v0.64.47...v0.64.48) (2026-11-18)
+
+### Features
+
+* **adwaita-app:** add createSwitcherShell ([#2686](https://github.com/gjsify/gjsify/issues/2686)) ([cefdc35](https://github.com/gjsify/gjsify/commit/cefdc35e55ee299e22f2e316b8f2d4ff3c258be5))
+* **site:** one extension page per browser store ([#2690](https://github.com/gjsify/gjsify/issues/2690)) ([47555ff](https://github.com/gjsify/gjsify/commit/47555ff1d7697c44f78aec89313a91dc3ff8424b))
+* **site:** per-language store listing assets ([#2683](https://github.com/gjsify/gjsify/issues/2683)) ([cc5e06f](https://github.com/gjsify/gjsify/commit/cc5e06f9f2eb646bbca3c28fa107ce48e06f8cd6))
+* **system-accounts:** add DAV settings for calendar and contacts ([#2685](https://github.com/gjsify/gjsify/issues/2685)) ([823ffc4](https://github.com/gjsify/gjsify/commit/823ffc4f31bf43b234759e77e56cadc8ce9fff2c))
+
+### Bug Fixes
+
+* **cli:** preserve symlinks in tsc under a dev link ([#2687](https://github.com/gjsify/gjsify/issues/2687)) ([68b1552](https://github.com/gjsify/gjsify/commit/68b1552416ac47c69215b2401f9ec09086d95705))
+* **site:** read source shots from <dir>/<lang>/ ([#2684](https://github.com/gjsify/gjsify/issues/2684)) ([8ebced4](https://github.com/gjsify/gjsify/commit/8ebced4ba8c80604275dee19d2c4104230c9ebec)), closes [#2683](https://github.com/gjsify/gjsify/issues/2683) [#2683](https://github.com/gjsify/gjsify/issues/2683)
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([2a56cea](https://github.com/gjsify/gjsify/commit/2a56ceab7a9260edfdf2d0f1195a69c116c0fef1))
+
 ## [0.64.47](https://github.com/gjsify/gjsify/compare/v0.64.46...v0.64.47) (2026-11-16)
 
 ### Bug Fixes
