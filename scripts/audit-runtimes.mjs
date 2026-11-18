@@ -480,6 +480,7 @@ const WEB_API_NODE_NONE = new Set([
     'speech-synthesis',
     'speech-recognition',
     'media-capture',
+    'webserial',
 ]);
 
 /**

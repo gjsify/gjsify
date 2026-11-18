@@ -26,6 +26,8 @@ const KNOWN_GLOBALS = new Set(Object.keys(GJS_GLOBALS_MAP as Record<string, stri
 const METHOD_MARKERS: Record<string, string> = {
     // Patched on by @gjsify/gamepad/register
     'navigator.getGamepads': 'GamepadEvent',
+    // Patched on by @gjsify/webserial/register
+    'navigator.serial': 'Serial',
     // Patched on by @gjsify/webrtc/register/media-devices
     'navigator.mediaDevices': 'MediaDevices',
     // The runtime stubs throw at first call, so any reference needs the

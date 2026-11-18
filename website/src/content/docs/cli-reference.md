@@ -276,6 +276,7 @@ GJS provides `setTimeout` and `setInterval` natively, but their return value is 
 | `DOMParser` | `@gjsify/domparser/register` |
 | `AudioContext`, `webkitAudioContext`, `Audio`, `HTMLAudioElement` | `@gjsify/webaudio/register` |
 | `GamepadEvent` | `@gjsify/gamepad/register` |
+| `Serial`, `SerialPort` | `@gjsify/webserial/register` |
 
 **WebRTC, on GStreamer webrtcbin (GJS only)**
 
