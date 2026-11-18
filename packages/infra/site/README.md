@@ -348,6 +348,22 @@ style: icon, name, short description and install buttons, a facts sidebar (colla
 on a phone), then screenshots, description, permissions and the browsers it works in. The app page and
 the extension page link to each other.
 
+With two or more browsers configured, the page also gets one **static page per store**,
+`/<lang>/extension/<chromium|edge|firefox|safari>/`, reached through a row of plain links under the
+header ("All browsers" is the overview). Static pages were chosen over `:target`/radio CSS because
+each store then has an address a listing or mail can point at, works without JavaScript, and has its
+own `hreflang`/sitemap entry. Each store page follows that store, from the same
+`STORE_SPECS` table `gjsify webext listing` uses:
+
+- only that browser's manifest, permissions and install button ("Add to Chrome"; Chromium is called
+  Chrome, an `Edge` label on a download target assigns it to Edge);
+- the store's screenshot count (Edge up to 6) and, for AMO, one shared set instead of per-language ones;
+- publisher justifications for permissions only where the store shows them (Chrome, Edge; not AMO);
+- Safari has no store: its page points at the macOS app, which carries the extension.
+
+A browser without a manifest renders no page and no link. Script only marks the link that matches
+the visitor's browser; it never navigates.
+
 ```json
 "extension": {
   "manifests": { "chromium": "extension/.output/chrome-mv3/manifest.json", "firefox": "extension/.output/firefox-mv2/manifest.json" },

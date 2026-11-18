@@ -105,6 +105,9 @@ msgstr "Edge"
 msgid "Safari"
 msgstr "Safari"
 
+msgid "Chrome"
+msgstr "Chrome"
+
 msgid "…"
 msgstr "…"
 
@@ -246,6 +249,12 @@ msgstr "Die Erweiterung erklärt, dass sie keine Daten erhebt."
 msgid "Works in"
 msgstr "Funktioniert in"
 
+msgid "About the app"
+msgstr "Über die App"
+
+msgid "All releases"
+msgstr "Alle Versionen"
+
 msgid "Website"
 msgstr "Webseite"
 
@@ -278,6 +287,21 @@ msgstr "Links"
 
 msgid "Needs the app {app}"
 msgstr "Braucht die App {app}"
+
+msgid "Your browser"
+msgstr "Dein Browser"
+
+msgid "Browser"
+msgstr "Browser"
+
+msgid "All browsers"
+msgstr "Alle Browser"
+
+msgid "Install"
+msgstr "Installieren"
+
+msgid "Safari has no extension store. The extension comes with the {app} app for macOS; install the app, then turn the extension on in Safari → Settings → Extensions."
+msgstr "Safari hat keinen Erweiterungs-Store. Die Erweiterung kommt mit der App {app} für macOS; installiere die App und schalte die Erweiterung dann in Safari → Einstellungen → Erweiterungen ein."
 
 msgid "About"
 msgstr "Über"
@@ -399,14 +423,8 @@ msgstr "Apple Silicon wird angenommen. Für Macs mit Intel-Prozessor die Intel-V
 msgid "About the browser extension"
 msgstr "Über die Browser-Erweiterung"
 
-msgid "Browser"
-msgstr "Browser"
-
 msgid "Operating system"
 msgstr "Betriebssystem"
-
-msgid "All releases"
-msgstr "Alle Versionen"
 
 msgid "All download options"
 msgstr "Alle Download-Optionen"
@@ -497,6 +515,9 @@ msgstr "von {developer}"
 
 msgid "{app} is free software. Support its development with a transfer or a service."
 msgstr "{app} ist freie Software. Unterstütze die Entwicklung per Überweisung oder über einen Dienst."
+
+msgid "Browser extension for {browser}"
+msgstr "Browser-Erweiterung für {browser}"
 
 msgid "The browser extension of {app}."
 msgstr "Die Browser-Erweiterung von {app}."

@@ -25,6 +25,7 @@ export interface RootManifest {
     version?: string;
     gjsify?: {
         site?: unknown;
+        webext?: { listing?: { screenshots?: unknown } };
         ship?: { icon?: string };
         flatpak?: { appId?: string; icon?: string; developer?: { id?: string; name?: string } };
     };

@@ -104,6 +104,9 @@ msgstr ""
 msgid "Safari"
 msgstr ""
 
+msgid "Chrome"
+msgstr ""
+
 msgid "…"
 msgstr ""
 
@@ -245,6 +248,12 @@ msgstr ""
 msgid "Works in"
 msgstr ""
 
+msgid "About the app"
+msgstr ""
+
+msgid "All releases"
+msgstr ""
+
 msgid "Website"
 msgstr ""
 
@@ -276,6 +285,21 @@ msgid "Links"
 msgstr ""
 
 msgid "Needs the app {app}"
+msgstr ""
+
+msgid "Your browser"
+msgstr ""
+
+msgid "Browser"
+msgstr ""
+
+msgid "All browsers"
+msgstr ""
+
+msgid "Install"
+msgstr ""
+
+msgid "Safari has no extension store. The extension comes with the {app} app for macOS; install the app, then turn the extension on in Safari → Settings → Extensions."
 msgstr ""
 
 msgid "About"
@@ -398,13 +422,7 @@ msgstr ""
 msgid "About the browser extension"
 msgstr ""
 
-msgid "Browser"
-msgstr ""
-
 msgid "Operating system"
-msgstr ""
-
-msgid "All releases"
 msgstr ""
 
 msgid "All download options"
@@ -495,6 +513,9 @@ msgid "by {developer}"
 msgstr ""
 
 msgid "{app} is free software. Support its development with a transfer or a service."
+msgstr ""
+
+msgid "Browser extension for {browser}"
 msgstr ""
 
 msgid "The browser extension of {app}."

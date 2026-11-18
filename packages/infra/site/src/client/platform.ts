@@ -75,6 +75,18 @@ export function detectBrowser(hints: PlatformHints): TargetBrowser | undefined {
 }
 
 /**
+ * The store page that fits the visitor: finer than `detectBrowser`, because Edge and Safari have
+ * pages of their own while the build for them is the Chromium one (or none at all).
+ */
+export function detectStore(hints: PlatformHints): 'firefox' | 'chromium' | 'edge' | 'safari' | undefined {
+    const agent = hints.userAgent ?? '';
+    if (hints.brands?.some((brand) => /edge/i.test(brand)) || /edg(a|ios)?\//i.test(agent)) return 'edge';
+    const browser = detectBrowser(hints);
+    if (browser) return browser;
+    return /safari/i.test(agent) ? 'safari' : undefined;
+}
+
+/**
  * The VISITOR's machine, read from browser hints. Not `detectPlatform` — that name belongs to a
  * host-OS read, and the `os-axis` conformance rule matches it textually (see ADR 0018).
  */

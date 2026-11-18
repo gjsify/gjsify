@@ -5,6 +5,12 @@
 export type Store = 'cws' | 'edge' | 'amo';
 export const STORES: readonly Store[] = ['cws', 'edge', 'amo'];
 
+/**
+ * The store each browser family of an extension is listed in. Safari has none: its extension ships
+ * inside the macOS app, so there is no listing to follow and no entry here.
+ */
+export const FAMILY_STORE = { chromium: 'cws', edge: 'edge', firefox: 'amo' } as const satisfies Record<string, Store>;
+
 export type TextField = 'name' | 'summary' | 'description';
 
 export interface TextLimit {

@@ -10,6 +10,7 @@ import {
     screenshotFile,
     type DescriptionBlock,
     type DownloadTarget,
+    type ExtensionFamily,
     type Localized,
     type RelatedApp,
     type Release,
@@ -56,10 +57,14 @@ export interface RenderContext {
     latestPosts?: string;
     /** Root-relative URL of the published `theme.displayFont`. */
     displayFontUrl?: string;
+    /** The extension page of ONE browser's store (`/<lang>/extension/<family>/`); `undefined` is the overview. */
+    variant?: ExtensionFamily;
+    /** What the install button calls the browser, when the family's own name is not the browser's ("Chrome" for Chromium). */
+    browserName?: string;
 }
 
 /** What the download dialog reads: the targets, the catalogue and the locale it formats sizes in. */
-export type DownloadContext = Pick<RenderContext, 'data' | 't' | 'lang'>;
+export type DownloadContext = Pick<RenderContext, 'data' | 't' | 'lang' | 'browserName'>;
 
 /** What `styles/site.css` follows for the theme; the dark `<source>`s answer the same question. */
 const DARK_MEDIA = '(prefers-color-scheme: dark)';
@@ -132,8 +137,8 @@ export function privacyUrl(data: SiteData, lang: string): string {
     return `${pageUrl(data, lang)}privacy/`;
 }
 
-export function extensionUrl(data: SiteData, lang: string): string {
-    return `${pageUrl(data, lang)}extension/`;
+export function extensionUrl(data: SiteData, lang: string, family?: ExtensionFamily): string {
+    return `${pageUrl(data, lang)}extension/${family ? `${family}/` : ''}`;
 }
 
 export function legalNoticeUrl(data: SiteData, lang: string): string {
@@ -234,14 +239,14 @@ function prettyUrl(url: string): string {
  * What the primary button says. Installing from a store, opening the web build and downloading a
  * file are three different promises, so each gets its own wording.
  */
-export function ctaLabel(target: DownloadTarget, t: Translate): string {
+export function ctaLabel(target: DownloadTarget, t: Translate, browserName?: string): string {
     if (target.format === 'flathub') return t('Install from Flathub');
     if (target.format === 'flatpark') return t('Install from FlatPark');
     if (target.format === 'source') return t('Build from source');
     if (target.os === 'web' && target.format === 'web') return t('Try in browser');
     if (isBrowserPlatform(target.os)) {
         return plain(target.format === 'store' ? t('Add to {browser}') : t('Install for {browser}'), {
-            browser: osName(target.os, t),
+            browser: browserName ?? osName(target.os, t),
         });
     }
     return plain(t('Download for {os}'), { os: osName(target.os, t) });
@@ -319,7 +324,7 @@ export function frameAttribute(
     ctx: Pick<RenderContext, 'images' | 'lang'>,
     screenshot: Screenshot,
 ): 'none' | undefined {
-    return shown(ctx, screenshot)?.frameless === true ? 'none' : undefined;
+    return screenshot.composed || shown(ctx, screenshot)?.frameless === true ? 'none' : undefined;
 }
 
 /** The screenshots, at the bottom of the brand-coloured masthead. */
@@ -434,7 +439,7 @@ ${size ? `<span class="target-size">${esc(size)}</span>` : ''}`;
         'data-recommended': target.recommended,
         'data-unavailable': !target.available,
         'data-unsigned': unsigned,
-        'data-cta': target.available ? ctaLabel(target, t) : undefined,
+        'data-cta': target.available ? ctaLabel(target, t, ctx.browserName) : undefined,
         'data-format': target.format,
         'data-size': size || undefined,
     })}>
@@ -462,6 +467,8 @@ function blockSlug(block: ComponentBlock, index: number): string {
 function componentSection(block: ComponentBlock, slug: string, step: number | undefined, ctx: DownloadContext): string {
     const { t, data, lang } = ctx;
     const selected = defaultTarget(block.targets)?.os;
+    // A store page names its one browser the way the store does ("Chrome"), not by its engine.
+    const name = (os: TargetPlatform) => (ctx.browserName && isBrowserPlatform(os) ? ctx.browserName : osName(os, t));
     const groups = PLATFORM_ORDER.flatMap((os) => {
         const own = block.targets.filter((target) => target.os === os);
         return own.length > 0 ? [[os, own] as const] : [];
@@ -470,14 +477,14 @@ function componentSection(block: ComponentBlock, slug: string, step: number | un
     const level = block.name ? 'h4' : 'h3';
     const tabs = groups.map(
         ([os]) =>
-            `<button class="os-tab" type="button" role="tab" id="os-tab-${esc(slug)}-${esc(os)}" aria-controls="os-group-${esc(slug)}-${esc(os)}" data-os="${esc(os)}" aria-selected="${os === selected}">${icon(PLATFORM_ICONS[os])}<span>${esc(osName(os, t))}</span></button>`,
+            `<button class="os-tab" type="button" role="tab" id="os-tab-${esc(slug)}-${esc(os)}" aria-controls="os-group-${esc(slug)}-${esc(os)}" data-os="${esc(os)}" aria-selected="${os === selected}">${icon(PLATFORM_ICONS[os])}<span>${esc(name(os))}</span></button>`,
     );
     const sections = groups.map(
         ([
             os,
             own,
         ]) => `<section class="os-group" id="os-group-${esc(slug)}-${esc(os)}" role="tabpanel" aria-labelledby="os-tab-${esc(slug)}-${esc(os)}" data-os="${esc(os)}">
-<${level} class="os-title">${icon(PLATFORM_ICONS[os])}<span>${esc(osName(os, t))}</span></${level}>
+<${level} class="os-title">${icon(PLATFORM_ICONS[os])}<span>${esc(name(os))}</span></${level}>
 <ul>
 ${own.map((target) => targetItem(target, ctx)).join('\n')}
 </ul>
@@ -537,7 +544,7 @@ export function downloadWidget(ctx: DownloadContext, only?: readonly DownloadTar
 <div class="download-split">
 ${
     primary
-        ? `<a class="button download-cta" href="${esc(primary.url)}"${attrs({ 'data-os': primary.os, 'data-arch': primary.arch })}>${icon('download')}<span class="download-label">${esc(ctaLabel(primary, t))}</span></a>
+        ? `<a class="button download-cta" href="${esc(primary.url)}"${attrs({ 'data-os': primary.os, 'data-arch': primary.arch })}>${icon('download')}<span class="download-label">${esc(ctaLabel(primary, t, ctx.browserName))}</span></a>
 <a class="button download-toggle" href="#all-downloads" aria-label="${esc(t('All download options'))}">${icon('chevron-down')}</a>`
         : `<a class="button download-cta" href="#all-downloads">${icon('download')}<span class="download-label">${esc(t('All download options'))}</span></a>`
 }
@@ -860,7 +867,7 @@ ${screenshotBand(ctx)}
 
 /** The title and description of one page; also what the build checks for weak ones. */
 export function pageMeta(
-    ctx: Pick<RenderContext, 'data' | 'lang' | 't'>,
+    ctx: Pick<RenderContext, 'data' | 'lang' | 't' | 'browserName'>,
     view: View = 'app',
 ): { name: string; title: string; description: string } {
     const { data, lang, t } = ctx;
@@ -892,7 +899,7 @@ export function pageMeta(
         const short = data.extension?.browsers[0]?.description[lang];
         return {
             name,
-            title: `${t('Browser extension')} – ${name}`,
+            title: `${ctx.browserName ? plain(t('Browser extension for {browser}'), { browser: ctx.browserName }) : t('Browser extension')} – ${name}`,
             description: short || plain(t('The browser extension of {app}.'), { app: name }),
         };
     }
@@ -985,7 +992,10 @@ export function appPageMeta(ctx: RenderContext, view: View): PageMeta {
         title,
         description,
         urls: Object.fromEntries(
-            data.config.languages.map((code) => [code, sitePageUrl(data.config, code, VIEW_PATHS[view])]),
+            data.config.languages.map((code) => [
+                code,
+                sitePageUrl(data.config, code, `${VIEW_PATHS[view]}${ctx.variant ? `${ctx.variant}/` : ''}`),
+            ]),
         ),
         ogImage: ctx.ogImage,
         jsonLd: view === 'app' ? structuredData(ctx, title, description) : undefined,

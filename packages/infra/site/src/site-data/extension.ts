@@ -212,3 +212,28 @@ export async function loadExtension(
     }
     return buildExtensionData(config, manifests, languages, catalogs);
 }
+
+/**
+ * The browser families that get a page of their own, `[]` while there is nothing to switch between:
+ * one family's page would only repeat the overview.
+ */
+export function extensionVariants(extension: ExtensionData | undefined): ExtensionFamily[] {
+    return extension && extension.browsers.length > 1 ? extension.browsers.map((browser) => browser.family) : [];
+}
+
+/**
+ * The extension as one browser's store shows it: that manifest only, and the permissions that
+ * manifest asks for. `undefined` when the family is not configured.
+ */
+export function extensionForFamily(extension: ExtensionData, family: ExtensionFamily): ExtensionData | undefined {
+    const browser = extension.browsers.find((entry) => entry.family === family);
+    if (!browser) return undefined;
+    const own = (list: ExtensionPermission[]) =>
+        list.filter((entry) => entry.families.includes(family)).map((entry) => ({ ...entry, families: [family] }));
+    return {
+        ...extension,
+        browsers: [browser],
+        required: own(extension.required),
+        optional: own(extension.optional),
+    };
+}

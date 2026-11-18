@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { DownloadTarget, ExtensionData, SiteData } from '../site-data/index.js';
-import { renderExtensionPage } from './extension.js';
+import { renderExtensionPage, storeScreenshots, storeVariants } from './extension.js';
 import type { RenderContext } from './pages.js';
 
 const t = (msgid: string) => (msgid === 'Add to Firefox' ? 'Zu Firefox' : msgid);
@@ -167,6 +167,137 @@ export default async () => {
         await it('does not link a privacy page that is not configured', async () => {
             const html = renderExtensionPage(context({}, false));
             expect(html).not.toContain('/x/en/privacy/');
+        });
+
+        await describe('store pages', async () => {
+            const safari = {
+                family: 'safari' as const,
+                version: '1.2.3',
+                manifestVersion: 3 as const,
+                name: { en: 'Ext Name', de: 'Ext Name' },
+                description: { en: 'Short text', de: 'Kurztext' },
+                declaresNoDataCollection: false,
+            };
+            const withSafari = () => {
+                const ctx = context({
+                    browsers: [...extension.browsers, safari],
+                    required: extension.required.map((entry) => ({
+                        ...entry,
+                        families: [...entry.families, 'safari' as const],
+                    })),
+                });
+                ctx.data.downloads.targets.push({ ...target('darwin', 'dmg', true), safariExtension: true });
+                return ctx;
+            };
+
+            await it('links one page per store and marks the current one, without script', async () => {
+                const html = renderExtensionPage(context());
+                expect(html).toContain('href="/x/en/extension/"');
+                expect(html).toContain('href="/x/en/extension/firefox/"');
+                expect(html).toContain('href="/x/en/extension/chromium/"');
+                expect(html).toMatch(/href="\/x\/en\/extension\/"[^>]*aria-current="page"/);
+                const store = renderExtensionPage(context(), 'chromium');
+                expect(store).toMatch(/href="\/x\/en\/extension\/chromium\/"[^>]*aria-current="page"/);
+            });
+
+            await it('narrows a store page to its manifest, permissions, button wording and title', async () => {
+                const chrome = renderExtensionPage(context(), 'chromium');
+                expect(chrome).toContain('<code>scripting</code>');
+                expect(chrome).not.toContain('Only in');
+                expect(chrome).not.toContain('ext-chips');
+                expect(chrome).toContain('Browser extension for Chrome');
+                const firefox = renderExtensionPage(context(), 'firefox');
+                expect(firefox).not.toContain('<code>scripting</code>');
+                expect(firefox).toContain('Browser extension for Firefox');
+                expect(firefox).not.toContain('Keeps your list');
+                expect(chrome).toContain('Keeps your list');
+            });
+
+            await it('makes Safari the macOS app, not a store', async () => {
+                const html = renderExtensionPage(withSafari(), 'safari');
+                expect(html).toContain('Safari has no extension store');
+                expect(html).toContain('href="https://example.org/darwin-dmg"');
+                expect(html).not.toContain('os-tab-extension-firefox');
+            });
+
+            await it('renders nothing for a store the extension does not have', async () => {
+                expect(storeVariants(context().data)).toStrictEqual(['firefox', 'chromium']);
+                const single = context({ browsers: [extension.browsers[0]!] });
+                expect(storeVariants(single.data)).toStrictEqual([]);
+                expect(renderExtensionPage(single)).not.toContain('ext-stores');
+                expect(() => renderExtensionPage(context(), 'edge')).toThrow();
+                expect(renderExtensionPage(context())).not.toContain('extension/edge/');
+            });
+
+            await it('gives every store page exactly one primary action', async () => {
+                const edge = {
+                    ...extension.browsers[1]!,
+                    family: 'edge' as const,
+                };
+                const bare = () =>
+                    context({
+                        browsers: [...extension.browsers, edge, safari],
+                        required: extension.required.map((entry) => ({
+                            ...entry,
+                            families: [...entry.families, 'edge' as const, 'safari' as const],
+                        })),
+                    });
+                for (const family of ['firefox', 'chromium', 'edge', 'safari'] as const) {
+                    const html = renderExtensionPage(bare(), family);
+                    expect(html.split('download-cta"').length - 1).toBe(1);
+                }
+                expect(renderExtensionPage(bare(), 'safari')).toContain('href="/x/en/"');
+                expect(renderExtensionPage(withSafari(), 'safari').split('download-cta"').length - 1).toBe(1);
+            });
+
+            await it('shows the listing screenshots per store, and the metainfo set elsewhere', async () => {
+                const rendition = (name: string) => ({
+                    width: 2560,
+                    height: 1600,
+                    displayWidth: 1280,
+                    frameless: false,
+                    formats: {
+                        avif: [{ url: `/x/img/${name}.avif`, width: 1280 }],
+                        webp: [{ url: `/x/img/${name}.webp`, width: 1280 }],
+                        png: [{ url: `/x/img/${name}.png`, width: 1280 }],
+                    },
+                });
+                const file = (slug: string) => ({ url: slug, file: slug, slug });
+                const shot = (slug: string, byLanguage = {}) => ({ ...file(slug), caption: null, byLanguage });
+                const withListing = () => {
+                    const ctx = context();
+                    ctx.data.screenshots = [shot('meta')] as never;
+                    ctx.data.listingScreenshots = [
+                        { ...shot('store-1', { de: file('store-1-de') }), composed: true },
+                        { ...shot('store-2'), composed: true },
+                    ] as never;
+                    ctx.images = new Map(
+                        ['meta', 'store-1', 'store-1-de', 'store-2'].map((name) => [name, rendition(name)]),
+                    ) as never;
+                    return ctx;
+                };
+                const chrome = renderExtensionPage(withListing(), 'chromium');
+                expect(chrome).toContain('/x/img/store-1.png');
+                expect(chrome).toContain('/x/img/store-2.png');
+                expect(chrome).not.toContain('/x/img/meta.png');
+                expect(chrome).toContain('data-frame="none"');
+                expect(renderExtensionPage(withListing())).not.toContain('data-frame="none"');
+                const german = withListing();
+                german.lang = 'de';
+                expect(renderExtensionPage(german, 'chromium')).toContain('/x/img/store-1-de.png');
+                expect(renderExtensionPage(german, 'firefox')).not.toContain('/x/img/store-1-de.png');
+                expect(renderExtensionPage(withListing())).toContain('/x/img/meta.png');
+                expect(renderExtensionPage(withListing())).not.toContain('/x/img/store-1.png');
+            });
+
+            await it('limits screenshots to what the store takes and shares one set where it takes one', async () => {
+                const shot = (n: number) =>
+                    ({ source: { name: `${n}.png` }, byLanguage: { de: { name: `${n}-de.png` } } }) as never;
+                const shots = Array.from({ length: 8 }, (_, n) => shot(n));
+                expect(storeScreenshots(shots, 'edge')).toHaveLength(6);
+                expect(Object.keys(storeScreenshots(shots, 'cws')[0]!.byLanguage)).toStrictEqual(['de']);
+                expect(Object.keys(storeScreenshots(shots, 'amo')[0]!.byLanguage)).toStrictEqual([]);
+            });
         });
     });
 };
