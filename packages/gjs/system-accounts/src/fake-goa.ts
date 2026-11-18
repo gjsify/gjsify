@@ -127,8 +127,10 @@ function managedObjects(
                 SmtpUseTls: bool(!!mail.smtp?.tls),
             };
         }
-        if (account.calendar) interfaces[`${NS}.Calendar`] = davProps(account.calendar, 'https://calendar.example.test/');
-        if (account.contacts) interfaces[`${NS}.Contacts`] = davProps(account.contacts, 'https://contacts.example.test/');
+        if (account.calendar)
+            interfaces[`${NS}.Calendar`] = davProps(account.calendar, 'https://calendar.example.test/');
+        if (account.contacts)
+            interfaces[`${NS}.Contacts`] = davProps(account.contacts, 'https://contacts.example.test/');
         if (account.files) interfaces[`${NS}.Files`] = { Uri: str('https://files.example.test/') };
         if (account.passwords) interfaces[`${NS}.PasswordBased`] = {};
         if (account.oauth2) interfaces[`${NS}.OAuth2Based`] = { ClientId: str('fake-client'), ClientSecret: str('') };

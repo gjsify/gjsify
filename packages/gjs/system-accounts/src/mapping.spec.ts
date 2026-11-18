@@ -163,7 +163,11 @@ export default async () => {
 
     await describe('davSettingsFrom', async () => {
         await it('maps the base URL, user and certificate flag', async () => {
-            const dav = davSettingsFrom({ uri: ' https://dav.example.org/cal/ ', userName: 'me', acceptSslErrors: true });
+            const dav = davSettingsFrom({
+                uri: ' https://dav.example.org/cal/ ',
+                userName: 'me',
+                acceptSslErrors: true,
+            });
             expect(dav?.url).toBe('https://dav.example.org/cal/');
             expect(dav?.username).toBe('me');
             expect(dav?.acceptInvalidCertificates).toBe(true);
