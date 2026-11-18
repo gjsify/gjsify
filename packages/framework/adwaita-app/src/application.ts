@@ -9,6 +9,7 @@
 import Adw from 'gi://Adw?version=1';
 import Gdk from 'gi://Gdk?version=4.0';
 import Gio from 'gi://Gio?version=2.0';
+import GLib from 'gi://GLib?version=2.0';
 import GObject from 'gi://GObject?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 // The bare `system` built-in, not `imports.system`/`ARGV` (ARGV IS
@@ -19,6 +20,7 @@ import { type InstallDevtoolsOptions, installDevtools } from '@gjsify/devtools';
 import { type CreateAboutDialogOptions, applyAboutLinks, createAboutDialog } from './about-dialog.js';
 import { addAppIconDir } from './app-icon.js';
 import { installDockReopen } from './dock-reopen.js';
+import { launchArgv } from './launch-argv.js';
 import { type BundledIconThemeOptions, installBundledIconTheme } from './icon-theme.js';
 import type { AboutInfo } from './types.js';
 
@@ -77,6 +79,13 @@ export interface AdwaitaAppOptions {
      * `GJSIFY_DEVTOOLS` env var (safe in production either way).
      */
     devtools?: boolean | InstallDevtoolsOptions;
+    /**
+     * The argv handed to GApplication. Default: the program name plus the process's own
+     * arguments. An app started from a CLI subcommand (`tool gui`) passes `[programName]`:
+     * GApplication takes every other non-option argument for a file to open and refuses it
+     * unless the app has `HANDLES_OPEN`.
+     */
+    argv?: string[];
     /** Extra work on `startup`, after icons + CSS + devtools are wired. */
     onStartup?: (app: Adw.Application) => void;
 }
@@ -212,7 +221,31 @@ export class AdwaitaApp extends Adw.Application {
  * ```
  */
 export async function runAdwaitaApp(options: AdwaitaAppOptions): Promise<number> {
-    return runApplication(new AdwaitaApp(options), [system.programInvocationName, ...system.programArgs]);
+    return runApplication(
+        new AdwaitaApp(options),
+        launchArgv(options.argv, system.programInvocationName, system.programArgs),
+    );
+}
+
+/**
+ * `runAsync` arms GJS's main-loop hook, which fires once the script's main loop has ENDED.
+ * Inside a loop that is already running (a CLI that iterates its own `GLib.MainLoop` and
+ * starts the GUI from a subcommand) the hook never fires: `register()` has emitted `startup`,
+ * nothing emits `activate`, no window appears. There the loop is already driving us, so run
+ * the application from an idle source — a clean dispatch, nested `run()` iterates the same
+ * context, and promise jobs, timers and I/O keep flowing (measured).
+ */
+function runInRunningLoop(app: Gio.Application, argv: string[]): Promise<number> {
+    return new Promise((resolve, reject) => {
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            try {
+                resolve(app.run(argv));
+            } catch (error) {
+                reject(error);
+            }
+            return GLib.SOURCE_REMOVE;
+        });
+    });
 }
 
 /**
@@ -246,7 +279,7 @@ export async function runApplication(app: Gio.Application, argv: string[]): Prom
         // terms, so the only thing lost is the notice below.
         remote = false;
     }
-    const code = await app.runAsync(argv);
+    const code = await (GLib.MainContext.default().is_owner() ? runInRunningLoop(app, argv) : app.runAsync(argv));
     if (remote) {
         console.error(
             `${app.applicationId ?? 'This application'} is already running — ` +

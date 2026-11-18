@@ -18,6 +18,7 @@ import appIconSuite from './app-icon.spec.js';
 import appearanceReaderSuite from './appearance/reader.spec.js';
 import iconThemeSuite from './icon-theme.spec.js';
 import navShellSuite from './nav-shell.spec.js';
+import runApplicationSuite from './run-application.spec.js';
 import switcherShellSuite from './switcher-shell.spec.js';
 import systemAccentSuite from './system-accent.spec.js';
 
@@ -27,6 +28,7 @@ run({
     appearanceReaderSuite,
     iconThemeSuite,
     navShellSuite,
+    runApplicationSuite,
     switcherShellSuite,
     systemAccentSuite,
 });
