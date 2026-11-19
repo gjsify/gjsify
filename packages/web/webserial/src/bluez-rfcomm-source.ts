@@ -44,7 +44,13 @@ export interface BluezRfcommOptions {
     includeUnpaired?: boolean;
     /** Custom bus, for tests. Default: the system bus. */
     bus?: Gio.DBusConnection;
+    /** Name BlueZ shows for our profile registration. Default `gjsify-webserial`. */
+    profileName?: string;
+    /** D-Bus object path prefix for the client profile; a counter is appended. A valid object path. */
+    profilePathPrefix?: string;
 }
+
+type ManagedObjects = Record<string, Record<string, Record<string, unknown>>>;
 
 type Callback<T> = (resolve: (value: T) => void, reject: (error: unknown) => void) => void;
 const promisify = <T>(fn: Callback<T>): Promise<T> => new Promise(fn);
@@ -53,14 +59,12 @@ function addressOf(devicePath: string): string {
     return devicePath.slice(devicePath.lastIndexOf('dev_') + 4).replaceAll('_', ':');
 }
 
-function devicePathOf(address: string): string {
-    return `/org/bluez/hci0/dev_${address.replaceAll(':', '_')}`;
-}
-
 export class BluezRfcommSource implements PortSource {
     readonly #serviceClass: string;
     readonly #timeoutMs: number;
     readonly #includeUnpaired: boolean;
+    readonly #profileName: string;
+    readonly #profilePathPrefix: string;
     #bus: Gio.DBusConnection | null;
     #counter = 0;
 
@@ -68,7 +72,14 @@ export class BluezRfcommSource implements PortSource {
         this.#serviceClass = canonicalUuid(options.serviceClass ?? SERIAL_PORT_PROFILE_UUID);
         this.#timeoutMs = options.connectTimeoutMs ?? 30_000;
         this.#includeUnpaired = options.includeUnpaired ?? false;
+        this.#profileName = options.profileName ?? 'gjsify-webserial';
+        this.#profilePathPrefix = options.profilePathPrefix ?? '/org/gjsify/webserial/profile';
         this.#bus = options.bus ?? null;
+    }
+
+    async #managedObjects(bus: Gio.DBusConnection): Promise<ManagedObjects> {
+        const reply = await this.#call(bus, '/', OBJECT_MANAGER, 'GetManagedObjects', null);
+        return reply.get_child_value(0).recursiveUnpack() as ManagedObjects;
     }
 
     async #connection(): Promise<Gio.DBusConnection> {
@@ -127,11 +138,7 @@ export class BluezRfcommSource implements PortSource {
 
     async list(): Promise<PortHandle[]> {
         const bus = await this.#connection();
-        const reply = await this.#call(bus, '/', OBJECT_MANAGER, 'GetManagedObjects', null);
-        const objects = reply.get_child_value(0).recursiveUnpack() as Record<
-            string,
-            Record<string, Record<string, unknown>>
-        >;
+        const objects = await this.#managedObjects(bus);
         const handles: PortHandle[] = [];
         for (const [path, interfaces] of Object.entries(objects)) {
             const device = interfaces[DEVICE];
@@ -150,8 +157,12 @@ export class BluezRfcommSource implements PortSource {
 
     async open(id: string): Promise<PortConnection> {
         const bus = await this.#connection();
-        const devicePath = devicePathOf(id);
-        const profilePath = `/eu/jumplink/kleiber/profile${++this.#counter}`;
+        // The adapter is part of the device path, so look it up instead of assuming `hci0`.
+        const devicePath = Object.entries(await this.#managedObjects(bus)).find(
+            ([path, interfaces]) => interfaces[DEVICE] && addressOf(path) === id,
+        )?.[0];
+        if (!devicePath) throw serialError('NotFoundError', `No Bluetooth device ${id}.`);
+        const profilePath = `${this.#profilePathPrefix}${++this.#counter}`;
 
         let deliver!: (value: { input: Gio.InputStream; output: Gio.OutputStream }) => void;
         let fail!: (error: unknown) => void;
@@ -221,7 +232,7 @@ export class BluezRfcommSource implements PortSource {
 
         try {
             const options = {
-                Name: GLib.Variant.new_string('kleiber'),
+                Name: GLib.Variant.new_string(this.#profileName),
                 Role: GLib.Variant.new_string('client'),
                 RequireAuthentication: GLib.Variant.new_boolean(false),
                 RequireAuthorization: GLib.Variant.new_boolean(false),
@@ -264,6 +275,7 @@ export class BluezRfcommSource implements PortSource {
     subscribe(listener: (change: PortChange) => void): () => void {
         let bus: Gio.DBusConnection | null = null;
         let cancelled = false;
+        let signalIds: number[] = [];
         const watch = async (): Promise<void> => {
             bus = await this.#connection();
             if (cancelled) return;
@@ -287,7 +299,7 @@ export class BluezRfcommSource implements PortSource {
                         listener({ type: 'disconnect', handle });
                     }
                 };
-            const ids = [
+            signalIds = [
                 bus.signal_subscribe(
                     BLUEZ,
                     OBJECT_MANAGER,
@@ -307,17 +319,14 @@ export class BluezRfcommSource implements PortSource {
                     handler(false) as never,
                 ),
             ];
-            this.#signalIds = ids;
         };
         void watch();
         return () => {
             cancelled = true;
-            for (const sid of this.#signalIds) bus?.signal_unsubscribe(sid);
-            this.#signalIds = [];
+            for (const sid of signalIds) bus?.signal_unsubscribe(sid);
+            signalIds = [];
         };
     }
-
-    #signalIds: number[] = [];
 }
 
 class RfcommConnection implements PortConnection {

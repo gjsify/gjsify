@@ -70,6 +70,10 @@
             "darwin": "none",
             "win32": "none"
         },
+        "osNotes": {
+            "darwin": "The only backend, `BluezRfcommSource`, talks to BlueZ over the system D-Bus, and BlueZ exists on Linux only. On macOS the same `PortSource` seam would be filled by an IOBluetooth driver, which does not exist yet. Until then `navigator.serial` reports no ports there; the package is not usable, so it claims `none` rather than `partial`.",
+            "win32": "The only backend, `BluezRfcommSource`, talks to BlueZ over the system D-Bus, and BlueZ exists on Linux only. There is also no GJS host on Windows at all (ADR 0024 § 4), so the route would be Node with a Windows Bluetooth driver behind the `PortSource` seam, which does not exist yet. The package is not usable on win32 and claims `none`."
+        },
         "tier": 1
     },
     "license": "MIT",

@@ -233,5 +233,18 @@ export default async () => {
             expect(connects).toBe(1);
             expect((await serial.getPorts()).length).toBe(1);
         });
+
+        await it('listens to the platform when only onconnect / ondisconnect is assigned', async () => {
+            const source = new FakeSource([]);
+            const serial = new Serial(source);
+            let connects = 0;
+            serial.onconnect = () => connects++;
+            expect(source.subscribed).toBe(1);
+            source.add(printer);
+            expect(connects).toBe(1);
+            serial.onconnect = null;
+            source.add(other);
+            expect(connects).toBe(1);
+        });
     });
 };

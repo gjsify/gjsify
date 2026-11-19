@@ -24,13 +24,32 @@ export class Serial extends EventTarget {
     readonly #chooser: PortChooser;
     readonly #ports = new Map<string, SerialPort>();
     #unsubscribe: (() => void) | null = null;
-    onconnect: ((event: Event) => void) | null = null;
-    ondisconnect: ((event: Event) => void) | null = null;
+    #onconnect: ((event: Event) => void) | null = null;
+    #ondisconnect: ((event: Event) => void) | null = null;
 
     constructor(source: PortSource, init: SerialOptionsInit = {}) {
         super();
         this.#source = source;
         this.#chooser = init.chooser ?? firstCandidate;
+    }
+
+    // Assigning a handler listens to the platform just like `addEventListener` does.
+    get onconnect(): ((event: Event) => void) | null {
+        return this.#onconnect;
+    }
+
+    set onconnect(handler: ((event: Event) => void) | null) {
+        if (handler) this.#watch();
+        this.#onconnect = handler;
+    }
+
+    get ondisconnect(): ((event: Event) => void) | null {
+        return this.#ondisconnect;
+    }
+
+    set ondisconnect(handler: ((event: Event) => void) | null) {
+        if (handler) this.#watch();
+        this.#ondisconnect = handler;
     }
 
     #portFor(handle: PortHandle): SerialPort {
@@ -79,10 +98,10 @@ export class Serial extends EventTarget {
             if (change.type === 'disconnect') {
                 port._notifyDisconnect();
                 this.dispatchEvent(event);
-                this.ondisconnect?.(event);
+                this.#ondisconnect?.(event);
             } else {
                 this.dispatchEvent(event);
-                this.onconnect?.(event);
+                this.#onconnect?.(event);
             }
         });
     }
