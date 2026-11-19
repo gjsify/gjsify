@@ -70,6 +70,10 @@ export function renderShipFlatpakManifest(input: FlatpakManifestInput): Record<s
         // that installs and cannot be launched.
         command: settings.binaryName,
         'finish-args': flatpak.finishArgs,
+        // A `.flatpak` bundle carries the app ref only. flatpak-builder's default moves
+        // /app/share/locale into a `<id>.Locale` extension that a single-file install never
+        // gets, so the app starts with its catalogues missing and every string in English.
+        'separate-locales': false,
     };
     if (flatpak.sdkExtensions.length > 0) manifest['sdk-extensions'] = flatpak.sdkExtensions;
     if (flatpak.appendPath.length > 0) {

@@ -16,6 +16,7 @@
 // Types provided by the auto-generated declaration in src/ts/gjsifysqlite-1.0.d.ts
 import type { GjsifySqlite as GjsifySqliteNS } from 'gi://GjsifySqlite?version=1.0';
 import { loadOptionalNativeModule } from '@gjsify/utils/core';
+export type { SqliteBytes, SqliteDatabase, SqliteDriverModule, SqliteStatement } from './driver.ts';
 
 type DatabaseInstance = GjsifySqliteNS.Database;
 type DatabaseStatic = typeof GjsifySqliteNS.Database;

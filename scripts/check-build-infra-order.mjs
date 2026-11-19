@@ -431,13 +431,21 @@ function typesTargetOf(manifest, specifier, name) {
 /**
  * Production workspace closure of a package — what `-d` builds before the clause
  * itself. `optionalDependencies` count: `buildDependencyGraph()` follows them by
- * default (packages/infra/workspace/src/graph.ts), `devDependencies` it does not.
+ * default (packages/infra/workspace/src/graph.ts), `devDependencies` it does not —
+ * except an optional PEER the package also lists there, which the graph orders first
+ * as "built against" (`@gjsify/adwaita-web` → `@gjsify/app-settings`). This rule read
+ * that edge as missing until `@gjsify/sqlite` → `@gjsify/native-sqlite-bridge` (#2697),
+ * and refused an order `-d` does produce (measured: bridge `lib/` removed, sqlite `build -d`).
  */
 function productionClosure(name, index, seen = new Set()) {
     if (seen.has(name)) return seen;
     seen.add(name);
     const manifest = index.get(name)?.json;
-    for (const dep of Object.keys({ ...manifest?.dependencies, ...manifest?.optionalDependencies })) {
+    const builtAgainst = Object.keys(manifest?.peerDependencies ?? {}).filter(
+        (dep) => typeof manifest?.devDependencies?.[dep] === 'string',
+    );
+    const deps = Object.keys({ ...manifest?.dependencies, ...manifest?.optionalDependencies });
+    for (const dep of [...deps, ...builtAgainst]) {
         if (index.has(dep)) productionClosure(dep, index, seen);
     }
     return seen;
