@@ -109,6 +109,10 @@ export default async () => {
             ]);
         });
 
+        await it('keeps the translations inside the app, because a bundle has no Locale extension', async () => {
+            expect(manifest()['separate-locales']).toBe(false);
+        });
+
         await it('copies the CONTENTS of the stage, never the directory', async () => {
             // `cp -a stage /app/` creates `/app/stage` and puts the entire
             // payload one level too deep. It installs cleanly; `/app/bin` is
