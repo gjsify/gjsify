@@ -693,8 +693,10 @@ export function aarEntries({ perAbi, typelibs, mtime, packageName = AAR_PACKAGE,
  * @param {string[]} spec.abis
  * @param {Record<string, string[]>} spec.libraries per ABI, sonames this AAR carries
  * @param {string[]} spec.typelibs
+ * @param {string[]} [spec.gioModules] GIO modules node-gi loads by soname at startup; omitted
+ *   when empty, so a package without any keeps its manifest byte for byte
  */
-export function renderRuntimeManifest({ name, version, sysroot, abis, libraries, typelibs }) {
+export function renderRuntimeManifest({ name, version, sysroot, abis, libraries, typelibs, gioModules = [] }) {
     const sorted = [...abis].sort();
     return `${JSON.stringify(
         {
@@ -709,10 +711,34 @@ export function renderRuntimeManifest({ name, version, sysroot, abis, libraries,
             abis: sorted,
             libraries: Object.fromEntries(sorted.map((abi) => [abi, [...libraries[abi]].sort()])),
             typelibs: [...typelibs].sort(),
+            ...(gioModules.length > 0 ? { gioModules: [...gioModules].sort() } : {}),
         },
         null,
         2,
     )}\n`;
+}
+
+/**
+ * The GIO modules an add-on carries, from a listing of the sysroot's `lib/<abi>/gio/modules`.
+ *
+ * Nothing links a GIO module — GIO finds it by scanning a directory — so the closure walk
+ * cannot reach one and it has to enter as a seed. An EMPTY listing fails rather than
+ * building an add-on whose whole point is missing: a TLS add-on without
+ * `libgioopenssl.so` builds, installs, and reports `supports_tls() === false` at runtime.
+ *
+ * @param {string[]} entries file names in the modules directory
+ * @param {string} abi for the message
+ * @returns {string[]} the module sonames, sorted
+ */
+export function selectGioModules(entries, abi) {
+    const modules = entries.filter((name) => /^lib.+\.so$/.test(name)).sort();
+    if (modules.length === 0) {
+        throw new Error(
+            `${abi}: the sysroot's lib/${abi}/gio/modules holds no GIO module, but this add-on exists to ` +
+                'ship one. Use a sysroot built with glib-networking (android-sysroot ≥ the TLS build).',
+        );
+    }
+    return modules;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -892,7 +918,8 @@ function buildLibintl(ndk, abi, abiStage) {
  *
  * @param {object} [spec]
  * @param {string} [spec.pkgDir] the package being built
- * @param {{ namespaces: string[], aarName: string, manifestName: string, aarPackage: string, coreName: string } | null} [spec.addOn]
+ * @param {{ namespaces: string[], aarName: string, manifestName: string, aarPackage: string, coreName: string, gioModules?: boolean } | null} [spec.addOn]
+ *   `gioModules`: also ship the sysroot's `lib/<abi>/gio/modules` (ADR 0117 § 3, stage 2)
  */
 export function run({ pkgDir: ownDir = pkgDir, addOn = null } = {}) {
     const opts = parseArgs(process.argv.slice(2));
@@ -914,6 +941,7 @@ export function run({ pkgDir: ownDir = pkgDir, addOn = null } = {}) {
 
     const perAbiPayload = {};
     const perAbiTypelibs = {};
+    const perAbiGioModules = {};
     const report = {};
 
     for (const abi of opts.abis) {
@@ -927,10 +955,19 @@ export function run({ pkgDir: ownDir = pkgDir, addOn = null } = {}) {
 
         // The closure walk. `needed` answers for the prefix only; `null` means "not here",
         // which planClosure then holds against SYSTEM_PROVIDED.
+        const gioModuleDir = join(libDir, 'gio', 'modules');
+        const gioModules = addOn?.gioModules
+            ? selectGioModules(existsSync(gioModuleDir) ? readdirSync(gioModuleDir) : [], abi)
+            : [];
+        perAbiGioModules[abi] = gioModules;
+        const sourceOf = (soname) => {
+            if (soname === 'libnode_gi.so') return addon;
+            return gioModules.includes(soname) ? join(gioModuleDir, soname) : join(libDir, soname);
+        };
         const cache = new Map();
         const needed = (soname) => {
             if (cache.has(soname)) return cache.get(soname);
-            const path = soname === 'libnode_gi.so' ? addon : join(libDir, soname);
+            const path = sourceOf(soname);
             const answer = existsSync(path)
                 ? parseNeeded(execFileSync(readelf, ['-d', path], { encoding: 'utf8' }))
                 : null;
@@ -944,7 +981,9 @@ export function run({ pkgDir: ownDir = pkgDir, addOn = null } = {}) {
         // would be dropped as unbacked. Read per ABI because the typelib dirs are.
         const metadata = collectTypelibMetadata(abi, typelibDirs.get(abi));
         const { seeds, resolved } = planGiRoots({ namespaces: opts.giNamespaces, typelibs: metadata });
-        const full = planClosure({ roots: ['libnode_gi.so'], seeds, needed });
+        // GIO modules enter as seeds for the same reason: GIO finds them by scanning a
+        // directory, so nothing links them.
+        const full = planClosure({ roots: ['libnode_gi.so'], seeds: [...seeds, ...gioModules], needed });
         const { system } = full;
         // An add-on carries only what the core does not: the closure of the bare core is
         // the baseline it subtracts, computed from the same walk so the two cannot disagree.
@@ -960,7 +999,7 @@ export function run({ pkgDir: ownDir = pkgDir, addOn = null } = {}) {
             rmSync(abiStage, { recursive: true, force: true });
             mkdirSync(abiStage, { recursive: true });
             for (const soname of [...(addOn ? [] : ['libnode_gi.so']), ...bundle]) {
-                const src = soname === 'libnode_gi.so' ? addon : join(libDir, soname);
+                const src = sourceOf(soname);
                 const dst = join(abiStage, soname);
                 execFileSync(strip, ['--strip-unneeded', '-o', dst, src]);
                 const bytes = readFileSync(dst);
@@ -1037,6 +1076,7 @@ export function run({ pkgDir: ownDir = pkgDir, addOn = null } = {}) {
             opts.abis.map((abi) => [abi, [...(addOn ? [] : ['libnode_gi.so']), ...perAbiPayload[abi].libs.keys()]]),
         ),
         typelibs: [...typelibs.keys()],
+        gioModules: perAbiGioModules[opts.abis[0]],
     });
     const entries = aarEntries({
         perAbi: perAbiPayload,

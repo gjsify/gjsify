@@ -33,6 +33,7 @@ import {
     renderNotice,
     renderRuntimeManifest,
     REQUIRED_NAMESPACES,
+    selectGioModules,
 } from '../../gi-runtime-android/scripts/build-gi-runtime-android.mjs';
 import { checkSysrootPins, describePinMismatch, readDeviceManifests } from '../gi-runtime-pin.js';
 import { planTypelibSet } from '../../scripts/typelib-backers.mjs';
@@ -907,6 +908,16 @@ describe('runtime manifest: the sysroot pin each AAR carries (ADR 0117 § 5)', (
         assert.equal(text, renderRuntimeManifest(spec), 'one input, one file');
     });
 
+    it('names GIO modules only when the package carries some', () => {
+        assert.equal(
+            'gioModules' in JSON.parse(renderRuntimeManifest(spec)),
+            false,
+            'core and gtk stay byte-identical',
+        );
+        const tls = JSON.parse(renderRuntimeManifest({ ...spec, typelibs: [], gioModules: ['libgioopenssl.so'] }));
+        assert.deepEqual(tls.gioModules, ['libgioopenssl.so']);
+    });
+
     it('ships as an asset under its own per-package path', () => {
         const text = renderRuntimeManifest(spec);
         const entries = aarEntries({
@@ -930,6 +941,20 @@ describe('runtime manifest: the sysroot pin each AAR carries (ADR 0117 § 5)', (
         const dir = new URL('../../gi-runtime-android/scripts/build-gi-runtime-android.mjs', import.meta.url);
         const src = readFileSync(dir, 'utf8');
         assert.match(src, /MANIFEST_ASSET_DIR = 'assets\/app\/gi-runtime'/);
+    });
+});
+
+describe('selectGioModules: the seeds nothing links (ADR 0117 stage 2)', () => {
+    it('keeps the lib*.so files of the modules dir, sorted', () => {
+        assert.deepEqual(
+            selectGioModules(['README', 'libgioopenssl.so', 'libgiognutls.so', 'giomodule.cache'], 'x86_64'),
+            ['libgiognutls.so', 'libgioopenssl.so'],
+        );
+    });
+
+    it('refuses an empty modules dir instead of shipping a TLS add-on without TLS', () => {
+        assert.throws(() => selectGioModules([], 'arm64-v8a'), /arm64-v8a: .*holds no GIO module/);
+        assert.throws(() => selectGioModules(['giomodule.cache'], 'x86_64'), /holds no GIO module/);
     });
 });
 
@@ -1005,7 +1030,8 @@ describe('checkSysrootPins: the device side', () => {
     });
 
     it('throws on a mixed set and passes a matching one', () => {
-        checkSysrootPins('/d', fakeJava({ 'a.json': doc('a', 'T'), 'b.json': doc('b', 'T') }));
+        const read = checkSysrootPins('/d', fakeJava({ 'a.json': doc('a', 'T'), 'b.json': doc('b', 'T') }));
+        assert.deepEqual(read.map((m) => m.package).sort(), ['a', 'b'], 'hands the manifests on');
         assert.throws(
             () => checkSysrootPins('/d', fakeJava({ 'a.json': doc('a', 'T1'), 'b.json': doc('b', 'T2') })),
             /a \(sysroot T1\) and b \(sysroot T2\)/,
@@ -1033,7 +1059,7 @@ describe('gi-runtime-addon rule: the pair stays in lockstep', () => {
     it('passes the real tree and a conforming pair', async () => {
         const { auditGiAddons } = await import('../../../../scripts/manifest-conformance/rules/gi-runtime-addon.mjs');
         assert.deepEqual(auditGiAddons([core, addon()]), { failures: [], addons: 1 });
-        const real = ['gi-runtime-android', 'gi-runtime-android-gtk'].map((d) => ({
+        const real = ['gi-runtime-android', 'gi-runtime-android-gtk', 'gi-runtime-android-tls'].map((d) => ({
             rel: d,
             manifest: JSON.parse(readFileSync(new URL(`../../${d}/package.json`, import.meta.url), 'utf8')),
         }));
@@ -1046,6 +1072,17 @@ describe('gi-runtime-addon rule: the pair stays in lockstep', () => {
         assert.match(auditGiAddons([core, addon({ version: '1.0.1' })]).failures[0], /lockstep/);
         const bad = { ...core, manifest: { ...core.manifest, optionalDependencies: { gtk: '1.0.0' } } };
         assert.match(auditGiAddons([bad, addon()]).failures[0], /must not depend on its add-ons/);
+    });
+
+    it('accepts an add-on of GIO modules only, and refuses one that provides nothing', async () => {
+        const { auditGiAddons } = await import('../../../../scripts/manifest-conformance/rules/gi-runtime-addon.mjs');
+        const giRuntime = (gi) => addon({ gjsify: { giRuntime: { core: 'core', ...gi } } });
+        assert.deepEqual(
+            auditGiAddons([core, giRuntime({ namespaces: [], gioModules: ['libgioopenssl.so'] })]).failures,
+            [],
+        );
+        assert.match(auditGiAddons([core, giRuntime({ namespaces: [] })]).failures[0], /must provide something/);
+        assert.match(auditGiAddons([core, giRuntime({ gioModules: [''] })]).failures[0], /must provide something/);
     });
 });
 

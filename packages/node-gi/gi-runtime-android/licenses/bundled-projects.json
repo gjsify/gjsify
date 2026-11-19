@@ -44,6 +44,9 @@
         "libfontconfig.so": "fontconfig",
         "libpng16.so": "libpng",
         "libxml2.so": "libxml2",
+        "libgioopenssl.so": "glib-networking",
+        "libssl.so": "openssl",
+        "libcrypto.so": "openssl",
         "libffi.so": "libffi",
         "libintl.so": "gjsify-libintl"
     },
@@ -72,6 +75,16 @@
             "name": "gdk-pixbuf",
             "upstream": "https://gitlab.gnome.org/GNOME/gdk-pixbuf",
             "licenseFiles": ["COPYING"]
+        },
+        "glib-networking": {
+            "name": "glib-networking (the OpenSSL GIO TLS module)",
+            "upstream": "https://gitlab.gnome.org/GNOME/glib-networking",
+            "licenseFiles": ["COPYING"]
+        },
+        "openssl": {
+            "name": "OpenSSL (libssl, libcrypto)",
+            "upstream": "https://github.com/openssl/openssl",
+            "licenseFiles": ["LICENSE.txt"]
         },
         "graphene": {
             "name": "Graphene",

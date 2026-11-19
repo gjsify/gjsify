@@ -7,6 +7,7 @@
 // Reference: gjs/modules/esm/gi.js for the require shape; node-gtk (romgrk, MIT) for the
 // binding lineage. Hand-authored JS — the package ships no build step.
 import * as native from './index.js';
+import { setUpAndroidTls } from './android-tls.js';
 import { ensureNative, onNativeLoaded } from './index.js';
 // Timers, `process` and the windowing env record come from the host seam (host.node.js
 // explains why they are the runtime's own, not the globals; host.nativescript.js is the
@@ -3797,5 +3798,15 @@ export function unwrap(value) {
     }
     return value;
 }
+
+// Last of the load hooks, so the namespace machinery above is wired before it calls requireGi.
+// A no-op unless a NativeScript Android runtime package declared a GIO module.
+onNativeLoaded(() => {
+    try {
+        setUpAndroidTls(requireGi);
+    } catch (e) {
+        console.warn(`@gjsify/node-gi: Gio TLS set-up failed, https stays unavailable: ${e?.message ?? e}`);
+    }
+});
 
 export default requireGi;

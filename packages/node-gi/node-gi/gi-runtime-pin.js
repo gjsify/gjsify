@@ -97,17 +97,19 @@ export function readDeviceManifests(filesDir, java) {
  *
  * @param {string | null} filesDir
  * @param {any} java
+ * @returns {object[]} the manifests read, so the caller does not read them twice
  */
 export function checkSysrootPins(filesDir, java) {
-    if (typeof filesDir !== 'string' || filesDir === '' || !java) return;
+    if (typeof filesDir !== 'string' || filesDir === '' || !java) return [];
     const { manifests, ran } = readDeviceManifests(filesDir, java);
     if (!ran) {
         console.warn(
             '@gjsify/node-gi: the mixed-sysroot check of the GI runtime packages was NOT run — ' +
                 'java.io is not exposed to this bundle.',
         );
-        return;
+        return [];
     }
     const problem = describePinMismatch(manifests);
     if (problem !== null) throw new Error(problem);
+    return manifests;
 }
