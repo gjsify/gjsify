@@ -107,9 +107,9 @@ export const pillarCoverage: readonly PillarCoverage[] = [
     },
     {
         category: 'Runtime engines',
-        total: 13,
+        total: 14,
         full: 10,
-        partial: 3,
+        partial: 4,
         stub: 0,
     },
     {

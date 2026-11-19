@@ -13,7 +13,7 @@
   ],
   "sysroot": {
     "repository": "gjsify/android-sysroot",
-    "tag": "2026.11.03"
+    "tag": "2026.11.19"
   },
   "measured": {
     "report": "docs/reports/2026-10-15-adr-0110-gates.md",

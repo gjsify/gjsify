@@ -531,8 +531,8 @@ pair, and the planner names the add-on a selection needs. Not yet done: a device
 
 `@gjsify/gi-runtime-android-tls` exists. It carries glib-networking 2.90.1's OpenSSL module
 (`libgioopenssl.so`) and OpenSSL 3.5.9 LTS (`libssl.so`, `libcrypto.so`) for arm64-v8a and x86_64,
-from an android-sysroot branch that builds them (`feat/gio-tls-openssl`; no release yet, the pin
-stays `2026.11.03` until the owner uploads one). soup and json are still open.
+from android-sysroot `2026.11.19` (gjsify/android-sysroot#8), which is `2026.11.03` byte for byte
+plus those three libraries; the pin in `build-inputs.json` names it. soup and json are still open.
 
 1. **`GIO_MODULE_DIR = nativeLibraryDir` finds nothing.** Measured on the API 36 emulator: an
    installed app's `lib/<abi>` directory is EMPTY. AGP's default for `minSdk >= 23` is
