@@ -33,10 +33,12 @@ describe('release-only-plan', () => {
         assert.deepEqual(running(plan), ['gi_android']);
     });
 
-    it("the gi-runtime add-on rides the core's job", () => {
-        const plan = planOnly('@gjsify/gi-runtime-android-gtk', tree);
-        assert.equal(plan.sweep, '');
-        assert.deepEqual(running(plan), ['gi_android']);
+    it("both gi-runtime add-ons ride the core's job", () => {
+        for (const addOn of ['@gjsify/gi-runtime-android-gtk', '@gjsify/gi-runtime-android-tls']) {
+            const plan = planOnly(addOn, tree);
+            assert.equal(plan.sweep, '');
+            assert.deepEqual(running(plan), ['gi_android']);
+        }
     });
 
     it('a workspace package runs no dedicated job', () => {
