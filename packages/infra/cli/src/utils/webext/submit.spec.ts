@@ -166,11 +166,13 @@ export default async () => {
             f.cleanup();
         });
 
-        await it('refuses AMO by name', async () => {
+        await it('refuses --source for a store that takes none, and without --submit', async () => {
             const f = fixture();
-            const r = await run(f, { store: 'amo' });
-            expect(r.code).toBe(1);
-            expect(r.err.includes('not implemented')).toBe(true);
+            const calls: string[] = [];
+            const chrome = await run(f, { sourceZip: '/tmp/src.zip', createBackend: () => backendWith({ calls }) });
+            expect(chrome.code).toBe(1);
+            expect(chrome.err.includes('AMO only')).toBe(true);
+            expect(calls.length).toBe(0);
             f.cleanup();
         });
 

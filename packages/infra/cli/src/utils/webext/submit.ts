@@ -48,6 +48,8 @@ export interface SubmitCommandInput {
     readonly timeoutSeconds?: number;
     /** Where `webext listing` wrote its output (default `dist/listing` under the project root). */
     readonly listingDir?: string;
+    /** AMO only: a source archive for the reviewers, attached when a version is created (`--submit`). */
+    readonly sourceZip?: string;
     readonly project: SubmitProject;
     readonly env: EnvLike;
     readonly createBackend?: (store: StoreId, env: EnvLike, options?: StoreBackendOptions) => StoreBackend;
@@ -59,7 +61,7 @@ export interface SubmitCommandInput {
 }
 
 /** `webext listing` names the Chrome store `cws`. */
-const LISTING_STORE: Readonly<Partial<Record<StoreId, string>>> = { chrome: 'cws', edge: 'edge' };
+const LISTING_STORE: Readonly<Partial<Record<StoreId, string>>> = { chrome: 'cws', edge: 'edge', amo: 'amo' };
 
 export function isTagRef(ref: string | undefined): boolean {
     return ref !== undefined && ref.startsWith('refs/tags/') && ref.length > 'refs/tags/'.length;
@@ -67,11 +69,12 @@ export function isTagRef(ref: string | undefined): boolean {
 
 /** The zip `webext zip` writes for this store's target (see `buildWebext`). */
 export function defaultZipPath(project: SubmitProject, store: StoreId): string {
-    const target = project.targets.find((t) => t.browser === store);
+    const browser = store === 'amo' ? 'firefox' : store;
+    const target = project.targets.find((t) => t.browser === browser);
     if (target === undefined) {
         throw new Error(
-            `gjsify webext submit: gjsify.webext.targets has no ${store} target, so there is no zip to derive. ` +
-                `Add ${store}-mv3 or pass --zip.`,
+            `gjsify webext submit: gjsify.webext.targets has no ${browser} target, so there is no zip to derive. ` +
+                `Add ${browser}-mv3 or pass --zip.`,
         );
     }
     return join(project.outDir, `${project.name}-${project.version}-${target.id}.zip`);
@@ -143,15 +146,12 @@ export async function runSubmit(input: SubmitCommandInput): Promise<number> {
         if (store === null) throw new Error(`gjsify webext submit: unknown store "${input.store}".`);
         const descriptor = STORES[store];
         if (!descriptor.implemented) {
-            throw new StoreUnsupportedError(
-                store,
-                'use `gjsify webext sign` for AMO; Firefox is distributed by the project itself',
-            );
+            throw new StoreUnsupportedError(store, 'no backend is registered for it');
         }
         if (input.submit && !isTagRef(env['GITHUB_REF'])) {
             throw new Error(
                 'gjsify webext submit: --submit asks the store for review and runs only on a tag ' +
-                    '($GITHUB_REF must start with refs/tags/). Without --submit the zip is uploaded as a draft.',
+                    '($GITHUB_REF must start with refs/tags/). Without --submit the zip is uploaded (AMO: validated, no version created).',
             );
         }
         let timeoutMs: number | undefined;
@@ -179,6 +179,18 @@ export async function runSubmit(input: SubmitCommandInput): Promise<number> {
         if (pre.manual.length > 0) out(`  by hand in the dashboard: ${pre.manual.join(', ')}`);
 
         const zipPath = resolve(input.zip ?? defaultZipPath(project, store));
+        const sourceZip = input.sourceZip === undefined ? undefined : resolve(input.sourceZip);
+        if (sourceZip !== undefined && store !== 'amo') {
+            throw new Error('gjsify webext submit: --source applies to AMO only; Chrome and Edge take no source archive.');
+        }
+        if (sourceZip !== undefined && !input.submit) {
+            throw new Error(
+                'gjsify webext submit: --source is attached to the version, which only --submit creates; add --submit or drop --source.',
+            );
+        }
+        if (sourceZip !== undefined && !input.dryRun && !existsSync(sourceZip)) {
+            throw new Error(`gjsify webext submit: the source archive ${sourceZip} does not exist.`);
+        }
         if (!input.dryRun && !existsSync(zipPath)) {
             throw new Error(
                 `gjsify webext submit: ${zipPath} does not exist. Run \`gjsify webext zip\` first or pass --zip.`,
@@ -207,7 +219,7 @@ export async function runSubmit(input: SubmitCommandInput): Promise<number> {
             {
                 backend,
                 upload: { zipPath, version: project.version },
-                publish: input.submit ? { version: project.version } : undefined,
+                publish: input.submit ? { version: project.version, sourceZip } : undefined,
             },
             { timeoutMs, sleep: input.sleep, now: input.now, log, secrets },
         );

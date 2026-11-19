@@ -26,6 +26,7 @@
 //     unchanged: never claim what was not established.
 
 // The import cycle with `edge.ts` is safe: it uses this file's exports only inside functions.
+import { createAmoBackend } from './amo.js';
 import { createChromeBackend } from './chrome.js';
 import { createEdgeBackend } from './edge.js';
 
@@ -78,15 +79,14 @@ export const STORE_CREDENTIALS: Readonly<Record<StoreId, readonly StoreCredentia
         { env: 'EDGE_ADDONS_API_KEY', secret: true, what: 'the API key sent as `Authorization: ApiKey …`' },
     ],
     /**
-     * AMO has a ROW and no backend in this slice, on purpose: the shape of a third
-     * store is fixed before one is written, and `submit --store amo` then refuses
-     * with a sentence instead of falling off the end of a switch. `webext sign`
-     * keeps calling `web-ext`, which reads these two itself — they are listed so
-     * nobody adds a second spelling later.
+     * AMO's Submission API signs a JWT with an API key and secret (addons-server `auth.html`).
+     * `web-ext` reads `WEB_EXT_API_KEY`/`WEB_EXT_API_SECRET` for the same pair; the `AMO_` prefix
+     * keeps this table's one-prefix-per-store convention and lets a CI map either name onto it.
      */
     amo: [
-        { env: 'WEB_EXT_API_KEY', secret: false, what: "the AMO JWT issuer (`web-ext`'s own name for it)" },
-        { env: 'WEB_EXT_API_SECRET', secret: true, what: 'the AMO JWT secret' },
+        { env: 'AMO_ADDON_ID', secret: false, what: 'the add-on slug, numeric id or GUID of the existing listing' },
+        { env: 'AMO_WEB_EXT_API_KEY', secret: false, what: 'the AMO JWT issuer (API key, `user:…`) — also in every token payload' },
+        { env: 'AMO_WEB_EXT_API_SECRET', secret: true, what: 'the AMO JWT secret' },
     ],
 };
 
@@ -111,7 +111,7 @@ export interface StoreDescriptor {
 export const STORES: Readonly<Record<StoreId, StoreDescriptor>> = {
     chrome: { id: 'chrome', label: 'Chrome Web Store', implemented: true, createsListings: false },
     edge: { id: 'edge', label: 'Edge Add-ons', implemented: true, createsListings: false },
-    amo: { id: 'amo', label: 'addons.mozilla.org', implemented: false, createsListings: false },
+    amo: { id: 'amo', label: 'addons.mozilla.org', implemented: true, createsListings: false },
 };
 
 /** `id` as a {@link StoreId}, or null — the caller owns the message, same contract as `parseWebextTarget`'s callers. */
@@ -227,7 +227,7 @@ export class StoreCredentialsMissingError extends Error {
     }
 }
 
-/** A store with a row and no backend — the AMO slot, or a store declared before its file exists. */
+/** A store with a row and no backend — a store declared before its file exists. */
 export class StoreUnsupportedError extends Error {
     constructor(
         readonly store: StoreId,
@@ -370,8 +370,10 @@ export interface StorePublishInput {
     readonly version: string;
     /** What Chrome calls a staged rollout; a backend whose store has none refuses a value below 100. */
     readonly deployPercentage?: number;
-    /** Edge's submission `notes`. Stores that take no note ignore it. */
+    /** Edge's certification `notes`, AMO's `approval_notes` for the reviewers. Stores that take no note ignore it. */
     readonly notes?: string;
+    /** AMO only: a source archive attached to the version, for bundled or minified code. Absolute path. */
+    readonly sourceZip?: string;
 }
 
 /**
@@ -407,30 +409,25 @@ export interface StoreBackendOptions {
 export type StoreBackendFactory = (credentials: StoreCredentials, options?: StoreBackendOptions) => StoreBackend;
 
 /**
- * Backend per store. AMO has none. Registered here rather than as an import side
+ * Backend per store. Registered here rather than as an import side
  * effect of each backend file, so a backend is never silently missing.
  */
 export const STORE_BACKENDS: Partial<Record<StoreId, StoreBackendFactory>> = {
     chrome: createChromeBackend,
     edge: createEdgeBackend,
+    amo: createAmoBackend,
 };
 
 /**
  * The backend for a store, with its credentials resolved from `env`.
  *
  * The order matters: a store with no backend is refused BEFORE credentials are
- * read, so `submit --store amo` says "not implemented" rather than asking for two
- * variables it would not use.
+ * read, so it says "not implemented" rather than asking for variables it would not use.
  */
 export function createStoreBackend(store: StoreId, env: EnvLike, options?: StoreBackendOptions): StoreBackend {
     const factory = STORE_BACKENDS[store];
     if (factory === undefined) {
-        throw new StoreUnsupportedError(
-            store,
-            store === 'amo'
-                ? 'use `gjsify webext sign` for AMO; this slice ships the Chrome and Edge backends only (ADR 0077 § Amendment 1)'
-                : 'no backend is registered for it',
-        );
+        throw new StoreUnsupportedError(store, 'no backend is registered for it');
     }
     return factory(resolveStoreCredentials(store, env), options);
 }
