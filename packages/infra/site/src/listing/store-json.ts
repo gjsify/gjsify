@@ -10,6 +10,8 @@ export interface StoreFiles {
     screenshots: string[];
     promo: { small?: string; marquee?: string };
     /** Only languages whose images differ from the source set (`<lang>/…` paths); the rest show the shared files. */
+    /** Language → `captions.<lang>.json`, next to the screenshots. */
+    captions?: Record<string, string>;
     byLanguage?: Record<string, { screenshots?: string[]; promo?: { small?: string; marquee?: string } }>;
 }
 
@@ -27,6 +29,8 @@ export interface ManifestField {
     files?: string[];
     /** Per-language files where they differ from `files`. */
     filesByLanguage?: Record<string, string[]>;
+    /** Per language, kit screenshot file → caption. */
+    captions?: Record<string, Record<string, string>>;
     /** Characters per language, for the text fields. */
     lengths?: Record<string, number>;
 }
@@ -52,9 +56,11 @@ export interface StoreManifestInput {
     store: Store;
     entries: Readonly<Record<string, StoreEntry>>;
     files: StoreFiles;
+    /** Per language, kit screenshot file → caption, already mapped from the config keys. */
+    captions?: Readonly<Record<string, Record<string, string>>>;
 }
 
-export function storeManifest({ app, store, entries, files }: StoreManifestInput): StoreManifest {
+export function storeManifest({ app, store, entries, files, captions = {} }: StoreManifestInput): StoreManifest {
     const spec = STORE_SPECS[store];
     const languages = Object.keys(entries);
     const all = Object.entries(entries);
@@ -155,9 +161,16 @@ export function storeManifest({ app, store, entries, files }: StoreManifestInput
                 );
                 break;
             }
+            case 'screenshotCaptions':
+                details = { captions, files: Object.values(files.captions ?? {}) };
+                present = everyLanguage(captions);
+                break;
             case 'searchTerms': {
                 const values = perLanguage((entry) => (entry.searchTerms?.length ? entry.searchTerms : undefined));
-                details = { values };
+                details = {
+                    values,
+                    files: Object.keys(values).map((language) => `${language}/search-terms.txt`),
+                };
                 present = everyLanguage(values);
                 break;
             }

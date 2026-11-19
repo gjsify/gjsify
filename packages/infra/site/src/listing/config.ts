@@ -36,6 +36,11 @@ export interface ListingConfig {
     category: Partial<Record<Store, string>>;
     /** Source-language description paragraphs or list items kept out of every store listing (not the website). */
     omit: string[];
+    /**
+     * Screenshot file name (as in `screenshots`) → msgid of its caption. Only stores that take captions
+     * (AMO) get them; a name that matches no screenshot is an error.
+     */
+    captions: Record<string, string>;
     privacyUrl?: string;
     /** Used when the metainfo has no privacy URL and no `privacyUrl` is set: `<siteUrl><lang>/privacy/`. */
     siteUrl?: string;
@@ -106,6 +111,17 @@ export function parseListingConfig(manifest: ListingManifest, override: unknown 
         }
     }
 
+    const captions: Record<string, string> = {};
+    if (raw.captions !== undefined) {
+        if (!isRecord(raw.captions))
+            throw new Error(`${where}.captions must map a screenshot file name to its caption`);
+        for (const [file, text] of Object.entries(raw.captions)) {
+            if (typeof text !== 'string' || text === '')
+                throw new Error(`${where}.captions["${file}"] must be a non-empty string`);
+            captions[file] = text;
+        }
+    }
+
     const icon =
         str(raw, 'icon', where) ??
         (typeof site.icon === 'string' ? site.icon : (manifest.gjsify?.ship?.icon ?? manifest.gjsify?.flatpak?.icon));
@@ -137,6 +153,7 @@ export function parseListingConfig(manifest: ListingManifest, override: unknown 
         permissions,
         category,
         omit,
+        captions,
         privacyUrl: str(raw, 'privacyUrl', where),
         siteUrl: site.privacy !== undefined && typeof site.url === 'string' ? site.url.replace(/\/?$/, '/') : undefined,
     };

@@ -87,6 +87,7 @@ Only what the metainfo cannot carry is configured, in `gjsify.webext.listing` of
         "permissions": { "tabs": "Why it needs the tab list", "https://*/*": "Why it needs these hosts" },
         "category": { "cws": "productivity", "edge": "Productivity" },
         "omit": ["Works in Firefox and in Chromium-based browsers."],
+        "captions": { "01-hero.png": "The tab list at a glance" },
         "privacyUrl": "https://example.org/privacy/",
         "screenshots": "docs/store/screenshots"
       }
@@ -104,6 +105,17 @@ listing (stores reject a description that names other browsers). Each entry is t
 text exactly as in the metainfo; the block disappears from the store description (text and HTML)
 in every language, translations included. The metainfo and `gjsify site` are unchanged. An entry
 that matches nothing is an error in `listing` and `listing --check`.
+
+Edge's search terms are the metainfo `<keyword>`s, per language (`xml:lang` entry, else the catalogue),
+written to `edge/<lang>/search-terms.txt` (one per line) and `store.json`. Edge allows at most 7 terms,
+30 characters each and 21 words in all; a violation is an error. Chrome Web Store and AMO have no such
+field, so nothing is emitted for them.
+
+`captions` maps a screenshot file name (as in `screenshots`, or the numbered kit name) to an English msgid,
+translated through the catalogues and listed in `--pot`. AMO and Edge take a caption per screenshot and
+language: `<store>/screenshots/captions.<lang>.json` and the `screenshotCaptions` field of `store.json`;
+the Chrome Web Store has none. No store documents a caption length limit, so none is enforced. A key that names no screenshot is an
+error.
 
 `screenshots` replaces the metainfo screenshots with a directory of images, taken in name order. A
 `<lang>/` subdirectory holds one language's set; the source language's set may sit in the directory

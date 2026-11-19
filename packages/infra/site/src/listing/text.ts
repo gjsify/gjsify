@@ -59,3 +59,8 @@ export function omitBlocks(blocks: readonly DescriptionBlock[], omit: readonly s
         );
     return kept;
 }
+
+/** Words as a store counts them: runs separated by whitespace. */
+export function words(value: string): number {
+    return value.split(/\s+/).filter(Boolean).length;
+}
