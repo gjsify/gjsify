@@ -1,0 +1,89 @@
+{
+    "name": "@gjsify/webserial",
+    "version": "0.64.49",
+    "description": "Web Serial API for GJS. The Linux backend opens a classic Bluetooth serial port (RFCOMM, SPP) through BlueZ, with no rfcomm binary and no /dev/rfcomm*",
+    "type": "module",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        },
+        "./register": {
+            "types": "./lib/types/register.d.ts",
+            "default": "./lib/esm/register.js"
+        }
+    },
+    "files": [
+        "lib"
+    ],
+    "sideEffects": [
+        "./lib/esm/register.js"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test*.{mts,ts}'",
+        "build:types": "gjsify tsc",
+        "build:test": "gjsify run build:test:gjs",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs"
+    },
+    "keywords": [
+        "gjs",
+        "web-serial",
+        "serial",
+        "bluetooth",
+        "bluez",
+        "rfcomm",
+        "spp"
+    ],
+    "dependencies": {
+        "@gjsify/dom-events": "workspace:^",
+        "@gjsify/dom-exception": "workspace:^",
+        "@gjsify/node-globals": "workspace:^",
+        "@gjsify/web-streams": "workspace:^"
+    },
+    "devDependencies": {
+        "@girs/gio-2.0": "5.4.0",
+        "@girs/giounix-2.0": "5.4.0",
+        "@girs/gjs": "5.4.0",
+        "@girs/glib-2.0": "5.4.0",
+        "@girs/gobject-2.0": "5.4.0",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "none"
+        },
+        "os": {
+            "linux": "supported",
+            "darwin": "none",
+            "win32": "none"
+        },
+        "osNotes": {
+            "darwin": "The only backend, `BluezRfcommSource`, talks to BlueZ over the system D-Bus, and BlueZ exists on Linux only. On macOS the same `PortSource` seam would be filled by an IOBluetooth driver, which does not exist yet. Until then `navigator.serial` reports no ports there; the package is not usable, so it claims `none` rather than `partial`.",
+            "win32": "The only backend, `BluezRfcommSource`, talks to BlueZ over the system D-Bus, and BlueZ exists on Linux only. There is also no GJS host on Windows at all (ADR 0024 § 4), so the route would be Node with a Windows Bluetooth driver behind the `PortSource` seam, which does not exist yet. The package is not usable on win32 and claims `none`."
+        },
+        "tier": 1
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/web/webserial"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/web/webserial#readme"
+}

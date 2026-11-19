@@ -272,6 +272,10 @@ export const GJS_GLOBALS_MAP = {
     // --- Gamepad API (libmanette backend) -----------------------------------
     GamepadEvent: '@gjsify/gamepad/register',
 
+    // --- Web Serial API (BlueZ RFCOMM backend) ------------------------------
+    Serial: '@gjsify/webserial/register',
+    SerialPort: '@gjsify/webserial/register',
+
     // --- Web Speech synthesis (libspiel backend) ----------------------------
     speechSynthesis: '@gjsify/speech-synthesis/register',
     SpeechSynthesis: '@gjsify/speech-synthesis/register',
@@ -498,6 +502,8 @@ export const BROWSER_NATIVE_IDENTS = new Set([
     'Audio',
     'HTMLAudioElement',
     'GamepadEvent',
+    'Serial',
+    'SerialPort',
     'speechSynthesis',
     'SpeechSynthesis',
     'SpeechSynthesisUtterance',

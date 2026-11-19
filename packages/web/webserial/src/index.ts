@@ -1,0 +1,10 @@
+export type { PortChange, PortConnection, PortHandle, PortSource } from './port-source.js';
+export type { SerialOptions, SerialPortFilter, SerialPortInfo, SerialPortRequestOptions } from './types.js';
+export { canonicalUuid } from './filter.js';
+export { FakeConnection, FakeSource } from './fake-source.js';
+export { SerialPort } from './serial-port.js';
+export type { SerialInputSignals, SerialOutputSignals } from './serial-port.js';
+export { Serial } from './serial.js';
+export type { PortChooser, SerialOptionsInit } from './serial.js';
+export { BluezRfcommSource, SERIAL_PORT_PROFILE_UUID } from './bluez-rfcomm-source.js';
+export type { BluezRfcommOptions } from './bluez-rfcomm-source.js';

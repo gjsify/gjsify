@@ -561,6 +561,10 @@ export const ALIASES_WEB_FOR_GJS = {
     gamepad: '@gjsify/gamepad',
     'gamepad/register': '@gjsify/gamepad/register',
 
+    // Web Serial API (BlueZ RFCOMM backend)
+    webserial: '@gjsify/webserial',
+    'webserial/register': '@gjsify/webserial/register',
+
     // WebRTC API (GStreamer webrtcbin backend)
     webrtc: '@gjsify/webrtc',
     'webrtc/register': '@gjsify/webrtc/register',
@@ -744,6 +748,11 @@ export const ALIASES_WEB_FOR_NODE = {
     gamepad: '@gjsify/empty',
     'gamepad/register': '@gjsify/empty',
     '@gjsify/gamepad/register': '@gjsify/empty',
+
+    // Web Serial API — no-op on Node
+    webserial: '@gjsify/empty',
+    'webserial/register': '@gjsify/empty',
+    '@gjsify/webserial/register': '@gjsify/empty',
 
     // WebRTC API — no-op on Node (Phase 1 is GStreamer-only, no fallback)
     webrtc: '@gjsify/empty',
