@@ -43,7 +43,14 @@ way to pay nothing.
 neither the cold-start nor the APK-size numbers. `GJSIFY_GI_UI=0` drops the three § 3 UI
 specs, which are on by default and which every release rung sets off — they pull
 `@gjsify/storybook-nativescript` and a pile of real widgets into the bundle, and the
-ladder's numbers were measured without them. Together:
+ladder's numbers were measured without them.
+`GJSIFY_GI_TLS=1` adds `app/specs/gio-tls.ts` (ADR 0117 stage 2): a loopback handshake
+against a throwaway test CA, a public host verified through the system trust node-gi
+installs, and rejection of both the test leaf and a self-signed public host. It needs
+`@gjsify/gi-runtime-android-tls` as a real `package.json` dependency for that run: the
+NativeScript CLI takes plugins from `package.json`, so a `--no-save` install is never
+packaged. Its logic lives in the import-free `app/specs/gio-tls.core.ts` so it can be
+run on the host under node first. Together:
 
 ```sh
 npm run release:android -- c                # signed release, per-ABI splits → release-apks/c/

@@ -28,6 +28,9 @@ const bench = process.env.GJSIFY_GI_BENCH === '1';
 // run a DUAL run, and they are the only coverage the NativeScript storybook view layer has
 // anywhere. Off in the gate-2 release rungs — see globals.d.ts for why.
 const ui = process.env.GJSIFY_GI_UI !== '0';
+// `GJSIFY_GI_TLS=1` adds the Gio TLS spec (ADR 0117 stage 2). Off by default: it needs
+// `@gjsify/gi-runtime-android-tls` installed beside the core, which this app does not depend on.
+const tls = optIn && process.env.GJSIFY_GI_TLS === '1';
 
 export default defineNativescriptConfig(
     {},
@@ -36,6 +39,7 @@ export default defineNativescriptConfig(
             __GJSIFY_GI_OPT_IN__: JSON.stringify(optIn),
             __GJSIFY_GI_BENCH__: JSON.stringify(bench),
             __GJSIFY_GI_UI__: JSON.stringify(ui),
+            __GJSIFY_GI_TLS__: JSON.stringify(tls),
         },
         resolve: {
             alias: plugin ? [] : [{ find: /^@gjsify\/node-gi\/gi$/, replacement: resolve('app/no-gi-stub.ts') }],

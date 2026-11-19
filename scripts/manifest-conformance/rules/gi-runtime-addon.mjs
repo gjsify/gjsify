@@ -14,7 +14,8 @@
  * - the CORE does not list the add-on in any dependency block: npm installs
  *   `optionalDependencies` by default, which would put every add-on's AAR into every
  *   app's APK (the ADR's first draft said otherwise; see its amendment);
- * - `namespaces` is a non-empty list of strings.
+ * - it provides something: `namespaces` (GI namespaces) or `gioModules` (GIO module sonames,
+ *   the TLS add-on's whole payload — it adds no namespace, Gio is the core's).
  *
  * The exact pin is a literal rather than `workspace:*` because `gjsify pack` rewrites the
  * protocol only for root-workspace members and `packages/node-gi/*` are not members.
@@ -71,9 +72,14 @@ export function auditGiAddons(packages) {
                 );
             }
         }
-        const ns = gi.namespaces;
-        if (!Array.isArray(ns) || ns.length === 0 || ns.some((n) => typeof n !== 'string' || n === '')) {
-            failures.push(`${rel}: \`gjsify.giRuntime.namespaces\` must be a non-empty list of namespace names.`);
+        const isNameList = (list) => Array.isArray(list) && list.every((n) => typeof n === 'string' && n !== '');
+        const ns = gi.namespaces ?? [];
+        const modules = gi.gioModules ?? [];
+        if (!isNameList(ns) || !isNameList(modules) || ns.length + modules.length === 0) {
+            failures.push(
+                `${rel}: \`gjsify.giRuntime\` must provide something — a non-empty \`namespaces\` list of ` +
+                    'namespace names, or a non-empty `gioModules` list of GIO module sonames.',
+            );
         }
     }
     return { failures, addons: addons.length };

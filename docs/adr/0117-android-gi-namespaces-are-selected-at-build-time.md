@@ -526,3 +526,46 @@ pair, and the planner names the add-on a selection needs. Not yet done: a device
    7). `payload-baseline.json` records them as `addedSinceMeasured`. The add-on is the closure of
    its namespaces minus the core's closure, so no library ships twice and no `libnode_gi.so` is
    repeated.
+
+## Amendment 2026-11-19: stage 2's TLS half, and § 3's module directory does not exist
+
+`@gjsify/gi-runtime-android-tls` exists. It carries glib-networking 2.90.1's OpenSSL module
+(`libgioopenssl.so`) and OpenSSL 3.5.9 LTS (`libssl.so`, `libcrypto.so`) for arm64-v8a and x86_64,
+from android-sysroot `2026.11.19` (gjsify/android-sysroot#8), which is `2026.11.03` byte for byte
+plus those three libraries; the pin in `build-inputs.json` names it. soup and json are still open.
+
+1. **`GIO_MODULE_DIR = nativeLibraryDir` finds nothing.** Measured on the API 36 emulator: an
+   installed app's `lib/<abi>` directory is EMPTY. AGP's default for `minSdk >= 23` is
+   `extractNativeLibs=false`, so the libraries stay page-aligned inside the APK and the linker maps
+   them from there. A directory scan cannot see them; `dlopen("libgioopenssl.so")` by soname can,
+   in either packaging. And where libraries ARE extracted, a scan of `nativeLibraryDir` would
+   `dlopen` every `lib*.so` of the app, GTK included, looking for a module entry point.
+2. **So the module is loaded by soname, and `GIO_MODULE_DIR` points at nothing.**
+   `host.nativescript.js` sets `GIO_MODULE_DIR` to an empty app-private directory (`<files>/.gio-modules`),
+   which keeps GIO from scanning the build machine's prefix compiled into `libgio`. The add-on's
+   runtime manifest lists its modules (`gioModules`); `android-tls.js` triggers GIO's one-time scan
+   with `Gio.Vfs.get_default()` (it registers the extension points without choosing a TLS backend)
+   and then calls `Gio.IOModule.new(soname).use()` for each. This is GIO's own documented API, not
+   the static registration § 3 rejected: the module is still a separate `.so`, still shipped and
+   loaded only when the add-on is installed, and `libnode_gi.so` does not change.
+3. **The builder seeds modules from the sysroot's `lib/<abi>/gio/modules`.** `run({ addOn })` takes
+   `gioModules: true`; `selectGioModules` fails on an empty directory, so a TLS add-on cannot be
+   published without TLS. The modules go into `jni/<abi>/` like every other library and their
+   closure (libssl, libcrypto) is subtracted from the core's as for namespaces. Rule
+   `gi-runtime-addon` now accepts an add-on that provides GIO modules and no namespace.
+4. **Trust (ADR 0134 § 3) is installed by node-gi, not yet by `@gjsify/tls-trust`.** The add-on
+   is useless without an anchor set, and that package does not exist yet. So node-gi does the
+   Android `system` leg itself, in the same load hook: it merges `/system/etc/security/cacerts`
+   minus `/data/misc/user/0/cacerts-removed` into `<cache>/gjsify-tls/system-ca.pem` and installs
+   it with `set_default_database`. The pure half (`mergeSystemCAs`) is exported so
+   `@gjsify/tls-trust` can reuse it for `extra`, `androidUserCAs` and `bundled` when it lands. No
+   CA bundle ships in the sysroot or the AAR.
+5. **Measured on the API 36 x86_64 emulator** (`GJSIFY_GI_TLS=1` leg of `tests/integration/nativescript-gi`,
+   AARs built from the branch's CI sysroot, 142/142 cases): the module loads, 149 system roots are
+   merged in 87 ms (1.4 s on the first run after install, cold page cache); a loopback TLS 1.3
+   handshake against a test CA takes 2.4 ms cold and 1.6 ms warm; `example.com` verifies through the
+   installed default database (connect + handshake 596 ms over the emulator's network); the test
+   leaf against the system trust and `self-signed.badssl.com` are both rejected ("Unacceptable TLS
+   certificate"). APK cost: the `.so` entries are stored, so the delta is their size: **arm64-v8a
+   +6.46 MB** (libcrypto 5.56, libssl 0.73, libgioopenssl 0.17), **x86_64 +6.85 MB**, plus a
+   348-byte manifest. An app that does not depend on the add-on pays nothing.

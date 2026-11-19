@@ -41,6 +41,7 @@
 //                           JNI_OnLoad, and without that there is no JavaVM to reach GDK
 //                           with — see ensureJavaVm().
 
+import { gioModulesOf, setAndroidGioModules } from './android-tls.js';
 import { checkSysrootPins } from './gi-runtime-pin.js';
 
 /** @type {'nativescript'} */
@@ -303,6 +304,10 @@ function configureEnvironment() {
     setNativeEnv('XDG_CONFIG_HOME', `${appDir}/.config`);
     setNativeEnv('XDG_CACHE_HOME', `${appDir}/.cache`);
     setNativeEnv('XDG_RUNTIME_DIR', `${appDir}/.run`);
+    // An app-private directory that holds nothing: GIO must not scan the sysroot path compiled
+    // into libgio, nor nativeLibraryDir (empty when libs stay in the APK, every lib*.so of the
+    // app when they do not). android-tls.js loads the declared modules by soname instead.
+    setNativeEnv('GIO_MODULE_DIR', `${appDir}/.gio-modules`);
 }
 
 /**
@@ -377,7 +382,7 @@ export function loadNativeHost() {
     }
     const native = load('system_lib://libnode_gi.so');
     const appDir = appDirectory();
-    checkSysrootPins(appDir, globalThis.java);
+    setAndroidGioModules(gioModulesOf(checkSysrootPins(appDir, globalThis.java)));
     // `app/` is where NativeScript extracts the bundled assets under the files dir.
     const typelibs = globalThis.__NODE_GI_TYPELIB_PATH ?? (appDir === null ? null : `${appDir}/app/girepository-1.0`);
     if (typeof typelibs === 'string' && typelibs !== '') native.prependSearchPath(typelibs);

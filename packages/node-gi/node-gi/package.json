@@ -52,6 +52,7 @@
     "host.node.foreign.js",
     "host.nativescript.js",
     "gi-runtime-pin.js",
+    "android-tls.js",
     "nativescript.webpack.js",
     "index.d.ts",
     "gi.js",

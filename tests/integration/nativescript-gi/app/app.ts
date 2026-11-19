@@ -39,6 +39,7 @@ import benchSpec from './specs/bench.js';
 import inversionSpec from './specs/inversion.js';
 import foreignParentSpec from './specs/foreign-parent.js';
 import httpsFetchSpec from './specs/https-fetch.js';
+import gioTlsSpec from './specs/gio-tls.js';
 
 /**
  * The engine THIS leg claims to run on, derived from the opt-in define alone — the two legs are
@@ -85,6 +86,8 @@ async function runSuite(): Promise<void> {
             await gobjectVectors();
             // Spike S3: the platform's own `fetch`, engine-independent (`@gjsify/fetch` is `none` here).
             await httpsFetchSpec();
+            // ADR 0117 stage 2: Gio's own TLS, only when the build carries the add-on.
+            if (__GJSIFY_GI_TLS__) await gioTlsSpec();
             if (optedIn) await listStoreVectors();
             // Settings before any other Gio.Settings or Gtk use: GIO fixes its schema source once.
             if (optedIn) await settingsVectors();

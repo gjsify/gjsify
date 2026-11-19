@@ -497,6 +497,13 @@ sysroot release still needs his explicit OK before upload. CI can rebuild the sy
 so the OK is a choice, not a constraint (ADR 0117 § Amendment). Leftovers (pango/freetype2 wraps still float, GIR race worked around) are tracked
 in gjsify/android-sysroot.
 
+Stage 2's TLS half is built and proven on the emulator (ADR 0117, amendment 2026-11-19):
+`@gjsify/gi-runtime-android-tls` (OpenSSL 3.5.9 + glib-networking 2.90.1, about +6.5 MB per ABI),
+node-gi loads the module by soname and installs the Android system trust. The sysroot pin is
+`2026.11.19`, the release that adds OpenSSL. Still open: the first manual
+npm publish of the new name plus its Trusted Publisher entry, `@gjsify/tls-trust` taking over the trust
+install, and the soup/json add-ons.
+
 ### Track C′ (real GTK on a NativeScript worker): lifecycle, pump ownership, composition
 
 [ADR 0104](../../docs/adr/0104-real-gtk-and-gi-on-android-are-opt-in-tracks-beside-the-nativescript-port.md)

@@ -1,0 +1,69 @@
+{
+    "name": "@gjsify/gi-runtime-android-tls",
+    "version": "0.64.48",
+    "description": "Add-on to @gjsify/gi-runtime-android: a Gio TLS backend (glib-networking's OpenSSL module and OpenSSL 3.5) for an Android NativeScript app, for arm64-v8a and x86_64. Install it next to the core when the app speaks https or TLS through Gio; an app without it gets the same APK as before.",
+    "type": "module",
+    "license": "SEE LICENSE IN platforms/THIRD-PARTY-NOTICES.md",
+    "main": "./index.js",
+    "types": "./index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./index.d.ts",
+            "default": "./index.js"
+        },
+        "./platforms/android": "./platforms/android",
+        "./package.json": "./package.json"
+    },
+    "files": [
+        "index.js",
+        "index.d.ts",
+        "platforms"
+    ],
+    "nativescript": {
+        "platforms": {
+            "android": "9.1.1"
+        }
+    },
+    "dependencies": {
+        "@gjsify/gi-runtime-android": "0.64.48"
+    },
+    "peerDependencies": {
+        "@nativescript/android": ">=9.1.1"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "none",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "native"
+        },
+        "nativescriptPlatforms": [
+            "android"
+        ],
+        "tier": 3,
+        "giRuntime": {
+            "core": "@gjsify/gi-runtime-android",
+            "namespaces": [],
+            "gioModules": [
+                "libgioopenssl.so"
+            ]
+        }
+    },
+    "scripts": {
+        "build:bundle": "node scripts/build-gi-runtime-android-tls.mjs"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/node-gi/gi-runtime-android-tls"
+    },
+    "keywords": [
+        "nativescript",
+        "android",
+        "gobject-introspection",
+        "gio",
+        "tls",
+        "openssl",
+        "gjsify"
+    ]
+}

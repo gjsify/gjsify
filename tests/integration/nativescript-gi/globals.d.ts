@@ -17,6 +17,11 @@ declare const __GJSIFY_GI_BENCH__: boolean;
 // without them. Comparable numbers mean the same bundle.
 declare const __GJSIFY_GI_UI__: boolean;
 
+// Whether this build runs `app/specs/gio-tls.ts`, which needs `@gjsify/gi-runtime-android-tls`
+// installed (`npm install --no-save`, see README). A define so an APK without the add-on never
+// asks Gio for TLS it cannot have.
+declare const __GJSIFY_GI_TLS__: boolean;
+
 // webpack's escape hatch for "do not touch this require", declared so `app/specs/loader.probe.ts`
 // can `typeof` it exactly as `@gjsify/node-gi`'s NativeScript host does. It is NOT a global and
 // nothing defines it here: under Vite the identifier survives undeclared, `typeof` on an
