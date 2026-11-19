@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.64.50](https://github.com/gjsify/gjsify/compare/v0.64.49...v0.64.50) (2026-11-19)
+
+### Features
+
+* **cli:** submit webext zips to Firefox AMO ([#2704](https://github.com/gjsify/gjsify/issues/2704)) ([7133b49](https://github.com/gjsify/gjsify/commit/7133b497fff0774db5e6e3db71398e73b475a760))
+* **site:** add listing omit for store text ([#2700](https://github.com/gjsify/gjsify/issues/2700)) ([244ed51](https://github.com/gjsify/gjsify/commit/244ed518c9c1929e1c4b7487d9afbbc4726a5326))
+* **site:** add listing search terms and captions ([#2702](https://github.com/gjsify/gjsify/issues/2702)) ([647244a](https://github.com/gjsify/gjsify/commit/647244a1bf42e85a993bbcd5d7a46a9592e77e09)), closes [#2700](https://github.com/gjsify/gjsify/issues/2700) [#2700](https://github.com/gjsify/gjsify/issues/2700)
+* **webserial:** add Web Serial API over BlueZ RFCOMM ([#2693](https://github.com/gjsify/gjsify/issues/2693)) ([2500818](https://github.com/gjsify/gjsify/commit/25008180a7661572c462d8a2bfd1405c1abc649e))
+
+### Maintenance
+
+* **npm:** sqlite and tls bridges are on npm ([#2701](https://github.com/gjsify/gjsify/issues/2701)) ([7e50e86](https://github.com/gjsify/gjsify/commit/7e50e868c78fbc492d2c62bcaefacbcf12cda8dc)), closes [#2697](https://github.com/gjsify/gjsify/issues/2697)
+* update native prebuilds [skip ci] ([67797ef](https://github.com/gjsify/gjsify/commit/67797efc393fefee5d1883af041d31ed22974091))
+
 ## [0.64.49](https://github.com/gjsify/gjsify/compare/v0.64.48...v0.64.49) (2026-11-19)
 
 ### Features
