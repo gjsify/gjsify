@@ -1,6 +1,9 @@
 // You can add your native dependencies here
 dependencies {
 //  implementation 'androidx.multidex:multidex:2.0.1'
+  // @gjsify/sqlite's Android driver (see packages/nativescript-bridge/sqlite/README.md).
+  implementation 'androidx.sqlite:sqlite:2.7.1'
+  implementation 'androidx.sqlite:sqlite-bundled:2.7.1'
 }
 
 android {

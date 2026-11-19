@@ -342,8 +342,8 @@
     },
     "@gjsify/native-sqlite-bridge": {
       "status": "partial",
-      "note": "`node:sqlite` driver for NativeScript (ADR 0147): Android over `androidx.sqlite` `BundledSQLiteDriver` (SQLite from the AAR), iOS a stub that throws. Parameter names, multi-statement `exec`, `changes`/`last_insert_rowid`, `in_transaction` and the error code are TypeScript adapters specced off-device against a fake driver; the Java conversions are measured by a Spike, not yet by an on-device e2e.",
-      "missing": "iOS driver (system SQLite3 C functions, ADR 0147 decision 3); on-device e2e of the Android driver; extended error codes (constraint codes are derived from the message, a rowid clash reads 2067 not 1555); `expanded_sql`/`column_decltype` have no androidx API; `in_transaction` is tracked, not read from SQLite."
+      "note": "`node:sqlite` driver for NativeScript (ADR 0147): Android over `androidx.sqlite` `BundledSQLiteDriver` (SQLite from the AAR), iOS a stub that throws. Needs `androidx.sqlite` >= 2.6.2 (extended result codes, `inTransaction()`). Parameter names, multi-statement `exec`, `changes`/`last_insert_rowid` and error parsing are TypeScript adapters specced off-device against a fake driver; the Java conversions (64-bit integers, `byte[]`), FTS5, WAL and the constraint codes are measured on an Android emulator by `tests/integration/nativescript` (12 cases, 2026-11-19).",
+      "missing": "iOS driver (system SQLite3 C functions, ADR 0147 decision 3); `expanded_sql`/`column_decltype` have no androidx API; `file:` URIs; the device suite is local-only, not in CI."
     },
     "@gjsify/nativescript-vite": {
       "status": "full",

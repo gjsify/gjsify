@@ -1,6 +1,6 @@
 # 147. `node:sqlite` on NativeScript binds the platform's SQLite, one driver per OS
 
-- Status: **Proposed** (2026-11-16)
+- Status: **Accepted** (2026-11-19, device proof below; proposed 2026-11-16)
 - Date: 2026-11-16
 - Deciders: Pascal Garber
 - Related: [ADR 0123](0123-node-sqlite-runs-on-libsqlite3-through-a-vala-bridge.md) (the GJS
@@ -48,7 +48,9 @@ Node semantic in TypeScript. A NativeScript backend only has to implement that s
    `include.gradle`). `AndroidSQLiteDriver` is accepted as a degraded fallback with the OS's SQLite
    version; the driver reports which one it got.
 3. **iOS driver: the system `SQLite3` C functions** through the NativeScript iOS bridge.
-4. **The error code is the primary code; the extended one is derived, best effort.** Measured
+4. **Superseded by § Amendment (2026-11-19): the driver reports the extended code itself.**
+   Original text, kept for the record: the error code is the primary code; the extended one is
+   derived, best effort. Measured
    (Spike): `SQLiteException` surfaces in JS as `android.database.SQLException` whose message is
    `Error code: <primary>, message: <sqlite3_errmsg>`, with no accessor for the extended code. The
    driver parses the primary code out of the message and maps the well-known constraint messages
@@ -149,9 +151,41 @@ Two findings from the run, both fixed in the driver:
 
 The app is not committed; there is no automated device test yet.
 
+## Amendment (2026-11-19): `androidx.sqlite` 2.6.2 is the floor, and two adapters go away
+
+The Spike ran on 2.5.2. Two later releases answer what it found missing, so the driver requires
+`androidx.sqlite:sqlite` + `sqlite-bundled` **>= 2.6.2** (the suite pins 2.7.1):
+
+- **Extended result codes.** 2.6.2 turns them on for every `BundledSQLiteDriver` connection, so
+  `Error code: <n>` in the exception sentence IS the extended code. The message-to-code table of
+  decision 4 is deleted: a rowid clash now reads 1555 and a `UNIQUE` column 2067, both measured.
+  The sentence is still the only carrier (no accessor), so `toDriverError` still parses it.
+- **`in_transaction`.** 2.6.0 adds `SQLiteConnection.inTransaction()`. The statement-text
+  tracking is deleted; a rollback SQLite performs on its own (`INSERT OR ROLLBACK`) is now seen,
+  measured.
+
+## Device proof, repeatable (2026-11-19, emulator API 36, x86_64, `androidx.sqlite` 2.7.1)
+
+`tests/integration/nativescript` gained `app/specs/sqlite.smoke.ts`: 12 cases through
+`DatabaseSync`, built from this branch's packed workspaces, run with `npm test`. 39/39 green
+(12 sqlite + the 27 existing). Exercised: `:memory:` on the bundled SQLite (>= 3.46); a script
+through `exec()` with comments and a trigger body holding a `CASE`; named, numbered and
+anonymous parameters, `run()`/`get()`/`all()`/`iterate()`, `changes`/`lastInsertRowid`, UTF-8
+text; `INTEGER` at +-(2^53 + 1) and both int64 limits as BigInt, `ERR_OUT_OF_RANGE` without
+`readBigInts`, a rowid past 2^53; a BLOB holding all 256 byte values checked against SQLite's own
+`hex()`, and an empty one; FTS5 `MATCH`; a file database in WAL mode across close/reopen and
+read-only (`errcode` 8 on write); the five constraint codes 2067/1555/1299/275/787 with their
+messages; a syntax error (`errcode` 1) and statement reuse after a failed step; `isTransaction`
+through savepoints and an implicit rollback.
+
+One finding: `DatabaseSync#location()` answers the name as given, not the resolved
+`getDatabasePath` file, on this driver (the path is resolved inside the backend). The suite
+reads the real file from `PRAGMA database_list`.
+
 ## Open
 
-- A repeatable device test (the proof above is a manual run).
-- `in_transaction` is tracked from the statement text; `SQLiteKt.inTransaction` stays unverified.
+- The device suite is local-only (it needs an emulator), like the rest of
+  `tests/integration/nativescript`; CI runs the off-device specs.
+- `DatabaseSync#location()` reports the name as given for a relative path.
 - Measure against the ADR 0123 benchmark shape (the 72 ms above is the read half only).
 - iOS driver: unchanged, not started.
