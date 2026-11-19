@@ -9,10 +9,19 @@ interface Fake {
     /** Rows the next `SELECT changes(), last_insert_rowid()` reports. */
     counters: [string, string];
     failOn?: (sql: string) => Error | null;
+    /** Thrown by the next step() or reset() of an ordinary statement. */
+    failStep?: Error;
+    inTransaction: boolean;
 }
 
 function createFake(): Fake {
-    const fake: Fake = { log: [], opened: [], counters: ['0', '0'], backend: null as unknown as RawBackend };
+    const fake: Fake = {
+        log: [],
+        opened: [],
+        counters: ['0', '0'],
+        inTransaction: false,
+        backend: null as unknown as RawBackend,
+    };
     fake.backend = {
         open(path, mode, uri) {
             fake.opened.push(`${path}|${mode}|${uri}`);
@@ -34,11 +43,13 @@ function createFake(): Fake {
                                 stepped = true;
                                 return had;
                             }
+                            if (fake.failStep) throw fake.failStep;
                             fake.log.push(`step ${sql}`);
                             return false;
                         },
                         reset: () => {
                             stepped = false;
+                            if (!bookkeeping && fake.failStep) throw fake.failStep;
                         },
                         clearBindings: () => void fake.log.push('clear'),
                         close: () => void fake.log.push(`close ${sql}`),
@@ -50,6 +61,7 @@ function createFake(): Fake {
                         getBlob: () => new Uint8Array([1, 2, 255]),
                     };
                 },
+                inTransaction: () => fake.inTransaction,
                 close: () => void fake.log.push('close connection'),
             };
         },
@@ -67,18 +79,31 @@ export default async () => {
             expect(e.message).toBe('near "SELEC": syntax error');
         });
 
-        await it('maps constraint messages to their extended code', async () => {
-            const cases: [string, number][] = [
-                ['UNIQUE constraint failed: t.u', 2067],
-                ['NOT NULL constraint failed: nn.a', 1299],
-                ['FOREIGN KEY constraint failed', 787],
-                ['CHECK constraint failed: c', 275],
+        await it('keeps the extended code the driver reports', async () => {
+            const cases: [number, string][] = [
+                [2067, 'UNIQUE constraint failed: t.u'],
+                [1555, 'UNIQUE constraint failed: t.id'],
+                [1299, 'NOT NULL constraint failed: nn.a'],
+                [787, 'FOREIGN KEY constraint failed'],
+                [275, 'CHECK constraint failed: c'],
             ];
-            for (const [message, expected] of cases) {
-                const e = toDriverError(new Error(`Error code: 19, message: ${message}`)) as Error & { code: number };
-                expect(e.code).toBe(expected);
+            for (const [code, message] of cases) {
+                const e = toDriverError(new Error(`Error code: ${code}, message: ${message}`)) as Error & {
+                    code: number;
+                };
+                expect(e.code).toBe(code);
                 expect(e.message).toBe(message);
             }
+        });
+
+        await it('keeps a message that spans lines or names a code itself', async () => {
+            const e = toDriverError(
+                new Error('Error code: 1, message: near "x":\nError code: 7, message: y'),
+            ) as Error & {
+                code: number;
+            };
+            expect(e.code).toBe(1);
+            expect(e.message).toBe('near "x":\nError code: 7, message: y');
         });
 
         await it('reads the Java exception message when the wrapper has none', async () => {
@@ -138,24 +163,44 @@ export default async () => {
             expect(db.last_insert_rowid).toBe(43);
         });
 
-        await it('tracks in_transaction across BEGIN, SAVEPOINT, RELEASE and COMMIT', async () => {
-            const driver = createSqliteDriver(createFake().backend);
+        await it('answers in_transaction from the connection, not from the SQL it saw', async () => {
+            const fake = createFake();
+            const driver = createSqliteDriver(fake.backend);
             const db = driver.Database.open(':memory:', driver.OpenMode.READWRITE_CREATE, false);
-            expect(db.in_transaction).toBe(false);
             db.exec('BEGIN');
-            expect(db.in_transaction).toBe(true);
-            db.exec('SAVEPOINT s');
-            db.exec('RELEASE s');
-            expect(db.in_transaction).toBe(true);
-            db.exec('COMMIT');
             expect(db.in_transaction).toBe(false);
-            db.exec('SAVEPOINT s');
+            fake.inTransaction = true;
             expect(db.in_transaction).toBe(true);
-            db.exec('RELEASE s');
-            expect(db.in_transaction).toBe(false);
-            db.exec('BEGIN');
-            db.exec('ROLLBACK');
-            expect(db.in_transaction).toBe(false);
+        });
+
+        await it('reports a failed step() once: reset() does not repeat it', async () => {
+            const fake = createFake();
+            const driver = createSqliteDriver(fake.backend);
+            const db = driver.Database.open(':memory:', driver.OpenMode.READWRITE_CREATE, false);
+            const st = db.prepare('INSERT INTO t VALUES (1)');
+            fake.failStep = new Error('Error code: 2067, message: UNIQUE constraint failed: t.a');
+            let caught: (Error & { code?: number }) | null = null;
+            try {
+                st.step();
+            } catch (e) {
+                caught = e as Error & { code?: number };
+            }
+            expect(caught?.code).toBe(2067);
+            st.reset();
+            expect(st.is_valid).toBe(true);
+        });
+
+        await it('rejects a finalised statement and forgets it on the connection', async () => {
+            const fake = createFake();
+            const driver = createSqliteDriver(fake.backend);
+            const db = driver.Database.open(':memory:', driver.OpenMode.READWRITE_CREATE, false);
+            const st = db.prepare('SELECT 1');
+            st.close();
+            st.close();
+            expect(fake.log.filter((l) => l === 'close SELECT 1').length).toBe(1);
+            expect(() => st.step()).toThrow('statement has been finalized');
+            db.close();
+            expect(fake.log.filter((l) => l === 'close SELECT 1').length).toBe(1);
         });
 
         await it('maps values: 64-bit integers stay exact, blobs arrive as bytes', async () => {

@@ -20,6 +20,15 @@ export default async () => {
             expect(scanParameters('SELECT ?3, ?1')).toStrictEqual(['?1', null, '?3']);
         });
 
+        await it('numbers an anonymous parameter after the largest index so far', async () => {
+            expect(scanParameters('SELECT ?2, ?, :a')).toStrictEqual([null, '?2', null, ':a']);
+            expect(scanParameters('SELECT ?1, ?1')).toStrictEqual(['?1']);
+        });
+
+        await it('reads a blob literal and a number as neither parameter nor name', async () => {
+            expect(scanParameters(`SELECT x'3a40', 1e5, a$b, :p`)).toStrictEqual([':p']);
+        });
+
         await it('ignores parameters inside strings, identifiers and comments', async () => {
             const sql = `SELECT ':x', "?y", [@z], \`$w\` -- :c1\n, /* ?c2 */ :real`;
             expect(scanParameters(sql)).toStrictEqual([':real']);
@@ -58,6 +67,21 @@ export default async () => {
             const trigger =
                 'CREATE TEMP TRIGGER tr AFTER INSERT ON t BEGIN UPDATE n SET c = CASE WHEN 1 THEN 2 ELSE 3 END; INSERT INTO log VALUES (1); END';
             expect(splitStatements(`${trigger};SELECT 2`)).toStrictEqual([trigger, 'SELECT 2']);
+        });
+
+        await it('keeps a WHEN clause with its own CASE before the body', async () => {
+            const trigger =
+                'CREATE TRIGGER IF NOT EXISTS tr AFTER UPDATE ON t WHEN CASE WHEN new.a THEN 1 END BEGIN SELECT 1; END';
+            expect(splitStatements(`${trigger};SELECT 3`)).toStrictEqual([trigger, 'SELECT 3']);
+        });
+
+        await it('returns nothing for an empty or comment-only script', async () => {
+            expect(splitStatements('')).toStrictEqual([]);
+            expect(splitStatements('  -- only\n /* this */ ')).toStrictEqual([]);
+        });
+
+        await it('stops at an unterminated string instead of splitting inside it', async () => {
+            expect(splitStatements(`SELECT 'a;b`)).toStrictEqual([`SELECT 'a;b`]);
         });
 
         await it('treats a plain BEGIN as its own statement', async () => {

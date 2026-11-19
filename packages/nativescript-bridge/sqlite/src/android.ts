@@ -5,11 +5,12 @@
 // The conversions are the Spike's findings, not guesses:
 //   - a 64-bit integer goes in as `java.lang.Long.parseLong(String(v))` (a BigInt argument
 //     fails method resolution, a Number rounds, `new java.lang.Long(str)` stores garbage);
-//   - a blob goes in as `Array.create('byte', n)` and comes out as a signed `byte[]`,
-//     copied into a Uint8Array with `& 0xff`.
+//   - a blob goes in as `Array.create('byte', n)` and comes out as a signed `byte[]`
+//     (bytes.ts does the sign conversion both ways).
 
 import { Utils } from '@nativescript/core';
 
+import { fromSignedBytes, writeSignedBytes } from './bytes.js';
 import type { RawBackend, RawConnection, RawStatement } from './driver.js';
 
 // NativeScript's ambient host globals.
@@ -20,16 +21,7 @@ declare const Array: ArrayConstructor & { create(type: string, length: number): 
 const DEFAULT_FLAGS = 6; // READWRITE | CREATE
 
 function toJavaBytes(data: Uint8Array): any {
-    const bytes = Array.create('byte', data.length);
-    for (let i = 0; i < data.length; i++) bytes[i] = (data[i] << 24) >> 24;
-    return bytes;
-}
-
-function fromJavaBytes(bytes: any): Uint8Array {
-    if (bytes == null) return new Uint8Array(0);
-    const out = new Uint8Array(bytes.length);
-    for (let i = 0; i < out.length; i++) out[i] = bytes[i] & 0xff;
-    return out;
+    return writeSignedBytes(data, Array.create('byte', data.length));
 }
 
 class AndroidStatement implements RawStatement {
@@ -77,7 +69,7 @@ class AndroidStatement implements RawStatement {
         return String(this.s.getText(index));
     }
     getBlob(index: number): Uint8Array {
-        return fromJavaBytes(this.s.getBlob(index));
+        return fromSignedBytes(this.s.getBlob(index));
     }
 }
 
@@ -85,6 +77,9 @@ class AndroidConnection implements RawConnection {
     constructor(private readonly c: any) {}
     prepare(sql: string): RawStatement {
         return new AndroidStatement(this.c.prepare(sql));
+    }
+    inTransaction(): boolean {
+        return !!this.c.inTransaction();
     }
     close() {
         this.c.close();
@@ -104,7 +99,8 @@ function resolvePath(path: string, create: boolean): string {
 export function createAndroidBackend(): RawBackend {
     return {
         open(path: string, mode: number, uri: boolean): RawConnection {
-            if (uri && path.startsWith('file:')) throw new Error('file: URIs are not supported by the Android node:sqlite driver');
+            if (uri && path.startsWith('file:'))
+                throw new Error('file: URIs are not supported by the Android node:sqlite driver');
             if (typeof androidx === 'undefined' || !androidx?.sqlite?.driver?.bundled) {
                 throw new Error(
                     'androidx.sqlite is not available: add `androidx.sqlite:sqlite-bundled` to the app and list the ' +

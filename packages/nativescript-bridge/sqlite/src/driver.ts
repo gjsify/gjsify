@@ -2,7 +2,7 @@
 // shaped backend — ADR 0147. Everything androidx leaves out lives here, in plain TypeScript
 // with no Java in sight, so it runs (and is specced) under Node against a fake backend:
 // parameter names and count, multi-statement `exec`, `changes` / `last_insert_rowid`,
-// `in_transaction`, statement lifetime and the error code.
+// statement lifetime and the error code.
 
 import type { SqliteBytes, SqliteDatabase, SqliteDriverModule, SqliteStatement } from '@gjsify/sqlite-native/driver';
 
@@ -31,6 +31,8 @@ export interface RawStatement {
 
 export interface RawConnection {
     prepare(sql: string): RawStatement;
+    /** `sqlite3_get_autocommit() == 0`. */
+    inTransaction(): boolean;
     close(): void;
 }
 
@@ -42,19 +44,11 @@ const OPEN_MODE = { READONLY: 1, READWRITE: 2, READWRITE_CREATE: 6 } as const;
 const STEP_RESULT = { ROW: 100, DONE: 101 } as const;
 const COLUMN_TYPE = { INTEGER: 1, FLOAT: 2, TEXT: 3, BLOB: 4, NULL: 5 } as const;
 
-const SQLITE_CONSTRAINT = 19;
-const CONSTRAINT_CODES: [RegExp, number][] = [
-    [/UNIQUE constraint failed/, 2067],
-    [/NOT NULL constraint failed/, 1299],
-    [/FOREIGN KEY constraint failed/, 787],
-    [/CHECK constraint failed/, 275],
-];
-
 /**
  * A backend failure as an Error whose `message` is SQLite's text and whose `code` is the
- * result code. androidx reports `Error code: <primary>, message: <errmsg>` and nothing
- * more, so the extended code of a constraint failure is recovered from the message
- * (a rowid clash therefore reads 2067, not 1555: ADR 0147 decision 4).
+ * result code. androidx reports `Error code: <code>, message: <errmsg>` and has no accessor
+ * for either half, so both are read out of that sentence. The code is the extended one
+ * because `BundledSQLiteDriver` turns extended result codes on (androidx.sqlite 2.6.2).
  */
 export function toDriverError(cause: unknown): Error {
     const raw = cause as { message?: unknown; nativeException?: { getMessage?: () => unknown } } | null;
@@ -66,16 +60,7 @@ export function toDriverError(cause: unknown): Error {
     if (!text) text = String(cause);
     const match = /Error code:\s*(\d+),\s*message:\s*([\s\S]*)$/.exec(text);
     const error = new Error(match ? match[2] : text) as Error & { code: number };
-    let code = match ? Number(match[1]) : 0;
-    if ((code & 0xff) === SQLITE_CONSTRAINT || code === 0) {
-        for (const [pattern, extended] of CONSTRAINT_CODES) {
-            if (pattern.test(error.message)) {
-                code = extended;
-                break;
-            }
-        }
-    }
-    error.code = code;
+    error.code = match ? Number(match[1]) : 0;
     return error;
 }
 
@@ -94,22 +79,16 @@ class Bytes implements SqliteBytes {
     }
 }
 
-// Only these leave the connection's autocommit state; anything else cannot.
-const TRANSACTION_START = /^\s*(BEGIN|SAVEPOINT)\b/i;
-const TRANSACTION_END = /^\s*(COMMIT|END|ROLLBACK)\b(?!\s+TO\b)/i;
-
 class Statement implements SqliteStatement {
     #raw: RawStatement | null;
     readonly #parameters: (string | null)[];
     readonly #sql: string;
     readonly #onClose: (statement: Statement) => void;
-    readonly #connection: Connection;
 
-    constructor(raw: RawStatement, sql: string, connection: Connection, onClose: (s: Statement) => void) {
+    constructor(raw: RawStatement, sql: string, onClose: (s: Statement) => void) {
         this.#raw = raw;
         this.#sql = sql;
         this.#parameters = scanParameters(sql);
-        this.#connection = connection;
         this.#onClose = onClose;
     }
 
@@ -156,10 +135,7 @@ class Statement implements SqliteStatement {
     }
     step(): number {
         const raw = this.#live();
-        const hasRow = guarded(() => raw.step());
-        if (hasRow) return STEP_RESULT.ROW;
-        this.#connection.noteStatementDone(this.#sql);
-        return STEP_RESULT.DONE;
+        return guarded(() => raw.step()) ? STEP_RESULT.ROW : STEP_RESULT.DONE;
     }
 
     bind_null(index: number): void {
@@ -212,7 +188,6 @@ class Connection implements SqliteDatabase {
     readonly #statements = new Set<Statement>();
     #changes = 0;
     #rowid = 0;
-    #depth = 0;
     #bookkeeping: RawStatement | null = null;
 
     constructor(raw: RawConnection) {
@@ -235,22 +210,9 @@ class Connection implements SqliteDatabase {
         this.#refresh();
         return this.#changes;
     }
-    // androidx has no sqlite3_get_autocommit(); the transaction statements that pass through
-    // this connection are tracked instead. A rollback SQLite performs on its own (a failed
-    // COMMIT, SQLITE_FULL) is not seen, which is the one place this can say true too long.
     get in_transaction(): boolean {
-        return this.#depth > 0;
-    }
-
-    /** Called by a statement once it has run to completion. */
-    noteStatementDone(sql: string): void {
-        if (TRANSACTION_START.test(sql)) {
-            this.#depth = /^\s*SAVEPOINT\b/i.test(sql) ? this.#depth + 1 : Math.max(this.#depth, 1);
-        } else if (TRANSACTION_END.test(sql)) {
-            this.#depth = 0;
-        } else if (/^\s*RELEASE\b/i.test(sql) && this.#depth > 0) {
-            this.#depth--;
-        }
+        const raw = this.#live();
+        return guarded(() => raw.inTransaction());
     }
 
     #refresh(): void {
@@ -283,7 +245,7 @@ class Connection implements SqliteDatabase {
     prepare(sql: string): SqliteStatement {
         const raw = this.#live();
         const prepared = guarded(() => raw.prepare(sql));
-        const statement = new Statement(prepared, sql, this, (done) => this.#statements.delete(done));
+        const statement = new Statement(prepared, sql, (done) => this.#statements.delete(done));
         this.#statements.add(statement);
         return statement;
     }
