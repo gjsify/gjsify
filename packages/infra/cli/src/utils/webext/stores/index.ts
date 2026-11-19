@@ -85,7 +85,11 @@ export const STORE_CREDENTIALS: Readonly<Record<StoreId, readonly StoreCredentia
      */
     amo: [
         { env: 'AMO_ADDON_ID', secret: false, what: 'the add-on slug, numeric id or GUID of the existing listing' },
-        { env: 'AMO_WEB_EXT_API_KEY', secret: false, what: 'the AMO JWT issuer (API key, `user:…`) — also in every token payload' },
+        {
+            env: 'AMO_WEB_EXT_API_KEY',
+            secret: false,
+            what: 'the AMO JWT issuer (API key, `user:…`) — also in every token payload',
+        },
         { env: 'AMO_WEB_EXT_API_SECRET', secret: true, what: 'the AMO JWT secret' },
     ],
 };

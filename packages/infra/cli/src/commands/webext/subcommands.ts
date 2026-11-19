@@ -377,7 +377,7 @@ export const webextSubmitCommand: Command<unknown, SubmitArgs> = {
             .epilog(
                 'Credentials come from the environment only (see ADR 0077 § Amendment 1). Exit codes: 0 done or nothing to do, ' +
                     '1 rejected or failed, 3 accepted but unresolved (run again), 4 unverifiable. ' +
-                    'AMO: without --submit the zip is only uploaded and validated (no version, no review); --submit creates the version, which enters review at once. '+
+                    'AMO: without --submit the zip is only uploaded and validated (no version, no review); --submit creates the version, which enters review at once. ' +
                     'A submission stuck in review is cancelled in the Chrome dashboard (:cancelSubmission); this command never does.',
             ),
     handler: async (args) => {

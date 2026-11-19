@@ -181,7 +181,9 @@ export async function runSubmit(input: SubmitCommandInput): Promise<number> {
         const zipPath = resolve(input.zip ?? defaultZipPath(project, store));
         const sourceZip = input.sourceZip === undefined ? undefined : resolve(input.sourceZip);
         if (sourceZip !== undefined && store !== 'amo') {
-            throw new Error('gjsify webext submit: --source applies to AMO only; Chrome and Edge take no source archive.');
+            throw new Error(
+                'gjsify webext submit: --source applies to AMO only; Chrome and Edge take no source archive.',
+            );
         }
         if (sourceZip !== undefined && !input.submit) {
             throw new Error(

@@ -60,7 +60,7 @@ const JWT_LIFETIME_S = 60;
 
 const AUTH_HINT =
     'the JWT was rejected — check AMO_WEB_EXT_API_KEY / AMO_WEB_EXT_API_SECRET (addons.mozilla.org → Developer Hub → ' +
-    'Manage API Keys) and that this machine\'s clock is correct; AMO refuses a JWT whose iat/exp are off.';
+    "Manage API Keys) and that this machine's clock is correct; AMO refuses a JWT whose iat/exp are off.";
 
 const b64url = (input: Buffer | string): string => Buffer.from(input).toString('base64url');
 
@@ -198,7 +198,11 @@ export const createAmoBackend: StoreBackendFactory = (
         lastUpload = { uuid: body.uuid, version: input.version };
         if (body.processed === true) {
             judge(body, input.version);
-            return { operationId: body.uuid, ingested: true, detail: `upload ${body.uuid} validated; no version created.` };
+            return {
+                operationId: body.uuid,
+                ingested: true,
+                detail: `upload ${body.uuid} validated; no version created.`,
+            };
         }
         return {
             operationId: body.uuid,
@@ -213,7 +217,11 @@ export const createAmoBackend: StoreBackendFactory = (
         version?: string,
     ): Promise<StoreOperationResult> {
         if (kind !== 'upload') {
-            throw new StoreApiError(STORE, undefined, 'AMO has no publish operation to read; a version create answers directly.');
+            throw new StoreApiError(
+                STORE,
+                undefined,
+                'AMO has no publish operation to read; a version create answers directly.',
+            );
         }
         const response = await send('GET', `${API_ROOT}/addons/upload/${encodeURIComponent(operationId)}/`);
         const body = await json<AmoUploadBody>(response, 'the upload detail');

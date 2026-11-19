@@ -35,12 +35,21 @@ interface Reply {
 function backendWith(replies: Reply[], logs?: string[]): { backend: StoreBackend; seen: Seen[] } {
     const seen: Seen[] = [];
     const fetchImpl = (async (url: string, init: RequestInit) => {
-        seen.push({ url, method: String(init.method), headers: init.headers as Record<string, string>, body: init.body });
+        seen.push({
+            url,
+            method: String(init.method),
+            headers: init.headers as Record<string, string>,
+            body: init.body,
+        });
         const reply = replies.shift();
         if (reply === undefined) throw new Error('unexpected request');
         return new Response(reply.body ?? null, { status: reply.status });
     }) as unknown as typeof fetch;
-    const backend = createAmoBackend(CREDENTIALS, { fetchImpl, now: () => NOW, log: logs ? (m) => logs.push(m) : undefined });
+    const backend = createAmoBackend(CREDENTIALS, {
+        fetchImpl,
+        now: () => NOW,
+        log: logs ? (m) => logs.push(m) : undefined,
+    });
     return { backend, seen };
 }
 
@@ -53,7 +62,10 @@ async function rejection(promise: Promise<unknown>): Promise<Error> {
     throw new Error('expected a rejection');
 }
 
-const upload = (extra: Record<string, unknown>): Reply => ({ status: 200, body: JSON.stringify({ uuid: 'u-1', ...extra }) });
+const upload = (extra: Record<string, unknown>): Reply => ({
+    status: 200,
+    body: JSON.stringify({ uuid: 'u-1', ...extra }),
+});
 
 export default async () => {
     const dir = mkdtempSync(join(tmpdir(), 'gjsify-amo-spec-'));
@@ -94,7 +106,11 @@ export default async () => {
 
         await it('turns a failed validation into an error with the reasons', async () => {
             const { backend } = backendWith([
-                upload({ processed: true, valid: false, validation: { messages: [{ type: 'error', message: 'Bad manifest' }] } }),
+                upload({
+                    processed: true,
+                    valid: false,
+                    validation: { messages: [{ type: 'error', message: 'Bad manifest' }] },
+                }),
             ]);
             const error = await rejection(backend.operation!('upload', 'u-1', '1.0.0'));
             expect(error instanceof StoreApiError).toBe(true);
@@ -103,7 +119,9 @@ export default async () => {
 
         await it('reads validation messages defensively', async () => {
             expect(validationLines(null).length).toBe(0);
-            expect(validationLines({ messages: [{ type: 'warning', message: 'w' }, { message: 'e' }] }).join()).toBe('e');
+            expect(validationLines({ messages: [{ type: 'warning', message: 'w' }, { message: 'e' }] }).join()).toBe(
+                'e',
+            );
         });
 
         await it('maps an existing version to "already there"', async () => {
