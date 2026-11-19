@@ -174,12 +174,14 @@ export default async () => {
         const catalogs = { de: parseCatalog('msgid "The hero"\nmsgstr "Das Hauptbild"\n') };
         const cfg = config({ captions: { '01-hero.png': 'The hero' } });
 
-        await it('translates captions through the catalogue, for AMO only', async () => {
+        await it('translates captions through the catalogue, for AMO and Edge', async () => {
             const model = buildListingModel({ metainfo, config: cfg, catalogs });
             expect(model.stores.amo?.en?.captions?.['01-hero.png']).toBe('The hero');
             expect(model.stores.amo?.de?.captions?.['01-hero.png']).toBe('Das Hauptbild');
             expect(model.stores.cws?.en?.captions).toBe(undefined);
-            expect(model.stores.edge?.de?.captions).toBe(undefined);
+            expect(model.stores.edge?.en?.captions?.['01-hero.png']).toBe('The hero');
+            expect(model.stores.edge?.de?.captions?.['01-hero.png']).toBe('Das Hauptbild');
+            expect(STORE_SPECS.edge.screenshotCaptions?.url.startsWith('https://')).toBe(true);
             expect(STORE_SPECS.amo.screenshotCaptions?.url.startsWith('https://')).toBe(true);
         });
 

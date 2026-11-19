@@ -88,7 +88,8 @@ export interface StoreSpec {
     searchTerms?: SearchTermLimit;
     /**
      * The dashboard takes a per-language caption for each screenshot, and the page that says so. No
-     * store documents a length limit for one, so none is enforced.
+     * store documents a length limit for one (the Edge publish page does not mention the caption
+     * field at all, Partner Center shows it), so none is enforced.
      */
     screenshotCaptions?: { url: string };
     /** The dashboard's form, in the order a person fills it in. */
@@ -179,6 +180,8 @@ export const STORE_SPECS: Record<Store, StoreSpec> = {
         ],
         // "Up to a maximum of seven search terms ... a character limit of 30 characters ... a maximum of 21 words."
         searchTerms: { maxTerms: 7, maxCharacters: 30, maxWords: 21, url: EDGE_PUBLISH, verified: true },
+        // Partner Center's store listing has an image caption under each screenshot; the publish docs name no limit.
+        screenshotCaptions: { url: EDGE_PUBLISH },
         form: [
             { key: 'name', label: 'Name', required: true },
             { key: 'summary', label: 'Short description', required: true },

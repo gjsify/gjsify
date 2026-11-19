@@ -112,9 +112,9 @@ written to `edge/<lang>/search-terms.txt` (one per line) and `store.json`. Edge 
 field, so nothing is emitted for them.
 
 `captions` maps a screenshot file name (as in `screenshots`, or the numbered kit name) to an English msgid,
-translated through the catalogues and listed in `--pot`. AMO takes a caption per screenshot and
-language: `amo/screenshots/captions.<lang>.json` and the `screenshotCaptions` field of `store.json`.
-No store documents a caption length limit, so none is enforced. A key that names no screenshot is an
+translated through the catalogues and listed in `--pot`. AMO and Edge take a caption per screenshot and
+language: `<store>/screenshots/captions.<lang>.json` and the `screenshotCaptions` field of `store.json`;
+the Chrome Web Store has none. No store documents a caption length limit, so none is enforced. A key that names no screenshot is an
 error.
 
 `screenshots` replaces the metainfo screenshots with a directory of images, taken in name order. A
