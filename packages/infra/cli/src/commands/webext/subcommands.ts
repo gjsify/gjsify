@@ -332,16 +332,17 @@ interface SubmitArgs {
     submit: boolean;
     timeout?: number;
     listingDir?: string;
+    source?: string;
 }
 
 export const webextSubmitCommand: Command<unknown, SubmitArgs> = {
     command: 'submit',
     description:
-        'Upload the built zip to the Chrome Web Store or Edge Add-ons as a draft; --submit also asks for review (tags only).',
+        'Upload the built zip to the Chrome Web Store, Edge Add-ons or Firefox AMO; --submit also asks for review (tags only).',
     builder: (yargs) =>
         yargs
             .option('store', {
-                description: 'Which store (amo is not implemented: Firefox is distributed by the project itself).',
+                description: 'Which store (amo = addons.mozilla.org, an existing listed add-on).',
                 type: 'string',
                 choices: ['chrome', 'edge', 'amo'],
                 demandOption: true,
@@ -364,6 +365,11 @@ export const webextSubmitCommand: Command<unknown, SubmitArgs> = {
                 description: 'Seconds to wait for the store to resolve an upload or submission (default: 600).',
                 type: 'number',
             })
+            .option('source', {
+                description:
+                    'AMO only: source archive for reviewers (needed when the zip is bundled or minified); attached with --submit.',
+                type: 'string',
+            })
             .option('listing-dir', {
                 description: 'Where `webext listing` wrote store.json (default: dist/listing).',
                 type: 'string',
@@ -371,6 +377,7 @@ export const webextSubmitCommand: Command<unknown, SubmitArgs> = {
             .epilog(
                 'Credentials come from the environment only (see ADR 0077 § Amendment 1). Exit codes: 0 done or nothing to do, ' +
                     '1 rejected or failed, 3 accepted but unresolved (run again), 4 unverifiable. ' +
+                    'AMO: without --submit the zip is only uploaded and validated (no version, no review); --submit creates the version, which enters review at once. ' +
                     'A submission stuck in review is cancelled in the Chrome dashboard (:cancelSubmission); this command never does.',
             ),
     handler: async (args) => {
@@ -382,6 +389,7 @@ export const webextSubmitCommand: Command<unknown, SubmitArgs> = {
             submit: args.submit,
             timeoutSeconds: args.timeout,
             listingDir: args.listingDir,
+            sourceZip: args.source ? resolve(cwd, args.source) : undefined,
             project: loadSubmitProject(cwd),
             env: process.env,
             out: (line) => console.log(line),

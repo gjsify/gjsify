@@ -119,11 +119,10 @@ export default async () => {
             expect(asStoreId('opera')).toBe(null);
         });
 
-        await it('refuses AMO by name before asking for a credential', async () => {
+        await it('builds AMO from its three variables and names the missing ones', async () => {
             const message = thrown(() => createStoreBackend('amo', {}));
-            expect(message).toContain('not implemented');
-            expect(message).toContain('webext sign');
-            expect(message?.includes('WEB_EXT_API_KEY')).toBe(false);
+            expect(message).toContain('AMO_WEB_EXT_API_KEY');
+            expect(message?.includes('not implemented')).toBe(false);
         });
 
         await it('hands a registered factory its credentials and options', async () => {

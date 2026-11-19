@@ -392,10 +392,10 @@ config file is committed and an environment variable is not:
 |---|---|
 | Chrome Web Store | `CHROME_WEB_STORE_PUBLISHER_ID`, `CHROME_WEB_STORE_ITEM_ID`, `CHROME_WEB_STORE_CLIENT_ID`, `CHROME_WEB_STORE_CLIENT_SECRET`, `CHROME_WEB_STORE_REFRESH_TOKEN` |
 | Edge Add-ons | `EDGE_ADDONS_PRODUCT_ID`, `EDGE_ADDONS_CLIENT_ID`, `EDGE_ADDONS_API_KEY` |
-| AMO | a declared slot with **no backend in this slice**; `webext sign` keeps calling `web-ext`, which reads its own `WEB_EXT_API_KEY`/`WEB_EXT_API_SECRET` |
+| AMO | `AMO_ADDON_ID`, `AMO_WEB_EXT_API_KEY`, `AMO_WEB_EXT_API_SECRET` (backend added by [ADR 0148](0148-webext-submit-reaches-amo-and-the-store-api-survey.md); `webext sign` still calls `web-ext`, which reads its own `WEB_EXT_API_KEY`/`WEB_EXT_API_SECRET`) |
 
-The AMO row exists in the table so the shape of a third backend is fixed before one is written,
-and so `submit --store amo` refuses by name rather than by a missing case.
+The AMO row was declared before its backend existed, so the shape of a third backend was fixed
+before one was written; ADR 0148 fills it.
 
 ### One bounded poll layer, nine end states, and which failures may be sent twice
 
