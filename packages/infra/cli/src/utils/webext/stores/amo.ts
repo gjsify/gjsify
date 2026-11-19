@@ -22,8 +22,9 @@
 //  - the shape of `validation` ("the validation results JSON blob"): {@link validationLines}
 //    reads `messages[].message` defensively and falls back to the raw type counts;
 //  - how long an unused upload stays valid;
-//  - that GET .../versions/<version_number>/ answers 404 for an unknown number (the docs name the
-//    path for PATCH; GET is read off the same resource), used for the "already there" check.
+//  - that GET .../versions/v<number>/ answers 404 for an unknown number (the docs give no status
+//    for it; 404 is the usual DRF reply), used for the "already there" check. The `v` prefix is
+//    DOCUMENTED: a number without a dot is otherwise read as a version id, and forces a number lookup.
 
 import { createHmac, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -166,7 +167,7 @@ export const createAmoBackend: StoreBackendFactory = (
     }
 
     async function versionExists(version: string): Promise<boolean> {
-        const response = await send('GET', `${addon}/versions/${encodeURIComponent(version)}/`, {}, [404]);
+        const response = await send('GET', `${addon}/versions/v${encodeURIComponent(version)}/`, {}, [404]);
         return response.status !== 404;
     }
 
@@ -259,7 +260,7 @@ export const createAmoBackend: StoreBackendFactory = (
             };
         }
         const { version } = lastUpload;
-        const response = await send('GET', `${addon}/versions/${encodeURIComponent(version)}/`, {}, [404]);
+        const response = await send('GET', `${addon}/versions/v${encodeURIComponent(version)}/`, {}, [404]);
         if (response.status === 404) {
             return { state: 'draft', version, detail: `AMO has no version ${version}; only a validated upload.` };
         }

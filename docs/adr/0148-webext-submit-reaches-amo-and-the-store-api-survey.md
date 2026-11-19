@@ -87,7 +87,7 @@ add-on itself stays a dashboard step, as for the other two stores.
 | Chrome Web Store | yes, v2, OAuth 2.0 | upload, publish, fetchStatus, cancel, rollout %; cannot create an item | no (dashboard only) | no | `--store chrome` |
 | Edge Add-ons | yes, v1.1, API key + client id | upload, publish, status; cannot create a product | no: "no endpoints for … updating a product's metadata" | no | `--store edge` |
 | AMO | yes, addons-server v5, JWT | upload, version create, source; can create an add-on | yes (PATCH addon) | yes (previews) | `--store amo` (this ADR): upload, version, source; metadata and previews not wired |
-| Opera Add-ons | none documented | web form only | n/a | n/a | not implemented |
+| Opera Add-ons | none documented (UNVERIFIED: no official Opera page states it either way) | web form only | n/a | n/a | not implemented |
 | Safari / App Store Connect | App Store Connect API for apps | the extension ships inside an app build; upload goes through Xcode/Transporter, not a web-extension API | yes (app metadata) | yes | not implemented |
 | Thunderbird ATN | same server software as AMO (UNVERIFIED that the API is open there) | UNVERIFIED | UNVERIFIED | UNVERIFIED | not implemented |
 
@@ -123,5 +123,7 @@ Sources:
 - Version-create on AMO answers directly, so a `--submit` run ends `in-review` without an
   operation to poll; `status()` reads the version's file status.
 - NOT MEASURED against a live add-on. Open: the shape of `validation` (read defensively), the
-  lifetime of an unused upload, and that `GET …/versions/<number>/` answers 404 for an unknown
-  version (used for the "already there" check).
+  lifetime of an unused upload, and that `GET …/versions/v<number>/` answers 404 for an unknown
+  version (used for the "already there" check). The `v` prefix is documented (a dotless number is
+  otherwise read as an id). The JWT claims were re-read in `auth.rst` and match; `<addon>` accepts
+  id, slug or GUID (documented).
