@@ -29,3 +29,33 @@ export function descriptionHtml(blocks: readonly DescriptionBlock[], resolve: Re
 export function characters(value: string): number {
     return [...value].length;
 }
+
+/**
+ * Drops the paragraphs and list items whose source-language text equals an `omit` entry. A block is
+ * one `Localized`, so its translations go with it in every language. An entry that matches nothing
+ * throws: a typo must not leave the sentence in a store listing.
+ */
+export function omitBlocks(blocks: readonly DescriptionBlock[], omit: readonly string[]): DescriptionBlock[] {
+    const hit = new Set<string>();
+    const drop = (text: Localized): boolean => {
+        const entry = omit.find((candidate) => candidate === text.source);
+        if (entry === undefined) return false;
+        hit.add(entry);
+        return true;
+    };
+    const kept: DescriptionBlock[] = [];
+    for (const block of blocks) {
+        if (block.type === 'paragraph') {
+            if (!drop(block.text)) kept.push(block);
+            continue;
+        }
+        const items = block.items.filter((item) => !drop(item));
+        if (items.length > 0) kept.push({ type: 'list', items });
+    }
+    const missing = omit.filter((entry) => !hit.has(entry));
+    if (missing.length > 0)
+        throw new Error(
+            `gjsify.webext.listing.omit matches no description paragraph or list item: ${missing.map((entry) => `"${entry}"`).join(', ')} (use the source-language text exactly as in the metainfo)`,
+        );
+    return kept;
+}

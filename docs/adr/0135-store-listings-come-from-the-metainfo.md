@@ -37,7 +37,8 @@ each key falls back to the `gjsify.site` one, and `--config <file>` overrides th
 - `singlePurpose` and `permissions` (permission or host pattern → justification), as English msgids
   translated through the catalogues, as `gjsify site` does for page strings. A missing translation
   is a warning, a missing justification for a manifest permission on a store that asks is an error.
-- `category` per store, `privacyUrl`, `screenshots` (a directory replacing the metainfo shots).
+- `category` per store, `privacyUrl`, `screenshots` (a directory replacing the metainfo shots),
+  `omit` (source-language description blocks kept out of every store listing; an unmatched entry is an error).
 
 Privacy URL precedence: metainfo `<url type="privacy">`, then `privacyUrl`, then
 `<siteUrl><lang>/privacy/` when `gjsify.site.privacy` is set. The donation URL is never emitted

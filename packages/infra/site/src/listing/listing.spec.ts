@@ -63,6 +63,14 @@ export default async () => {
             expect(() => parseListingConfig({})).toThrow();
             expect(() => config({ category: { opera: 'x' } })).toThrow();
         });
+
+        await it('parses omit and rejects a wrong type', async () => {
+            expect(config().omit.length).toBe(0);
+            expect(config({ omit: ['A'] }).omit[0]).toBe('A');
+            expect(() => config({ omit: 'A' })).toThrow();
+            expect(() => config({ omit: [1] })).toThrow();
+            expect(() => config({ omit: [''] })).toThrow();
+        });
     });
 
     await describe('listing field mapping', async () => {
@@ -108,6 +116,41 @@ export default async () => {
             expect(descriptionHtml(metainfo.description, (t) => t.source).startsWith('<p>First paragraph.</p>')).toBe(
                 true,
             );
+        });
+    });
+
+    await describe('listing omit', async () => {
+        const metainfo = parseMetainfo(METAINFO);
+        const omitted = (omit: string[], extra: Partial<Parameters<typeof buildListingModel>[0]> = {}) =>
+            buildListingModel({ metainfo, config: config({ omit }), catalogs: {}, ...extra });
+
+        await it('removes a paragraph in every language, text and HTML', async () => {
+            const model = omitted(['First paragraph.']);
+            for (const language of ['en', 'de']) {
+                const entry = model.stores.amo?.[language];
+                expect(entry?.description).toBe('• One\n• Two & three');
+                expect(entry?.descriptionHtml?.includes('<p>')).toBe(false);
+                expect(model.stores.cws?.[language]?.description.includes('paragraph')).toBe(false);
+                expect(model.stores.cws?.[language]?.description.includes('Absatz')).toBe(false);
+            }
+        });
+
+        await it('removes one list item and drops a list left empty', async () => {
+            const one = omitted(['One']);
+            expect(one.stores.cws?.en?.description).toBe('First paragraph.\n\n• Two & three');
+            const both = omitted(['One', 'Two & three']);
+            expect(both.stores.amo?.en?.descriptionHtml?.includes('<ul>')).toBe(false);
+        });
+
+        await it('leaves the metainfo untouched for the website path', async () => {
+            omitted(['First paragraph.']);
+            expect(descriptionText(metainfo.description, (t) => t.source)).toBe(
+                'First paragraph.\n\n• One\n• Two & three',
+            );
+        });
+
+        await it('throws on an entry that matches nothing', async () => {
+            expect(() => omitted(['First paragraph', 'First paragraph.'])).toThrow();
         });
     });
 
