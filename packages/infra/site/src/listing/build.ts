@@ -3,7 +3,7 @@ import { pickByLanguage, resolveLocalized, translator } from '../site-data/po.js
 import type { Localized, Metainfo } from '../site-data/types.js';
 import type { ListingConfig } from './config.js';
 import { STORE_SPECS, STORES, type Store, type TextField } from './limits.js';
-import { characters, descriptionHtml, descriptionText } from './text.js';
+import { characters, descriptionHtml, descriptionText, omitBlocks } from './text.js';
 
 export interface StoreEntry {
     name: string;
@@ -80,6 +80,7 @@ export function checkEntry(store: Store, language: string, entry: StoreEntry): I
 export function buildListingModel({ metainfo, config, catalogs, stores = STORES }: ListingInput): ListingModel {
     const model: ListingModel = { stores: {}, issues: [], warnings: [], msgids: [] };
     const used = new Set<string>();
+    const description = omitBlocks(metainfo.description, config.omit);
 
     for (const language of config.languages) {
         const catalog = catalogs[language];
@@ -100,7 +101,6 @@ export function buildListingModel({ metainfo, config, catalogs, stores = STORES 
             return isSource ? text.source : resolveLocalized(text, language, catalog);
         };
 
-        const description = metainfo.description;
         const base = {
             name: app(metainfo.name),
             summary: app(metainfo.summary),

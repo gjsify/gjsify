@@ -86,6 +86,7 @@ Only what the metainfo cannot carry is configured, in `gjsify.webext.listing` of
         "singlePurpose": "One sentence: what the extension is for",
         "permissions": { "tabs": "Why it needs the tab list", "https://*/*": "Why it needs these hosts" },
         "category": { "cws": "productivity", "edge": "Productivity" },
+        "omit": ["Works in Firefox and in Chromium-based browsers."],
         "privacyUrl": "https://example.org/privacy/",
         "screenshots": "docs/store/screenshots"
       }
@@ -97,6 +98,12 @@ Only what the metainfo cannot carry is configured, in `gjsify.webext.listing` of
 `singlePurpose` and the permission justifications are English msgids, translated through the app's
 catalogues like the page strings. The privacy URL comes from `<url type="privacy">`, else
 `privacyUrl`, else `<siteUrl><lang>/privacy/` when `gjsify.site.privacy` is set.
+
+`omit` lists description paragraphs or list items that belong on the website but not in a store
+listing (stores reject a description that names other browsers). Each entry is the source-language
+text exactly as in the metainfo; the block disappears from the store description (text and HTML)
+in every language, translations included. The metainfo and `gjsify site` are unchanged. An entry
+that matches nothing is an error in `listing` and `listing --check`.
 
 `screenshots` replaces the metainfo screenshots with a directory of images, taken in name order. A
 `<lang>/` subdirectory holds one language's set; the source language's set may sit in the directory

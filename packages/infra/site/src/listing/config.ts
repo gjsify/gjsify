@@ -34,6 +34,8 @@ export interface ListingConfig {
     /** permission or host pattern → msgid of its justification. */
     permissions: Record<string, string>;
     category: Partial<Record<Store, string>>;
+    /** Source-language description paragraphs or list items kept out of every store listing (not the website). */
+    omit: string[];
     privacyUrl?: string;
     /** Used when the metainfo has no privacy URL and no `privacyUrl` is set: `<siteUrl><lang>/privacy/`. */
     siteUrl?: string;
@@ -94,6 +96,16 @@ export function parseListingConfig(manifest: ListingManifest, override: unknown 
         }
     }
 
+    const omit: string[] = [];
+    if (raw.omit !== undefined) {
+        if (!Array.isArray(raw.omit)) throw new Error(`${where}.omit must be a list of description texts`);
+        for (const entry of raw.omit) {
+            if (typeof entry !== 'string' || entry === '')
+                throw new Error(`${where}.omit entries must be non-empty strings`);
+            omit.push(entry);
+        }
+    }
+
     const icon =
         str(raw, 'icon', where) ??
         (typeof site.icon === 'string' ? site.icon : (manifest.gjsify?.ship?.icon ?? manifest.gjsify?.flatpak?.icon));
@@ -124,6 +136,7 @@ export function parseListingConfig(manifest: ListingManifest, override: unknown 
         singlePurpose: str(raw, 'singlePurpose', where),
         permissions,
         category,
+        omit,
         privacyUrl: str(raw, 'privacyUrl', where),
         siteUrl: site.privacy !== undefined && typeof site.url === 'string' ? site.url.replace(/\/?$/, '/') : undefined,
     };
