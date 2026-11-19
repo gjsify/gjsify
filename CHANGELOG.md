@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.64.49](https://github.com/gjsify/gjsify/compare/v0.64.48...v0.64.49) (2026-11-19)
+
+### Features
+
+* **dav:** expose Retry-After and sync-token rejection ([#2694](https://github.com/gjsify/gjsify/issues/2694)) ([39be818](https://github.com/gjsify/gjsify/commit/39be818b9ec56eb404ec7425fae662af62794e51))
+* **node-gi:** gio TLS add-on for Android ([#2699](https://github.com/gjsify/gjsify/issues/2699)) ([df95430](https://github.com/gjsify/gjsify/commit/df9543052aafc90d897d4f2cb3be46d8995b31a5))
+* **site:** dark twins for listing screenshots ([#2691](https://github.com/gjsify/gjsify/issues/2691)) ([1a9ba9e](https://github.com/gjsify/gjsify/commit/1a9ba9ee9ce358bcfe1521bdd0ee9b81b435852e))
+* **sqlite:** node:sqlite on NativeScript Android ([#2697](https://github.com/gjsify/gjsify/issues/2697)) ([1cc2223](https://github.com/gjsify/gjsify/commit/1cc22235beee65db4ac6b96c4667b27b316d06ab))
+
+### Bug Fixes
+
+* **adwaita-app:** run under a CLI subcommand ([#2692](https://github.com/gjsify/gjsify/issues/2692)) ([018a60c](https://github.com/gjsify/gjsify/commit/018a60c1b5606a370324c0b155d92c74f1cd46ff))
+* **cli:** keep locales in the flatpak bundle ([#2696](https://github.com/gjsify/gjsify/issues/2696)) ([c61ed1a](https://github.com/gjsify/gjsify/commit/c61ed1ad2d0c4bacbd6a1652663d5bfbf2fca47b))
+* **ship:** write InstallerVersion 500 for arm64 msi ([#2689](https://github.com/gjsify/gjsify/issues/2689)) ([85d3abb](https://github.com/gjsify/gjsify/commit/85d3abbb9941895336d01b338d2c1dec6d6905a3))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([1f67e52](https://github.com/gjsify/gjsify/commit/1f67e52b3a3a7dfaff2038c254925883612fc9b7))
+
 ## [0.64.48](https://github.com/gjsify/gjsify/compare/v0.64.47...v0.64.48) (2026-11-18)
 
 ### Features
