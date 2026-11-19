@@ -2,7 +2,7 @@
 // Reference: Node.js lib/sqlite.js + src/node_sqlite.cc
 // Implemented for GJS over @gjsify/sqlite-native, which is libsqlite3 itself.
 
-import type { Database as NativeDatabase } from '@gjsify/sqlite-native';
+import type { SqliteDatabase as NativeDatabase } from '@gjsify/sqlite-native';
 import {
     ConstructCallRequiredError,
     InvalidArgTypeError,

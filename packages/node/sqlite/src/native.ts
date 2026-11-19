@@ -1,6 +1,6 @@
 // Access to the GjsifySqlite typelib that backs this package.
 
-import { getLoadError, loadNativeSqlite, type NativeSqliteModule } from '@gjsify/sqlite-native';
+import { getLoadError, loadNativeSqlite, type SqliteDriverModule } from '@gjsify/sqlite-native';
 import { InvalidStateError } from './errors.ts';
 
 /**
@@ -12,7 +12,7 @@ import { InvalidStateError } from './errors.ts';
  * carrying the loader's own message, which names the missing library rather than only
  * the namespace.
  */
-export function nativeSqlite(): NativeSqliteModule {
+export function nativeSqlite(): SqliteDriverModule {
     const native = loadNativeSqlite();
     if (!native) {
         const reason = getLoadError()?.message;
@@ -22,5 +22,6 @@ export function nativeSqlite(): NativeSqliteModule {
             }`,
         );
     }
+    // Typed as the driver contract, so the typelib drifting from it fails to compile here.
     return native;
 }

@@ -1014,7 +1014,7 @@ describe('check-build-infra-order: the type-dependency order', () => {
 describe('check-build-infra-order: the cold CLI sweep', () => {
     const FACADE = 'node scripts/bootstrap-native-facades.mjs';
 
-    /** `packages` maps a name to `{ dependencies?, files }`, files relative to the package dir. */
+    /** `packages` maps a name to `{ dependencies?, devDependencies?, peerDependencies?, files }`, files relative to the package dir. */
     function runSweepGuard(buildInfra, packages) {
         const root = mkdtempSync(join(tmpdir(), 'gjsify-infra-sweep-'));
         writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { 'build:infra': buildInfra } }));
@@ -1026,6 +1026,8 @@ describe('check-build-infra-order: the cold CLI sweep', () => {
                 JSON.stringify({
                     name,
                     dependencies: pkg.dependencies ?? {},
+                    devDependencies: pkg.devDependencies ?? {},
+                    peerDependencies: pkg.peerDependencies ?? {},
                     scripts: { build: 'gjsify run build:types', 'build:types': 'gjsify tsc' },
                     exports: { '.': { types: './lib/types/index.d.ts', default: './lib/esm/index.js' } },
                 }),
@@ -1069,6 +1071,27 @@ describe('check-build-infra-order: the cold CLI sweep', () => {
             '@gjsify/child_process': LEAF,
         });
         assert.equal(result.status, 0, result.output);
+    });
+
+    // graph.ts orders an optional peer that is also a devDependency before its consumer
+    // ("built against"), so `-d` builds it first; a plain devDependency it does not.
+    it('accepts the same import once it is a peer the package also builds against', () => {
+        const dep = { '@gjsify/child_process': 'workspace:^' };
+        const result = runSweepGuard(`gjsify workspace @gjsify/cli build && ${FACADE}`, {
+            '@gjsify/cli': { dependencies: { '@gjsify/webaudio': 'workspace:^' }, files: CLI.files },
+            '@gjsify/webaudio': { ...SPEC_IMPORTER, devDependencies: dep, peerDependencies: dep },
+            '@gjsify/child_process': LEAF,
+        });
+        assert.equal(result.status, 0, result.output);
+    });
+
+    it('still rejects it as a devDependency alone', () => {
+        const result = runSweepGuard(`gjsify workspace @gjsify/cli build && ${FACADE}`, {
+            '@gjsify/cli': CLI,
+            '@gjsify/webaudio': { ...SPEC_IMPORTER, devDependencies: { '@gjsify/child_process': 'workspace:^' } },
+            '@gjsify/child_process': LEAF,
+        });
+        assert.equal(result.status, 1, result.output);
     });
 
     it('accepts the same import once build:infra emits it', () => {

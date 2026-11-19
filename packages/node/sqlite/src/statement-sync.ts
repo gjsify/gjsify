@@ -3,9 +3,9 @@
 // Implemented for GJS over @gjsify/sqlite-native, which is libsqlite3 itself.
 
 import type {
-    Database as NativeDatabase,
-    NativeSqliteModule,
-    Statement as NativeStatement,
+    SqliteDatabase as NativeDatabase,
+    SqliteDriverModule,
+    SqliteStatement as NativeStatement,
 } from '@gjsify/sqlite-native';
 import {
     IllegalConstructorError,
@@ -423,7 +423,7 @@ export class StatementSync {
         return row;
     }
 
-    #readColumn(ColumnType: NativeSqliteModule['ColumnType'], index: number): unknown {
+    #readColumn(ColumnType: SqliteDriverModule['ColumnType'], index: number): unknown {
         const statement = this.#statement;
         // Per ROW, not per column of the statement: a column with no declared type holds
         // whatever each row put there, so the storage class is the only honest answer.

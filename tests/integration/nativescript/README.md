@@ -21,6 +21,7 @@ Currently covered (extend by adding `app/specs/<pkg>.smoke.ts` + an import in
 - **`@gjsify/path`** — posix `join`/`resolve`/`normalize`, `basename`/`extname`/`parse`, `sep`/`delimiter`
 - **`@gjsify/buffer`** — `from`/`toString` (utf8/base64/hex), `byteLength`, `concat`, `alloc`, `writeUInt8`/`readUInt8`
 - **`@gjsify/stream`** (`nativescript:'polyfill'`) — `Readable.from`, `PassThrough` round-trip, `Transform` map, `pipeline`, async-iteration
+- **`@gjsify/sqlite`** (`nativescript:'partial'`, Android) — `node:sqlite`'s `DatabaseSync` over `@gjsify/native-sqlite-bridge` and `androidx.sqlite`'s bundled driver (the two Gradle lines in `App_Resources/Android/app.gradle`): script `exec` with a trigger, named/numbered parameters, 64-bit integers as BigInt, BLOBs of every byte value, FTS5, a WAL file database across reopen, the extended constraint codes, `isTransaction`
 - **`@gjsify/native-platform`** (`nativescript:'native'`) — `isNativeScript`/`isAndroid`/`isIOS`, `platformName()`, `assertNativeScript()`, `platformInfo()` (real OS version / SDK level / device model read from `android.os.Build` / `UIDevice`)
 
 ## Why a custom reporter, not `@gjsify/unit`
@@ -114,6 +115,13 @@ replicates the copy so the build is deterministic and watcher-free. On-device yo
 also see a `PASS n/total` / `FAIL n/total` Label as a visual fallback.
 
 ## Validated
+
+**39/39 green on 2026-11-19** (emulator API 36, x86_64, `androidx.sqlite` 2.7.1): the 27 below
+plus `@gjsify/sqlite` 12/12, built from packed workspaces of the branch that added the Android
+driver (`gjsify pack` + `file:` deps + an `overrides` entry for the transitive
+`@gjsify/sqlite-native` and `@gjsify/resolve-npm`).
+
+Earlier:
 
 `@gjsify/path` (7/7), `@gjsify/buffer` (7/7), `@gjsify/stream` (5/5) and
 `@gjsify/native-platform` (8/8) — **27/27 green on the Android NS V8 runtime**

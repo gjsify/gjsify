@@ -1,0 +1,74 @@
+{
+    "name": "@gjsify/native-sqlite-bridge",
+    "version": "0.64.48",
+    "description": "NativeScript native bridge for node:sqlite — Android (androidx.sqlite BundledSQLiteDriver) + iOS stub",
+    "type": "module",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        }
+    },
+    "files": [
+        "lib"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib tsconfig.tsbuildinfo tsconfig.types.tsbuildinfo test.gjs.mjs test.node.mjs",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "gjsify tsc",
+        "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs",
+        "test:node": "node test.node.mjs"
+    },
+    "keywords": [
+        "gjs",
+        "nativescript",
+        "sqlite",
+        "android",
+        "ios"
+    ],
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "dependencies": {
+        "@gjsify/native-platform": "workspace:^",
+        "@gjsify/sqlite-native": "workspace:^"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "none",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "native"
+        },
+        "tier": 2
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/nativescript-bridge/sqlite"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/sqlite#readme",
+    "peerDependencies": {
+        "@nativescript/core": "*"
+    },
+    "peerDependenciesMeta": {
+        "@nativescript/core": {
+            "optional": true
+        }
+    }
+}

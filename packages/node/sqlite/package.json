@@ -41,6 +41,7 @@
     ],
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
+        "@gjsify/native-sqlite-bridge": "workspace:^",
         "@gjsify/node-gi": "file:../../../packages/node-gi/node-gi",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",
@@ -55,7 +56,7 @@
             "gjs": "polyfill",
             "node": "none",
             "browser": "partial",
-            "nativescript": "none"
+            "nativescript": "partial"
         },
         "tier": 1
     },
@@ -68,5 +69,13 @@
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"
     },
-    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/node/sqlite#readme"
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/node/sqlite#readme",
+    "peerDependencies": {
+        "@gjsify/native-sqlite-bridge": "workspace:^"
+    },
+    "peerDependenciesMeta": {
+        "@gjsify/native-sqlite-bridge": {
+            "optional": true
+        }
+    }
 }

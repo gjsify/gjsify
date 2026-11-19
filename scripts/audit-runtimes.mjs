@@ -435,10 +435,18 @@ const NODE_API_GJS_ONLY = new Set([
     'terminal-native',
     'http2-native',
     'http-soup-bridge',
-    // Not a bridge itself, but its only engine is @gjsify/sqlite-native: its own source
+    // Not a bridge itself, but its engine on GJS is @gjsify/sqlite-native: its own source
     // spells neither `gi://` nor `@girs/*`, so the scanner would read it as portable pure TS.
     'sqlite',
 ]);
+
+/**
+ * Node-API packages whose NativeScript reach is real but partial: one platform has a
+ * driver, the other a stub. `@gjsify/sqlite` is a GJS engine (`@gjsify/sqlite-native`) with
+ * an Android one (`@gjsify/native-sqlite-bridge`, ADR 0147); its source spells neither
+ * `gi://` nor `@girs/*`, so the scanner would otherwise read it as portable pure TS.
+ */
+const NODE_API_NS_PARTIAL = new Set(['sqlite']);
 
 /**
  * EMPTY. The seam for a declared `node:"none"` package the heuristic would suggest
@@ -685,6 +693,7 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
  */
 function deriveNativescriptSlot(axis, suggested, signals, pkgSubpath) {
     if (!suggested) return null;
+    if (axis === 'node-api' && NODE_API_NS_PARTIAL.has(pkgSubpath)) return 'partial';
     if (axis === 'node-api' && NODE_API_GJS_ONLY.has(pkgSubpath)) return 'none';
     // A browser polyfill entry (partial or full) means the package can run on
     // NativeScript's V8 via the browser entry, even if the main entry has
