@@ -8,7 +8,7 @@ import { parseMetainfo } from '../site-data/metainfo.js';
 import { parseCatalog } from '../site-data/po.js';
 import { buildListingModel, checkEntry, type StoreEntry } from './build.js';
 import { parseListingConfig } from './config.js';
-import { hasOwnPromo, listingScreenshots } from './images.js';
+import { captionTargets, hasOwnPromo, listingScreenshots } from './images.js';
 import { fitInto, parseHexColor, planPlacement } from './fit.js';
 import { parseStores, STORE_SPECS } from './limits.js';
 import { promoFileName, promoSvg } from './promo.js';
@@ -70,6 +70,172 @@ export default async () => {
             expect(() => config({ omit: 'A' })).toThrow();
             expect(() => config({ omit: [1] })).toThrow();
             expect(() => config({ omit: [''] })).toThrow();
+        });
+    });
+
+    await describe('listing captions config', async () => {
+        await it('parses captions and rejects wrong types', async () => {
+            expect(Object.keys(config().captions).length).toBe(0);
+            expect(config({ captions: { '01-hero.png': 'Hero' } }).captions['01-hero.png']).toBe('Hero');
+            expect(() => config({ captions: ['01-hero.png'] })).toThrow();
+            expect(() => config({ captions: 'Hero' })).toThrow();
+            expect(() => config({ captions: { '01-hero.png': 1 } })).toThrow();
+            expect(() => config({ captions: { '01-hero.png': '' } })).toThrow();
+        });
+    });
+
+    await describe('listing search terms', async () => {
+        const keywords = (terms: string) =>
+            parseMetainfo(METAINFO.replace('<url type="homepage"', `${terms}<url type="homepage"`));
+
+        await it('localizes the keywords per language and only for Edge', async () => {
+            const metainfo = keywords(
+                '<keywords><keyword>tabs</keyword><keyword xml:lang="de">Tabs</keyword><keyword>history</keyword></keywords>',
+            );
+            const catalogs = { de: parseCatalog('msgid "history"\nmsgstr "Verlauf"\n') };
+            const model = buildListingModel({ metainfo, config: config(), catalogs });
+            expect(model.stores.edge?.en?.searchTerms?.join()).toBe('tabs,history');
+            expect(model.stores.edge?.de?.searchTerms?.join()).toBe('Tabs,Verlauf');
+            expect(model.stores.cws?.en?.searchTerms).toBe(undefined);
+            expect(model.stores.amo?.en?.searchTerms).toBe(undefined);
+            expect(model.issues.filter((issue) => issue.field === 'searchTerms').length).toBe(0);
+        });
+
+        await it('documents Edge limits with their source', async () => {
+            const limit = STORE_SPECS.edge.searchTerms;
+            expect(limit?.maxTerms).toBe(7);
+            expect(limit?.maxCharacters).toBe(30);
+            expect(limit?.maxWords).toBe(21);
+            expect(limit?.verified).toBe(true);
+            expect(STORE_SPECS.cws.searchTerms).toBe(undefined);
+            expect(STORE_SPECS.amo.searchTerms).toBe(undefined);
+        });
+
+        await it('errors on more than seven terms', async () => {
+            const issues = checkEntry('edge', 'en', entry({ searchTerms: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] }));
+            expect(issues.length).toBe(1);
+            expect(issues[0]?.message.includes('8 terms, limit 7')).toBe(true);
+            expect(checkEntry('edge', 'en', entry({ searchTerms: ['a', 'b', 'c', 'd', 'e', 'f', 'g'] })).length).toBe(
+                0,
+            );
+        });
+
+        await it('errors on a term over 30 characters, counting code points', async () => {
+            expect(checkEntry('edge', 'de', entry({ searchTerms: ['x'.repeat(31)] })).length).toBe(1);
+            expect(checkEntry('edge', 'de', entry({ searchTerms: ['x'.repeat(30)] })).length).toBe(0);
+            expect(checkEntry('edge', 'de', entry({ searchTerms: ['😀'.repeat(30)] })).length).toBe(0);
+        });
+
+        await it('errors on more than 21 words across all terms', async () => {
+            const seven = 'one two three four';
+            const over = checkEntry(
+                'edge',
+                'en',
+                entry({ searchTerms: Array(6).fill(seven).slice(0, 5).concat(['a b']) }),
+            );
+            expect(over.some((issue) => issue.message.includes('22 words, limit 21'))).toBe(true);
+            const ok = checkEntry(
+                'edge',
+                'en',
+                entry({ searchTerms: ['a b c', 'd e f', 'g h i', 'j k l', 'm n o', 'p q r', 's t u'] }),
+            );
+            expect(ok.length).toBe(0);
+        });
+
+        await it('reports the violation through the model for the right language', async () => {
+            const long = 'k'.repeat(31);
+            const metainfo = keywords(`<keywords><keyword>${long}</keyword></keywords>`);
+            const model = buildListingModel({ metainfo, config: config(), catalogs: {}, stores: ['edge'] });
+            const terms = model.issues.filter((issue) => issue.field === 'searchTerms');
+            expect(terms.length).toBe(2);
+            expect(
+                terms
+                    .map((issue) => issue.language)
+                    .sort()
+                    .join(),
+            ).toBe('de,en');
+            expect(terms.every((issue) => issue.store === 'edge')).toBe(true);
+        });
+
+        await it('lists the per-language file in store.json', async () => {
+            const m = storeManifest({
+                app: 'x',
+                store: 'edge',
+                entries: { en: entry({ searchTerms: ['a'] }), de: entry({ searchTerms: ['b'] }) },
+                files: { screenshots: [], promo: {} },
+            });
+            const terms = m.fields.find((f) => f.key === 'searchTerms')!;
+            expect(terms.files?.join()).toBe('en/search-terms.txt,de/search-terms.txt');
+        });
+    });
+
+    await describe('listing screenshot captions', async () => {
+        const metainfo = parseMetainfo(METAINFO);
+        const catalogs = { de: parseCatalog('msgid "The hero"\nmsgstr "Das Hauptbild"\n') };
+        const cfg = config({ captions: { '01-hero.png': 'The hero' } });
+
+        await it('translates captions through the catalogue, for AMO only', async () => {
+            const model = buildListingModel({ metainfo, config: cfg, catalogs });
+            expect(model.stores.amo?.en?.captions?.['01-hero.png']).toBe('The hero');
+            expect(model.stores.amo?.de?.captions?.['01-hero.png']).toBe('Das Hauptbild');
+            expect(model.stores.cws?.en?.captions).toBe(undefined);
+            expect(model.stores.edge?.de?.captions).toBe(undefined);
+            expect(STORE_SPECS.amo.screenshotCaptions?.url.startsWith('https://')).toBe(true);
+        });
+
+        await it('lists captions in --pot even when AMO is not selected, and warns on a missing translation', async () => {
+            const model = buildListingModel({ metainfo, config: cfg, catalogs: {}, stores: ['edge'] });
+            expect(model.msgids.includes('The hero')).toBe(true);
+            expect(model.warnings.some((w) => w.includes('"de"') && w.includes('The hero'))).toBe(true);
+        });
+
+        await it('puts the captions in store.json next to the screenshots', async () => {
+            const m = storeManifest({
+                app: 'x',
+                store: 'amo',
+                entries: { en: entry(), de: entry() },
+                files: {
+                    screenshots: ['screenshots/01-hero.png'],
+                    promo: {},
+                    captions: { en: 'screenshots/captions.en.json', de: 'screenshots/captions.de.json' },
+                },
+                captions: { en: { '01-hero.png': 'The hero' }, de: { '01-hero.png': 'Das Hauptbild' } },
+            });
+            const field = m.fields.find((f) => f.key === 'screenshotCaptions')!;
+            expect(field.status).toBe('derived');
+            expect(field.captions?.de?.['01-hero.png']).toBe('Das Hauptbild');
+            expect(field.files?.join()).toBe('screenshots/captions.en.json,screenshots/captions.de.json');
+            expect(
+                storeManifest({
+                    app: 'x',
+                    store: 'cws',
+                    entries: { en: entry() },
+                    files: { screenshots: [], promo: {} },
+                }).fields.some((f) => f.key === 'screenshotCaptions'),
+            ).toBe(false);
+        });
+
+        await it('maps a caption key to the kit file name and errors on an unknown screenshot', async () => {
+            const root = mkdtempSync(join(tmpdir(), 'listing-captions-'));
+            mkdirSync(join(root, 'shots'));
+            writeFileSync(join(root, 'shots', '01-hero.png'), 'x');
+            writeFileSync(join(root, 'shots', '02-popup.png'), 'x');
+            const make = (captions: object) => config({ screenshots: 'shots', captions });
+            const sets = async (captions: object) => {
+                const c = make(captions);
+                return captionTargets(c, await listingScreenshots(metainfo, c, root, {}));
+            };
+            const targets = await sets({ '01-hero.png': 'A', '02-popup.png': 'B' });
+            expect(targets['01-hero.png']).toBe('01-hero.png');
+            expect(targets['02-popup.png']).toBe('02-popup.png');
+            let message = '';
+            try {
+                await sets({ '01-hero.png': 'A', '03-typo.png': 'B' });
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message.includes('"03-typo.png"')).toBe(true);
+            expect(message.includes('01-hero.png, 02-popup.png')).toBe(true);
         });
     });
 

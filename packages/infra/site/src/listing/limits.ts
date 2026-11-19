@@ -20,6 +20,15 @@ export interface TextLimit {
     verified: boolean;
 }
 
+/** The dashboard's search-terms box: how many terms, how long each, how many words in all. */
+export interface SearchTermLimit {
+    maxTerms: number;
+    maxCharacters: number;
+    maxWords: number;
+    url: string;
+    verified: boolean;
+}
+
 export interface Size {
     width: number;
     height: number;
@@ -34,6 +43,7 @@ export type FormKey =
     | 'language'
     | 'icon'
     | 'screenshots'
+    | 'screenshotCaptions'
     | 'promoSmall'
     | 'promoMarquee'
     | 'privacyUrl'
@@ -74,8 +84,13 @@ export interface StoreSpec {
     categoryRequired: boolean;
     /** Promo tiles the dashboard takes; empty when the store has none. */
     promo: PromoSpec[];
-    /** The dashboard asks for search terms. */
-    searchTerms?: boolean;
+    /** The dashboard asks for search terms, and what it accepts. */
+    searchTerms?: SearchTermLimit;
+    /**
+     * The dashboard takes a per-language caption for each screenshot, and the page that says so. No
+     * store documents a length limit for one, so none is enforced.
+     */
+    screenshotCaptions?: { url: string };
     /** The dashboard's form, in the order a person fills it in. */
     form: FormFieldSpec[];
     /** Which images the store takes once per language, and the page that says so. */
@@ -162,7 +177,8 @@ export const STORE_SPECS: Record<Store, StoreSpec> = {
             { kind: 'small', width: 440, height: 280, required: false, url: EDGE_PUBLISH },
             { kind: 'marquee', width: 1400, height: 560, required: false, url: EDGE_PUBLISH },
         ],
-        searchTerms: true,
+        // "Up to a maximum of seven search terms ... a character limit of 30 characters ... a maximum of 21 words."
+        searchTerms: { maxTerms: 7, maxCharacters: 30, maxWords: 21, url: EDGE_PUBLISH, verified: true },
         form: [
             { key: 'name', label: 'Name', required: true },
             { key: 'summary', label: 'Short description', required: true },
@@ -193,6 +209,8 @@ export const STORE_SPECS: Record<Store, StoreSpec> = {
         icon: { size: 128, url: 'https://mozilla.github.io/addons-server/topics/api/addons.html' },
         summaryHasNoUrls: true,
         descriptionHtml: true,
+        // The add-on API's `previews[].caption` is a translated field.
+        screenshotCaptions: { url: 'https://mozilla.github.io/addons-server/topics/api/addons.html' },
         justifiesPermissions: false,
         categoryRequired: false,
         promo: [],
@@ -204,6 +222,7 @@ export const STORE_SPECS: Record<Store, StoreSpec> = {
             { key: 'category', label: 'Categories', required: false },
             { key: 'icon', label: 'Icon', required: false },
             { key: 'screenshots', label: 'Screenshots', required: false },
+            { key: 'screenshotCaptions', label: 'Screenshot captions', required: false },
             { key: 'homepage', label: 'Homepage', required: false },
             { key: 'supportUrl', label: 'Support site', required: false },
             { key: 'privacyUrl', label: 'Privacy policy', required: false },

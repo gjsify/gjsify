@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
-import { join, relative, resolve } from 'node:path';
+import { basename, join, relative, resolve } from 'node:path';
 
 import { decodeImageFile, decodeImageFileAtSize, svgToPng } from '../render/image-backend.js';
 import { languageCandidates } from '../site-data/po.js';
@@ -23,6 +23,9 @@ export interface ShotSets {
     /** Only the languages whose set differs from `source`. */
     byLanguage: Record<string, SourceShot[]>;
 }
+
+/** The kit's file name of the `index`-th screenshot: `01-hero.png`. */
+export const shotName = (index: number, slug: string) => `${String(index + 1).padStart(2, '0')}-${slug}.png`;
 
 const IMAGE_FILE = /\.(png|jpe?g|webp)$/i;
 
@@ -142,7 +145,7 @@ export function renderScreenshots(
             add(`screenshots[${index + 1}]`, `${shot.slug}: ${plan.reason}`);
             continue;
         }
-        const name = `${String(index + 1).padStart(2, '0')}-${shot.slug}.png`;
+        const name = shotName(index, shot.slug);
         const bytes = encode ? source.placed(spec.screenshots, plan.fit, background).encode('png') : undefined;
         images.push({ name, bytes });
     }
@@ -166,4 +169,30 @@ export function renderIcon(store: Store, file: string): RenderedImage {
 /** A promo tile drawn as SVG and rasterised by the same backend as the icon. */
 export function renderPromo(spec: PromoSpec, input: PromoInput): RenderedImage {
     return { name: promoFileName(spec), bytes: svgToPng(promoSvg(spec, input)) };
+}
+
+/**
+ * Where a caption key points: the file name of a source screenshot or its kit name (`01-hero.png`).
+ * A key that names no screenshot of any language's set throws, so a typo cannot drop a caption silently.
+ */
+export function captionTargets(config: ListingConfig, shots: ShotSets): Record<string, string | undefined> {
+    const targets: Record<string, string | undefined> = {};
+    const known = new Set<string>();
+    for (const shot of Object.values(shots.byLanguage).flat()) known.add(basename(shot.file));
+    for (const [index, shot] of shots.source.entries()) {
+        known.add(basename(shot.file));
+        known.add(shotName(index, shot.slug));
+    }
+    const unknown = Object.keys(config.captions).filter((key) => !known.has(key));
+    if (unknown.length > 0)
+        throw new Error(
+            `gjsify.webext.listing.captions names no screenshot: ${unknown.map((key) => `"${key}"`).join(', ')} (known: ${[...known].sort().join(', ') || 'none'})`,
+        );
+    for (const key of Object.keys(config.captions)) {
+        const index = shots.source.findIndex(
+            (shot, position) => basename(shot.file) === key || shotName(position, shot.slug) === key,
+        );
+        targets[key] = index < 0 ? undefined : shotName(index, shots.source[index]!.slug);
+    }
+    return targets;
 }

@@ -3,7 +3,7 @@ import { pickByLanguage, resolveLocalized, translator } from '../site-data/po.js
 import type { Localized, Metainfo } from '../site-data/types.js';
 import type { ListingConfig } from './config.js';
 import { STORE_SPECS, STORES, type Store, type TextField } from './limits.js';
-import { characters, descriptionHtml, descriptionText, omitBlocks } from './text.js';
+import { characters, descriptionHtml, descriptionText, omitBlocks, words } from './text.js';
 
 export interface StoreEntry {
     name: string;
@@ -19,6 +19,8 @@ export interface StoreEntry {
     supportUrl?: string;
     /** Edge's search terms, from the metainfo keywords. */
     searchTerms?: string[];
+    /** Screenshot source file name → caption, for stores that take captions. */
+    captions?: Record<string, string>;
 }
 
 export interface Issue {
@@ -72,6 +74,21 @@ export function checkEntry(store: Store, language: string, entry: StoreEntry): I
             if (justification === '') add(`permissions.${permission}`, 'has no justification');
         }
     }
+    const terms = spec.searchTerms;
+    if (terms && entry.searchTerms) {
+        const note = `${terms.verified ? '' : '(limit not confirmed by first-party docs) '}${terms.url}`;
+        if (entry.searchTerms.length > terms.maxTerms)
+            add('searchTerms', `${entry.searchTerms.length} terms, limit ${terms.maxTerms} — ${note}`);
+        for (const term of entry.searchTerms) {
+            if (characters(term) > terms.maxCharacters)
+                add(
+                    'searchTerms',
+                    `"${term}" is ${characters(term)} characters, limit ${terms.maxCharacters} — ${note}`,
+                );
+        }
+        const total = entry.searchTerms.reduce((sum, term) => sum + words(term), 0);
+        if (total > terms.maxWords) add('searchTerms', `${total} words, limit ${terms.maxWords} — ${note}`);
+    }
     if (spec.categoryRequired && !entry.category)
         add('category', `is not set (gjsify.webext.listing.category.${store})`);
     return issues;
@@ -101,6 +118,10 @@ export function buildListingModel({ metainfo, config, catalogs, stores = STORES 
             return isSource ? text.source : resolveLocalized(text, language, catalog);
         };
 
+        // Looked up for every store, so `--pot` lists the captions even when only Edge is selected.
+        const captions = Object.keys(config.captions).length
+            ? Object.fromEntries(Object.entries(config.captions).map(([file, msgid]) => [file, configText(msgid)]))
+            : undefined;
         const base = {
             name: app(metainfo.name),
             summary: app(metainfo.summary),
@@ -124,6 +145,7 @@ export function buildListingModel({ metainfo, config, catalogs, stores = STORES 
                 ...(spec.descriptionHtml ? { descriptionHtml: descriptionHtml(description, app) } : {}),
                 category: config.category[store],
                 ...(spec.searchTerms ? { searchTerms: metainfo.keywords.map(app) } : {}),
+                ...(spec.screenshotCaptions && captions ? { captions } : {}),
             };
             (model.stores[store] ??= {})[language] = entry;
             model.issues.push(...checkEntry(store, language, entry));

@@ -38,7 +38,8 @@ each key falls back to the `gjsify.site` one, and `--config <file>` overrides th
   translated through the catalogues, as `gjsify site` does for page strings. A missing translation
   is a warning, a missing justification for a manifest permission on a store that asks is an error.
 - `category` per store, `privacyUrl`, `screenshots` (a directory replacing the metainfo shots),
-  `omit` (source-language description blocks kept out of every store listing; an unmatched entry is an error).
+  `omit` (source-language description blocks kept out of every store listing; an unmatched entry is an error),
+  `captions` (screenshot file name → msgid, AMO only; an unknown file name is an error).
 
 Privacy URL precedence: metainfo `<url type="privacy">`, then `privacyUrl`, then
 `<siteUrl><lang>/privacy/` when `gjsify.site.privacy` is set. The donation URL is never emitted
@@ -91,7 +92,8 @@ all stores in light and dark.
 | Icon, screenshots | derived (PNG at the store size) |
 | Promo tiles (small / marquee) | derived (CWS small required; Edge optional) |
 | Single purpose, permission justifications | derived (`permissions.md`) |
-| Edge search terms | derived from the metainfo keywords |
+| Edge search terms | derived from the metainfo keywords, per language; max 7 terms, 30 characters each, 21 words |
+| AMO screenshot captions | derived from `captions` (`captions.<lang>.json`) |
 | CWS data usage disclosures | manual (`store.json` flags it) |
 | Edge notes for certification | manual |
 

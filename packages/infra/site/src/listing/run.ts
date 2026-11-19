@@ -11,6 +11,7 @@ import { loadCatalogs } from '../site-data/load.js';
 import { buildListingModel, type Issue, type ListingModel, type StoreEntry } from './build.js';
 import { parseListingConfig, type ListingConfig } from './config.js';
 import {
+    captionTargets,
     hasOwnPromo,
     letterboxColor,
     listingScreenshots,
@@ -126,6 +127,7 @@ export async function runListing(options: ListingOptions): Promise<ListingResult
     };
     if (write) await rm(out, { recursive: true, force: true });
 
+    const captionKeys = captionTargets(config, shots);
     const index: Record<string, unknown> = {};
     const previews: PreviewStore[] = [];
     for (const store of stores) {
@@ -140,6 +142,8 @@ export async function runListing(options: ListingOptions): Promise<ListingResult
             await emit(`${dir}/description.txt`, ensureNewline(entry.description));
             if (entry.descriptionHtml !== undefined)
                 await emit(`${dir}/description.html`, ensureNewline(entry.descriptionHtml));
+            if (entry.searchTerms?.length)
+                await emit(`${dir}/search-terms.txt`, ensureNewline(entry.searchTerms.join('\n')));
             if (STORE_SPECS[store].justifiesPermissions)
                 await emit(`${dir}/permissions.md`, permissionsMarkdown(entry));
         }
@@ -148,6 +152,20 @@ export async function runListing(options: ListingOptions): Promise<ListingResult
         if (icon?.bytes) await emit(`${store}/${icon.name}`, icon.bytes);
         for (const image of shotResult.images)
             if (image.bytes) await emit(`${store}/screenshots/${image.name}`, image.bytes);
+        const captions: Record<string, Record<string, string>> = {};
+        const captionFiles: Record<string, string> = {};
+        const shipped = new Set(shotResult.images.map((image) => image.name));
+        for (const [language, entry] of Object.entries(entries)) {
+            const own: Record<string, string> = {};
+            for (const [key, text] of Object.entries(entry.captions ?? {})) {
+                const name = captionKeys[key];
+                if (name !== undefined && shipped.has(name)) own[name] = text;
+            }
+            if (Object.keys(own).length === 0) continue;
+            captions[language] = own;
+            captionFiles[language] = `screenshots/captions.${language}.json`;
+            await emit(`${store}/${captionFiles[language]}`, `${JSON.stringify(own, null, 2)}\n`);
+        }
         const source = entries[config.sourceLanguage] ?? Object.values(entries)[0];
         const promoFor = async (entry: StoreEntry, prefix: string): Promise<StoreFiles['promo']> => {
             const tiles: StoreFiles['promo'] = {};
@@ -187,9 +205,10 @@ export async function runListing(options: ListingOptions): Promise<ListingResult
             icon: icon?.name,
             screenshots: shotResult.images.map((image) => `screenshots/${image.name}`),
             promo,
+            ...(Object.keys(captionFiles).length > 0 ? { captions: captionFiles } : {}),
             ...(Object.keys(byLanguage).length > 0 ? { byLanguage } : {}),
         };
-        const manifest = storeManifest({ app: metainfo.id, store, entries, files });
+        const manifest = storeManifest({ app: metainfo.id, store, entries, files, captions });
         await emit(`${store}/store.json`, `${JSON.stringify(manifest, null, 2)}\n`);
         previews.push({ manifest, entries, files });
         index[store] = {
