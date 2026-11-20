@@ -45,6 +45,8 @@ import shipFlatpakSuite from './utils/ship/flatpak.spec.js';
 import shipDmgSuite from './utils/ship/dmg.spec.js';
 import shipReleaseRecordSuite from './utils/ship/release-record.spec.js';
 import shipAppImageSuite from './utils/ship/appimage.spec.js';
+import shipSnapSuite from './utils/ship/snap.spec.js';
+import snapStoreSuite from './utils/snap/store.spec.js';
 import installProvenanceSuite from './utils/install-provenance.spec.js';
 import shipPlistSuite from './utils/ship/plist.spec.js';
 import shipMsiSuite from './utils/ship/msi.spec.js';
@@ -353,6 +355,8 @@ run(
         shipDmgSuite,
         shipReleaseRecordSuite,
         shipAppImageSuite,
+        shipSnapSuite,
+        snapStoreSuite,
         shipPlistSuite,
         shipMsiSuite,
         installProvenanceSuite,

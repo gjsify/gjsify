@@ -66,6 +66,7 @@ const TARGETS = new Set([
     'rpm',
     'flatpak',
     'appimage',
+    'snap',
     'linux-tar',
     'linux-tar-flatpak',
     'macos-app',

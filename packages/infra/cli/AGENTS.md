@@ -31,6 +31,7 @@ gjsify dev [entry] [--runtime <r>] [--script <s>]   # watch → rebuild → rela
 gjsify prune [-g] [--dry-run]              # drop installed packages this host cannot use (ADR 0025)
 gjsify webext build|zip|dev|submit [--target <t>..]   # WebExtension, folder/target (ADR 0077)
 gjsify webext listing [--store(s) cws,edge,amo|all] [--out <dir>] [--check]   # listings, promo tiles, store.json, preview (ADR 0135)
+gjsify snap register <name> | upload <file.snap> [--release <ch>[,<ch>]] | status <name>   # Snap Store helpers over snapcraft; upload auths via $SNAPCRAFT_STORE_CREDENTIALS only (ADR 0149)
 ```
 
 **`gjsify dev` exists because `gjsify build --watch` cannot serve the host it is for**: that flag
@@ -110,18 +111,13 @@ onto one path and refused the pack.
 coincidence between two arch tables, so every row is asked for its name with the SAME arch label
 and the set must be unique.
 
-**AppImage IS `finishOn: ['linux']` + a tool NO DISTRO PACKAGES** (ADR 0024 § A24-§ A27) — § 9
-deferred it because *"runs anywhere"* needs a relocatable Linux closure nobody has built; what
-lifted the deferral is that *no install* and *no root* hold without one and nothing else in the
-table offers them, so the third promise is DECLARED instead of implied: `appImageHostRequirements`
-derives it through the same `hostProvidedNamespaces` the `.deb`'s `Depends:` uses, `ship` PRINTS
-it, and `AppRun` refuses at 127 naming it. `depends: null` = no FIELD, not nothing to say. The
-oracle must not be the artifact — `--appimage-offset` is its own embedded runtime, so
-`verify-appimage.py` derives the offset from the ELF section headers and reads with `unsquashfs`.
-**appimagetool EDITS THE APPDIR**: it writes `.DirIcon` after the packer stamped every path, so two
-packs of one build differed in sha256 with every byte of content identical — `appDirPayload` writes
-it now, as ONE list, because `writePayload` wipes and two calls would leave the last run's desktop
-entry beside this one's.
+**AppImage IS `finishOn: ['linux']` + a tool NO DISTRO PACKAGES** (ADR 0024 § A24-§ A27). `depends: null` = no FIELD, not
+nothing to say: `appImageHostRequirements` derives the host set via `hostProvidedNamespaces`, `ship` PRINTS it, `AppRun`
+refuses at 127 naming it. The oracle must not be the artifact (`verify-appimage.py` reads with `unsquashfs`). **appimagetool
+EDITS THE APPDIR**: it wrote `.DirIcon` after the stamping, so two packs differed in sha256 — `appDirPayload` writes it, as ONE
+list (`writePayload` wipes). Why and measurements: `docs/ship-formats.md` § appimage.
+
+**`snap` (ADR 0149)** is the Flatpak shape: `snap.ts` writes `snap/snapcraft.yaml` and the host's `snapcraft pack` writes the container; the `gnome-core26` platform snap is the runtime, nothing is bundled. Opt-in, `finishOn: ['linux']`. Details: `docs/ship-formats.md`.
 
 **AND WHICH OS'S LAYOUT IT WRAPS** — `FormatDescriptor.layoutOs`, NOT `host.finishOn`; `gjsify ship
 <linux|darwin|windows>` picks the layout, `defaultFormatIds(os)` filters on both, and a bare

@@ -76,6 +76,7 @@ export type FormatId =
     | 'rpm'
     | 'flatpak'
     | 'appimage'
+    | 'snap'
     | 'linux-tar'
     | 'linux-tar-flatpak'
     | 'macos-app'
