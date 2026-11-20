@@ -46,6 +46,7 @@ import * as nodePath from 'node:path';
 import {
     gjsImportsEmptyPlugin,
     giRendererPlugin,
+    giRealPlugin,
     platformResolvePlugin,
     nativescriptSuffixChain,
     NATIVESCRIPT_PLATFORMS,
@@ -264,6 +265,14 @@ export interface GjsifyNativescriptOptions {
      * `gi://` line). Off by default: it makes the widget toolkit a build-time dependency.
      */
     giRenderer?: boolean;
+    /**
+     * GI namespaces answered by the REAL `@gjsify/node-gi` namespace instead of the renderer's
+     * sparse arm — `Ns` or `Ns-Version`, e.g. `['Gio', 'GLib']` for code that needs
+     * `Gio.SocketClient` beside a widget port. Only meaningful with `giRenderer` (without it every
+     * `gi://` is already an empty module); needs `@gjsify/node-gi` as an app dependency. A
+     * namespace beyond the core set must be declared in `giNamespaces` too.
+     */
+    giReal?: string[];
     /**
      * Compile `poDirectory/<lang>.po` into `locale/<lang>/LC_MESSAGES/<domain>.mo` assets of the
      * build, so the Android GLib gettext finds them under `<filesDir>/app/locale` — the Vite mirror
@@ -623,6 +632,7 @@ export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plu
     const giRenderer = options.giRenderer ? GI_RENDERERS['nativescript'] : undefined;
 
     return [
+        ...(options.giReal?.length ? [giRealPlugin({ namespaces: options.giReal }) as unknown as Plugin] : []),
         ...(giRenderer ? [giRendererPlugin({ app: 'nativescript', ...giRenderer }) as unknown as Plugin] : []),
         gjsImportsEmptyPlugin({ emptyGirs: !giRenderer }) as unknown as Plugin,
         // Platform-specific source variants (`*.android` / `*.ios` /

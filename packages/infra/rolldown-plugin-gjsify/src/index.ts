@@ -71,6 +71,8 @@ export { aliasPlugin } from './plugins/alias.js';
 export type { AliasPluginOptions } from './plugins/alias.js';
 export { gjsImportsEmptyPlugin } from './plugins/gjs-imports-empty.js';
 export { giRendererPlugin } from './plugins/gi-renderer.js';
+export { giRealPlugin, giRealShimSource, GI_REAL_PLUGIN } from './plugins/gi-real.js';
+export type { GiRealOptions } from './plugins/gi-real.js';
 export {
     nativescriptLocalePlugin,
     collectLocaleAssets,
