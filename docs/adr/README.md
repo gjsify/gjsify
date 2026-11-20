@@ -168,6 +168,7 @@ the TODO records the *what's left*.
 | [0147](0147-node-sqlite-on-nativescript-binds-the-platform-sqlite.md) | `node:sqlite` on NativeScript binds the platform's SQLite, one driver per OS | Accepted |
 | [0148](0148-webext-submit-reaches-amo-and-the-store-api-survey.md) | `webext submit` reaches AMO, and what every store's publishing API can do | Proposed |
 | [0149](0149-snap-is-a-sixth-linux-container-snapcraft-packs-it.md) | Snap is a sixth Linux container, and snapcraft packs it | Proposed |
+| [0150](0150-transcribe-decodes-a-finished-recording-on-an-offline-engine.md) | `transcribe()` decodes a finished recording on an offline engine | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
