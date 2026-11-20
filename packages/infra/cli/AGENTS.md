@@ -30,6 +30,7 @@ gjsify link <checkout> [--packages <glob>] | gjsify unlink   # develop a consume
 gjsify dev [entry] [--runtime <r>] [--script <s>]   # watch → rebuild → relaunch; the templates' `dev` script
 gjsify prune [-g] [--dry-run]              # drop installed packages this host cannot use (ADR 0025)
 gjsify webext build|zip|dev|submit [--target <t>..]   # WebExtension, folder/target (ADR 0077)
+gjsify webext submit --store amo --listing-only [--notes-version <v>] [--dry-run]   # AMO listing texts, read back (ADR 0148 § 6)
 gjsify webext listing [--store(s) cws,edge,amo|all] [--out <dir>] [--check]   # listings, promo tiles, store.json, preview (ADR 0135)
 gjsify snap register <name> | upload <file.snap> [--release <ch>[,<ch>]] | status <name>   # Snap Store helpers over snapcraft; upload auths via $SNAPCRAFT_STORE_CREDENTIALS only (ADR 0149)
 ```

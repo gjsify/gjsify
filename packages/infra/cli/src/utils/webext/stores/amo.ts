@@ -40,6 +40,9 @@ import {
     type StoreBackendFactory,
     type StoreBackendOptions,
     type StoreCredentials,
+    type StoreListingFieldResult,
+    type StoreListingInput,
+    type StoreListingResult,
     type StoreOperationKind,
     type StoreOperationResult,
     type StorePublishInput,
@@ -86,6 +89,10 @@ interface AmoUploadBody {
     readonly validation?: unknown;
     readonly version?: string;
 }
+
+/** AMO normalises line endings and outer whitespace in translated text, so compare on that. */
+const sameText = (a: string, b: string): boolean => normalizeText(a) === normalizeText(b);
+export const normalizeText = (text: string): string => text.replace(/\r\n/g, '\n').trim();
 
 /** The error lines of a `validation` blob, whatever its exact shape. */
 export function validationLines(validation: unknown): string[] {
@@ -285,5 +292,96 @@ export const createAmoBackend: StoreBackendFactory = (
         await send('GET', `${addon}/`);
     }
 
-    return { store: STORE, upload, publish, status, operation, verifyCredentials };
+    /** A version id is digits; anything else is a version number, which AMO wants as `v<number>`. */
+    const versionRef = (version: string): string =>
+        /^\d+$/.test(version) ? version : `v${encodeURIComponent(version)}`;
+
+    /** A GET whose failure means "not established", never a failure of the write that preceded it. */
+    async function readBack<T>(url: string, what: string): Promise<{ body: T } | { unread: string }> {
+        try {
+            return { body: await json<T>(await send('GET', url), what) };
+        } catch (error) {
+            // The write already succeeded; a failed read must be reported as unread, not thrown.
+            if (error instanceof StoreApiError) return { unread: error.message };
+            throw error;
+        }
+    }
+
+    function compareLocales(
+        field: string,
+        sent: Readonly<Record<string, string>>,
+        stored: unknown,
+        read: { unread: string } | null,
+    ): StoreListingFieldResult[] {
+        return Object.entries(sent).map(([locale, text]) => {
+            const base = { field, locale, sent: text.length };
+            if (read !== null) return { ...base, verdict: 'unread' as const, detail: read.unread };
+            if (typeof stored !== 'object' || stored === null) {
+                return { ...base, verdict: 'unread' as const, detail: `AMO returned no per-locale ${field}.` };
+            }
+            const value = (stored as Record<string, unknown>)[locale];
+            if (typeof value !== 'string') {
+                return { ...base, verdict: 'mismatch' as const, detail: `AMO holds no ${field} for ${locale}.` };
+            }
+            return sameText(value, text)
+                ? { ...base, verdict: 'match' as const, detail: `read back ${value.length} chars.` }
+                : {
+                      ...base,
+                      verdict: 'mismatch' as const,
+                      detail: `AMO holds ${value.length} chars, sent ${text.length}.`,
+                  };
+        });
+    }
+
+    async function updateListing(input: StoreListingInput): Promise<StoreListingResult> {
+        // `name` is never sent: AMO takes it from the manifest. `privacy_policy` is ignored here — it has its own endpoint.
+        await send('PATCH', `${addon}/`, { json: { summary: input.summary, description: input.description } });
+        if (input.privacyPolicy !== undefined) {
+            await send('PATCH', `${addon}/eula_policy/`, { json: { privacy_policy: input.privacyPolicy } });
+        }
+        const notes = input.approvalNotes;
+        const versionUrl = notes === undefined ? '' : `${addon}/versions/${versionRef(notes.version)}/`;
+        if (notes !== undefined) await send('PATCH', versionUrl, { json: { approval_notes: notes.text } });
+
+        const fields: StoreListingFieldResult[] = [];
+        const detail = await readBack<{ summary?: unknown; description?: unknown }>(`${addon}/`, 'the add-on detail');
+        const unread = 'unread' in detail ? detail : null;
+        const stored = 'body' in detail ? detail.body : {};
+        fields.push(...compareLocales('summary', input.summary, stored.summary, unread));
+        fields.push(...compareLocales('description', input.description, stored.description, unread));
+        if (input.privacyPolicy !== undefined) {
+            const policy = await readBack<{ privacy_policy?: unknown }>(`${addon}/eula_policy/`, 'the eula_policy');
+            fields.push(
+                ...compareLocales(
+                    'privacy_policy',
+                    input.privacyPolicy,
+                    'body' in policy ? policy.body.privacy_policy : undefined,
+                    'unread' in policy ? policy : null,
+                ),
+            );
+        }
+        if (notes !== undefined) {
+            const version = await readBack<{ approval_notes?: unknown }>(versionUrl, 'the version detail');
+            const base = { field: 'approval_notes', sent: notes.text.length };
+            if ('unread' in version) fields.push({ ...base, verdict: 'unread', detail: version.unread });
+            else if (typeof version.body.approval_notes !== 'string') {
+                fields.push({ ...base, verdict: 'unread', detail: 'AMO returned no approval_notes.' });
+            } else if (sameText(version.body.approval_notes, notes.text)) {
+                fields.push({
+                    ...base,
+                    verdict: 'match',
+                    detail: `read back ${version.body.approval_notes.length} chars.`,
+                });
+            } else {
+                fields.push({
+                    ...base,
+                    verdict: 'mismatch',
+                    detail: `AMO holds ${version.body.approval_notes.length} chars.`,
+                });
+            }
+        }
+        return { fields };
+    }
+
+    return { store: STORE, upload, publish, status, operation, verifyCredentials, updateListing };
 };

@@ -333,6 +333,8 @@ interface SubmitArgs {
     timeout?: number;
     listingDir?: string;
     source?: string;
+    listingOnly: boolean;
+    notesVersion?: string;
 }
 
 export const webextSubmitCommand: Command<unknown, SubmitArgs> = {
@@ -370,6 +372,17 @@ export const webextSubmitCommand: Command<unknown, SubmitArgs> = {
                     'AMO only: source archive for reviewers (needed when the zip is bundled or minified); attached with --submit.',
                 type: 'string',
             })
+            .option('listing-only', {
+                description:
+                    'AMO only: send summary, description and privacy policy from --listing-dir (not the zip), then read each back. With --dry-run: lengths only, no network.',
+                type: 'boolean',
+                default: false,
+            })
+            .option('notes-version', {
+                description:
+                    'With --listing-only: also send the reviewer notes (approval_notes) to this version id or number.',
+                type: 'string',
+            })
             .option('listing-dir', {
                 description: 'Where `webext listing` wrote store.json (default: dist/listing).',
                 type: 'string',
@@ -390,6 +403,8 @@ export const webextSubmitCommand: Command<unknown, SubmitArgs> = {
             timeoutSeconds: args.timeout,
             listingDir: args.listingDir,
             sourceZip: args.source ? resolve(cwd, args.source) : undefined,
+            listingOnly: args.listingOnly,
+            notesVersion: args.notesVersion,
             project: loadSubmitProject(cwd),
             env: process.env,
             out: (line) => console.log(line),

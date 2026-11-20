@@ -490,6 +490,7 @@ credentials → then either the dry run or the drive.
 - **`store.json` is a preflight, never a payload.** It is read from `<listing-dir>/<cws|edge>/`
   (`--listing-dir`, default `dist/listing`). A missing file or a required field with status
   `missing` stops the run before any request; `manual` fields are listed, not blocking.
+- **`--listing-only` (AMO only)** sends the listing texts instead of the zip; see ADR 0148 § 6.
 - **`--dry-run`** resolves credentials and makes exactly one read through `verifyCredentials`
   (Edge: an operation GET on an unknown id; Chrome has none yet and says the credentials are
   unverified). It uploads nothing.

@@ -380,6 +380,28 @@ export interface StorePublishInput {
     readonly sourceZip?: string;
 }
 
+/** Listing texts for a store whose API takes them (AMO only). Locales are the STORE's codes, already mapped. */
+export interface StoreListingInput {
+    readonly summary: Readonly<Record<string, string>>;
+    readonly description: Readonly<Record<string, string>>;
+    readonly privacyPolicy?: Readonly<Record<string, string>>;
+    /** Per version, no locales. `version` is a version id (digits) or a version number. */
+    readonly approvalNotes?: { readonly version: string; readonly text: string };
+}
+
+/** What one field held after the write, as READ back — `unread` when the read did not establish it. */
+export interface StoreListingFieldResult {
+    readonly field: string;
+    readonly locale?: string;
+    readonly sent: number;
+    readonly verdict: 'match' | 'mismatch' | 'unread';
+    readonly detail: string;
+}
+
+export interface StoreListingResult {
+    readonly fields: readonly StoreListingFieldResult[];
+}
+
 /**
  * What every store backend answers to. Three verbs, because that is what both
  * vendor APIs expose: push the package, ask for review, read what happened.
@@ -395,6 +417,8 @@ export interface StoreBackend {
     status(): Promise<StoreStatusResult>;
     /** Read an asynchronous operation once (Edge: the 202's `Location` id). Absent on a store whose uploads are not operations. */
     operation?(kind: StoreOperationKind, operationId: string, version?: string): Promise<StoreOperationResult>;
+    /** Write listing texts, then read each back. Absent on a store with no listing API (Chrome, Edge). */
+    updateListing?(input: StoreListingInput): Promise<StoreListingResult>;
     /** A read-only call that proves the credentials work, for `--dry-run`. Resolves when they do, throws otherwise. */
     verifyCredentials?(): Promise<void>;
 }
