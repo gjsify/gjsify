@@ -538,6 +538,11 @@
       "missing": "Run against invented iCalendar fixtures only, never a live calendar feed. No VJOURNAL, no VALARM expansion, no writing.",
       "note": "Read-only RFC 5545 expansion over ical.js: RRULE, RDATE, EXDATE, RECURRENCE-ID overrides (incl. THISANDFUTURE), all-day runs, VEVENT and VTODO, a per-series cap that reports what it cut, and a window cache keyed by uid + version + window. Zones come from the item's own VTIMEZONE, then the host's Intl; an unresolvable TZID stays floating and says so."
     },
+    "@gjsify/calendar-layout": {
+      "status": "partial",
+      "missing": "Does not model 23- or 25-hour DST days; items are placed by wall-clock minutes.",
+      "note": "Pure calendar geometry: month grid with ISO week numbers, multi-day bars in row slots per week with overflow counts, and overlap columns for day/week time grids. Numbers in, numbers out: no clock, no time zone, no dependencies."
+    },
     "@gjsify/local-ai-servers": {
       "status": "partial",
       "missing": "Run against mocked server responses only, never against live Ollama, LM Studio or llama-server. Knows only their default loopback ports plus OLLAMA_HOST; no LocalAI, vLLM or Jan defaults.",
