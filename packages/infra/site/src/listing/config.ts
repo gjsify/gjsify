@@ -36,6 +36,8 @@ export interface ListingConfig {
     category: Partial<Record<Store, string>>;
     /** Source-language description paragraphs or list items kept out of every store listing (not the website). */
     omit: string[];
+    /** msgid: a paragraph put first in every store description (not the website), e.g. what else to install. */
+    intro?: string;
     /**
      * Screenshot file name (as in `screenshots`) → msgid of its caption. Only stores that take captions
      * (AMO) get them; a name that matches no screenshot is an error.
@@ -153,6 +155,7 @@ export function parseListingConfig(manifest: ListingManifest, override: unknown 
         permissions,
         category,
         omit,
+        intro: str(raw, 'intro', where),
         captions,
         privacyUrl: str(raw, 'privacyUrl', where),
         siteUrl: site.privacy !== undefined && typeof site.url === 'string' ? site.url.replace(/\/?$/, '/') : undefined,
