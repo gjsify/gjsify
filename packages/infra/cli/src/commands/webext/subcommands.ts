@@ -374,7 +374,7 @@ export const webextSubmitCommand: Command<unknown, SubmitArgs> = {
             })
             .option('listing-only', {
                 description:
-                    'AMO only: send summary, description and privacy policy from --listing-dir (not the zip), then read each back. With --dry-run: lengths only, no network.',
+                    'AMO only: send description and privacy policy from --listing-dir (not the zip), then read each back. With --dry-run: lengths only, no network.',
                 type: 'boolean',
                 default: false,
             })

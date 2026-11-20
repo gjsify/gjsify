@@ -39,7 +39,6 @@ export async function runListingUpload(input: ListingUploadInput): Promise<numbe
                 input.out(`  would send ${field} [${locale}]: ${text.length} chars`);
             }
         };
-        lines('summary', listing.summary);
         lines('description', listing.description);
         if (listing.privacyPolicy !== undefined) lines('privacy_policy (eula_policy)', listing.privacyPolicy);
         if (listing.approvalNotes !== undefined) {
@@ -47,7 +46,9 @@ export async function runListingUpload(input: ListingUploadInput): Promise<numbe
                 `  would send approval_notes (version ${listing.approvalNotes.version}): ${listing.approvalNotes.text.length} chars`,
             );
         }
-        input.out('  name is never sent: AMO takes it from the manifest.');
+        input.out(
+            '  name and summary are never sent: AMO takes the name from the manifest, and the store summary is the manifest description.',
+        );
         return 0;
     }
 

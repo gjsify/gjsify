@@ -90,9 +90,22 @@ interface AmoUploadBody {
     readonly version?: string;
 }
 
-/** AMO normalises line endings and outer whitespace in translated text, so compare on that. */
+/**
+ * AMO normalises line endings and outer whitespace, and LINKIFIES bare URLs on read (`<a href="…">url</a>`,
+ * entities escaped). Compare after undoing that; what is sent is never altered.
+ */
 const sameText = (a: string, b: string): boolean => normalizeText(a) === normalizeText(b);
-export const normalizeText = (text: string): string => text.replace(/\r\n/g, '\n').trim();
+const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+export const normalizeText = (text: string): string =>
+    text
+        .replace(/<\/?a\b[^>]*>/gi, '')
+        .replace(/&(?:#(\d+)|#x([0-9a-f]+)|(amp|lt|gt|quot|apos));/gi, (m, dec, hex, name) => {
+            if (name !== undefined) return ENTITIES[name.toLowerCase()]!;
+            const code = dec !== undefined ? Number(dec) : parseInt(hex, 16);
+            return code <= 0x10ffff ? String.fromCodePoint(code) : m;
+        })
+        .replace(/\r\n/g, '\n')
+        .trim();
 
 /** The error lines of a `validation` blob, whatever its exact shape. */
 export function validationLines(validation: unknown): string[] {
@@ -334,8 +347,10 @@ export const createAmoBackend: StoreBackendFactory = (
     }
 
     async function updateListing(input: StoreListingInput): Promise<StoreListingResult> {
-        // `name` is never sent: AMO takes it from the manifest. `privacy_policy` is ignored here — it has its own endpoint.
-        await send('PATCH', `${addon}/`, { json: { summary: input.summary, description: input.description } });
+        // Never `name` (AMO takes it from the manifest) and never `summary`: the store summary is the manifest's
+        // description, while summary.txt is the shorter metainfo text and would overwrite it. `privacy_policy` is
+        // ignored on this PATCH — it has its own endpoint.
+        await send('PATCH', `${addon}/`, { json: { description: input.description } });
         if (input.privacyPolicy !== undefined) {
             await send('PATCH', `${addon}/eula_policy/`, { json: { privacy_policy: input.privacyPolicy } });
         }
@@ -344,10 +359,9 @@ export const createAmoBackend: StoreBackendFactory = (
         if (notes !== undefined) await send('PATCH', versionUrl, { json: { approval_notes: notes.text } });
 
         const fields: StoreListingFieldResult[] = [];
-        const detail = await readBack<{ summary?: unknown; description?: unknown }>(`${addon}/`, 'the add-on detail');
+        const detail = await readBack<{ description?: unknown }>(`${addon}/`, 'the add-on detail');
         const unread = 'unread' in detail ? detail : null;
         const stored = 'body' in detail ? detail.body : {};
-        fields.push(...compareLocales('summary', input.summary, stored.summary, unread));
         fields.push(...compareLocales('description', input.description, stored.description, unread));
         if (input.privacyPolicy !== undefined) {
             const policy = await readBack<{ privacy_policy?: unknown }>(`${addon}/eula_policy/`, 'the eula_policy');

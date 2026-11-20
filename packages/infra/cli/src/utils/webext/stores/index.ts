@@ -382,7 +382,6 @@ export interface StorePublishInput {
 
 /** Listing texts for a store whose API takes them (AMO only). Locales are the STORE's codes, already mapped. */
 export interface StoreListingInput {
-    readonly summary: Readonly<Record<string, string>>;
     readonly description: Readonly<Record<string, string>>;
     readonly privacyPolicy?: Readonly<Record<string, string>>;
     /** Per version, no locales. `version` is a version id (digits) or a version number. */

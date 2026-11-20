@@ -77,19 +77,22 @@ clock, a 403 the author permission, a 404 the add-on id.
 gjsify webext submit --store amo --listing-only [--listing-dir <dir>] [--notes-version <id|number>] [--dry-run]
 ```
 
-It reads what `webext listing --store amo` wrote (`amo/<lang>/{summary,description,privacy,reviewer-notes}.txt`)
+It reads what `webext listing --store amo` wrote (`amo/<lang>/{description,privacy,reviewer-notes}.txt`)
 and sends it. No zip, no version, no review. `name.txt` is never sent: AMO takes the name from the manifest.
+`summary.txt` is never sent either: in the browser stores the summary is the manifest's `description`
+(`_locales/<lang>/messages.json`), while `summary.txt` comes from the metainfo `<summary>`, a different and
+shorter text that would overwrite the good one.
 
 | File | Request |
 |---|---|
-| `summary`, `description` | `PATCH /addons/addon/<id>/` `{summary: {locale: text}, description: {locale: text}}` |
+| `description` | `PATCH /addons/addon/<id>/` `{description: {locale: text}}` |
 | `privacy.txt` | `PATCH /addons/addon/<id>/eula_policy/` `{privacy_policy: {locale: text}}`. `privacy_policy` on the addon PATCH is silently ignored, so it is not sent there. |
 | `reviewer-notes.txt` | only with `--notes-version`: `PATCH …/versions/<id|v<number>>/` `{approval_notes: "<text>"}`, a plain string, taken from `en` (else the first language) |
 
 Generator languages become AMO locale codes (`en` → `en-US`, `pt_BR` → `pt-BR`; an unmapped or
 colliding language stops the run before any request). Every field is READ back afterwards
 (`GET` the addon, `eula_policy`, the version) and reported per field and locale as `match`,
-`mismatch` or `unread`; exit 0 only when all match, and a field that was not read is never reported
+`mismatch` or `unread`. AMO linkifies bare URLs and escapes entities on read, so the comparison strips `<a>` tags and unescapes entities first (never what is sent); exit 0 only when all match, and a field that was not read is never reported
 as written. `--dry-run` prints field, locale and length with no network and no credentials.
 
 Screenshots (`POST …/previews/`, multipart `image`) and categories are DOCUMENTED but not wired.
@@ -102,7 +105,7 @@ add-on itself stays a dashboard step, as for the other two stores.
 |---|---|---|---|---|---|
 | Chrome Web Store | yes, v2, OAuth 2.0 | upload, publish, fetchStatus, cancel, rollout %; cannot create an item | no (dashboard only) | no | `--store chrome` |
 | Edge Add-ons | yes, v1.1, API key + client id | upload, publish, status; cannot create a product | no: "no endpoints for … updating a product's metadata" | no | `--store edge` |
-| AMO | yes, addons-server v5, JWT | upload, version create, source; can create an add-on | yes (PATCH addon) | yes (previews) | `--store amo` (this ADR): upload, version, source; `--listing-only` sends summary, description, privacy policy and reviewer notes; previews not wired |
+| AMO | yes, addons-server v5, JWT | upload, version create, source; can create an add-on | yes (PATCH addon) | yes (previews) | `--store amo` (this ADR): upload, version, source; `--listing-only` sends description, privacy policy and reviewer notes; previews not wired |
 | Opera Add-ons | none documented (UNVERIFIED: no official Opera page states it either way) | web form only | n/a | n/a | not implemented |
 | Safari / App Store Connect | App Store Connect API for apps | the extension ships inside an app build; upload goes through Xcode/Transporter, not a web-extension API | yes (app metadata) | yes | not implemented |
 | Thunderbird ATN | same server software as AMO (UNVERIFIED that the API is open there) | UNVERIFIED | UNVERIFIED | UNVERIFIED | not implemented |

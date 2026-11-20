@@ -85,7 +85,7 @@ const readText = (dir: string, name: string): string | undefined => {
 };
 
 /**
- * Reads `<listingRoot>/amo/<lang>/{summary,description,privacy,reviewer-notes}.txt`. Throws one
+ * Reads `<listingRoot>/amo/<lang>/{description,privacy,reviewer-notes}.txt`. Throws one
  * error naming every problem, so a run needs one fix, not one per language. `name.txt` is never read.
  */
 export function readAmoListing(listingRoot: string): AmoListingFiles {
@@ -94,14 +94,14 @@ export function readAmoListing(listingRoot: string): AmoListingFiles {
         throw new Error(`${amoDir} does not exist. Run \`gjsify webext listing --store amo\` first.`);
     }
     const problems: string[] = [];
-    const summary: Record<string, string> = {};
     const description: Record<string, string> = {};
     const privacyPolicy: Record<string, string> = {};
     const locales: Record<string, string> = {};
     const reviewerNotes: Record<string, string> = {};
     const languages = readdirSync(amoDir)
         .filter(
-            (entry) => statSync(join(amoDir, entry)).isDirectory() && existsSync(join(amoDir, entry, 'summary.txt')),
+            (entry) =>
+                statSync(join(amoDir, entry)).isDirectory() && existsSync(join(amoDir, entry, 'description.txt')),
         )
         .sort();
     for (const language of languages) {
@@ -117,10 +117,7 @@ export function readAmoListing(listingRoot: string): AmoListingFiles {
             continue;
         }
         locales[language] = locale;
-        const s = readText(dir, 'summary.txt');
         const d = readText(dir, 'description.txt');
-        if (s === undefined || s === '') problems.push(`${language}/summary.txt is missing or empty.`);
-        else summary[locale] = s;
         if (d === undefined || d === '') problems.push(`${language}/description.txt is missing or empty.`);
         else description[locale] = d;
         const p = readText(dir, 'privacy.txt');
@@ -128,7 +125,7 @@ export function readAmoListing(listingRoot: string): AmoListingFiles {
         const r = readText(dir, 'reviewer-notes.txt');
         if (r !== undefined && r !== '') reviewerNotes[language] = r;
     }
-    if (languages.length === 0) problems.push(`${amoDir} holds no language directory with a summary.txt.`);
+    if (languages.length === 0) problems.push(`${amoDir} holds no language directory with a description.txt.`);
     if (problems.length > 0)
         throw new Error(`the AMO listing in ${amoDir} cannot be sent:\n  ${problems.join('\n  ')}`);
 
@@ -136,7 +133,6 @@ export function readAmoListing(listingRoot: string): AmoListingFiles {
     const notesLanguage = 'en' in reviewerNotes ? 'en' : Object.keys(reviewerNotes)[0];
     return {
         input: {
-            summary,
             description,
             ...(Object.keys(privacyPolicy).length > 0 ? { privacyPolicy } : {}),
             ...(notesLanguage === undefined ? {} : { approvalNotesText: reviewerNotes[notesLanguage]! }),

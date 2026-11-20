@@ -28,14 +28,16 @@ interface Seen {
 }
 
 interface FakeOptions {
-    /** Store a different summary than the one sent, to provoke a mismatch. */
-    corruptSummary?: boolean;
+    /** Store a different description than the one sent, to provoke a mismatch. */
+    corruptDescription?: boolean;
+    /** Answer GETs the way AMO does: bare URLs linkified, entities escaped. */
+    linkify?: boolean;
     failPatchWith?: { status: number; body: string };
 }
 
 function fakeAmo(options: FakeOptions = {}): { backend: StoreBackend; seen: Seen[] } {
     const seen: Seen[] = [];
-    const state = { summary: {}, description: {}, privacy_policy: {}, approval_notes: '' } as Record<string, unknown>;
+    const state = { description: {}, privacy_policy: {}, approval_notes: '' } as Record<string, unknown>;
     const fetchImpl = (async (url: string, init: RequestInit) => {
         const method = String(init.method);
         const body = typeof init.body === 'string' ? JSON.parse(init.body) : init.body;
@@ -46,14 +48,29 @@ function fakeAmo(options: FakeOptions = {}): { backend: StoreBackend; seen: Seen
                 return new Response(options.failPatchWith.body, { status: options.failPatchWith.status });
             }
             if (url === `${ADDON}/`) {
-                state.summary = options.corruptSummary ? { 'en-US': 'something else' } : body.summary;
-                state.description = body.description;
+                state.description = options.corruptDescription ? { 'en-US': 'something else' } : body.description;
             } else if (url === `${ADDON}/eula_policy/`) state.privacy_policy = body.privacy_policy;
             else state.approval_notes = body.approval_notes;
             return json({});
         }
-        if (url === `${ADDON}/`) return json({ summary: state.summary, description: state.description });
-        if (url === `${ADDON}/eula_policy/`) return json({ privacy_policy: state.privacy_policy });
+        const view = (v: unknown): unknown =>
+            !options.linkify
+                ? v
+                : Object.fromEntries(
+                      Object.entries(v as Record<string, string>).map(([k, t]) => [
+                          k,
+                          t
+                              .replace(/&/g, '&amp;')
+                              .replace(/</g, '&lt;')
+                              .replace(/"/g, '&quot;')
+                              .replace(
+                                  /\b(jumplink\.eu\/\S+)/,
+                                  '<a href="https://prod.outgoing.example/x" rel="nofollow">$1</a>',
+                              ),
+                      ]),
+                  );
+        if (url === `${ADDON}/`) return json({ description: view(state.description) });
+        if (url === `${ADDON}/eula_policy/`) return json({ privacy_policy: view(state.privacy_policy) });
         return json({ approval_notes: state.approval_notes });
     }) as unknown as typeof fetch;
     return { backend: createAmoBackend(CREDENTIALS, { fetchImpl, now: () => 1_700_000_000_000 }), seen };
@@ -89,7 +106,7 @@ export default async () => {
             expect(amoLocale('xx')).toBe(null);
         });
 
-        await it('sends summary and description to the addon, privacy to eula_policy, never name', async () => {
+        await it('sends description to the addon, privacy to eula_policy, never name or summary', async () => {
             const { backend, seen } = fakeAmo();
             const lines: string[] = [];
             const code = await runListingUpload({
@@ -101,10 +118,11 @@ export default async () => {
             expect(code).toBe(0);
             const addonPatch = seen.find((s) => s.method === 'PATCH' && s.url === `${ADDON}/`)!;
             const body = addonPatch.body as Record<string, Record<string, string>>;
-            expect(Object.keys(body).sort().join(',')).toBe('description,summary');
-            expect(body.summary!['en-US']).toBe('English summary');
-            expect(body.summary!['de']).toBe('Deutsche Kurzfassung');
-            expect('en' in body.summary!).toBe(false);
+            expect(Object.keys(body).sort().join(',')).toBe('description');
+            expect(body.description!['en-US']).toBe('English description');
+            expect(body.description!['de']).toBe('Deutsche Beschreibung');
+            expect('en' in body.description!).toBe(false);
+            expect(seen.some((s) => String(JSON.stringify(s.body)).includes('summary'))).toBe(false);
             const policyPatch = seen.find((s) => s.url === `${ADDON}/eula_policy/` && s.method === 'PATCH')!;
             expect((policyPatch.body as Record<string, Record<string, string>>).privacy_policy!['en-US']).toBe(
                 'English privacy',
@@ -145,14 +163,32 @@ export default async () => {
             expect(code).toBe(0);
             expect(built).toBe(false);
             const text = lines.join('\n');
-            expect(text).toContain('summary [en-US]: 15 chars');
+            expect(text).toContain('description [en-US]: 19 chars');
             expect(text).toContain('privacy_policy (eula_policy) [de]');
             expect(text).toContain('approval_notes (version 1.2.3): 13 chars');
-            expect(text).not.toContain('English summary');
+            expect(text).not.toContain('English description');
+            expect(text.includes('would send summary')).toBe(false);
+        });
+
+        await it("reads AMO's linkified, entity-escaped text back as a match", async () => {
+            const { backend } = fakeAmo({ linkify: true });
+            const lines: string[] = [];
+            const code = await runListingUpload({
+                listingRoot: listingDir({
+                    'en/description.txt': 'Use <b>it</b> & see "docs" at jumplink.eu/beifahrer\n',
+                    'en/privacy.txt': 'Policy: jumplink.eu/privacy?a=1&b=2\n',
+                }),
+                dryRun: false,
+                backend: () => backend,
+                out: (l) => lines.push(l),
+            });
+            expect(lines.join('\n')).toContain('description [en-US]: match');
+            expect(lines.join('\n')).toContain('privacy_policy [en-US]: match');
+            expect(code).toBe(0);
         });
 
         await it('reports a read-back mismatch as a failure', async () => {
-            const { backend } = fakeAmo({ corruptSummary: true });
+            const { backend } = fakeAmo({ corruptDescription: true });
             const lines: string[] = [];
             const code = await runListingUpload({
                 listingRoot: listingDir(FILES),
@@ -162,7 +198,7 @@ export default async () => {
             });
             expect(code).toBe(1);
             const text = lines.join('\n');
-            expect(text).toContain('summary [en-US]: mismatch');
+            expect(text).toContain('description [en-US]: mismatch');
             expect(text).toContain('NOT confirmed');
         });
 
@@ -184,11 +220,11 @@ export default async () => {
             expect(message.includes(SECRET)).toBe(false);
         });
 
-        await it('names every problem in one error: unknown language, missing description', async () => {
+        await it('names every problem in one error: unknown language, empty description', async () => {
             let message = '';
             try {
                 await runListingUpload({
-                    listingRoot: listingDir({ 'xx/summary.txt': 's', 'de/summary.txt': 's' }),
+                    listingRoot: listingDir({ 'xx/description.txt': 's', 'de/description.txt': '' }),
                     dryRun: true,
                     backend: () => {
                         throw new Error('unreachable');
@@ -199,7 +235,7 @@ export default async () => {
                 message = (error as Error).message;
             }
             expect(message).toContain('"xx" has no AMO locale');
-            expect(message).toContain('de/description.txt is missing');
+            expect(message).toContain('de/description.txt is missing or empty');
         });
     });
 };
