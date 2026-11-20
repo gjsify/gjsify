@@ -273,6 +273,22 @@ export const AdwActionRowsTest = async () => {
             host.remove();
         });
 
+        // libadwaita `_lists.scss:139-141`: the title box keeps 6px above and below, so a row
+        // that grew past its min-height still has air between its text and its edges.
+        await it('keeps 6px between wrapped text and the row edges', () => {
+            const { el, host } = mount<AdwActionRow>('adw-action-row');
+            el.setAttribute('title', 'https://a-rather-long-origin-that-has-to-wrap.example.com');
+            el.setAttribute('subtitle', 'A subtitle long enough to wrap onto a second line here');
+            host.style.width = '200px';
+            const row = el.getBoundingClientRect();
+            const title = el.querySelector('.adw-row-title')!.getBoundingClientRect();
+            const subtitle = el.querySelector('.adw-row-subtitle')!.getBoundingClientRect();
+            expect(row.height).toBeGreaterThan(54);
+            expect(title.top - row.top).toBeGreaterThan(5.5);
+            expect(row.bottom - subtitle.bottom).toBeGreaterThan(5.5);
+            host.remove();
+        });
+
         // title-lines > 0: clamps to N lines
         await it('title-lines=1 clamps to exactly 1 line', () => {
             const { el, host } = mount<AdwActionRow>('adw-action-row');
