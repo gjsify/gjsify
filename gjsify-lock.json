@@ -81,6 +81,7 @@
     "bit-twiddle@^1.0.2",
     "glsl-tokenizer@^2.1.5",
     "@types/bit-twiddle@^1.0.3",
+    "ical.js@^2.2.1",
     "@girs/goa-1.0@5.4.0",
     "@noble/curves@^2.4.0",
     "@noble/hashes@^2.4.0",
@@ -11635,6 +11636,11 @@
           "optional": true
         }
       }
+    },
+    "node_modules/ical.js": {
+      "version": "2.2.1",
+      "resolved": "https://registry.npmjs.org/ical.js/-/ical.js-2.2.1.tgz",
+      "integrity": "sha512-yK/UlPbEs316igb/tjRgbFA8ZV75rCsBJp/hWOatpyaPNlgw0dGDmU+FoicOcwX4xXkeXOkYiOmCqNPFpNPkQg=="
     },
     "node_modules/iconv-lite": {
       "version": "0.7.2",
