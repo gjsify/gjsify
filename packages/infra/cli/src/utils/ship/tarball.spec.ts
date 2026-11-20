@@ -107,6 +107,36 @@ export default async () => {
             expect(() => assertTarballHygiene(payload([['lib/node_modules/x/i.js', 0o644, 'x']]), node)).not.toThrow();
         });
 
+        await it('allows the declared node_modules closure, scoped names and nested files', () => {
+            const declared = {
+                ...settings,
+                nodeModulesDirs: [
+                    'lib/hello-app/node_modules/@mtcute/wasm',
+                    'lib/hello-app/node_modules/a/node_modules/b',
+                ],
+            } as PackSettings;
+            const ok = payload([
+                ['lib/hello-app/node_modules/@mtcute/wasm/package.json', 0o644, '{}'],
+                ['lib/hello-app/node_modules/@mtcute/wasm/lib/deep/x.wasm', 0o644, 'x'],
+                ['lib/hello-app/node_modules/a/node_modules/b/i.js', 0o644, 'x'],
+            ]);
+            expect(() => assertTarballHygiene(ok, declared)).not.toThrow();
+        });
+
+        await it('still refuses an undeclared node_modules package next to a declared one', () => {
+            const declared = {
+                ...settings,
+                nodeModulesDirs: ['lib/hello-app/node_modules/@mtcute/wasm'],
+            } as PackSettings;
+            for (const bad of [
+                'lib/hello-app/node_modules/other/i.js',
+                'lib/hello-app/node_modules/@mtcute/wasm-evil/i.js',
+                'lib/hello-app/node_modules/@mtcute/wasm/node_modules/stray/i.js',
+            ]) {
+                expect(() => assertTarballHygiene(payload([[bad, 0o644, 'x']]), declared)).toThrow();
+            }
+        });
+
         await it('accepts a clean payload', () => {
             expect(() => assertTarballHygiene(PAYLOAD, settings)).not.toThrow();
         });

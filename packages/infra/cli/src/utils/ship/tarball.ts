@@ -18,13 +18,30 @@ export function tarballTopDir(settings: PackSettings, archLabel: string): string
 }
 
 /**
+ * Whether `path` lies inside one declared package directory. The `/` after the directory keeps
+ * `@mtcute/wasm-evil` out of `@mtcute/wasm`; a further `node_modules` below it must itself be a
+ * declared directory, so a stray nested tree is not waved through by its parent.
+ */
+function inDeclaredClosure(path: string, dirs: readonly string[]): boolean {
+    return dirs.some((dir) => {
+        if (!path.startsWith(`${dir}/`)) return false;
+        return !path
+            .slice(dir.length + 1)
+            .split('/')
+            .includes('node_modules');
+    });
+}
+
+/**
  * Refuse a payload that carries what a release archive must never hold.
  *
  * The payload is the staged closure, so these are guards against a stage that
  * grew something nobody meant to publish — a `.env`, a `.git`, a log — rather
  * than checks a normal build trips. `node_modules` is legitimate exactly when
- * the app runs on Node and the stage copied its closure; for `--app gjs` there
- * is no reason for one to exist.
+ * the app runs on Node and the stage copied its closure, or the path belongs to
+ * the declared `gjsify.ship.nodeModules` closure ({@link PackSettings.nodeModulesDirs}),
+ * which a GJS app ships for its Node-API addons. Anything else under `node_modules`
+ * in a non-Node payload is a stray.
  */
 export function assertTarballHygiene(payload: readonly PayloadEntry[], settings: PackSettings): void {
     const problems: string[] = [];
@@ -34,7 +51,11 @@ export function assertTarballHygiene(payload: readonly PayloadEntry[], settings:
         if (base === '.env' || base.startsWith('.env.')) problems.push(`${entry.path} (environment file)`);
         else if (segments.includes('.git')) problems.push(`${entry.path} (version-control data)`);
         else if (base.endsWith('.log')) problems.push(`${entry.path} (log file)`);
-        else if (segments.includes('node_modules') && settings.app !== 'node')
+        else if (
+            segments.includes('node_modules') &&
+            settings.app !== 'node' &&
+            !inDeclaredClosure(entry.path, settings.nodeModulesDirs ?? [])
+        )
             problems.push(`${entry.path} (node_modules in a non-Node payload)`);
     }
     if (problems.length === 0) return;

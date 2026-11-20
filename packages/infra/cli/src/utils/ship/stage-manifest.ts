@@ -224,6 +224,9 @@ export function toPackSettings(settings: ShipSettings): PackSettings {
         app: settings.app,
         minGjsVersion: settings.minGjsVersion,
         minNodeVersion: settings.minNodeVersion,
+        ...(settings.nodeModulesDirs === undefined || settings.nodeModulesDirs.length === 0
+            ? {}
+            : { nodeModulesDirs: settings.nodeModulesDirs }),
         flatpak: settings.flatpak,
         executables: settings.executables.map(({ name, gui }) => ({ name, gui })),
         nestedBundles: settings.nestedBundles.map(({ name, entitlements }) => ({ name, entitlements })),
@@ -640,6 +643,14 @@ function readPackSettings(data: Record<string, unknown>, at: string): PackSettin
         minGjsVersion: expectString(data.minGjsVersion, field('minGjsVersion')),
         minNodeVersion: expectString(data.minNodeVersion, field('minNodeVersion')),
         flatpak: readFlatpakSettings(record(data.flatpak, field('flatpak')), field('flatpak')),
+        // OPTIONAL on read: a stage written before the tarball learned the declared closure has none.
+        ...(data.nodeModulesDirs === undefined
+            ? {}
+            : {
+                  nodeModulesDirs: expectArray(data.nodeModulesDirs, field('nodeModulesDirs')).map((entry, index) =>
+                      expectString(entry, field(`nodeModulesDirs[${index}]`)),
+                  ),
+              }),
         // OPTIONAL on read and NOT a schema bump: a stage written before
         // `gjsify.ship.executables` is a one-executable stage, `[]` is exactly
         // right for it, and an older reader meeting a newer stage refuses the
