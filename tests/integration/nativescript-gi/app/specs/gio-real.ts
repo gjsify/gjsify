@@ -8,7 +8,10 @@ import GLib from 'gi://GLib?version=2.0';
 // biome-ignore lint/suspicious/noExplicitAny: GI proxies
 type Gi = any;
 
-function gioAsync<T>(start: (cb: (source: unknown, result: unknown) => void) => void, finish: (r: unknown) => T): Promise<T> {
+function gioAsync<T>(
+    start: (cb: (source: unknown, result: unknown) => void) => void,
+    finish: (r: unknown) => T,
+): Promise<T> {
     return new Promise((resolve, reject) => {
         start((_s, result) => {
             try {

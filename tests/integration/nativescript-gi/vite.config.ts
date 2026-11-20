@@ -36,18 +36,15 @@ const tls = optIn && process.env.GJSIFY_GI_TLS === '1';
 // namespaces (`giReal`), then runs `app/specs/gio-real.ts`. Needs the opt-in (real node-gi) leg.
 const real = optIn && process.env.GJSIFY_GI_REAL === '1';
 
-export default defineNativescriptConfig(
-    real ? { giRenderer: true, giReal: ['Gio', 'GLib'] } : {},
-    {
-        define: {
-            __GJSIFY_GI_OPT_IN__: JSON.stringify(optIn),
-            __GJSIFY_GI_BENCH__: JSON.stringify(bench),
-            __GJSIFY_GI_UI__: JSON.stringify(ui),
-            __GJSIFY_GI_TLS__: JSON.stringify(tls),
-            __GJSIFY_GI_REAL__: JSON.stringify(real),
-        },
-        resolve: {
-            alias: plugin ? [] : [{ find: /^@gjsify\/node-gi\/gi$/, replacement: resolve('app/no-gi-stub.ts') }],
-        },
+export default defineNativescriptConfig(real ? { giRenderer: true, giReal: ['Gio', 'GLib'] } : {}, {
+    define: {
+        __GJSIFY_GI_OPT_IN__: JSON.stringify(optIn),
+        __GJSIFY_GI_BENCH__: JSON.stringify(bench),
+        __GJSIFY_GI_UI__: JSON.stringify(ui),
+        __GJSIFY_GI_TLS__: JSON.stringify(tls),
+        __GJSIFY_GI_REAL__: JSON.stringify(real),
     },
-);
+    resolve: {
+        alias: plugin ? [] : [{ find: /^@gjsify\/node-gi\/gi$/, replacement: resolve('app/no-gi-stub.ts') }],
+    },
+});

@@ -87,7 +87,9 @@ export default async () => {
 
         await it('composes giReal only with giRenderer, ahead of the renderer arm', async () => {
             const names = async (pluginOptions: object) =>
-                namedPlugins((await setupForNativescript({ ...factoryInput, pluginOptions })).plugins).map((p) => p.name);
+                namedPlugins((await setupForNativescript({ ...factoryInput, pluginOptions })).plugins).map(
+                    (p) => p.name,
+                );
             expect((await names({ giReal: ['Gio'] })).includes(GI_REAL_PLUGIN)).toBe(false);
             expect((await names({ giRenderer: true })).includes(GI_REAL_PLUGIN)).toBe(false);
             const both = await names({ giRenderer: true, giReal: ['Gio'] });
