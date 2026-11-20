@@ -23,6 +23,11 @@ adw-application-window {
     0 0 5px 2px rgb(0 0 0 / 10%),
     0 0 0 1px rgb(0 0 0 / 5%);
   overflow: hidden;
+  // The window is the containing block of its own modal surfaces: a dialog scrim is
+  // `position: fixed`, and without this it dims the whole viewport instead of the window
+  // it belongs to (an in-page window is not the screen). `paint` also clips it to the
+  // rounded corners, as a dialog is clipped to its window in libadwaita.
+  contain: layout paint;
   outline: 1px solid rgb(255 255 255 / 7%);
   outline-offset: -1px;
 
