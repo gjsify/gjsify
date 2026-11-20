@@ -22,6 +22,15 @@ declare const __GJSIFY_GI_UI__: boolean;
 // asks Gio for TLS it cannot have.
 declare const __GJSIFY_GI_TLS__: boolean;
 
+// Whether this build runs `app/specs/gio-real.ts`: `giRenderer` + `giReal: ['Gio','GLib']`, so a
+// non-widget module's `gi://Gio` is the real namespace (see vite.config.ts).
+declare const __GJSIFY_GI_REAL__: boolean;
+
+declare module 'gi://*' {
+    const namespace: unknown;
+    export default namespace;
+}
+
 // webpack's escape hatch for "do not touch this require", declared so `app/specs/loader.probe.ts`
 // can `typeof` it exactly as `@gjsify/node-gi`'s NativeScript host does. It is NOT a global and
 // nothing defines it here: under Vite the identifier survives undeclared, `typeof` on an
