@@ -41,6 +41,7 @@ import foreignParentSpec from './specs/foreign-parent.js';
 import httpsFetchSpec from './specs/https-fetch.js';
 import gioTlsSpec from './specs/gio-tls.js';
 import gioRealSpec from './specs/gio-real.js';
+import fsFdSpec from './specs/fs-fd.js';
 
 /**
  * The engine THIS leg claims to run on, derived from the opt-in define alone — the two legs are
@@ -91,6 +92,8 @@ async function runSuite(): Promise<void> {
             if (__GJSIFY_GI_TLS__) await gioTlsSpec();
             // `giReal`: a non-widget module's `gi://Gio` is real beside the widget renderer.
             if (__GJSIFY_GI_REAL__) await gioRealSpec();
+            // The bridge's synchronous fd API against the real Java backend.
+            if (__GJSIFY_GI_FS__) await fsFdSpec();
             if (optedIn) await listStoreVectors();
             // Settings before any other Gio.Settings or Gtk use: GIO fixes its schema source once.
             if (optedIn) await settingsVectors();

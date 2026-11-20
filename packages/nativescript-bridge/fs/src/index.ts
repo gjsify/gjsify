@@ -512,3 +512,36 @@ export function exists(path: string): Promise<boolean> {
         () => false,
     );
 }
+
+// ===== Synchronous descriptor API (node:fs-shaped, read-only) =====
+// `openSync` + `readSync` (at a position, into a Buffer) + `closeSync` is what a header probe
+// needs. The table is created on first use so importing this module off NativeScript stays inert.
+
+import { createFdTable, type ReadSyncOptions } from './fd-table.js';
+import { platformFdBackend } from './fd-backend.js';
+
+export type { FdBackend, FdHandle, ReadSyncOptions } from './fd-table.js';
+
+let fdTable: ReturnType<typeof createFdTable> | undefined;
+const fds = () => (fdTable ??= createFdTable(platformFdBackend()));
+
+/** Open a file for reading and return a descriptor. Only the read-only flag `'r'` is supported. */
+export function openSync(path: string, flags?: string | number): number {
+    return fds().openSync(path, flags);
+}
+
+/** Read from a descriptor into `buffer`; `position` `null` continues from the descriptor's cursor. */
+export function readSync(
+    fd: number,
+    buffer: Uint8Array,
+    offsetOrOptions?: number | ReadSyncOptions | null,
+    length?: number,
+    position?: number | bigint | null,
+): number {
+    return fds().readSync(fd, buffer, offsetOrOptions, length, position);
+}
+
+/** Close a descriptor from {@link openSync}. */
+export function closeSync(fd: number): void {
+    fds().closeSync(fd);
+}

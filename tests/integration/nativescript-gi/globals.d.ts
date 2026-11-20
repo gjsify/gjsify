@@ -30,6 +30,8 @@ declare module 'gi://*' {
     const namespace: unknown;
     export default namespace;
 }
+// Whether this build runs `app/specs/fs-fd.ts` (the bridge's synchronous descriptor API).
+declare const __GJSIFY_GI_FS__: boolean;
 
 // webpack's escape hatch for "do not touch this require", declared so `app/specs/loader.probe.ts`
 // can `typeof` it exactly as `@gjsify/node-gi`'s NativeScript host does. It is NOT a global and
