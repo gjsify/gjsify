@@ -385,20 +385,54 @@ export const REAL_EXPECTATIONS = [
             tag: 'AdwApplicationWindow',
             template: 'LDrawWindow',
             props: { 'default-width': 1100, 'default-height': 700, title: 'LDraw Loader' },
+            breakpoints: [
+                {
+                    condition: 'max-width: 799sp',
+                    setters: [
+                        { object: 'splitView', property: 'collapsed', value: true },
+                        { object: 'splitView', property: 'show-sidebar', value: false },
+                    ],
+                },
+                {
+                    condition: 'min-width: 800sp',
+                    setters: [
+                        { object: 'splitView', property: 'collapsed', value: false },
+                        { object: 'splitView', property: 'show-sidebar', value: true },
+                    ],
+                },
+            ],
             children: [
                 {
                     tag: 'GtkBox',
                     slot: 'content',
                     props: { orientation: 'vertical' },
                     children: [
-                        { tag: 'AdwHeaderBar' },
                         {
-                            tag: 'GtkBox',
-                            props: { orientation: 'horizontal', hexpand: true, vexpand: true },
+                            tag: 'AdwHeaderBar',
+                            children: [
+                                {
+                                    tag: 'GtkToggleButton',
+                                    id: 'sidebarToggleButton',
+                                    slot: 'start',
+                                    props: { 'icon-name': 'sidebar-show-symbolic', 'tooltip-text': 'Toggle Sidebar' },
+                                    bindings: { active: { source: 'splitView', property: 'show-sidebar' } },
+                                },
+                            ],
+                        },
+                        {
+                            tag: 'AdwOverlaySplitView',
+                            id: 'splitView',
+                            props: {
+                                'sidebar-width-fraction': 0.3,
+                                'min-sidebar-width': 280,
+                                'max-sidebar-width': 400,
+                            },
+                            bindings: { 'show-sidebar': { source: 'sidebarToggleButton', property: 'active' } },
                             children: [
                                 {
                                     tag: 'GtkScrolledWindow',
-                                    props: { 'width-request': 320, hexpand: false, 'hscrollbar-policy': 'never' },
+                                    slot: 'sidebar',
+                                    props: { 'hscrollbar-policy': 'never' },
                                     children: [
                                         {
                                             tag: 'GtkBox',
@@ -468,8 +502,12 @@ export const REAL_EXPECTATIONS = [
                                         },
                                     ],
                                 },
-                                { tag: 'GtkSeparator', props: { orientation: 'vertical' } },
-                                { tag: 'GtkBox', id: 'glAreaContainer', props: { hexpand: true, vexpand: true } },
+                                {
+                                    tag: 'GtkBox',
+                                    id: 'glAreaContainer',
+                                    slot: 'content',
+                                    props: { hexpand: true, vexpand: true },
+                                },
                             ],
                         },
                     ],
@@ -477,7 +515,7 @@ export const REAL_EXPECTATIONS = [
             ],
         },
         lost: [],
-        note: 'The one sidebar showcase that builds its sidebar from a `Gtk.Box` rather than `Adw.OverlaySplitView`, so it carries no breakpoint and no binding at all: near enough the same UI as the other three, and a projection that loses far less of it.',
+        note: 'Same 800sp overlay-sidebar shape as the teapot and pixel showcases.',
     },
     {
         file: 'showcases/dom/three-postprocessing-pixel/src/gjs/pixel-window.blp',

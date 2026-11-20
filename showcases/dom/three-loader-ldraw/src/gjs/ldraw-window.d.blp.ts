@@ -22,6 +22,8 @@ export declare const GTypeName: 'LDrawWindow';
  * upstream half.
  */
 export declare const InternalChildren: [
+    'sidebarToggleButton',
+    'splitView',
     'modelRow',
     'flatColorsRow',
     'mergeModelRow',
@@ -34,6 +36,8 @@ export declare const InternalChildren: [
 
 /** The `_`-prefixed members GJS installs for them. Merge it into the class interface. */
 export interface Children {
+    _sidebarToggleButton: Gtk.ToggleButton;
+    _splitView: Adw.OverlaySplitView;
     _modelRow: Adw.ComboRow;
     _flatColorsRow: Adw.SwitchRow;
     _mergeModelRow: Adw.SwitchRow;

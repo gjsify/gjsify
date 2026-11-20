@@ -68,6 +68,10 @@ $adw-components:
   word-spacing: normal;
   text-align: start;
   text-indent: 0;
+  // Inherited. Mobile WebKit/Blink paint a translucent rectangle over whatever is tapped,
+  // ignoring `border-radius`: a tapped round control (the storybook's accent swatches)
+  // flashed a square behind its circle. Widgets draw their own :active state.
+  -webkit-tap-highlight-color: transparent;
   text-transform: none;
   text-shadow: none;
 }
