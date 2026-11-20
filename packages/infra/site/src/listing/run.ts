@@ -144,6 +144,8 @@ export async function runListing(options: ListingOptions): Promise<ListingResult
                 await emit(`${dir}/description.html`, ensureNewline(entry.descriptionHtml));
             if (entry.searchTerms?.length)
                 await emit(`${dir}/search-terms.txt`, ensureNewline(entry.searchTerms.join('\n')));
+            if (entry.reviewerNotes) await emit(`${dir}/reviewer-notes.txt`, ensureNewline(entry.reviewerNotes));
+            if (entry.privacySummary) await emit(`${dir}/privacy.txt`, ensureNewline(entry.privacySummary));
             if (STORE_SPECS[store].justifiesPermissions)
                 await emit(`${dir}/permissions.md`, permissionsMarkdown(entry));
         }

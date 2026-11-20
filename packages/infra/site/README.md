@@ -111,6 +111,12 @@ that matches nothing is an error in `listing` and `listing --check`.
 store visitor must know before installing — typically a companion app. It is translated like
 `singlePurpose` and never reaches the website or the metainfo.
 
+`reviewerNotes` and `privacySummary` are msgids too. `reviewerNotes` fills Edge's "Notes for certification"
+and AMO's "Notes to reviewer" (`<lang>/reviewer-notes.txt`); `privacySummary` is a short plain-language
+privacy statement for AMO's privacy-policy text field (`<lang>/privacy.txt`); `privacyUrl` is unaffected.
+Chrome Web Store has neither field. A field is `derived` in `store.json` once every language has the text;
+without it Edge's notes stay `manual` and AMO's fields `omitted`. No store documents a length limit, so none is enforced.
+
 Edge's search terms are the metainfo `<keyword>`s, per language (`xml:lang` entry, else the catalogue),
 written to `edge/<lang>/search-terms.txt` (one per line) and `store.json`. Edge allows at most 7 terms,
 30 characters each and 21 words in all; a violation is an error. Chrome Web Store and AMO have no such
