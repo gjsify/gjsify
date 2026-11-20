@@ -18,6 +18,7 @@ import {
     modelFor,
     RECOGNITION_MODELS,
     type RecognitionModelEntry,
+    type RecognitionModelKind,
     type RecognitionQuality,
 } from './model-manifest.js';
 import { syntaxError } from './results.js';
@@ -30,11 +31,15 @@ export interface SpeechRecognitionOptions {
     processLocally?: boolean;
     /** Spec default `command`. A model that cannot honestly serve it is `unavailable`. */
     quality?: RecognitionQuality;
+    /** `streaming` (default) is the model `SpeechRecognition` runs; `offline` is the one `transcribe()` runs. */
+    kind?: RecognitionModelKind;
 }
 
 export interface SpeechRecognitionInstallOptions {
     langs: string[];
     quality?: RecognitionQuality;
+    /** See {@link SpeechRecognitionOptions.kind}. */
+    kind?: RecognitionModelKind;
     /** Called at least once, with `received === total` on success. */
     onProgress?: (progress: { modelId: string; received: number; total: number }) => void;
     signal?: AbortSignal;
@@ -81,8 +86,8 @@ export function validateLanguageTag(tag: string): void {
 
 const WORSENESS: Record<ModelAvailability, number> = { available: 0, downloading: 1, downloadable: 2, unavailable: 3 };
 
-function statusFor(lang: string, quality: RecognitionQuality): ModelAvailability {
-    const entry = modelFor(lang, quality);
+function statusFor(lang: string, quality: RecognitionQuality, kind: RecognitionModelKind): ModelAvailability {
+    const entry = modelFor(lang, quality, kind);
     if (entry === undefined || !hasRecognitionBackend()) return 'unavailable';
     return store.availability(entry.id);
 }
@@ -95,7 +100,7 @@ export async function available(options: SpeechRecognitionOptions): Promise<Spee
     if (langs.length === 0) return 'unavailable';
     const quality = options.quality ?? 'command';
     return langs
-        .map((lang) => statusFor(lang, quality))
+        .map((lang) => statusFor(lang, quality, options.kind ?? 'streaming'))
         .reduce((worst, next) => (WORSENESS[next] > WORSENESS[worst] ? next : worst), 'available' as ModelAvailability);
 }
 
@@ -106,7 +111,7 @@ export async function install(options: SpeechRecognitionInstallOptions): Promise
     for (const tag of langs) validateLanguageTag(tag);
     if (langs.length === 0) return false;
     const quality = options.quality ?? 'command';
-    const entries = langs.map((lang) => modelFor(lang, quality));
+    const entries = langs.map((lang) => modelFor(lang, quality, options.kind ?? 'streaming'));
     if (entries.some((entry) => entry === undefined) || !hasRecognitionBackend()) return false;
 
     const { onProgress } = options;

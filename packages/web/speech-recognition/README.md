@@ -38,6 +38,19 @@ recognition.stop();    // delivers the pending utterance, then `end`
 
 Without `/register`, import the classes: `import { SpeechRecognition } from '@gjsify/speech-recognition'`.
 
+## Transcribing a finished recording
+
+`transcribe()` decodes a whole recording at once on an offline model (NVIDIA Parakeet TDT 0.6B v3, int8, CC-BY-4.0, 25 languages with language detection). It takes 16 kHz mono Float32 PCM, a file path or a `Gio.File`. Files go through [`@gjsify/media-capture`](../media-capture#readme), so anything GStreamer's `decodebin` reads works (Ogg/Opus voice notes, M4A, MP3, WAV). See [ADR 0150](../../../docs/adr/0150-transcribe-decodes-a-finished-recording-on-an-offline-engine.md).
+
+```typescript
+import { SpeechRecognition, transcribe } from '@gjsify/speech-recognition';
+
+await SpeechRecognition.install({ langs: ['de'], quality: 'conversation', kind: 'offline' }); // ~623 MiB, once
+const { text, language, engine } = await transcribe('/path/voice-note.opus', { signal });
+```
+
+Options: `lang` (hint), `phrases`, `signal`, `model` (an offline id). `phrases` are not applied yet: the sherpa-native C shim passes no BPE vocabulary, which NeMo hotwords need, so the engine reports `hotwords: false`. Another backend plugs in as an `OfflineEngine`; `createFakeOfflineEngine()` stands in for tests. The real-engine spec skips without the prebuild or the cached model.
+
 ## Surface
 
 | Member | Behavior here |

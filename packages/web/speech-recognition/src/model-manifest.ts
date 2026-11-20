@@ -14,8 +14,15 @@ export type RecognitionQuality = 'command' | 'dictation' | 'conversation';
 
 export const QUALITY_ORDER: readonly RecognitionQuality[] = ['command', 'dictation', 'conversation'];
 
-/** One fetchable streaming transducer. */
+/** `streaming` feeds `SpeechRecognition`; `offline` decodes a finished recording in `transcribe()`. */
+export type RecognitionModelKind = 'streaming' | 'offline';
+
+/** One fetchable transducer, streaming or offline. */
 export interface RecognitionModelEntry extends ModelEntry {
+    /** Which API loads it. A streaming session never picks an offline model, and the reverse. */
+    readonly kind: RecognitionModelKind;
+    /** sherpa-onnx `model_type` the offline recognizer needs (e.g. `nemo_transducer`). */
+    readonly modelType?: string;
     readonly description: string;
     /** Primary language subtags this model recognizes (`de` covers `de-DE`, `de-AT`, …). */
     readonly langs: readonly string[];
@@ -32,12 +39,16 @@ export interface RecognitionModelEntry extends ModelEntry {
 }
 
 export const DEFAULT_RECOGNITION_MODEL = 'zipformer-de-kroko';
+/** The default `transcribe()` model: multilingual, detects the language itself. */
+export const DEFAULT_TRANSCRIBE_MODEL = 'parakeet-tdt-0.6b-v3-int8';
 
+const PARAKEET = 'https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/main';
 const REPO = 'https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-de-kroko-2025-08-06/resolve/main';
 
 export const RECOGNITION_MODELS: readonly RecognitionModelEntry[] = [
     {
         id: 'zipformer-de-kroko',
+        kind: 'streaming',
         files: [
             {
                 file: 'encoder.onnx',
@@ -78,15 +89,92 @@ export const RECOGNITION_MODELS: readonly RecognitionModelEntry[] = [
         joiner: 'joiner.onnx',
         tokens: 'tokens.txt',
     },
+    {
+        id: DEFAULT_TRANSCRIBE_MODEL,
+        kind: 'offline',
+        modelType: 'nemo_transducer',
+        files: [
+            {
+                file: 'encoder.int8.onnx',
+                url: `${PARAKEET}/encoder.int8.onnx`,
+                bytes: 652282294,
+                sha256: '1afbe69c1ffdabee94755f42e4daf1d93549131a3da11356bda84fcef0f2c479',
+            },
+            {
+                file: 'decoder.int8.onnx',
+                url: `${PARAKEET}/decoder.int8.onnx`,
+                bytes: 11845274,
+                sha256: '0222a86147299d4dee90edf95b6d13827edb42ad8b7c9cf0b2582f030937c0b5',
+            },
+            {
+                file: 'joiner.int8.onnx',
+                url: `${PARAKEET}/joiner.int8.onnx`,
+                bytes: 6355277,
+                sha256: 'cbd02f3696e9944970111fb439d9c3fd365a80374565f13f2b9c7007d253fc98',
+            },
+            {
+                file: 'tokens.txt',
+                url: `${PARAKEET}/tokens.txt`,
+                bytes: 93939,
+                sha256: 'd58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d',
+            },
+        ],
+        license: 'CC-BY-4.0',
+        redistributable: true,
+        description:
+            'NVIDIA Parakeet TDT 0.6B v3, int8 (623 MiB) — offline, 25 European languages with automatic language detection.',
+        langs: [
+            'bg',
+            'hr',
+            'cs',
+            'da',
+            'nl',
+            'en',
+            'et',
+            'fi',
+            'fr',
+            'de',
+            'el',
+            'hu',
+            'it',
+            'lv',
+            'lt',
+            'mt',
+            'pl',
+            'pt',
+            'ro',
+            'sk',
+            'sl',
+            'es',
+            'sv',
+            'ru',
+            'uk',
+        ],
+        quality: 'conversation',
+        sampleRate: 16000,
+        // The C shim does not pass sherpa-onnx's hotwords file, BPE vocabulary or modeling unit,
+        // which a NeMo transducer needs to encode a hotword; until it does, phrases are not applied.
+        hotwords: false,
+        encoder: 'encoder.int8.onnx',
+        decoder: 'decoder.int8.onnx',
+        joiner: 'joiner.int8.onnx',
+        tokens: 'tokens.txt',
+    },
 ];
 
 export function findRecognitionModel(id: string = DEFAULT_RECOGNITION_MODEL): RecognitionModelEntry | undefined {
     return RECOGNITION_MODELS.find((entry) => entry.id === id);
 }
 
-/** The first model that recognizes `lang` (a BCP 47 tag) at `quality` or better. */
-export function modelFor(lang: string, quality: RecognitionQuality = 'command'): RecognitionModelEntry | undefined {
+/** The first model of `kind` that recognizes `lang` (a BCP 47 tag) at `quality` or better. */
+export function modelFor(
+    lang: string,
+    quality: RecognitionQuality = 'command',
+    kind: RecognitionModelKind = 'streaming',
+): RecognitionModelEntry | undefined {
     const primary = lang.split('-')[0].toLowerCase();
     const wanted = QUALITY_ORDER.indexOf(quality);
-    return RECOGNITION_MODELS.find((m) => m.langs.includes(primary) && QUALITY_ORDER.indexOf(m.quality) >= wanted);
+    return RECOGNITION_MODELS.find(
+        (m) => m.kind === kind && m.langs.includes(primary) && QUALITY_ORDER.indexOf(m.quality) >= wanted,
+    );
 }

@@ -30,3 +30,20 @@ export type { RecognizerDetail, RecognizerEngine, RecognizerFrame, SherpaEngineC
 
 export { createFakeRecognizerEngine } from './fake-engine.js';
 export type { FakeEngineStep, FakeRecognizerEngine } from './fake-engine.js';
+
+export { DEFAULT_TRANSCRIBE_MODEL } from './model-manifest.js';
+export type { RecognitionModelKind } from './model-manifest.js';
+
+export { createSherpaOfflineEngine } from './offline-engine.js';
+export type {
+    OfflineDecodeOptions,
+    OfflineEngine,
+    OfflineResult,
+    SherpaOfflineEngineConfig,
+} from './offline-engine.js';
+
+export { createFakeOfflineEngine } from './fake-offline-engine.js';
+export type { FakeOfflineEngine } from './fake-offline-engine.js';
+
+export { TRANSCRIBE_SAMPLE_RATE, transcribe } from './transcribe.js';
+export type { TranscribeFile, TranscribeOptions, TranscribeSource, Transcription } from './transcribe.js';
