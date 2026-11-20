@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.64.51](https://github.com/gjsify/gjsify/compare/v0.64.50...v0.64.51) (2026-11-20)
+
+### Bug Fixes
+
+* **adwaita-web:** keep 6px around wrapped row text ([#2706](https://github.com/gjsify/gjsify/issues/2706)) ([0dd4792](https://github.com/gjsify/gjsify/commit/0dd479207aa90c2ce0e5b530bd1b7c38fab8706e))
+* **cli:** allow declared node_modules in tarball ([#2705](https://github.com/gjsify/gjsify/issues/2705)) ([4cb29d2](https://github.com/gjsify/gjsify/commit/4cb29d29f718a44eb924670554af57c1cbeed674))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([9cbcf14](https://github.com/gjsify/gjsify/commit/9cbcf146634060e97c31b9cab2b2a0e9f0d805e0))
+
 ## [0.64.50](https://github.com/gjsify/gjsify/compare/v0.64.49...v0.64.50) (2026-11-19)
 
 ### Features
