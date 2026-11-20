@@ -27,7 +27,11 @@ export default async () => {
 
         await it('puts --release before the file, joined by commas', async () => {
             expect(snapUploadArgs('a.snap', [])).toStrictEqual(['upload', 'a.snap']);
-            expect(snapUploadArgs('a.snap', ['edge', 'beta'])).toStrictEqual(['upload', '--release=edge,beta', 'a.snap']);
+            expect(snapUploadArgs('a.snap', ['edge', 'beta'])).toStrictEqual([
+                'upload',
+                '--release=edge,beta',
+                'a.snap',
+            ]);
         });
 
         await it('parses repeated and comma-separated channels', async () => {

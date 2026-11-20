@@ -51,7 +51,9 @@ export function assertSnapNameForStore(command: string, name: string | undefined
         throw new Error(`gjsify snap ${command}: pass the snap name (the store name, e.g. hello-app).`);
     }
     if (!isSnapName(name)) {
-        throw new Error(`gjsify snap ${command}: "${name}" is not a snap name (lowercase letters, digits, single hyphens).`);
+        throw new Error(
+            `gjsify snap ${command}: "${name}" is not a snap name (lowercase letters, digits, single hyphens).`,
+        );
     }
     return name;
 }
@@ -79,7 +81,9 @@ export async function runSnapcraft(command: string, args: readonly string[]): Pr
         completion: 'return',
         stdio: 'inherit',
         notFound: () =>
-            new Error(`gjsify snap ${command}: ${SNAP_TOOL} not found. Install it with \`sudo snap install snapcraft --classic\`.`),
+            new Error(
+                `gjsify snap ${command}: ${SNAP_TOOL} not found. Install it with \`sudo snap install snapcraft --classic\`.`,
+            ),
     });
     if (result.code !== 0) {
         throw new Error(`gjsify snap ${command}: ${SNAP_TOOL} failed with ${describeExit(result)}.`);

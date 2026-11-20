@@ -185,7 +185,9 @@ export async function buildSnap(input: SnapPackInput): Promise<void> {
         cwd: input.workDir,
         stdio: 'inherit',
         notFound: () =>
-            new Error(`gjsify ship: ${SNAP_TOOL} not found. Install it with \`sudo snap install snapcraft --classic\`.`),
+            new Error(
+                `gjsify ship: ${SNAP_TOOL} not found. Install it with \`sudo snap install snapcraft --classic\`.`,
+            ),
     });
     if (result.code !== 0) {
         throw new Error(`gjsify ship: ${SNAP_TOOL} failed with ${describeExit(result)}.`);
