@@ -73,6 +73,7 @@ import {
     devtoolsCommand as devtools,
     browseCommand as browse,
     webextCommand as webext,
+    snapCommand as snap,
     blueprintCommand as blueprint,
 } from './commands/index.js';
 import { APP_NAME } from './constants.js';
@@ -206,6 +207,7 @@ export async function runCli(argv: readonly string[]): Promise<void> {
         .command(devtools.command, devtools.description, devtools.builder, devtools.handler)
         .command(browse.command, browse.description, browse.builder, browse.handler)
         .command(webext.command, webext.description, webext.builder, webext.handler)
+        .command(snap.command, snap.description, snap.builder, snap.handler)
         .command(blueprint.command, blueprint.description, blueprint.builder, blueprint.handler)
         .demandCommand(1)
         .epilogue(`Running on ${runtimeLabel()}`)

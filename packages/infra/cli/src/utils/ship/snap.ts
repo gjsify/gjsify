@@ -53,6 +53,11 @@ const PREFIX_DIR = 'usr';
 const SNAP_NAME = /^(?=.*[a-z])[a-z0-9]+(-[a-z0-9]+)*$/;
 const SNAP_NAME_MAX = 40;
 const SNAP_VERSION_MAX = 32;
+
+/** Shared with the store helpers (`gjsify snap register`), so both refuse the same names. */
+export function isSnapName(name: string): boolean {
+    return name.length <= SNAP_NAME_MAX && SNAP_NAME.test(name);
+}
 const SNAP_SUMMARY_MAX = 78;
 
 export interface SnapManifestInput {
@@ -67,7 +72,7 @@ export interface SnapManifestInput {
  */
 export function assertSnapIsPackable(payload: readonly { path: string }[], settings: PackSettings): void {
     const problems: string[] = [];
-    if (settings.binaryName.length > SNAP_NAME_MAX || !SNAP_NAME.test(settings.binaryName)) {
+    if (!isSnapName(settings.binaryName)) {
         problems.push(
             `the binary name "${settings.binaryName}" is not a snap name (lowercase letters, digits and single ` +
                 `hyphens, at most ${SNAP_NAME_MAX} characters, at least one letter)`,

@@ -48,9 +48,14 @@ in-tree):
 - Artifact: `<binary>_<version>_<arch>.snap` plus the usual release record.
 
 **Store helpers** go in a `gjsify snap` command group, modelled on `gjsify webext` (ADR 0148), in a
-second step: `snap register <name>`, `snap upload [--release <channel>]` (credentials from
-`SNAPCRAFT_STORE_CREDENTIALS`, never from a file in the tree) and `snap status`. They wrap
-`snapcraft`; they add the release-record lookup and the refusal messages, not a second client.
+second step: `snap register <name>`, `snap upload <file.snap> [--release <channel>[,<channel>]]`
+(credentials from `SNAPCRAFT_STORE_CREDENTIALS`, never from a file in the tree) and `snap status
+<name>`. They wrap `snapcraft`; they add the refusal messages, not a second client.
+
+*Step 2 done (2026-11-20):* the group is implemented in `commands/snap/` and `utils/snap/store.ts`.
+The name is a required argument (webext resolves none from `gjsify.ship` either); the file, channels
+and the presence of the credential are checked before `snapcraft` starts; the credential is only
+inherited by the child, never read. The release-record lookup is not built.
 
 ## Rejected
 

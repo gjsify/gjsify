@@ -1513,6 +1513,19 @@ Targets are `<browser>-mv<2|3>` with browser `chrome`, `edge`, `firefox`, `opera
 
 ## Ship it
 
+### `gjsify snap`
+
+Snap Store helpers around `snapcraft`, for a `.snap` that `gjsify ship --target snap` wrote.
+
+```bash
+gjsify snap register hello-app                       # claim the store name (after `snapcraft login`)
+gjsify snap upload out/hello-app_1.0.0_amd64.snap    # upload only
+gjsify snap upload out/hello-app_1.0.0_amd64.snap --release edge,beta
+gjsify snap status hello-app                         # revisions per channel
+```
+
+`upload` authenticates through `$SNAPCRAFT_STORE_CREDENTIALS` only; create the value with `snapcraft export-login` and keep it in a CI secret. It is checked for presence and never read, logged or printed. The name is always an argument. The file, the channels and the credential are checked before `snapcraft` starts.
+
 ### `gjsify ship`
 
 Turn a built application into something a stranger can install. The payload is staged once, then wrapped per format. Full walkthroughs live under [Ship your app](/gjsify/ship/), one page per operating system.
@@ -1570,6 +1583,7 @@ ship/out/              the artifacts
 | `rpm` | linux | yes | any host | nothing |
 | `flatpak` | linux | no | linux | `flatpak-builder`, `flatpak` |
 | `appimage` | linux | no | linux | `appimagetool`, `glib-compile-schemas` |
+| `snap` | linux | no | linux | `snapcraft` |
 | `linux-tar` | linux | no | linux | nothing |
 | `linux-tar-flatpak` | linux | no | linux | `glib-compile-schemas` |
 | `macos-app` | darwin | yes | any host | `glib-compile-schemas` |

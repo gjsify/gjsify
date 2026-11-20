@@ -174,6 +174,12 @@ listed as such in the ADR: the plugs a typical app needs, whether `gschemas.comp
 the payload, arm64. `tests/e2e/ship-snap` asserts the structure everywhere and the real build only
 where `snapcraft` is installed.
 
+The store half is `gjsify snap register <name>`, `gjsify snap upload <file.snap> [--release
+<channel>[,<channel>]]` and `gjsify snap status <name>`, thin wrappers over the same `snapcraft`.
+`upload` authenticates through `$SNAPCRAFT_STORE_CREDENTIALS` only (create it with `snapcraft
+export-login`); gjsify checks it is set, never reads, logs or prints it. The name is always passed
+explicitly — `gjsify webext submit` takes no name default from `gjsify.ship` either.
+
 ### An artifact name must identify its format on its own
 
 `fileName` is a row's field, and the two zip rows are why it is worth a rule rather than a
