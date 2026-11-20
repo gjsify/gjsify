@@ -71,6 +71,12 @@ export default async () => {
             expect(() => config({ omit: [1] })).toThrow();
             expect(() => config({ omit: [''] })).toThrow();
         });
+
+        await it('parses intro and rejects an empty one', async () => {
+            expect(config().intro).toBe(undefined);
+            expect(config({ intro: 'Needs the app.' }).intro).toBe('Needs the app.');
+            expect(() => config({ intro: '' })).toThrow();
+        });
     });
 
     await describe('listing captions config', async () => {
@@ -319,6 +325,33 @@ export default async () => {
 
         await it('throws on an entry that matches nothing', async () => {
             expect(() => omitted(['First paragraph', 'First paragraph.'])).toThrow();
+        });
+    });
+
+    await describe('listing intro', async () => {
+        const metainfo = parseMetainfo(METAINFO);
+        const intro = 'Needs the free app & a browser.';
+
+        await it('puts the intro first in every store description, text and HTML', async () => {
+            const model = buildListingModel({ metainfo, config: config({ intro }), catalogs: {} });
+            expect(model.stores.cws?.en?.description).toBe(`${intro}\n\nFirst paragraph.\n\n• One\n• Two & three`);
+            expect(
+                model.stores.amo?.en?.descriptionHtml?.startsWith('<p>Needs the free app &amp; a browser.</p>\n<p>'),
+            ).toBe(true);
+        });
+
+        await it('translates the intro from the listing catalogue and warns when it is missing', async () => {
+            const catalogs = { de: parseCatalog(`msgid "${intro}"\nmsgstr "Braucht die App."\n`) };
+            const de = buildListingModel({ metainfo, config: config({ intro }), catalogs });
+            expect(de.stores.edge?.de?.description.startsWith('Braucht die App.\n\n')).toBe(true);
+            expect(de.msgids.includes(intro)).toBe(true);
+            const none = buildListingModel({ metainfo, config: config({ intro }), catalogs: {} });
+            expect(none.warnings.some((w) => w.includes(intro))).toBe(true);
+        });
+
+        await it('leaves the description alone without an intro', async () => {
+            const model = buildListingModel({ metainfo, config: config(), catalogs: {} });
+            expect(model.stores.cws?.en?.description).toBe('First paragraph.\n\n• One\n• Two & three');
         });
     });
 

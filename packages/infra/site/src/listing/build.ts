@@ -1,3 +1,4 @@
+import { esc } from '../render/html.js';
 import type { Catalog } from '../site-data/po.js';
 import { pickByLanguage, resolveLocalized, translator } from '../site-data/po.js';
 import type { Localized, Metainfo } from '../site-data/types.js';
@@ -122,10 +123,11 @@ export function buildListingModel({ metainfo, config, catalogs, stores = STORES 
         const captions = Object.keys(config.captions).length
             ? Object.fromEntries(Object.entries(config.captions).map(([file, msgid]) => [file, configText(msgid)]))
             : undefined;
+        const intro = configText(config.intro);
         const base = {
             name: app(metainfo.name),
             summary: app(metainfo.summary),
-            description: descriptionText(description, app),
+            description: [intro, descriptionText(description, app)].filter(Boolean).join('\n\n'),
             singlePurpose: configText(config.singlePurpose),
             permissions: Object.entries(config.permissions).map(([permission, msgid]) => ({
                 permission,
@@ -142,7 +144,13 @@ export function buildListingModel({ metainfo, config, catalogs, stores = STORES 
             const spec = STORE_SPECS[store];
             const entry: StoreEntry = {
                 ...base,
-                ...(spec.descriptionHtml ? { descriptionHtml: descriptionHtml(description, app) } : {}),
+                ...(spec.descriptionHtml
+                    ? {
+                          descriptionHtml: [intro && `<p>${esc(intro)}</p>`, descriptionHtml(description, app)]
+                              .filter(Boolean)
+                              .join('\n'),
+                      }
+                    : {}),
                 category: config.category[store],
                 ...(spec.searchTerms ? { searchTerms: metainfo.keywords.map(app) } : {}),
                 ...(spec.screenshotCaptions && captions ? { captions } : {}),

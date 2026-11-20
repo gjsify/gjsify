@@ -39,6 +39,7 @@ each key falls back to the `gjsify.site` one, and `--config <file>` overrides th
   is a warning, a missing justification for a manifest permission on a store that asks is an error.
 - `category` per store, `privacyUrl`, `screenshots` (a directory replacing the metainfo shots),
   `omit` (source-language description blocks kept out of every store listing; an unmatched entry is an error),
+  `intro` (a msgid put first in every store description, never on the website),
   `captions` (screenshot file name → msgid, AMO and Edge; an unknown file name is an error).
 
 Privacy URL precedence: metainfo `<url type="privacy">`, then `privacyUrl`, then

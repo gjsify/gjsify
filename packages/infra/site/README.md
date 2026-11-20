@@ -87,6 +87,7 @@ Only what the metainfo cannot carry is configured, in `gjsify.webext.listing` of
         "permissions": { "tabs": "Why it needs the tab list", "https://*/*": "Why it needs these hosts" },
         "category": { "cws": "productivity", "edge": "Productivity" },
         "omit": ["Works in Firefox and in Chromium-based browsers."],
+        "intro": "Needs the free desktop app: example.org/app",
         "captions": { "01-hero.png": "The tab list at a glance" },
         "privacyUrl": "https://example.org/privacy/",
         "screenshots": "docs/store/screenshots"
@@ -105,6 +106,10 @@ listing (stores reject a description that names other browsers). Each entry is t
 text exactly as in the metainfo; the block disappears from the store description (text and HTML)
 in every language, translations included. The metainfo and `gjsify site` are unchanged. An entry
 that matches nothing is an error in `listing` and `listing --check`.
+
+`intro` is a msgid put as the first paragraph of every store description (text and HTML), for what a
+store visitor must know before installing — typically a companion app. It is translated like
+`singlePurpose` and never reaches the website or the metainfo.
 
 Edge's search terms are the metainfo `<keyword>`s, per language (`xml:lang` entry, else the catalogue),
 written to `edge/<lang>/search-terms.txt` (one per line) and `store.json`. Edge allows at most 7 terms,
