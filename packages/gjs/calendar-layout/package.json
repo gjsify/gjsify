@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/calendar-layout",
-    "version": "0.64.51",
+    "version": "0.64.52",
     "description": "Pure calendar geometry: month grid with ISO week numbers, multi-day bars laid out in row slots per week with overflow counts, and overlap columns for day/week time grids. Numbers in, numbers out: no GTK, no clock, no time zone.",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
