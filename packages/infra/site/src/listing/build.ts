@@ -3,7 +3,7 @@ import type { Catalog } from '../site-data/po.js';
 import { pickByLanguage, resolveLocalized, translator } from '../site-data/po.js';
 import type { Localized, Metainfo } from '../site-data/types.js';
 import type { ListingConfig } from './config.js';
-import { STORE_SPECS, STORES, type Store, type TextField } from './limits.js';
+import { STORE_SPECS, STORES, type FormKey, type Store, type TextField } from './limits.js';
 import { characters, descriptionHtml, descriptionText, omitBlocks, words } from './text.js';
 
 export interface StoreEntry {
@@ -15,6 +15,10 @@ export interface StoreEntry {
     permissions: Array<{ permission: string; justification: string }>;
     category?: string;
     privacyUrl?: string;
+    /** Only on stores whose form has a notes field; absent when the config sets none. */
+    reviewerNotes?: string;
+    /** Only on stores whose form has a privacy-text field; absent when the config sets none. */
+    privacySummary?: string;
     /** `<url type="homepage">`; the donation URL is never carried (ADR 0113). */
     homepage?: string;
     supportUrl?: string;
@@ -124,6 +128,8 @@ export function buildListingModel({ metainfo, config, catalogs, stores = STORES 
             ? Object.fromEntries(Object.entries(config.captions).map(([file, msgid]) => [file, configText(msgid)]))
             : undefined;
         const intro = configText(config.intro);
+        const reviewerNotes = configText(config.reviewerNotes);
+        const privacySummary = configText(config.privacySummary);
         const base = {
             name: app(metainfo.name),
             summary: app(metainfo.summary),
@@ -142,6 +148,7 @@ export function buildListingModel({ metainfo, config, catalogs, stores = STORES 
         };
         for (const store of stores) {
             const spec = STORE_SPECS[store];
+            const formHas = (...keys: FormKey[]) => spec.form.some((field) => keys.includes(field.key));
             const entry: StoreEntry = {
                 ...base,
                 ...(spec.descriptionHtml
@@ -152,6 +159,8 @@ export function buildListingModel({ metainfo, config, catalogs, stores = STORES 
                       }
                     : {}),
                 category: config.category[store],
+                ...(reviewerNotes && formHas('certificationNotes', 'reviewerNotes') ? { reviewerNotes } : {}),
+                ...(privacySummary && formHas('privacyText') ? { privacySummary } : {}),
                 ...(spec.searchTerms ? { searchTerms: metainfo.keywords.map(app) } : {}),
                 ...(spec.screenshotCaptions && captions ? { captions } : {}),
             };

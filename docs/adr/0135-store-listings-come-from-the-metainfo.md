@@ -40,6 +40,7 @@ each key falls back to the `gjsify.site` one, and `--config <file>` overrides th
 - `category` per store, `privacyUrl`, `screenshots` (a directory replacing the metainfo shots),
   `omit` (source-language description blocks kept out of every store listing; an unmatched entry is an error),
   `intro` (a msgid put first in every store description, never on the website),
+  `reviewerNotes` (Edge certification notes, AMO notes to reviewer) and `privacySummary` (AMO privacy text), both msgids,
   `captions` (screenshot file name → msgid, AMO and Edge; an unknown file name is an error).
 
 Privacy URL precedence: metainfo `<url type="privacy">`, then `privacyUrl`, then

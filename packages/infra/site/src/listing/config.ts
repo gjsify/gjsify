@@ -43,6 +43,10 @@ export interface ListingConfig {
      * (AMO) get them; a name that matches no screenshot is an error.
      */
     captions: Record<string, string>;
+    /** msgid: notes for the store reviewers (Edge "Notes for certification", AMO "Notes to reviewer"). */
+    reviewerNotes?: string;
+    /** msgid: a short plain-language privacy statement for forms that take text (AMO privacy policy). */
+    privacySummary?: string;
     privacyUrl?: string;
     /** Used when the metainfo has no privacy URL and no `privacyUrl` is set: `<siteUrl><lang>/privacy/`. */
     siteUrl?: string;
@@ -157,6 +161,8 @@ export function parseListingConfig(manifest: ListingManifest, override: unknown 
         omit,
         intro: str(raw, 'intro', where),
         captions,
+        reviewerNotes: str(raw, 'reviewerNotes', where),
+        privacySummary: str(raw, 'privacySummary', where),
         privacyUrl: str(raw, 'privacyUrl', where),
         siteUrl: site.privacy !== undefined && typeof site.url === 'string' ? site.url.replace(/\/?$/, '/') : undefined,
     };

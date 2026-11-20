@@ -53,7 +53,9 @@ export type FormKey =
     | 'supportUrl'
     | 'homepage'
     | 'dataUsage'
-    | 'certificationNotes';
+    | 'certificationNotes'
+    | 'reviewerNotes'
+    | 'privacyText';
 
 export interface FormFieldSpec {
     key: FormKey;
@@ -195,6 +197,7 @@ export const STORE_SPECS: Record<Store, StoreSpec> = {
             { key: 'searchTerms', label: 'Search terms', required: false },
             { key: 'singlePurpose', label: 'Single purpose', required: true },
             { key: 'permissions', label: 'Permission justifications', required: true },
+            // Derived from `reviewerNotes` when the config sets it; the publish page names no length limit.
             { key: 'certificationNotes', label: 'Notes for certification', required: false, manual: true },
             { key: 'privacyUrl', label: 'Privacy policy URL', required: false },
             { key: 'supportUrl', label: 'Support URL', required: false },
@@ -229,6 +232,9 @@ export const STORE_SPECS: Record<Store, StoreSpec> = {
             { key: 'homepage', label: 'Homepage', required: false },
             { key: 'supportUrl', label: 'Support site', required: false },
             { key: 'privacyUrl', label: 'Privacy policy', required: false },
+            // The add-on API's `approval_notes` (version upload) and `privacy_policy` (a translated field).
+            { key: 'reviewerNotes', label: 'Notes to reviewer', required: false },
+            { key: 'privacyText', label: 'Privacy policy text', required: false },
         ],
         // "You can only load one set of screenshots, although you can localize their descriptions."
         localized: { screenshots: false, promo: false, url: AMO_LISTING },

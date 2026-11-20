@@ -49,6 +49,8 @@ export interface StoreManifest {
     fields: ManifestField[];
 }
 
+const MANUAL_DERIVABLE = new Set<FormKey>(['certificationNotes']);
+
 const TEXT_FILES = { name: 'name.txt', summary: 'summary.txt', description: 'description.txt' } as const;
 
 export interface StoreManifestInput {
@@ -88,7 +90,7 @@ export function storeManifest({ app, store, entries, files, captions = {} }: Sto
 
     const fields = spec.form.map((field): ManifestField => {
         const { key, label, required } = field;
-        if (field.manual) return { key, label, required, status: 'manual' };
+        if (field.manual && !MANUAL_DERIVABLE.has(key)) return { key, label, required, status: 'manual' };
         let details: Omit<ManifestField, 'key' | 'label' | 'required' | 'status'> = {};
         let present: boolean;
         switch (key) {
@@ -172,6 +174,23 @@ export function storeManifest({ app, store, entries, files, captions = {} }: Sto
                     files: Object.keys(values).map((language) => `${language}/search-terms.txt`),
                 };
                 present = everyLanguage(values);
+                break;
+            }
+            case 'certificationNotes':
+            case 'reviewerNotes':
+            case 'privacyText': {
+                const pick = key === 'privacyText' ? 'privacySummary' : 'reviewerNotes';
+                const values = perLanguage((entry) => entry[pick] || undefined);
+                present = everyLanguage(values);
+                // A person still types it when the config does not supply every language.
+                if (!present && field.manual) return { key, label, required, status: 'manual' };
+                details = {
+                    values,
+                    files: languages.map(
+                        (language) => `${language}/${key === 'privacyText' ? 'privacy' : 'reviewer-notes'}.txt`,
+                    ),
+                    lengths: perLanguage((entry) => (entry[pick] ? characters(entry[pick]) : undefined)),
+                };
                 break;
             }
             case 'privacyUrl':

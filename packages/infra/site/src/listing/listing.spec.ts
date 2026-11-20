@@ -72,6 +72,17 @@ export default async () => {
             expect(() => config({ omit: [''] })).toThrow();
         });
 
+        await it('parses reviewerNotes and privacySummary and rejects empty ones', async () => {
+            expect(config().reviewerNotes).toBe(undefined);
+            expect(config().privacySummary).toBe(undefined);
+            expect(config({ reviewerNotes: 'Log in with test.' }).reviewerNotes).toBe('Log in with test.');
+            expect(config({ privacySummary: 'Nothing leaves your device.' }).privacySummary).toBe(
+                'Nothing leaves your device.',
+            );
+            expect(() => config({ reviewerNotes: '' })).toThrow();
+            expect(() => config({ privacySummary: 1 })).toThrow();
+        });
+
         await it('parses intro and rejects an empty one', async () => {
             expect(config().intro).toBe(undefined);
             expect(config({ intro: 'Needs the app.' }).intro).toBe('Needs the app.');
@@ -352,6 +363,70 @@ export default async () => {
         await it('leaves the description alone without an intro', async () => {
             const model = buildListingModel({ metainfo, config: config(), catalogs: {} });
             expect(model.stores.cws?.en?.description).toBe('First paragraph.\n\n• One\n• Two & three');
+        });
+    });
+
+    await describe('listing reviewer notes and privacy text', async () => {
+        const metainfo = parseMetainfo(METAINFO);
+        const reviewerNotes = 'Open the options page to test.';
+        const privacySummary = 'Nothing leaves your device.';
+        const both = { reviewerNotes, privacySummary };
+        const files = { icon: 'icon-128.png', screenshots: ['screenshots/01-a.png'], promo: {} };
+        const field = (m: ReturnType<typeof storeManifest>, key: string) => m.fields.find((f) => f.key === key)!;
+
+        await it('carries each text only on the stores whose form has the field', async () => {
+            const model = buildListingModel({ metainfo, config: config(both), catalogs: {} });
+            expect(model.stores.cws?.en?.reviewerNotes).toBe(undefined);
+            expect(model.stores.cws?.en?.privacySummary).toBe(undefined);
+            expect(model.stores.edge?.en?.reviewerNotes).toBe(reviewerNotes);
+            expect(model.stores.edge?.en?.privacySummary).toBe(undefined);
+            expect(model.stores.amo?.en?.reviewerNotes).toBe(reviewerNotes);
+            expect(model.stores.amo?.en?.privacySummary).toBe(privacySummary);
+        });
+
+        await it('translates both and warns when a translation is missing', async () => {
+            const catalogs = {
+                de: parseCatalog(
+                    `msgid "${reviewerNotes}"\nmsgstr "Zum Testen die Optionen öffnen."\n\nmsgid "${privacySummary}"\nmsgstr "Nichts verlässt dein Gerät."\n`,
+                ),
+            };
+            const de = buildListingModel({ metainfo, config: config(both), catalogs });
+            expect(de.stores.amo?.de?.reviewerNotes).toBe('Zum Testen die Optionen öffnen.');
+            expect(de.stores.amo?.de?.privacySummary).toBe('Nichts verlässt dein Gerät.');
+            expect(de.msgids.includes(reviewerNotes) && de.msgids.includes(privacySummary)).toBe(true);
+            const none = buildListingModel({ metainfo, config: config(both), catalogs: {} });
+            expect(none.warnings.some((w) => w.includes(reviewerNotes))).toBe(true);
+            expect(none.warnings.some((w) => w.includes(privacySummary))).toBe(true);
+        });
+
+        await it('derives the manifest fields when set, files named per language', async () => {
+            const model = buildListingModel({ metainfo, config: config(both), catalogs: {} });
+            const edge = storeManifest({ app: 'x', store: 'edge', entries: model.stores.edge!, files });
+            expect(field(edge, 'certificationNotes').status).toBe('derived');
+            expect(field(edge, 'certificationNotes').files?.[0]).toBe('en/reviewer-notes.txt');
+            const amo = storeManifest({ app: 'x', store: 'amo', entries: model.stores.amo!, files });
+            expect(field(amo, 'reviewerNotes').status).toBe('derived');
+            expect(field(amo, 'privacyText').status).toBe('derived');
+            expect(field(amo, 'privacyText').files?.[1]).toBe('de/privacy.txt');
+        });
+
+        await it('keeps Edge manual and AMO omitted without the config', async () => {
+            const model = buildListingModel({ metainfo, config: config(), catalogs: {} });
+            const edge = storeManifest({ app: 'x', store: 'edge', entries: model.stores.edge!, files });
+            expect(field(edge, 'certificationNotes').status).toBe('manual');
+            const amo = storeManifest({ app: 'x', store: 'amo', entries: model.stores.amo!, files });
+            expect(field(amo, 'reviewerNotes').status).toBe('omitted');
+            expect(field(amo, 'privacyText').status).toBe('omitted');
+        });
+
+        await it('stays manual on Edge when only some languages have the text', async () => {
+            const m = storeManifest({
+                app: 'x',
+                store: 'edge',
+                entries: { en: entry({ reviewerNotes }), de: entry() },
+                files,
+            });
+            expect(field(m, 'certificationNotes').status).toBe('manual');
         });
     });
 
