@@ -40,6 +40,7 @@ import inversionSpec from './specs/inversion.js';
 import foreignParentSpec from './specs/foreign-parent.js';
 import httpsFetchSpec from './specs/https-fetch.js';
 import gioTlsSpec from './specs/gio-tls.js';
+import gioRealSpec from './specs/gio-real.js';
 
 /**
  * The engine THIS leg claims to run on, derived from the opt-in define alone — the two legs are
@@ -88,6 +89,8 @@ async function runSuite(): Promise<void> {
             await httpsFetchSpec();
             // ADR 0117 stage 2: Gio's own TLS, only when the build carries the add-on.
             if (__GJSIFY_GI_TLS__) await gioTlsSpec();
+            // `giReal`: a non-widget module's `gi://Gio` is real beside the widget renderer.
+            if (__GJSIFY_GI_REAL__) await gioRealSpec();
             if (optedIn) await listStoreVectors();
             // Settings before any other Gio.Settings or Gtk use: GIO fixes its schema source once.
             if (optedIn) await settingsVectors();

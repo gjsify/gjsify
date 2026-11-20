@@ -281,6 +281,12 @@ export interface ConfigDataNativescript {
      * itself and ships whether or not anything declares it.
      */
     giNamespaces?: string[];
+    /**
+     * With `giRenderer`: namespaces (`Ns` or `Ns-Version`) answered by real `@gjsify/node-gi`
+     * instead of the renderer's deliberately sparse `Gio`/`GLib` arm, so non-widget code can use
+     * e.g. `Gio.SocketClient`. Needs `@gjsify/node-gi` as an app dependency.
+     */
+    giReal?: string[];
 }
 
 /** Optional pointer to a non-default oxc config file. */

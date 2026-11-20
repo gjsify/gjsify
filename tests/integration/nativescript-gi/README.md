@@ -50,7 +50,7 @@ installs, and rejection of both the test leaf and a self-signed public host. It 
 `@gjsify/gi-runtime-android-tls` as a real `package.json` dependency for that run: the
 NativeScript CLI takes plugins from `package.json`, so a `--no-save` install is never
 packaged. Its logic lives in the import-free `app/specs/gio-tls.core.ts` so it can be
-run on the host under node first. Together:
+run on the host under node first. `GJSIFY_GI_REAL=1` builds with `giRenderer` + `giReal: ['Gio','GLib']` and adds `app/specs/gio-real.ts`: a non-widget module's `gi://Gio` must be real (a loopback `Gio.SocketClient` round trip). Together:
 
 ```sh
 npm run release:android -- c                # signed release, per-ABI splits → release-apks/c/

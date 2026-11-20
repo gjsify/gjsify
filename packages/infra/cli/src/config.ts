@@ -367,6 +367,16 @@ export class Config {
                     '`gi://` against a GI stack the host already has.',
             );
         }
+        if (configData.nativescript?.giReal?.length) {
+            if (configData.app !== 'nativescript' || configData.giRenderer !== true) {
+                throw new Error(
+                    'gjsify build: nativescript.giReal only applies to --app nativescript with --gi-renderer: ' +
+                        'without the renderer every `gi://` is already an empty module, and every other target ' +
+                        'has real or node-gi namespaces.',
+                );
+            }
+            assertGiNamespaceEntries(configData.nativescript.giReal, 'gjsify build: nativescript.giReal');
+        }
         // Shape-checked through the shared helper, because the Vite path accepts the
         // same key and a check that holds on only one of them is a project that builds
         // one way and fails the other for a typo.

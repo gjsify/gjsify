@@ -9,6 +9,7 @@ import gresourceSuite from './plugins/gresource.spec.js';
 import gresourceTypesSuite from './plugins/gresource-types.spec.js';
 import cssTypesSuite from './plugins/css-types.spec.js';
 import giOptionalSuite from './plugins/gi-optional.spec.js';
+import giRealSuite from './plugins/gi-real.spec.js';
 import giSelectionSuite from './utils/gi-selection.spec.js';
 import nativescriptGiSelectionSuite from './plugins/nativescript-gi-selection.spec.js';
 import implicitGlobalAssignSuite from './plugins/implicit-global-assign.spec.js';
@@ -27,6 +28,7 @@ run({
     cssTypesSuite,
     entryWrapperSuite,
     giOptionalSuite,
+    giRealSuite,
     giSelectionSuite,
     gresourceSuite,
     gresourceTypesSuite,

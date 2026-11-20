@@ -96,6 +96,16 @@ The same declaration under `gjsify build --app nativescript` is `nativescript.gi
 
 What a namespace can resolve to is bounded by the pinned Android sysroot: a namespace whose backing library or typelib the sysroot does not carry fails the AAR build naming what is missing, rather than shipping a typelib that dies in `g_module_open`.
 
+## Real Gio / GLib beside the widget renderer
+
+Under `giRenderer: true`, `gi://Gio` and `gi://GLib` are the renderer's deliberately sparse subset (no `Gio.SocketClient`, no `GLib.get_home_dir`). Non-widget code on real GObject opts into the real namespaces with `giReal`; it needs `@gjsify/node-gi` as an app dependency and no custom plugin:
+
+```ts
+export default defineNativescriptConfig({ giRenderer: true, giReal: ['Gio', 'GLib'] });
+```
+
+A namespace listed in `giReal` is answered by `requireGi` for every importer, the renderer's own ports included — list only what the whole app can take real. `Gtk`/`Adw` stay the renderer's.
+
 ## Audio-context note
 
 `@nativescript/canvas` transitively pulls a Web-Audio module that references surface a canvas/WebGL app never executes. If your app only does 2D/WebGL rendering, mark it `external` via the composable second argument so it stays out of the bundle:
