@@ -543,6 +543,11 @@
       "missing": "Does not model 23- or 25-hour DST days; items are placed by wall-clock minutes.",
       "note": "Pure calendar geometry: month grid with ISO week numbers, multi-day bars in row slots per week with overflow counts, and overlap columns for day/week time grids. Numbers in, numbers out: no clock, no time zone, no dependencies."
     },
+    "@gjsify/pim": {
+      "status": "partial",
+      "missing": "The CalDAV driver runs against a fake server only, the EDS driver only as far as 'no session' and result shapes, never against a live Evolution Data Server. Calendars and tasks only: no contacts, no recurrence expansion, no scheduling.",
+      "note": "Calendars and tasks behind one CalendarBackend port: CalDAV over @gjsify/dav (every runtime, incl. RFC 6578 delta reads) and Evolution Data Server (GJS, typelibs loaded on first use)."
+    },
     "@gjsify/local-ai-servers": {
       "status": "partial",
       "missing": "Run against mocked server responses only, never against live Ollama, LM Studio or llama-server. Knows only their default loopback ports plus OLLAMA_HOST; no LocalAI, vLLM or Jan defaults.",
