@@ -116,6 +116,12 @@ export interface PluginOptions {
      */
     giRenderer?: boolean;
     /**
+     * `--app nativescript` with `giRenderer`: GI namespaces (`Ns` or `Ns-Version`) answered by the
+     * REAL `@gjsify/node-gi` namespace instead of the renderer's sparse arm. See
+     * `plugins/gi-real.ts`. Opt-in because the arm must not drag node-gi into apps that never asked.
+     */
+    giReal?: string[];
+    /**
      * `--app nativescript` only: compile this PO directory to
      * `locale/<lang>/LC_MESSAGES/<domain>.mo` assets of the bundle, so the Android libintl
      * reader finds them under `<filesDir>/app/locale`. See `plugins/nativescript-locale.ts`.

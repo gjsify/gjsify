@@ -569,3 +569,13 @@ plus those three libraries; the pin in `build-inputs.json` names it. soup and js
    certificate"). APK cost: the `.so` entries are stored, so the delta is their size: **arm64-v8a
    +6.46 MB** (libcrypto 5.56, libssl 0.73, libgioopenssl 0.17), **x86_64 +6.85 MB**, plus a
    348-byte manifest. An app that does not depend on the add-on pays nothing.
+
+## Amendment (2026-11-20) — real `Gio`/`GLib` beside the renderer is opt-in (`giReal`)
+
+No ADR prescribes that non-widget namespaces resolve to real node-gi by default: ADR 0034 clause 3
+makes the renderer arm's `Gio`/`GLib` a deliberate subset, ADR 0110 flips the ENGINE under the
+widgets (not `gi://` routing), and the bullet above fixes that under `giRenderer` every `gi://Ns`
+resolves to the renderer. The arm stays the default so an app that never asks does not bundle
+node-gi. `giReal` (Vite option, `nativescript.giReal` in `gjsify build`) lists namespaces answered
+by real `requireGi` instead; the listed namespace is real for every importer, the renderer's own
+ports included. Core-set namespaces need no `giNamespaces` entry; others must be declared there too.

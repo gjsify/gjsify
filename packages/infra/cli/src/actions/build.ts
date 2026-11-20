@@ -900,6 +900,9 @@ export class BuildAction {
             consoleShim,
             ...(dialect !== undefined ? { dialect } : {}),
             ...(giRenderer === true ? { giRenderer: true } : {}),
+            ...(giRenderer === true && this.configData.nativescript?.giReal?.length
+                ? { giReal: this.configData.nativescript.giReal }
+                : {}),
             ...(nativescriptLocale ? { nativescriptLocale } : {}),
             ...(aliases ? { aliases } : {}),
             ...(opts.preserveDefaultExport ? { preserveDefaultExport: true } : {}),

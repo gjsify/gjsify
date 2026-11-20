@@ -49,6 +49,7 @@ import type { PluginOptions } from '../types/plugin-options.js';
 import { globToEntryPoints } from '../utils/entry-points.js';
 import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
 import { giRendererPlugin } from '../plugins/gi-renderer.js';
+import { giRealPlugin } from '../plugins/gi-real.js';
 import { nativescriptLocalePlugin } from '../plugins/nativescript-locale.js';
 import { blueprintTemplateExit } from '../utils/blueprint-template-exit.js';
 import {
@@ -223,6 +224,9 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
         // target. `emptyGirs` follows it: with the arm on, `@girs/<ns>-<ver>` must
         // reach its real body so its inner `gi://` lands here instead of being
         // stranded as `{}`.
+        ...(giRenderer && input.pluginOptions.giReal?.length
+            ? [giRealPlugin({ namespaces: input.pluginOptions.giReal })]
+            : []),
         ...(giRenderer ? [giRendererPlugin({ app: 'nativescript', ...giRenderer })] : []),
         gjsImportsEmptyPlugin({ emptyGirs: !giRenderer }),
         // Platform-specific source variants (`*.android` / `*.ios` /

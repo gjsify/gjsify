@@ -14,6 +14,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
+import { GI_REAL_PLUGIN } from '../plugins/gi-real.js';
 import { NATIVESCRIPT_CORE_EXTERNAL_PLUGIN, setupForNativescript } from './nativescript.js';
 
 type ResolveIdHandler = (id: string) => { id: string; external: boolean } | null;
@@ -82,6 +83,17 @@ export default async () => {
                 id: '@nativescript/core/application/application-common',
                 external: true,
             });
+        });
+
+        await it('composes giReal only with giRenderer, ahead of the renderer arm', async () => {
+            const names = async (pluginOptions: object) =>
+                namedPlugins((await setupForNativescript({ ...factoryInput, pluginOptions })).plugins).map((p) => p.name);
+            expect((await names({ giReal: ['Gio'] })).includes(GI_REAL_PLUGIN)).toBe(false);
+            expect((await names({ giRenderer: true })).includes(GI_REAL_PLUGIN)).toBe(false);
+            const both = await names({ giRenderer: true, giReal: ['Gio'] });
+            const real = both.indexOf(GI_REAL_PLUGIN);
+            expect(real >= 0).toBe(true);
+            expect(both.indexOf('gjsify-gi-renderer') === -1 || real < both.indexOf('gjsify-gi-renderer')).toBe(true);
         });
 
         await it('leaves a neighbouring specifier alone', async () => {
