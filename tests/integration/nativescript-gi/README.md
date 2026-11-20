@@ -51,6 +51,7 @@ installs, and rejection of both the test leaf and a self-signed public host. It 
 NativeScript CLI takes plugins from `package.json`, so a `--no-save` install is never
 packaged. Its logic lives in the import-free `app/specs/gio-tls.core.ts` so it can be
 run on the host under node first. `GJSIFY_GI_REAL=1` builds with `giRenderer` + `giReal: ['Gio','GLib']` and adds `app/specs/gio-real.ts`: a non-widget module's `gi://Gio` must be real (a loopback `Gio.SocketClient` round trip). Together:
+run on the host under node first. `GJSIFY_GI_FS=1` adds `app/specs/fs-fd.ts`: `openSync`/`readSync`/`closeSync` of `@gjsify/native-fs-bridge` against a file in the app's documents directory (positioned read, cursor, EOF, `EBADF` after close, `ENOENT`). Together:
 
 ```sh
 npm run release:android -- c                # signed release, per-ABI splits → release-apks/c/
