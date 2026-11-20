@@ -39,6 +39,10 @@ adw-combo-row {
   justify-content: center;
   flex: 1 1 auto;
   min-width: 0;
+  // libadwaita's `row > box.header > box.title { margin-top: 6px; margin-bottom: 6px }`
+  // (_lists.scss:139-141). The row has no vertical padding of its own, so without this a title
+  // that wraps grows the row to exactly its text and the subtitle touches the next row.
+  padding-block: 6px;
 }
 
 // NO `.adw-row-title` default HERE, deliberately. `.adw-row-title` is also the class
