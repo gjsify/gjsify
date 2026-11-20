@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.64.52](https://github.com/gjsify/gjsify/compare/v0.64.51...v0.64.52) (2026-11-20)
+
+### Features
+
+* **recurrence:** add RFC 5545 expansion package ([#2708](https://github.com/gjsify/gjsify/issues/2708)) ([ae11a22](https://github.com/gjsify/gjsify/commit/ae11a22ee8f6eada9aa496155aebdb30e6c94e84))
+* **ship:** snap as a sixth Linux container, plus store helpers ([#2707](https://github.com/gjsify/gjsify/issues/2707)) ([ade1ef8](https://github.com/gjsify/gjsify/commit/ade1ef89f9b3dd20912174ed981be31ab99e022d))
+* **site:** add listing intro for store text ([#2710](https://github.com/gjsify/gjsify/issues/2710)) ([edfe7ce](https://github.com/gjsify/gjsify/commit/edfe7cea15ae44b2e26e0e0d8d98bca864afa63f))
+* **site:** add listing reviewer notes and privacy text ([#2712](https://github.com/gjsify/gjsify/issues/2712)) ([371aac0](https://github.com/gjsify/gjsify/commit/371aac0422e1ca0fdc876f4bcb173b61f092c215)), closes [#2710](https://github.com/gjsify/gjsify/issues/2710)
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([8ec9342](https://github.com/gjsify/gjsify/commit/8ec93422ac2fa788258405de626e69b2009d8198))
+* update native prebuilds [skip ci] ([7000e46](https://github.com/gjsify/gjsify/commit/7000e46440203e6419c093dfc1f1058f17ca8d05))
+
 ## [0.64.51](https://github.com/gjsify/gjsify/compare/v0.64.50...v0.64.51) (2026-11-20)
 
 ### Bug Fixes
