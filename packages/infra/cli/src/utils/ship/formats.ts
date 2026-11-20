@@ -10,6 +10,7 @@
 
 import { isOnPath } from '../check-system-deps.js';
 import { APPIMAGE_TOOL } from './appimage.js';
+import { SNAP_BASE, SNAP_TOOL } from './snap.js';
 import { DMG_TOOL } from './dmg.js';
 import { LAYOUTS, LAYOUT_NAMES, type Layout } from './layout.js';
 import { SCHEMA_COMPILER, SCHEMA_COMPILER_HINT } from './schemas.js';
@@ -112,6 +113,17 @@ const APPIMAGE_ARCH: Record<string, string> = {
 
 function appImageArch(arch: string, _archIndependent: boolean): string {
     return lookupArch(APPIMAGE_ARCH, arch, 'AppImage');
+}
+
+/**
+ * `process.arch` → the name snapd and the store use. Its own table for the AppImage's reason:
+ * `amd64` is Debian's spelling and happens to match, but this one is the store's vocabulary
+ * and gains rows (`armhf`, `s390x`) on the store's schedule, not apt's.
+ */
+const SNAP_ARCH: Record<string, string> = { x64: 'amd64', arm64: 'arm64' };
+
+function snapArch(arch: string, _archIndependent: boolean): string {
+    return lookupArch(SNAP_ARCH, arch, 'Snap');
 }
 
 /**
@@ -552,6 +564,40 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         // refusal `gjsify.ship.kind` decides on its own, so it belongs before the
         // build beside the tool gate rather than after it inside the packer.
         requiresDesktopEntry: true,
+    },
+    // THE SIXTH CONTAINER OVER THE LINUX TREE (ADR 0149). Unlike the AppImage it
+    // bundles no runtime: `gnome-core26` is the closure, as `org.gnome.Platform` is
+    // for the Flatpak. Unlike `deb`/`rpm` it is written by a host tool, so the oracle
+    // reads it with `unsquashfs` — a program this tree did not write and snapcraft
+    // does not run. The file-level comparison script is not written yet (ADR 0149).
+    snap: {
+        id: 'snap',
+        layoutOs: 'linux',
+        // `/usr` inside the snap, the AppImage's layout and for its reason: the staged
+        // launcher computes its own prefix from `readlink -f "$0"`.
+        prefix: '/usr',
+        host: {
+            finishOn: ['linux'],
+            // The compiler is on the pack path for the AppImage's reason: no Linux stage
+            // carries `gschemas.compiled`, and GSettings aborts without it.
+            requiredTools: [SNAP_TOOL, SCHEMA_COMPILER],
+            installHint:
+                `\`sudo snap install ${SNAP_TOOL} --classic\` (snapcraft is a snap; ${SNAP_BASE} builds need ` +
+                'Ubuntu 26.04 with `GJSIFY_SNAP_DESTRUCTIVE=1`, or LXD without it); or assemble here with ' +
+                `\`gjsify ship linux --stage\` and pack where snapcraft is. The schema compiler is packaged: ${SCHEMA_COMPILER_HINT}`,
+            oracle: { readWith: ['unsquashfs'], readOn: ['linux'], selfReading: false },
+        },
+        depends: null,
+        // GJS ONLY: `gnome-core26` ships `gjs` and no `node`.
+        interpreters: ['gjs'],
+        interpreterGap:
+            'a snap runs against the `gnome-core26` platform snap, which ships `gjs` and no `node`, and the ' +
+            'payload bundles no interpreter',
+        licenseDest: SHARE_LICENSE_DEST,
+        licenseKind: 'plain',
+        archName: snapArch,
+        fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}_${s.version}_${archLabel}.snap`,
+        artifactKind: 'file',
     },
     // THE FIFTH CONTAINER OVER THE LINUX TREE, and the first with no install
     // step and no prefix at all: a gzip'd tar whose single top directory is
@@ -1342,6 +1388,7 @@ export function canCarryTicket(id: FormatId): boolean {
         case 'rpm':
         case 'flatpak':
         case 'appimage':
+        case 'snap':
         case 'linux-tar':
         case 'linux-tar-flatpak':
         case 'windows-dir':

@@ -377,7 +377,7 @@ export default async () => {
         });
 
         await it('refuses an unknown target and an empty one', async () => {
-            expect(() => resolveFormats(['snap'], LAYOUTS.linux)).toThrow('unknown target');
+            expect(() => resolveFormats(['pkg'], LAYOUTS.linux)).toThrow('unknown target');
             // An empty list would stage the payload, pack nothing and exit 0.
             expect(() => resolveFormats([], LAYOUTS.linux)).toThrow('named no format');
         });

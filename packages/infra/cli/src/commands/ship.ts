@@ -98,6 +98,7 @@ import { isNodeRuntimeTarget, resolveNodeRuntime } from '../utils/ship/node-runt
 import { isUnder, SHARE } from '../utils/ship/share-dirs.js';
 import { compileSchemasForPayload, compileSchemasForStage } from '../utils/ship/schemas.js';
 import { buildMsi, MSI_PAYLOAD_DIR } from '../utils/ship/msi.js';
+import { buildSnap } from '../utils/ship/snap.js';
 import { buildLinuxTarball } from '../utils/ship/tarball.js';
 import { buildZip, zipEntriesFromPayload } from '../utils/ship/zip.js';
 import { assertEntryRunsUnder } from '../utils/ship/entry-interpreter.js';
@@ -1487,6 +1488,21 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
                 archLabel,
                 runtimeFile,
                 workDir: dirname(appDir),
+                verbose: input.verbose,
+            });
+            break;
+        }
+        case 'snap': {
+            // FROM THE PAYLOAD, like every container here. The compile is on the pack path for
+            // the AppImage's reason: the shared Linux stage carries the schema XML and no
+            // `gschemas.compiled`, and GSettings aborts without the cache.
+            const schemaCache = await compileSchemasForPayload({ payload, workDir: join(outRoot, 'snap-schemas') });
+            await buildSnap({
+                settings,
+                payload: schemaCache === undefined ? payload : [...payload, schemaCache],
+                workDir: join(outRoot, 'snap'),
+                target,
+                archLabel,
                 verbose: input.verbose,
             });
             break;

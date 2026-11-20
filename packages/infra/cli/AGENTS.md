@@ -123,6 +123,8 @@ packs of one build differed in sha256 with every byte of content identical — `
 it now, as ONE list, because `writePayload` wipes and two calls would leave the last run's desktop
 entry beside this one's.
 
+**`snap` (ADR 0149)** is the Flatpak shape: `snap.ts` writes `snap/snapcraft.yaml` and the host's `snapcraft pack` writes the container; the `gnome-core26` platform snap is the runtime, nothing is bundled. Opt-in, `finishOn: ['linux']`. Details: `docs/ship-formats.md`.
+
 **AND WHICH OS'S LAYOUT IT WRAPS** — `FormatDescriptor.layoutOs`, NOT `host.finishOn`; `gjsify ship
 <linux|darwin|windows>` picks the layout, `defaultFormatIds(os)` filters on both, and a bare
 `gjsify ship` on Linux stays `deb` + `rpm`. `planStage` emits ONE prefix-relative plan and
