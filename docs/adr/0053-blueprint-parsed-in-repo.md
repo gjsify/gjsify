@@ -33,16 +33,16 @@ the tree disagree, so a thirteenth `.blp` cannot leave any of it quietly wrong.
 | Blueprint | count | `SharedNode` | GIR-derived? |
 |---|---|---|---|
 | `using Gtk 4.0;` and `using Adw 1;` — EVERY import line | 102 | carried by the class name | yes — namespace and version |
-| `Adw.HeaderBar { }` — an object as its own statement | 236 | `tag: 'AdwHeaderBar'` | yes — the GIR type |
-| `title: "…"` — every property whose value is not an anonymous object | 567 | `props: { title: '…' }` | yes — a ParamSpec |
-| `[start]`, `[end]`, `[top]`, `[bottom]`, `[center]`, `[breakpoint]` | 51 | `slot: 'start'` | yes — ADR 0029 § 4 derives slot candidates from GIR |
-| `content: Adw.ToolbarView { }` — an ANONYMOUS object as a property value | 49 | a child carrying `slot: 'content'` | yes — a ParamSpec, read as a slot |
+| `Adw.HeaderBar { }` — an object as its own statement | 235 | `tag: 'AdwHeaderBar'` | yes — the GIR type |
+| `title: "…"` — every property whose value is not an anonymous object | 569 | `props: { title: '…' }` | yes — a ParamSpec |
+| `[start]`, `[end]`, `[top]`, `[bottom]`, `[center]`, `[breakpoint]` | 54 | `slot: 'start'` | yes — ADR 0029 § 4 derives slot candidates from GIR |
+| `content: Adw.ToolbarView { }` — an ANONYMOUS object as a property value | 50 | a child carrying `slot: 'content'` | yes — a ParamSpec, read as a slot |
 | `styles ["flat"]` | 43 | `cssClasses: ['flat']` | yes — ADR 0049 decided style classes are a list |
 | `template $Foo: Adw.Bin` | 17 | — | **no** — a GtkBuilder composite-template declaration |
-| `Gtk.Box canvasContainer { }` | 102 of those 236 | — | **no** — a GtkBuilder object id |
+| `Gtk.Box canvasContainer { }` | 102 of those 235 | — | **no** — a GtkBuilder object id |
 | `_("Back")` | 151 | — | **no** — a `translatable` attribute on the emitted XML |
-| `bind …` | 11 | — | **no** — a GObject property binding, addressed by id |
-| `condition (…)` + `setters { }` | 7 + 7 | — | **no** — `Adw.Breakpoint`'s own grammar |
+| `bind …` | 13 | — | **no** — a GObject property binding, addressed by id |
+| `condition (…)` + `setters { }` | 9 + 9 | — | **no** — `Adw.Breakpoint`'s own grammar |
 
 **8** signal handlers (`=>`), zero `menu` blocks and **1** inline `Gtk.Adjustment` objects.
 
@@ -54,12 +54,12 @@ it counts instead. The object-id row is the subset of that object row which name
 which is what its "of those" means and what `bind` resolves against.
 
 The two property rows are a PARTITION, and that is the one thing to carry away from this
-table: 567 + 49 = 616, every property assignment in the tree. The 49 are the ones whose
-value is an ANONYMOUS object. The other 567 are not one thing: 544 have no object value at
-all, and 23 have an object value that carries a GtkBuilder id — `content: Gtk.Box
+table: 569 + 50 = 619, every property assignment in the tree. The 50 are the ones whose
+value is an ANONYMOUS object. The other 569 are not one thing: 545 have no object value at
+all, and 24 have an object value that carries a GtkBuilder id — `content: Gtk.Box
 canvasContainer { }`, which the anonymous row's `{` excludes. That split was nearly declared
 unreproducible during a recount, because both halves were measured against a guess instead of
-against their own total: 567 + 49 was sitting beside the 616 that was already known. Two orphan
+against their own total: 569 + 50 was sitting beside the 619 that was already known. Two orphan
 numbers that sum to a number you already have are a partition, not noise.
 
 ### What the external compiler costs
