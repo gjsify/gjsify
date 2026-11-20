@@ -26,7 +26,7 @@
 import { CHANNELS, CHANNEL_ENV, parseDeclaredChannel } from '../utils/channel.js';
 import { PRICINGS, PRICING_ENV, parseDeclaredPricing } from '../utils/pricing.js';
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, join, posix, relative, resolve } from 'node:path';
 import type { Argv } from 'yargs';
 
 import { Config } from '../config.js';
@@ -559,7 +559,15 @@ async function assemble(args: ShipOptions): Promise<void> {
     // carrying a second copy inside the payload would be a private interpreter no
     // distribution update ever patches.
     const runtime = await resolveCarriedRuntime(layout, settings, projectDir);
-    carryNodeModules(runtime, layout, settings, projectDir, ship.nodeModules, ship.nodeModulesExclude);
+    const nodeModulesDirs = carryNodeModules(
+        runtime,
+        layout,
+        settings,
+        projectDir,
+        ship.nodeModules,
+        ship.nodeModulesExclude,
+    );
+    if (nodeModulesDirs.length > 0) settings.nodeModulesDirs = nodeModulesDirs;
     // The nested bundles and helper executables ADR 0026 § 6 needed by hand —
     // staged like the runtime above (tree-preserving, stage-relative, through
     // `placeStage`'s `carried` seam), and never through `gjsify.ship.bundledTypelibs`'s
@@ -1020,13 +1028,14 @@ function carryNodeModules(
     projectDir: string,
     declared: string[] | undefined,
     exclude: string[] | undefined,
-): void {
-    if (declared === undefined || declared.length === 0) return;
+): string[] {
+    if (declared === undefined || declared.length === 0) return [];
     const closure = resolveNodeModulesClosure(declared, projectDir, {
         target: { os: layout.os, cpu: settings.arch },
         exclude,
     });
-    runtime.files.push(...stageNodeModules(closure, layout.dirs(settings).bundle));
+    const bundleDir = layout.dirs(settings).bundle;
+    runtime.files.push(...stageNodeModules(closure, bundleDir));
     runtime.found.push(`node_modules: ${closure.packages.length} package(s) for ${declared.join(', ')}`);
     if (closure.skippedPrebuilds !== undefined && closure.skippedPrebuilds.length > 0) {
         console.log(
@@ -1049,6 +1058,7 @@ function carryNodeModules(
                 `so not carried (other platforms' builds): ${closure.skippedOptional.join(', ')}`,
         );
     }
+    return closure.packages.map((pkg) => posix.join(bundleDir, 'node_modules', pkg.dest));
 }
 
 /** How long a fetched runtime stays in the dlx cache — the same week `gjsify showcase` uses. */

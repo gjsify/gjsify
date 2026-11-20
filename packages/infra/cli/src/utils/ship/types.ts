@@ -455,6 +455,12 @@ export interface PackSettings {
     app: 'gjs' | 'node';
     /** Minimum GJS the emitted dependency asks for. Used only for `app: 'gjs'`. */
     minGjsVersion: string;
+    /**
+     * Stage-relative directories of the `gjsify.ship.nodeModules` closure the stage carries
+     * (`lib/<app>/node_modules/@scope/pkg`), recorded so a packer on another host can tell the
+     * declared `node_modules` from a stray one. Absent when nothing is declared.
+     */
+    nodeModulesDirs?: string[];
     /** Minimum Node major. Used only for `app: 'node'`. */
     minNodeVersion: string;
     /** The Flatpak manifest's non-payload half, fully defaulted at stage time. */
