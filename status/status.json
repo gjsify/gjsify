@@ -533,6 +533,11 @@
       "missing": "Run against mocked multistatus fixtures only, never against a live CalDAV/CardDAV server. No WebDAV ACL, no scheduling (RFC 6638), no recurrence expansion; iCalendar and vCard stay text.",
       "note": "CalDAV and CardDAV client over fetch: discovery (well-known, current-user-principal, home sets), collections, calendar-query/addressbook-query/multiget, sync-collection (RFC 6578) and conditional PUT/DELETE. Auth is an injectable header provider (Basic, Bearer)."
     },
+    "@gjsify/recurrence": {
+      "status": "partial",
+      "missing": "Run against invented iCalendar fixtures only, never a live calendar feed. No VJOURNAL, no VALARM expansion, no writing.",
+      "note": "Read-only RFC 5545 expansion over ical.js: RRULE, RDATE, EXDATE, RECURRENCE-ID overrides (incl. THISANDFUTURE), all-day runs, VEVENT and VTODO, a per-series cap that reports what it cut, and a window cache keyed by uid + version + window. Zones come from the item's own VTIMEZONE, then the host's Intl; an unresolvable TZID stays floating and says so."
+    },
     "@gjsify/local-ai-servers": {
       "status": "partial",
       "missing": "Run against mocked server responses only, never against live Ollama, LM Studio or llama-server. Knows only their default loopback ports plus OLLAMA_HOST; no LocalAI, vLLM or Jan defaults.",
