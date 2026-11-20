@@ -28,7 +28,11 @@
 }
 
 // Host: contributes nothing to layout while closed; the `open` class reveals it.
-adw-dialog {
+// The two Unix print dialogs extend AdwDialog and reuse its scrim and sheet verbatim, so
+// they share this block — without it a closed one renders unstyled in the page flow.
+adw-dialog,
+gtk-print-unix-dialog,
+gtk-page-setup-unix-dialog {
   display: none;
 
   &.open {
@@ -186,7 +190,9 @@ adw-dialog {
 
 // --- Adaptive (auto) presentation: bottom sheet on narrow viewports ---
 @media (max-width: 550px) {
-  adw-dialog[data-presentation='auto'] {
+  adw-dialog[data-presentation='auto'],
+  gtk-print-unix-dialog[data-presentation='auto'],
+  gtk-page-setup-unix-dialog[data-presentation='auto'] {
     @include adw-dialog-bottom-sheet;
   }
 }

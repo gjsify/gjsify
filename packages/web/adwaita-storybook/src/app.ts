@@ -58,6 +58,7 @@ export class StorybookWebApp implements StorybookView<StoryElement> {
     private _controller = new StorybookController<StoryElement>(this, (story) => this._buildControls(story));
     private _options: StorybookWebOptions;
     private _container: HTMLElement;
+    private _window: HTMLElement | null = null;
     /**
      * Colour scheme + accent for the whole storybook, not for one story.
      *
@@ -280,7 +281,9 @@ export class StorybookWebApp implements StorybookView<StoryElement> {
         appearanceBtn.addEventListener('click', () => {
             // Mounted on first press: a dialog nobody opens should not sit in the
             // tree of every storybook that never asks for it.
-            if (!appearanceDialog.isConnected) this._container.append(appearanceDialog);
+            // Inside the window, not beside it: the window contains its own scrim, so the
+            // dimming and the centring are the window's, not the host element's.
+            if (!appearanceDialog.isConnected) this._window?.append(appearanceDialog);
             appearanceDialog.toggleAttribute('open', true);
         });
 
@@ -300,6 +303,7 @@ export class StorybookWebApp implements StorybookView<StoryElement> {
             contentPane,
         ]);
         const window_ = h('adw-window', { class: 'sb-window' }, [this._navSplit]);
+        this._window = window_;
         this._container.replaceChildren(window_);
         // `<adw-window>` writes its size request as inline style on connect, which outranks
         // `.sb-window`; the storybook fills its host, so it states that after connect, and

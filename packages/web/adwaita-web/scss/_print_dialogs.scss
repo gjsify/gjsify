@@ -82,7 +82,7 @@ gtk-print-unix-dialog {
   .adw-print-root {
     display: flex;
     flex-direction: column;
-    min-width: 480px;
+    min-width: min(480px, 100%);
   }
 
   // The notebook's tab row, drawn as a switcher: a flat button per page.
