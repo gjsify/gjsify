@@ -171,10 +171,13 @@ const mountOptsJson = JSON.stringify(resolvedMountOpts);
   }
 
   /* Adwaita window fills the container (Three / Excalibur / minimalist-browser
-     hosts emit an `<adw-window>` shell via `@gjsify/adwaita-web`). */
-  .showcase-embed-window :global(adw-window) {
+     hosts emit an `<adw-window>` or `<adw-application-window>` shell via `@gjsify/adwaita-web`). */
+  .showcase-embed-window :global(adw-window),
+  .showcase-embed-window :global(adw-application-window) {
     width: 100% !important;
     height: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
     max-width: none;
     max-height: none;
     border-radius: 0;

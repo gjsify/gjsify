@@ -837,9 +837,12 @@ for (const slide of slides) {
   }
 
   /* Adwaita window fills demo container */
-  .slide-demo :global(adw-window) {
+  .slide-demo :global(adw-window),
+  .slide-demo :global(adw-application-window) {
     width: 100% !important;
     height: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
     max-width: none;
     max-height: none;
     border-radius: 0;
