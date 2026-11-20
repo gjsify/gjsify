@@ -142,10 +142,10 @@ describe('ship declaration invariant', { timeout: 5 * 60 * 1000 }, () => {
         const root = makeRoot('shapes');
         addPackage(root, 'app', {
             name: '@fixture/app',
-            gjsify: { ship: { targets: ['snap'], typelibPackages: { 'Foo-1.0': { deb: 'gir1.2-foo-1.0' } } } },
+            gjsify: { ship: { targets: ['pkg'], typelibPackages: { 'Foo-1.0': { deb: 'gir1.2-foo-1.0' } } } },
         });
         const { failures } = run(root);
-        assert.match(failures.join('\n'), /names "snap", which `gjsify ship` cannot build/);
+        assert.match(failures.join('\n'), /names "pkg", which `gjsify ship` cannot build/);
         // A row missing one format silently falls back to the built-in table —
         // which is what did not know the namespace — so the build fails for
         // that format only, and usually the one the author does not build.
