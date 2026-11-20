@@ -1,6 +1,6 @@
 # 149. A main-loop stall is measured where it happens, and an app's responsiveness budget is a test
 
-- Status: **Proposed** (2026-11-20)
+- Status: **Accepted** (2026-11-20)
 - Date: 2026-11-20
 - Deciders: Pascal Garber
 - Related: [ADR 0003](0003-package-tiering.md) (tiers and the dependency direction this splits
