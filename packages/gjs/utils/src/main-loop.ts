@@ -381,7 +381,9 @@ export function quitMainLoop(): void {
 /** Monotonic clock in milliseconds: `GLib.get_monotonic_time()` under GJS (~0.1 µs), `performance.now()` elsewhere. */
 export function monotonicMs(): number {
     const GLibModule = glib();
-    return GLibModule ? GLibModule.get_monotonic_time() / 1000 : (globalThis as unknown as { performance: { now(): number } }).performance.now();
+    return GLibModule
+        ? GLibModule.get_monotonic_time() / 1000
+        : (globalThis as unknown as { performance: { now(): number } }).performance.now();
 }
 
 export interface LagMonitorOptions {

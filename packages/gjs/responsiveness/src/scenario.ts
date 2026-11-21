@@ -1,6 +1,12 @@
 // A scenario is an @gjsify/unit test with a budget (ADR 0149 § 9).
 
-import { armStallWatchdog, disarmStallWatchdog, getStallCounters, isStallWatchdogArmed, resetStallCounters } from './watchdog.js';
+import {
+    armStallWatchdog,
+    disarmStallWatchdog,
+    getStallCounters,
+    isStallWatchdogArmed,
+    resetStallCounters,
+} from './watchdog.js';
 import { monotonicMs, startLagMonitor } from '@gjsify/utils/main-loop';
 
 export interface ScenarioOptions {
