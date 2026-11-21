@@ -1,4 +1,4 @@
-// Descriptor table behind the synchronous `openSync` / `readSync` / `closeSync` of the bridge.
+// Descriptor table behind the synchronous `openSync` / `readSync` / `fstatSync` / `closeSync` of the bridge.
 //
 // The platform halves (`java.io.RandomAccessFile`, `NSFileHandle`) sit behind `FdBackend`, so the
 // bookkeeping that is Node's contract — descriptor numbers, `position` semantics, `EBADF`, a read
@@ -9,7 +9,18 @@
 export interface FdHandle {
     /** Read up to `length` bytes starting at absolute `position`; fewer (or 0) at EOF. */
     readAt(position: number, length: number): Uint8Array;
+    /** Current size in bytes and last-modified time (ms since epoch) of the open file. */
+    stat(): { size: number; mtimeMs: number };
     close(): void;
+}
+
+/** The slice of `fs.Stats` a descriptor can answer: a regular file, read-only. */
+export interface FdStats {
+    size: number;
+    mtimeMs: number;
+    mtime: Date;
+    isFile(): boolean;
+    isDirectory(): boolean;
 }
 
 export interface FdBackend {
@@ -101,6 +112,11 @@ export function createFdTable(backend: FdBackend) {
             // Node moves the descriptor's own cursor only for a read without an explicit position.
             if (position === null || position === undefined || position === -1) file.cursor += bytes.length;
             return bytes.length;
+        },
+
+        fstatSync(fd: number): FdStats {
+            const { size, mtimeMs } = lookup(fd, 'fstat').handle.stat();
+            return { size, mtimeMs, mtime: new Date(mtimeMs), isFile: () => true, isDirectory: () => false };
         },
 
         closeSync(fd: number): void {

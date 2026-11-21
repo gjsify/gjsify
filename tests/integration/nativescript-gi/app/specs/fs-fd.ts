@@ -1,12 +1,12 @@
-// `openSync` / `readSync` / `closeSync` of `@gjsify/native-fs-bridge` ON THE DEVICE: the Java
+// `openSync` / `readSync` / `fstatSync` / `closeSync` of `@gjsify/native-fs-bridge` ON THE DEVICE: the Java
 // `RandomAccessFile` half that the off-device fd-table spec fakes.
 import { File, knownFolders } from '@nativescript/core';
-import { closeSync, openSync, readSync } from '@gjsify/native-fs-bridge';
+import { closeSync, fstatSync, openSync, readSync } from '@gjsify/native-fs-bridge';
 
 import { describe, expect, it } from '../reporter.js';
 
 export default async function fsFdSpec(): Promise<void> {
-    await describe('native-fs-bridge: openSync / readSync / closeSync', async () => {
+    await describe('native-fs-bridge: openSync / readSync / fstatSync / closeSync', async () => {
         const path = `${knownFolders.documents().path}/gjsify-fd-probe.bin`;
         File.fromPath(path).writeTextSync('0123456789abcdef');
         const text = (buf: Uint8Array, n: number) => new TextDecoder().decode(buf.subarray(0, n));
@@ -40,6 +40,14 @@ export default async function fsFdSpec(): Promise<void> {
                 code = (error as { code?: string }).code ?? String(error);
             }
             expect(code).toBe('EBADF');
+        });
+
+        await it('fstatSync answers the size of the open file', () => {
+            const fd = openSync(path, 'r');
+            const st = fstatSync(fd);
+            expect(st.size).toBe(16);
+            expect(st.isFile()).toBe(true);
+            closeSync(fd);
         });
 
         await it('ENOENT for a missing file', () => {

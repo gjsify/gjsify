@@ -35,7 +35,7 @@ const tls = optIn && process.env.GJSIFY_GI_TLS === '1';
 // `GJSIFY_GI_REAL=1` turns the widget renderer on and answers `gi://Gio` / `gi://GLib` with the real
 // namespaces (`giReal`), then runs `app/specs/gio-real.ts`. Needs the opt-in (real node-gi) leg.
 const real = optIn && process.env.GJSIFY_GI_REAL === '1';
-// `GJSIFY_GI_FS=1` adds `app/specs/fs-fd.ts`: openSync/readSync/closeSync through the real
+// `GJSIFY_GI_FS=1` adds `app/specs/fs-fd.ts`: openSync/readSync/fstatSync/closeSync through the real
 // `java.io.RandomAccessFile` backend of `@gjsify/native-fs-bridge`.
 const fsFd = process.env.GJSIFY_GI_FS === '1';
 
