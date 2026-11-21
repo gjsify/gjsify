@@ -80,6 +80,7 @@ function menuEntries(items: readonly WidgetPane[]): MenuEntry[] {
             section(
                 pane.label,
                 pane.files.map((file) => ({
+                    kind: 'row' as const,
                     pane: pane.id,
                     role: file.role,
                     label: file.label,
@@ -87,7 +88,7 @@ function menuEntries(items: readonly WidgetPane[]): MenuEntry[] {
                 })),
             );
         } else {
-            plain.push({ pane: pane.id, label: pane.label, short: pane.label });
+            plain.push({ kind: 'row', pane: pane.id, label: pane.label, short: pane.label });
         }
     }
     if (plain.length > 0) section(null, plain);
