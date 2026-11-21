@@ -15,7 +15,7 @@
 
 import type Gtk from 'gi://Gtk?version=4.0';
 import { describe, expect, it } from '@gjsify/unit';
-import { HTMLCanvasElement } from './html-canvas-element.js';
+import { HTMLCanvasElement, snapToDevicePixel } from './html-canvas-element.js';
 
 /** Minimal Gtk.GLArea stand-in — the canvas only ever asks it for these three. */
 function stubGlArea(allocW: number, allocH: number, scale: number, surfaceScale?: number): Gtk.GLArea {
@@ -29,6 +29,32 @@ function stubGlArea(allocW: number, allocH: number, scale: number, surfaceScale?
 }
 
 export default async () => {
+    await describe('snapToDevicePixel', async () => {
+        const landed = (position: number, scale: number) => (position + snapToDevicePixel(position, scale)) * scale;
+        await it('leaves a device-aligned edge alone', async () => {
+            expect(snapToDevicePixel(0, 1.25)).toBe(0);
+            expect(snapToDevicePixel(4, 1.25)).toBe(0);
+            expect(snapToDevicePixel(42, 1)).toBe(0);
+            expect(snapToDevicePixel(21, 2)).toBe(0);
+        });
+        await it('lands every fractional edge on a whole device pixel', async () => {
+            for (const scale of [1.25, 1.5, 1.75, 2.5]) {
+                for (let position = 0; position < 200; position++) {
+                    const device = landed(position, scale);
+                    expect(Math.abs(device - Math.round(device)) < 1e-9).toBe(true);
+                }
+            }
+        });
+        await it('moves by less than half a device pixel', async () => {
+            for (let position = 0; position < 200; position++) {
+                expect(Math.abs(snapToDevicePixel(position, 1.25)) * 1.25 <= 0.5 + 1e-9).toBe(true);
+            }
+        });
+        await it('ignores a missing scale', async () => {
+            expect(snapToDevicePixel(7, 0)).toBe(0);
+        });
+    });
+
     // A clone has no GLArea to be backed by, and the default `new
     // this.constructor()` built one anyway — `gtkGlArea` came out `undefined`
     // and the first `width` read threw. Excalibur switches renderers exactly

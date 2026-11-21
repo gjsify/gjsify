@@ -7,7 +7,7 @@ import Gdk from 'gi://Gdk?version=4.0';
 import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import Graphene from 'gi://Graphene?version=1.0';
-import { HTMLCanvasElement as OurHTMLCanvasElement, deviceScale } from './html-canvas-element.js';
+import { HTMLCanvasElement as OurHTMLCanvasElement, deviceScale, snapToDevicePixel } from './html-canvas-element.js';
 // Value imports: `installGlobals()` puts both constructors on globalThis.
 import { WebGLRenderingContext as OurWebGLRenderingContext } from './webgl-rendering-context.js';
 import { WebGL2RenderingContext as OurWebGL2RenderingContext } from './webgl2-rendering-context.js';
@@ -243,6 +243,22 @@ export const WebGLBridge = GObject.registerClass(
         }
 
         /**
+         * Shift, in widget coordinates, that puts the widget's bottom-left corner on a
+         * whole device pixel of its surface. `[0, 0]` where the position cannot be
+         * known (not rooted, or a transformed ancestor).
+         */
+        _deviceGridShift(height: number, scale: number): [number, number] {
+            const native = this.get_native();
+            if (!native) return [0, 0];
+            const [ok, corner] = this.compute_point(native, new Graphene.Point().init(0, height));
+            if (!ok) return [0, 0];
+            // The client-side shadow sits between the surface edge and the native's
+            // own coordinate origin.
+            const [sx, sy] = native.get_surface_transform();
+            return [snapToDevicePixel(corner.x + sx, scale), snapToDevicePixel(corner.y + sy, scale)];
+        }
+
+        /**
          * Presents the real-size region 1:1. GtkGLArea draws its whole framebuffer
          * (`alloc × ceil(scale)` texels) into the logical allocation, i.e. one texel per
          * `1/ceil(scale)` logical px; the content sits in the bottom-left of the widget
@@ -263,6 +279,10 @@ export const WebGLBridge = GObject.registerClass(
             // GL row 0 is the BOTTOM of the widget after GTK's flip: scale about the
             // bottom-left corner.
             const h = this.get_height();
+            // The texel grid is anchored at the bottom-left corner, so that corner is
+            // what has to sit on a whole device pixel (see `snapToDevicePixel`).
+            const [dx, dy] = this._deviceGridShift(h, scale);
+            snapshot.translate(new Graphene.Point().init(dx, dy));
             snapshot.translate(new Graphene.Point().init(0, h));
             snapshot.scale(k, k);
             snapshot.translate(new Graphene.Point().init(0, -h));
