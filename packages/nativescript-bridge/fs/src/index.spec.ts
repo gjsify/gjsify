@@ -4,7 +4,19 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 
-import { readFile, writeFile, readdir, stat, mkdir, unlink, exists, openSync, readSync, fstatSync, closeSync } from './index.js';
+import {
+    readFile,
+    writeFile,
+    readdir,
+    stat,
+    mkdir,
+    unlink,
+    exists,
+    openSync,
+    readSync,
+    fstatSync,
+    closeSync,
+} from './index.js';
 
 export default async () => {
     await describe('@gjsify/native-fs-bridge outside NativeScript', async () => {
