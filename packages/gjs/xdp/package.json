@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/xdp",
-    "version": "0.64.53",
+    "version": "0.64.54",
     "description": "libportal's Background portal on every desktop: the real `gi://Xdp` on Linux, and a driver where there is none. Start-at-login and background permission by capability, never by mechanism.",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
@@ -87,7 +87,7 @@
             "win32": "supported"
         },
         "osNotes": {
-            "darwin": "No driver yet: ADR 0144 \u00a7 2 decides on SMAppService behind a new native bridge, which does not exist."
+            "darwin": "No driver yet: ADR 0144 § 2 decides on SMAppService behind a new native bridge, which does not exist."
         }
     }
 }

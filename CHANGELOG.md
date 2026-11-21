@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.64.54](https://github.com/gjsify/gjsify/compare/v0.64.53...v0.64.54) (2026-11-21)
+
+### Features
+
+* **adwaita-extended:** add chat composer widgets ([#2730](https://github.com/gjsify/gjsify/issues/2730)) ([f994d62](https://github.com/gjsify/gjsify/commit/f994d6249f356c5a82e152acab004bff636e8807))
+* **adwaita-extended:** add widget package ([#2724](https://github.com/gjsify/gjsify/issues/2724)) ([cbdbdb2](https://github.com/gjsify/gjsify/commit/cbdbdb257eea91850c24abf78f84ee324d43daab))
+* **cli:** stage a hand-written metainfo in ship ([#2733](https://github.com/gjsify/gjsify/issues/2733)) ([a04cbd9](https://github.com/gjsify/gjsify/commit/a04cbd9332fbee2b85eeb124ad627ebb74cd4a82))
+* **http-client:** add fetch client package ([#2723](https://github.com/gjsify/gjsify/issues/2723)) ([aed6cf7](https://github.com/gjsify/gjsify/commit/aed6cf7314e44fa48d194e743c27b5e18632907c)), closes [#2711](https://github.com/gjsify/gjsify/issues/2711)
+* implements ADR 0149 (steps 1–3) ([#2728](https://github.com/gjsify/gjsify/issues/2728)) ([08dfde9](https://github.com/gjsify/gjsify/commit/08dfde92fc6abe33ac4da92b761a2cdd2762c3c0)), closes [#2714](https://github.com/gjsify/gjsify/issues/2714) [#2714](https://github.com/gjsify/gjsify/issues/2714)
+* **nativescript:** map input-purpose and input-hints ([#2727](https://github.com/gjsify/gjsify/issues/2727)) ([a6d4e23](https://github.com/gjsify/gjsify/commit/a6d4e236fe64301879159e16d17d91c229471d04))
+* **pim:** add calendars and tasks package ([#2711](https://github.com/gjsify/gjsify/issues/2711)) ([222857a](https://github.com/gjsify/gjsify/commit/222857a8f26547df9b22d9e2fff0d292a498edb8))
+* **webext:** send reviewer notes on submit ([#2731](https://github.com/gjsify/gjsify/issues/2731)) ([e5a1c96](https://github.com/gjsify/gjsify/commit/e5a1c96256c3dc0883f6c0e72f4f444e2de7aae8))
+* **webext:** upload AMO listing texts ([#2721](https://github.com/gjsify/gjsify/issues/2721)) ([7d41b1c](https://github.com/gjsify/gjsify/commit/7d41b1c25b2e615709ba08a5b6a4f111086c23dc))
+* **xdp:** add Background portal package ([#2639](https://github.com/gjsify/gjsify/issues/2639)) ([4bc1473](https://github.com/gjsify/gjsify/commit/4bc147300a4d6ee3deae00e60648341822941eeb)), closes [#2638](https://github.com/gjsify/gjsify/issues/2638)
+
+### Bug Fixes
+
+* **adwaita-web): clip window corners; docs(adr:** 0119 amendment ([#2726](https://github.com/gjsify/gjsify/issues/2726)) ([daa9a96](https://github.com/gjsify/gjsify/commit/daa9a961b487779af29732a8f9cbd7b776883214))
+* **native-fs-bridge:** add fstatSync ([#2729](https://github.com/gjsify/gjsify/issues/2729)) ([38a3805](https://github.com/gjsify/gjsify/commit/38a38056f5ea721244ee834ab6a04072bd1c878b))
+* **webgl:** render at real fractional device size ([#2734](https://github.com/gjsify/gjsify/issues/2734)) ([e69d5b5](https://github.com/gjsify/gjsify/commit/e69d5b50f9ddbd455ade5c50e76a0ef83733c9ad))
+
+### Continuous Integration
+
+* **ship:** pack a .snap with real snapcraft ([#2725](https://github.com/gjsify/gjsify/issues/2725)) ([680095b](https://github.com/gjsify/gjsify/commit/680095bfe8e323bbd990360110098bab64da31e8))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([570e456](https://github.com/gjsify/gjsify/commit/570e456e10be6cf56ff059698b8cda0f41a08b8e))
+
 ## [0.64.53](https://github.com/gjsify/gjsify/compare/v0.64.52...v0.64.53) (2026-11-21)
 
 ### Features
