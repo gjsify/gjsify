@@ -2448,6 +2448,27 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+      # ── ADR 0149: the payload the `.snap` is built around ─────────────────
+      #
+      # A SECOND STAGE, because the first one records `formats: [deb, rpm]` and
+      # `assertFormatsStaged` refuses a `--target snap` against it: phase one
+      # renders each format's overlay, so a format the stage never saw packs
+      # without it. `snap` is opt-in (it needs `snapcraft`, which no distro
+      # packages for Fedora), so the default stage must not name it — adding it
+      # there would make `ship-pack-linux`, which has no snapcraft, pack a snap.
+      # `--out ship-snap` keeps the two stages apart; the payload is the same.
+      - name: Stage the payload for snap, pack nothing
+        run: su testuser -c "cd packages/infra/cli && gjs -m dist/cli.gjs.mjs ship --stage --skip-build --target snap --out ship-snap --verbose"
+
+      - name: Upload the snap stage
+        uses: actions/upload-artifact@v7
+        with:
+          name: ship-stage-snap-linux-x64
+          path: packages/infra/cli/ship-snap/stage
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+
       # ── #1354 M4: the payload the `.dmg` is built around ──────────────────
       #
       # A SECOND STAGE OUT OF THIS ONE JOB, and a second FIXTURE rather than a
@@ -2856,6 +2877,103 @@ jobs:
             exit 1
           fi
           echo "all three refusals fired"
+
+  # ── ADR 0149: the `.snap`, packed by the real snapcraft ──────────────────
+  #
+  # `ubuntu-26.04` and not `ubuntu-latest`: `base: core26` is built on an Ubuntu
+  # 26.04 host in destructive mode (snapcraft's docs: "the build environment
+  # should match the snap base"), which is the one mode that needs no LXD
+  # provisioning on a runner that is thrown away anyway. Same no-checkout shape
+  # as `ship-pack-linux`, for the same reason: the pack phase receives the tool,
+  # the payload and the readers as artifacts and re-derives nothing.
+  #
+  # The structural read is a HARD gate (`unsquashfs`, a program this tree did not
+  # write). Installing and running the snap is a MEASUREMENT: ADR 0149 records
+  # which plugs an app needs and whether the `gnome` extension's launcher finds
+  # `gjs` as not yet measured, and a step that asserts what nobody has seen
+  # would be a guess with a green tick. It prints, and `continue-on-error`
+  # keeps a surprise from blocking the merge; promote it once it has a verdict.
+  ship-pack-snap:
+    needs: [setup, ship-stage]
+    if: ${{ !cancelled() && needs.ship-stage.result == 'success' }}
+    name: Ship pack .snap (ubuntu-26.04, real snapcraft)
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    timeout-minutes: 40
+    env:
+      STAGE_DIR: incoming/stage
+      ARTIFACTS: artifacts
+    steps:
+      - name: Install gjs, squashfs-tools and snapcraft
+        run: |
+          set -euo pipefail
+          . /etc/os-release
+          echo "os: ${PRETTY_NAME:-unknown}"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gjs squashfs-tools
+          sudo snap install snapcraft --classic
+          snapcraft --version
+
+      - name: Download the CLI bundle (the tool)
+        uses: actions/download-artifact@v8
+        with:
+          name: bootstrap-bundles-fedora${{ fromJSON(needs.setup.outputs.fedora-matrix)[0].v }}
+          path: tool
+      - name: Download the snap stage (the payload)
+        uses: actions/download-artifact@v8
+        with:
+          name: ship-stage-snap-linux-x64
+          path: incoming/stage
+
+      - name: Inspect what actually arrived
+        run: |
+          set -euo pipefail
+          chmod 0755 tool/cli/dist/cli.gjs.mjs
+          if [ ! -f "$STAGE_DIR/.gjsify-ship-stage.json" ]; then
+            echo "::error title=Ship snap::$STAGE_DIR/.gjsify-ship-stage.json did not arrive (hidden files need include-hidden-files on the upload)."
+            find incoming -maxdepth 3 | head -50
+            exit 1
+          fi
+          find "$STAGE_DIR" -type f -printf '  %m %10s %P\n' | sort
+
+      # Destructive mode builds as root on this runner. `sudo -E` keeps the
+      # environment, and `env PATH=` carries the user's PATH past sudo's reset.
+      - name: Pack from the stage alone
+        run: |
+          set -euo pipefail
+          sudo -E env "PATH=$PATH" GJSIFY_SNAP_DESTRUCTIVE=1 \
+            gjs -m tool/cli/dist/cli.gjs.mjs ship --from-stage "$STAGE_DIR" --target snap --out "$ARTIFACTS"
+          find "$ARTIFACTS" -type f -name '*.snap' | sort
+
+      - name: Read the snap with unsquashfs
+        run: |
+          set -euo pipefail
+          mapfile -t hits < <(find "$ARTIFACTS" -type f -name '*.snap' | sort)
+          if [ "${#hits[@]}" -ne 1 ]; then
+            echo "::error title=Ship snap::expected exactly one .snap under $ARTIFACTS, found ${#hits[@]}."
+            exit 1
+          fi
+          snap="${hits[0]}"
+          unsquashfs -cat "$snap" meta/snap.yaml | tee snap.yaml
+          grep -q '^base: core26$' snap.yaml
+          grep -q '^confinement: strict$' snap.yaml
+          echo "--- payload of the snap"
+          unsquashfs -ll "$snap" | head -60
+          echo "snap=$snap" >> "$GITHUB_ENV"
+
+      # MEASUREMENT, not assertion — see the job header.
+      - name: Install and run it (measurement)
+        continue-on-error: true
+        run: |
+          set -uxo pipefail
+          sudo snap install --dangerous "$snap"
+          name=$(sed -n 's/^name: //p' snap.yaml)
+          snap connections "$name" || true
+          snap info "$name" || true
+          # No display on a runner: the launcher reaching `gjs` and the app
+          # failing on the missing display is the answer this step is after.
+          timeout 30 "/snap/bin/$name" 2>&1 | head -40 || true
 
   # ── #1354 M4: the `.dmg`, packed where its tool lives and read where it is not ──
   #
@@ -3349,7 +3467,7 @@ jobs:
   # Never gates. Its output is the step summary, not its exit code.
   ci-summary:
     name: CI coverage summary
-    needs: [setup, changes, queue-proof, tree-checks, build, verify-bundles, examples-build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser, ship-stage, ship-pack-linux, ship-pack-dmg, ship-read-dmg]
+    needs: [setup, changes, queue-proof, tree-checks, build, verify-bundles, examples-build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser, ship-stage, ship-pack-linux, ship-pack-snap, ship-pack-dmg, ship-read-dmg]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
@@ -3381,6 +3499,7 @@ jobs:
           R_BROWSER: ${{ needs.browser.result }}
           R_SHIP_STAGE: ${{ needs.ship-stage.result }}
           R_SHIP_PACK: ${{ needs.ship-pack-linux.result }}
+          R_SHIP_SNAP_PACK: ${{ needs.ship-pack-snap.result }}
           R_SHIP_DMG_PACK: ${{ needs.ship-pack-dmg.result }}
           R_SHIP_DMG_READ: ${{ needs.ship-read-dmg.result }}
           C_SKIP_ALL: ${{ needs.changes.outputs.skip-all }}
@@ -3419,6 +3538,7 @@ jobs:
             printf '| Browser (Playwright/Firefox) | `%s` |\n'  "$R_BROWSER"
             printf '| Ship: stage (assemble) | `%s` |\n'        "$R_SHIP_STAGE"
             printf '| Ship: pack + install (dpkg/rpm) | `%s` |\n' "$R_SHIP_PACK"
+            printf '| Ship: pack .snap (real snapcraft, ubuntu-26.04) | `%s` |\n' "$R_SHIP_SNAP_PACK"
             printf '| Ship: pack .dmg (macOS, hdiutil) | `%s` |\n' "$R_SHIP_DMG_PACK"
             printf '| Ship: read .dmg back (Linux, 7z/dmg2img/fsck) | `%s` |\n' "$R_SHIP_DMG_READ"
             echo
@@ -3529,7 +3649,7 @@ jobs:
   # produces a fresh verdict anyway.
   gate:
     name: CI gate (GJS)
-    needs: [setup, changes, queue-proof, tree-checks, build, verify-bundles, examples-build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser, ship-stage, ship-pack-linux, ship-pack-dmg, ship-read-dmg]
+    needs: [setup, changes, queue-proof, tree-checks, build, verify-bundles, examples-build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser, ship-stage, ship-pack-linux, ship-pack-snap, ship-pack-dmg, ship-read-dmg]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
@@ -3640,6 +3760,7 @@ jobs:
             browser=${{ needs.browser.result }}
             ship-stage=${{ needs.ship-stage.result }}
             ship-pack-linux=${{ needs.ship-pack-linux.result }}
+            ship-pack-snap=${{ needs.ship-pack-snap.result }}
             ship-pack-dmg=${{ needs.ship-pack-dmg.result }}
             ship-read-dmg=${{ needs.ship-read-dmg.result }}
         run: |
