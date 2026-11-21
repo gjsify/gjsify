@@ -1,0 +1,132 @@
+{
+    "name": "@gjsify/adwaita-extended",
+    "version": "0.64.53",
+    "description": "Reusable GTK4/libadwaita widgets that libadwaita itself does not ship (task rows, swipe rows, kanban board, month grid, time grid, agenda list, source lists), each with a story and its own gettext domain",
+    "type": "module",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        },
+        "./due-state": {
+            "types": "./lib/types/due-state.d.ts",
+            "default": "./lib/esm/due-state.js"
+        },
+        "./size-class": {
+            "types": "./lib/types/size-class.d.ts",
+            "default": "./lib/esm/size-class.js"
+        },
+        "./source-names": {
+            "types": "./lib/types/source-names.d.ts",
+            "default": "./lib/esm/source-names.js"
+        },
+        "./priority-marks": {
+            "types": "./lib/types/priority-marks.d.ts",
+            "default": "./lib/esm/priority-marks.js"
+        },
+        "./swipe-rules": {
+            "types": "./lib/types/swipe-rules.d.ts",
+            "default": "./lib/esm/swipe-rules.js"
+        },
+        "./adaptive-container": {
+            "types": "./lib/types/adaptive-container.d.ts",
+            "default": "./lib/esm/adaptive-container.js"
+        },
+        "./board-rules": {
+            "types": "./lib/types/board-rules.d.ts",
+            "default": "./lib/esm/board-rules.js"
+        },
+        "./calendar-format": {
+            "types": "./lib/types/calendar-format.d.ts",
+            "default": "./lib/esm/calendar-format.js"
+        },
+        "./month-rules": {
+            "types": "./lib/types/month-rules.d.ts",
+            "default": "./lib/esm/month-rules.js"
+        },
+        "./time-grid-rules": {
+            "types": "./lib/types/time-grid-rules.d.ts",
+            "default": "./lib/esm/time-grid-rules.js"
+        },
+        "./agenda-rules": {
+            "types": "./lib/types/agenda-rules.d.ts",
+            "default": "./lib/esm/agenda-rules.js"
+        }
+    },
+    "files": [
+        "lib",
+        "po",
+        "!lib/types/**/*.spec.d.ts"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib tmp tsconfig.tsbuildinfo",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "gjsify tsc",
+        "storybook": "gjsify storybook",
+        "storybook:build": "gjsify storybook --build-only --out dist/storybook.gjs.mjs",
+        "i18n:extract": "./dev-i18n.sh"
+    },
+    "keywords": [
+        "gjs",
+        "gtk",
+        "adwaita",
+        "libadwaita",
+        "widgets",
+        "calendar",
+        "kanban"
+    ],
+    "dependencies": {
+        "@girs/adw-1": "5.4.0",
+        "@girs/gdk-4.0": "5.4.0",
+        "@girs/gio-2.0": "5.4.0",
+        "@girs/gjs": "5.4.0",
+        "@girs/glib-2.0": "5.4.0",
+        "@girs/gobject-2.0": "5.4.0",
+        "@girs/gtk-4.0": "5.4.0",
+        "@gjsify/calendar-layout": "workspace:^"
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/storybook": "workspace:^",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/framework/adwaita-extended"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/adwaita-extended#readme",
+    "gjsify": {
+        "tier": 3,
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "none",
+            "browser": "none",
+            "nativescript": "none"
+        },
+        "os": {
+            "linux": "supported",
+            "darwin": "partial",
+            "win32": "partial"
+        },
+        "osNotes": {
+            "darwin": "`i18n.ts` reads `process.platform` to decide whether to bind its text domain to `/usr/share/locale`; on macOS it binds nothing. No suite of this package has run on a Mac.",
+            "win32": "As darwin: `i18n.ts` binds no system locale directory there, and nothing of this package has run on a Windows host."
+        },
+        "storybook": {
+            "applicationId": "org.gjsify.AdwaitaExtended.Storybook",
+            "title": "Adwaita Extended",
+            "stories": "stories",
+            "globals": "auto"
+        }
+    }
+}

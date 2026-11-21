@@ -1,0 +1,140 @@
+# German translations for gjsify-adwaita-extended package.
+# Copyright (C) 2026 THE gjsify-adwaita-extended'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the gjsify-adwaita-extended package.
+# Automatically generated, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: gjsify-adwaita-extended\n"
+"Report-Msgid-Bugs-To: https://github.com/gjsify/gjsify/issues\n"
+"POT-Creation-Date: 2026-11-20 06:48+0100\n"
+"PO-Revision-Date: 2026-11-18 18:48+0100\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: none\n"
+"Language: de\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: src/adaptive-pane.ts:58 src/adaptive-pane.ts:59
+msgid "Close"
+msgstr "Schließen"
+
+#: src/agenda-list.ts:43
+msgid "Nothing scheduled"
+msgstr "Nichts geplant"
+
+#: src/agenda-list.ts:112 src/due-chip.ts:21
+msgid "Today"
+msgstr "Heute"
+
+#: src/agenda-list.ts:151 src/time-grid.ts:76
+msgid "All day"
+msgstr "Ganztägig"
+
+#: src/agenda-list.ts:186
+msgid "Continues on another day"
+msgstr "Geht an einem anderen Tag weiter"
+
+#: src/board-card.ts:66 src/board-card.ts:134
+msgid "Read-only"
+msgstr "Schreibgeschützt"
+
+#: src/board-card.ts:133
+#, javascript-format
+msgid "Assigned to %s"
+msgstr "Zugewiesen an %s"
+
+#: src/board-column.ts:17
+#, javascript-format
+msgid "%d card"
+msgid_plural "%d cards"
+msgstr[0] "%d Karte"
+msgstr[1] "%d Karten"
+
+#: src/board-column.ts:37
+msgid "No cards"
+msgstr "Keine Karten"
+
+#: src/due-chip.ts:19
+msgid "Overdue"
+msgstr "Überfällig"
+
+#: src/due-chip.ts:23
+msgid "Soon"
+msgstr "Bald"
+
+#: src/due-chip.ts:25
+msgid "Later"
+msgstr "Später"
+
+#: src/filter-chip.ts:48
+#, javascript-format
+msgid "Remove filter %s"
+msgstr "Filter %s entfernen"
+
+#: src/month-grid.ts:329
+#, javascript-format
+msgid "%d event"
+msgid_plural "%d events"
+msgstr[0] "%d Termin"
+msgstr[1] "%d Termine"
+
+#: src/month-grid.ts:334
+#, javascript-format
+msgid "+%d more"
+msgid_plural "+%d more"
+msgstr[0] "+%d weiterer"
+msgstr[1] "+%d weitere"
+
+#: src/month-grid.ts:339
+#, javascript-format
+msgid "Week %d"
+msgstr "Woche %d"
+
+#: src/swipe-row.ts:49
+msgid "Complete"
+msgstr "Erledigen"
+
+#: src/swipe-row.ts:50
+msgid "Postpone"
+msgstr "Verschieben"
+
+#: src/swipe-row.ts:289
+msgid "Open"
+msgstr "Öffnen"
+
+#: src/task-row.ts:29
+msgid "High priority"
+msgstr "Hohe Priorität"
+
+#: src/task-row.ts:31
+msgid "Medium priority"
+msgstr "Mittlere Priorität"
+
+#: src/task-row.ts:33
+msgid "Low priority"
+msgstr "Niedrige Priorität"
+
+#: src/task-row.ts:61 src/task-row.ts:82 src/task-row.ts:150
+msgid "Mark as done"
+msgstr "Als erledigt markieren"
+
+#: src/task-row.ts:82 src/task-row.ts:150
+msgid "Postpone to tomorrow"
+msgstr "Auf morgen verschieben"
+
+#: src/task-row.ts:148
+#, javascript-format
+msgid "Mark as not done: %s"
+msgstr "Als nicht erledigt markieren: %s"
+
+#: src/task-row.ts:148
+#, javascript-format
+msgid "Mark as done: %s"
+msgstr "Als erledigt markieren: %s"
+
+#: src/task-row.ts:150
+msgid "Mark as not done"
+msgstr "Als nicht erledigt markieren"

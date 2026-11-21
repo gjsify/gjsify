@@ -1,0 +1,141 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the gjsify-adwaita-extended package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: gjsify-adwaita-extended\n"
+"Report-Msgid-Bugs-To: https://github.com/gjsify/gjsify/issues\n"
+"POT-Creation-Date: 2026-11-20 06:48+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
+
+#: src/adaptive-pane.ts:58 src/adaptive-pane.ts:59
+msgid "Close"
+msgstr ""
+
+#: src/agenda-list.ts:43
+msgid "Nothing scheduled"
+msgstr ""
+
+#: src/agenda-list.ts:112 src/due-chip.ts:21
+msgid "Today"
+msgstr ""
+
+#: src/agenda-list.ts:151 src/time-grid.ts:76
+msgid "All day"
+msgstr ""
+
+#: src/agenda-list.ts:186
+msgid "Continues on another day"
+msgstr ""
+
+#: src/board-card.ts:66 src/board-card.ts:134
+msgid "Read-only"
+msgstr ""
+
+#: src/board-card.ts:133
+#, javascript-format
+msgid "Assigned to %s"
+msgstr ""
+
+#: src/board-column.ts:17
+#, javascript-format
+msgid "%d card"
+msgid_plural "%d cards"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/board-column.ts:37
+msgid "No cards"
+msgstr ""
+
+#: src/due-chip.ts:19
+msgid "Overdue"
+msgstr ""
+
+#: src/due-chip.ts:23
+msgid "Soon"
+msgstr ""
+
+#: src/due-chip.ts:25
+msgid "Later"
+msgstr ""
+
+#: src/filter-chip.ts:48
+#, javascript-format
+msgid "Remove filter %s"
+msgstr ""
+
+#: src/month-grid.ts:329
+#, javascript-format
+msgid "%d event"
+msgid_plural "%d events"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/month-grid.ts:334
+#, javascript-format
+msgid "+%d more"
+msgid_plural "+%d more"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/month-grid.ts:339
+#, javascript-format
+msgid "Week %d"
+msgstr ""
+
+#: src/swipe-row.ts:49
+msgid "Complete"
+msgstr ""
+
+#: src/swipe-row.ts:50
+msgid "Postpone"
+msgstr ""
+
+#: src/swipe-row.ts:289
+msgid "Open"
+msgstr ""
+
+#: src/task-row.ts:29
+msgid "High priority"
+msgstr ""
+
+#: src/task-row.ts:31
+msgid "Medium priority"
+msgstr ""
+
+#: src/task-row.ts:33
+msgid "Low priority"
+msgstr ""
+
+#: src/task-row.ts:61 src/task-row.ts:82 src/task-row.ts:150
+msgid "Mark as done"
+msgstr ""
+
+#: src/task-row.ts:82 src/task-row.ts:150
+msgid "Postpone to tomorrow"
+msgstr ""
+
+#: src/task-row.ts:148
+#, javascript-format
+msgid "Mark as not done: %s"
+msgstr ""
+
+#: src/task-row.ts:148
+#, javascript-format
+msgid "Mark as done: %s"
+msgstr ""
+
+#: src/task-row.ts:150
+msgid "Mark as not done"
+msgstr ""
