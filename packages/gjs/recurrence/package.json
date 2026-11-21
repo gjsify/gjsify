@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/recurrence",
-    "version": "0.64.55",
+    "version": "0.64.56",
     "description": "Read-only RFC 5545 recurrence expansion over ical.js: RRULE, RDATE, EXDATE, RECURRENCE-ID overrides, all-day runs, a per-series cap that reports what it cut, and a window cache keyed by uid + version + window. Resolves zones from the item's own VTIMEZONE, then the host's Intl; an unresolvable TZID stays floating and says so.",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/native-sqlite-bridge",
-    "version": "0.64.55",
+    "version": "0.64.56",
     "description": "NativeScript native bridge for node:sqlite — Android (androidx.sqlite BundledSQLiteDriver) + iOS stub",
     "type": "module",
     "module": "lib/esm/index.js",

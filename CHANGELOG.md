@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.64.56](https://github.com/gjsify/gjsify/compare/v0.64.55...v0.64.56) (2026-11-21)
+
+### Bug Fixes
+
+* **webgl:** align GL texture to device pixels ([#2735](https://github.com/gjsify/gjsify/issues/2735)) ([d2373e0](https://github.com/gjsify/gjsify/commit/d2373e0b93b1f04ea6d15b84334da11e8a370398))
+
+### Build System
+
+* **website:** add @astrojs/check ([#2732](https://github.com/gjsify/gjsify/issues/2732)) ([f57509e](https://github.com/gjsify/gjsify/commit/f57509e0ba1508d2b29e5887b287435e77e86c9e))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([270e931](https://github.com/gjsify/gjsify/commit/270e93165ff629708838f72c9562a3e44d8b0064))
+
 ## [0.64.55](https://github.com/gjsify/gjsify/compare/v0.64.54...v0.64.55) (2026-11-21)
 
 ### Maintenance

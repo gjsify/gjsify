@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/xdp",
-    "version": "0.64.55",
+    "version": "0.64.56",
     "description": "libportal's Background portal on every desktop: the real `gi://Xdp` on Linux, and a driver where there is none. Start-at-login and background permission by capability, never by mechanism.",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
