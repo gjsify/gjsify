@@ -3,7 +3,7 @@
  *
  * The widgets know nothing about the app that embeds them.
  * The pure helpers (`/due-state`, `/source-names`, `/priority-marks`, `/swipe-rules`,
- * `/adaptive-container`, `/size-class`) run on Node as well; this barrel needs GJS.
+ * `/adaptive-container`, `/size-class`, `/chat-entry-rules`) run on Node as well; this barrel needs GJS.
  */
 
 export { AdaptivePane } from './adaptive-pane.js';
@@ -38,6 +38,18 @@ export {
 export { KanbanBoard } from './kanban-board.js';
 export { MonthGrid, eventCountText, moreText, weekText } from './month-grid.js';
 export { barRows, dotsForDay, monthDensity, moveGridFocus, type GridMove, type MonthDensity } from './month-rules.js';
+export { ChatActionButton, type ChatAction } from './chat-action-button.js';
+export { ChatEntry } from './chat-entry.js';
+export {
+    clampLines,
+    entryHeightRange,
+    entryKeyAction,
+    linesToHeight,
+    submittableText,
+    type EntryKeyAction,
+    type EntryModifiers,
+} from './chat-entry-rules.js';
+export { ComposerBar } from './composer-bar.js';
 export { ColorCheck } from './color-check.js';
 export { DueChip } from './due-chip.js';
 export { dueState, SOON_DAYS, type DueState } from './due-state.js';

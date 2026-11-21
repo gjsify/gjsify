@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gjsify-adwaita-extended\n"
 "Report-Msgid-Bugs-To: https://github.com/gjsify/gjsify/issues\n"
-"POT-Creation-Date: 2026-11-20 06:48+0100\n"
+"POT-Creation-Date: 2026-11-21 12:42+0100\n"
 "PO-Revision-Date: 2026-11-18 18:48+0100\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -29,33 +29,41 @@ msgstr "Nichts geplant"
 msgid "Today"
 msgstr "Heute"
 
-#: src/agenda-list.ts:151 src/time-grid.ts:76
+#: src/agenda-list.ts:153 src/time-grid.ts:87
 msgid "All day"
 msgstr "Ganztägig"
 
-#: src/agenda-list.ts:186
+#: src/agenda-list.ts:189 src/month-grid.ts:297
 msgid "Continues on another day"
 msgstr "Geht an einem anderen Tag weiter"
 
-#: src/board-card.ts:66 src/board-card.ts:134
+#: src/board-card.ts:71 src/board-card.ts:139
 msgid "Read-only"
 msgstr "Schreibgeschützt"
 
-#: src/board-card.ts:133
+#: src/board-card.ts:138
 #, javascript-format
 msgid "Assigned to %s"
 msgstr "Zugewiesen an %s"
 
-#: src/board-column.ts:17
+#: src/board-column.ts:22
 #, javascript-format
 msgid "%d card"
 msgid_plural "%d cards"
 msgstr[0] "%d Karte"
 msgstr[1] "%d Karten"
 
-#: src/board-column.ts:37
+#: src/board-column.ts:54
 msgid "No cards"
 msgstr "Keine Karten"
+
+#: src/chat-entry.ts:85
+msgid "Write a message"
+msgstr "Nachricht schreiben"
+
+#: src/chat-entry.ts:145
+msgid "Message"
+msgstr "Nachricht"
 
 #: src/due-chip.ts:19
 msgid "Overdue"
@@ -74,21 +82,21 @@ msgstr "Später"
 msgid "Remove filter %s"
 msgstr "Filter %s entfernen"
 
-#: src/month-grid.ts:329
+#: src/month-grid.ts:350
 #, javascript-format
 msgid "%d event"
 msgid_plural "%d events"
 msgstr[0] "%d Termin"
 msgstr[1] "%d Termine"
 
-#: src/month-grid.ts:334
+#: src/month-grid.ts:355
 #, javascript-format
 msgid "+%d more"
 msgid_plural "+%d more"
 msgstr[0] "+%d weiterer"
 msgstr[1] "+%d weitere"
 
-#: src/month-grid.ts:339
+#: src/month-grid.ts:360
 #, javascript-format
 msgid "Week %d"
 msgstr "Woche %d"
@@ -117,24 +125,24 @@ msgstr "Mittlere Priorität"
 msgid "Low priority"
 msgstr "Niedrige Priorität"
 
-#: src/task-row.ts:61 src/task-row.ts:82 src/task-row.ts:150
+#: src/task-row.ts:61 src/task-row.ts:82 src/task-row.ts:155
 msgid "Mark as done"
 msgstr "Als erledigt markieren"
 
-#: src/task-row.ts:82 src/task-row.ts:150
+#: src/task-row.ts:82 src/task-row.ts:155
 msgid "Postpone to tomorrow"
 msgstr "Auf morgen verschieben"
 
-#: src/task-row.ts:148
+#: src/task-row.ts:153
 #, javascript-format
 msgid "Mark as not done: %s"
 msgstr "Als nicht erledigt markieren: %s"
 
-#: src/task-row.ts:148
+#: src/task-row.ts:153
 #, javascript-format
 msgid "Mark as done: %s"
 msgstr "Als erledigt markieren: %s"
 
-#: src/task-row.ts:150
+#: src/task-row.ts:155
 msgid "Mark as not done"
 msgstr "Als nicht erledigt markieren"

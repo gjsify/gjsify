@@ -7,7 +7,12 @@ src/board-column.ts
 src/board-rules.ts
 src/calendar-event.ts
 src/calendar-format.ts
+src/chat-action-button.ts
+src/chat-entry-rules.spec.ts
+src/chat-entry-rules.ts
+src/chat-entry.ts
 src/color-check.ts
+src/composer-bar.ts
 src/due-chip.ts
 src/due-state.ts
 src/filter-chip.ts

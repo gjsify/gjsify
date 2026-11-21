@@ -39,6 +39,12 @@ const CSS = `
 .gjsify-time-now { background-color: @error_color; min-height: 2px; }
 .gjsify-time-strip { border-bottom: 1px solid alpha(currentColor, 0.12); }
 .gjsify-agenda-header { padding: 10px 12px 2px 12px; }
+.gjsify-composer-bar { padding: 4px; border-radius: 24px; background-color: @card_bg_color; color: @card_fg_color; box-shadow: 0 0 0 1px @card_shade_color; }
+.gjsify-composer-bar:focus-within { box-shadow: 0 0 0 2px alpha(@accent_color, 0.55); }
+.gjsify-composer-status { opacity: 0.7; padding: 0 10px 4px 10px; }
+.gjsify-chat-text, .gjsify-chat-text text { background-color: transparent; }
+.gjsify-chat-placeholder { opacity: 0.55; }
+.gjsify-chat-action { min-width: 34px; min-height: 34px; padding: 0; }
 `;
 
 let loaded = false;

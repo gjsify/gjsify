@@ -15,6 +15,9 @@ domain (`gjsify-adwaita-extended`).
 | `SourceList` | sources in titled sections, each a row that toggles its visibility | `source-toggled(id, visible)` |
 | `FilterChip` | an active filter with a remove button | `removed(name)` |
 | `BoardCard` · `BoardColumn` · `KanbanBoard` | a board as columns of cards | `card-activated(id)`, `card-moved(id, column, index)` |
+| `ChatEntry` | a multi-line message field: placeholder, Enter sends, Shift/Ctrl+Enter breaks the line, grows up to N lines | `submit(text)`, `changed` |
+| `ChatActionButton` | the round Send/Stop button; `setAction` keeps icon, tooltip and accessible label in step | `clicked` |
+| `ComposerBar` | the rounded bar around a `ChatEntry` and a `ChatActionButton`, with `addStart`/`addEnd` slots and a status line | those of its entry and button |
 | `AdaptivePane` | one child or two, by size class | — |
 | `MonthGrid` | a month of days with the items on them | `day-activated(date)`, `item-activated(id)` |
 | `TimeGrid` | 1–7 day columns over an hour gutter | `item-activated(id)`, `slot-activated(date, minute)` |
@@ -62,7 +65,7 @@ onSignal(grid, 'day-activated', (date: string) => open(date)); // "2024-01-17"
 Each has its own `exports` entry and is unit-tested without a display:
 `/due-state`, `/size-class`, `/source-names`, `/priority-marks`, `/swipe-rules`,
 `/adaptive-container`, `/board-rules`, `/calendar-format`, `/month-rules`, `/time-grid-rules`,
-`/agenda-rules`. The barrel (`.`) needs GJS.
+`/agenda-rules`, `/chat-entry-rules`. The barrel (`.`) needs GJS.
 
 Weekday and month names come from `Intl` (CLDR), not from the catalogue — only UI words
 ("All day", "+%d more", "Week %d") are translated here.
