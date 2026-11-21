@@ -123,6 +123,9 @@ getDavSettings(account: Account, kind: 'calendar' | 'contacts'): Promise<DavSett
   `credentials.gjs.ts`. Until then its copy stays.
 - Whether the secret store (postbote's `SecretStore`) moves to gjsify is **open**; decide after
   the first consumer has used the accounts package.
+  [ADR 0152](0152-app-owned-secrets-get-their-own-seam.md) answers it: a separate package
+  `@gjsify/secret-store`, not an extension of this one, and it decides the Android/iOS row of the
+  platform table above (an empty answer, no `AccountManager` driver for now).
 - Where there is no system account store, a driver would need OAuth in the browser (RFC 8252:
   external user agent, loopback or private-use redirect, PKCE). Google and Microsoft both accept
   XOAUTH2 for SMTP; Exchange Online's SMTP AUTH basic-auth timeline moved and is only confirmed
