@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/cli",
-    "version": "0.64.54",
+    "version": "0.64.55",
     "description": "CLI for Gjsify",
     "type": "module",
     "main": "lib/index.js",

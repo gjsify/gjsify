@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/responsiveness",
-    "version": "0.64.54",
+    "version": "0.64.55",
     "description": "Main-loop responsiveness for GJS apps: spans, a stall watchdog (GJSIFY_STALL_MS), structured stall records, counters and a scenario() test harness with a median budget. Opt-in, zero cost unarmed (ADR 0149).",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",

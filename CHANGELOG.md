@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.64.55](https://github.com/gjsify/gjsify/compare/v0.64.54...v0.64.55) (2026-11-21)
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([d390f0d](https://github.com/gjsify/gjsify/commit/d390f0dd188bf13dff5e7fed131e176a358b5bb8))
+* update native prebuilds [skip ci] ([8bac1e8](https://github.com/gjsify/gjsify/commit/8bac1e8365df1b4eadf2d0e2385e76f9ffa9592f))
+
 ## [0.64.54](https://github.com/gjsify/gjsify/compare/v0.64.53...v0.64.54) (2026-11-21)
 
 ### Features
