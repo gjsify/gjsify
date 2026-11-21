@@ -27,8 +27,10 @@ export const RUNTIME_TAB: Record<Runtime, 'gjsify' | 'npm' | 'bun' | 'deno'> = {
     deno: 'deno',
 };
 
+export type RuntimeTab = (typeof RUNTIME_TAB)[Runtime];
+
 /** The four tabs for a command that differs only in how the toolchain is invoked. */
-export function invocationCommands(suffix: string): { runtime: string; code: string }[] {
+export function invocationCommands(suffix: string): { runtime: RuntimeTab; code: string }[] {
     return (Object.keys(RUNTIME_INVOCATION) as Runtime[]).map((rt) => ({
         runtime: RUNTIME_TAB[rt],
         code: `${RUNTIME_INVOCATION[rt]} ${suffix}`,
@@ -42,7 +44,7 @@ export function invocationCommands(suffix: string): { runtime: string; code: str
  * start, so a trailing comment puts the explanation past 90 columns in a window that shows about
  * 55.
  */
-export function invocationScript(steps: { args: string; comment: string }[]): { runtime: string; code: string }[] {
+export function invocationScript(steps: { args: string; comment: string }[]): { runtime: RuntimeTab; code: string }[] {
     return (Object.keys(RUNTIME_INVOCATION) as Runtime[]).map((rt) => ({
         runtime: RUNTIME_TAB[rt],
         code: steps.map((step) => `# ${step.comment}\n${RUNTIME_INVOCATION[rt]} ${step.args}`).join('\n\n'),
