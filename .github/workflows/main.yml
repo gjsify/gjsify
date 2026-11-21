@@ -2349,6 +2349,8 @@ jobs:
       # upload the wrong directory.
       SHIP_STAGE_DARWIN_PROJECT: tests/e2e/ship-macos/fixtures/dmg-app
       SHIP_STAGE_DARWIN: tests/e2e/ship-macos/fixtures/dmg-app/ship/stage
+      SHIP_STAGE_SNAP_PROJECT: tests/e2e/ship-snap/fixtures/snap-app
+      SHIP_STAGE_SNAP: tests/e2e/ship-snap/fixtures/snap-app/ship/stage
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/gjsify-setup
@@ -2450,21 +2452,24 @@ jobs:
 
       # ── ADR 0149: the payload the `.snap` is built around ─────────────────
       #
-      # A SECOND STAGE, because the first one records `formats: [deb, rpm]` and
-      # `assertFormatsStaged` refuses a `--target snap` against it: phase one
-      # renders each format's overlay, so a format the stage never saw packs
-      # without it. `snap` is opt-in (it needs `snapcraft`, which no distro
-      # packages for Fedora), so the default stage must not name it — adding it
-      # there would make `ship-pack-linux`, which has no snapcraft, pack a snap.
-      # `--out ship-snap` keeps the two stages apart; the payload is the same.
-      - name: Stage the payload for snap, pack nothing
-        run: su testuser -c "cd packages/infra/cli && gjs -m dist/cli.gjs.mjs ship --stage --skip-build --target snap --out ship-snap --verbose"
+      # A SECOND STAGE, and a second FIXTURE. `@gjsify/cli` cannot be the
+      # payload: it is a terminal tool with no desktop entry and an 81-character
+      # summary, and `planSnapRefusals` refuses both (the store takes 78; the
+      # `gnome` extension's `desktop:` key must point at a staged entry) — measured
+      # in the first run of this job, 44880418890. `snap` is opt-in (it needs
+      # `snapcraft`, which no distro packages for Fedora), so the default stage
+      # must not name it either, or `ship-pack-linux` would pack a snap.
+      # `tests/e2e/ship-snap/fixtures/snap-app` is a GJS desktop app with a
+      # hand-written bundle and no build step, for the `--skip-build` reason the
+      # darwin half below gives.
+      - name: Stage the snap payload, pack nothing
+        run: su testuser -c "cd $SHIP_STAGE_SNAP_PROJECT && gjs -m '$GITHUB_WORKSPACE/packages/infra/cli/dist/cli.gjs.mjs' ship linux --skip-build --stage --target snap --verbose"
 
       - name: Upload the snap stage
         uses: actions/upload-artifact@v7
         with:
           name: ship-stage-snap-linux-x64
-          path: packages/infra/cli/ship-snap/stage
+          path: ${{ env.SHIP_STAGE_SNAP }}
           include-hidden-files: true
           retention-days: 1
           if-no-files-found: error
@@ -2912,7 +2917,14 @@ jobs:
           echo "os: ${PRETTY_NAME:-unknown}"
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends gjs squashfs-tools
-          sudo snap install snapcraft --classic
+          # The Snap Store is a network dependency of a gating job: retry it
+          # rather than red every PR on one slow download.
+          for attempt in 1 2 3; do
+            sudo snap install snapcraft --classic && break
+            [ "$attempt" -lt 3 ] || exit 1
+            echo "::warning::snap install snapcraft failed (attempt $attempt), retrying"
+            sleep $((attempt * 20))
+          done
           snapcraft --version
 
       - name: Download the CLI bundle (the tool)
@@ -2937,12 +2949,13 @@ jobs:
           fi
           find "$STAGE_DIR" -type f -printf '  %m %10s %P\n' | sort
 
-      # Destructive mode builds as root on this runner. `sudo -E` keeps the
-      # environment, and `env PATH=` carries the user's PATH past sudo's reset.
+      # Destructive mode builds as root on this runner. The runner's sudo ignores
+      # `-E` ("preserving the entire environment is not supported", run
+      # 44880418890), so `env` carries PATH and the switch past sudo's reset.
       - name: Pack from the stage alone
         run: |
           set -euo pipefail
-          sudo -E env "PATH=$PATH" GJSIFY_SNAP_DESTRUCTIVE=1 \
+          sudo env "PATH=$PATH" GJSIFY_SNAP_DESTRUCTIVE=1 \
             gjs -m tool/cli/dist/cli.gjs.mjs ship --from-stage "$STAGE_DIR" --target snap --out "$ARTIFACTS"
           find "$ARTIFACTS" -type f -name '*.snap' | sort
 
@@ -2962,18 +2975,66 @@ jobs:
           unsquashfs -ll "$snap" | head -60
           echo "snap=$snap" >> "$GITHUB_ENV"
 
-      # MEASUREMENT, not assertion — see the job header.
+      # MEASUREMENT, not assertion — see the job header. Each command's exit
+      # code goes into the job summary, and the step fails if any of them did,
+      # so `steps.measure.outcome` says what happened instead of a forced green.
+      # `snap list` first: if `--dangerous` did not pull the `gnome` extension's
+      # platform snap, the launch fails on the runtime, not on `gjs`, and the
+      # summary has to make that tellable apart.
       - name: Install and run it (measurement)
+        id: measure
         continue-on-error: true
         run: |
-          set -uxo pipefail
-          sudo snap install --dangerous "$snap"
+          set -uo pipefail
           name=$(sed -n 's/^name: //p' snap.yaml)
-          snap connections "$name" || true
-          snap info "$name" || true
-          # No display on a runner: the launcher reaching `gjs` and the app
-          # failing on the missing display is the answer this step is after.
-          timeout 30 "/snap/bin/$name" 2>&1 | head -40 || true
+          rows=()
+          failed=0
+          run() {
+            local label="$1"; shift
+            echo "::group::$label"
+            "$@"
+            local rc=$?
+            echo "::endgroup::"
+            rows+=("| \`$label\` | $rc |")
+            [ "$rc" -eq 0 ] || failed=1
+          }
+          run "snap install --dangerous" sudo snap install --dangerous "$snap"
+          run "snap list" snap list
+          run "snap connections" snap connections "$name"
+          # No display on a runner: the fixture prints its interpreter and GTK
+          # before it asks for one, so the first line answers whether the
+          # launcher reached `gjs` even though the window cannot open.
+          run "first launch (30 s, no display)" bash -c "timeout 30 /snap/bin/$name 2>&1 | tee launch.log | head -40; exit \${PIPESTATUS[0]}"
+          {
+            echo "### ADR 0149 measurement: \`$name\` on $(. /etc/os-release; echo "$PRETTY_NAME")"
+            echo
+            echo "| command | exit |"
+            echo "|---|---|"
+            printf '%s\n' "${rows[@]}"
+            echo
+            echo '```'
+            grep -m1 '^ship-snap-demo:' launch.log || echo "(the launcher never reached gjs)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$failed"
+
+      - name: Check out the probe reporter
+        if: always()
+        uses: actions/checkout@v6
+        with:
+          path: reporter
+          fetch-depth: 1
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/report-probe-outcome.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Probe outcome — Install and run it (measurement)
+        if: always()
+        env:
+          PROBE_LABEL: Install and run it (measurement)
+          PROBE_OUTCOME: ${{ steps.measure.outcome }}
+        run: node reporter/scripts/report-probe-outcome.mjs
 
   # ── #1354 M4: the `.dmg`, packed where its tool lives and read where it is not ──
   #

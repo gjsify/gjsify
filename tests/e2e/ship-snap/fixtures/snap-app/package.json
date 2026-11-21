@@ -1,0 +1,26 @@
+{
+  "name": "ship-snap-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The payload a .snap is built around, for the leg that packs it with the real snapcraft.",
+  "author": "JumpLink <hello@jumplink.eu>",
+  "homepage": "https://gjsify.org",
+  "license": "MIT",
+  "main": "app/main.gjs.mjs",
+  "gjsify": {
+    "app": "gjs",
+    "main": "app/main.gjs.mjs",
+    "ship": {
+      "appId": "eu.jumplink.ShipSnapDemo",
+      "binaryName": "ship-snap-demo",
+      "name": "Ship Snap Demo",
+      "summary": "Be packed by snapcraft and started through the gnome extension",
+      "description": "The smallest GJS desktop application gjsify ship can stage for a snap: a launcher, a bundle, a licence, an icon, a desktop entry and an AppStream component.\n\nIt exists so the snap leg measures what snapcraft, the gnome extension and snapd make of that payload. It prints the interpreter and the GTK version it found before it asks for a display.",
+      "developer": { "id": "eu.jumplink", "name": "JumpLink", "email": "hello@jumplink.eu" },
+      "license": { "project": "MIT" },
+      "homepageUrl": "https://gjsify.org",
+      "categories": ["Utility"]
+    }
+  }
+}
