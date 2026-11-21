@@ -2,6 +2,8 @@
 // Wraps the Web Performance API available in SpiderMonkey 140
 // Reference: Node.js lib/perf_hooks.js
 
+import { type LagMonitor, startLagMonitor } from '@gjsify/utils/main-loop';
+
 // Entry types for the GLib-based performance shim
 interface PerfEntry {
     name: string;
@@ -179,40 +181,93 @@ function timerify<T extends (...args: unknown[]) => unknown>(fn: T): T {
     return wrapped;
 }
 
-/** Stub: monitor event loop delay. */
-function monitorEventLoopDelay(_options?: { resolution?: number }): {
-    enable(): void;
-    disable(): void;
+export interface EventLoopDelayHistogram {
+    enable(): boolean;
+    disable(): boolean;
     reset(): void;
     percentile(p: number): number;
+    readonly count: number;
+    readonly exceeds: number;
     readonly min: number;
     readonly max: number;
     readonly mean: number;
     readonly stddev: number;
     readonly percentiles: Map<number, number>;
-} {
-    const percentiles = new Map<number, number>();
+}
+
+/** Node's empty-histogram minimum, `2^63` as a double. */
+const EMPTY_MIN = 9223372036854776000;
+
+/**
+ * Event loop delay histogram, in nanoseconds like Node's.
+ *
+ * Built on `startLagMonitor` (ADR 0149): each tick records the timer interval
+ * plus how late it ran, the same quantity Node's native histogram holds, so an
+ * idle loop reads about `resolution` and a stall shows as the excess.
+ */
+function monitorEventLoopDelay(options?: { resolution?: number }): EventLoopDelayHistogram {
+    const resolution = options?.resolution ?? 10;
+    let samples: number[] = [];
+    let exceeds = 0;
+    let monitor: LagMonitor | undefined;
+
+    const sorted = () => samples.slice().sort((x, y) => x - y);
+    const percentile = (p: number): number => {
+        if (samples.length === 0) return 0;
+        const all = sorted();
+        const index = Math.min(all.length - 1, Math.max(0, Math.ceil((p / 100) * all.length) - 1));
+        return all[index];
+    };
+
     return {
-        enable() {},
-        disable() {},
-        reset() {},
-        percentile(_p: number) {
-            return 0;
+        enable() {
+            if (monitor) return false;
+            monitor = startLagMonitor({
+                intervalMs: resolution,
+                thresholdMs: 1000,
+                onSample: (latenessMs) => {
+                    samples.push(Math.round((resolution + latenessMs) * 1e6));
+                    if (latenessMs > 1000) exceeds += 1;
+                },
+            });
+            return true;
+        },
+        disable() {
+            if (!monitor) return false;
+            monitor.stop();
+            monitor = undefined;
+            return true;
+        },
+        reset() {
+            samples = [];
+            exceeds = 0;
+        },
+        percentile,
+        get count() {
+            return samples.length;
+        },
+        get exceeds() {
+            return exceeds;
         },
         get min() {
-            return 0;
+            return samples.length ? Math.min(...samples) : EMPTY_MIN;
         },
         get max() {
-            return 0;
+            return samples.length ? Math.max(...samples) : 0;
         },
         get mean() {
-            return 0;
+            return samples.length ? samples.reduce((x, y) => x + y, 0) / samples.length : NaN;
         },
         get stddev() {
-            return 0;
+            if (!samples.length) return NaN;
+            const mean = samples.reduce((x, y) => x + y, 0) / samples.length;
+            return Math.sqrt(samples.reduce((x, y) => x + (y - mean) ** 2, 0) / samples.length);
         },
         get percentiles() {
-            return percentiles;
+            const map = new Map<number, number>();
+            if (!samples.length) return map.set(100, 0);
+            for (const p of [0, 50, 75, 87.5, 93.75, 96.875, 98.4375, 99.21875, 100]) map.set(p, percentile(p));
+            return map;
         },
     };
 }
