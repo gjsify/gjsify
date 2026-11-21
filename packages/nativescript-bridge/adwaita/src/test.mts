@@ -2,6 +2,7 @@ import { run } from '@gjsify/unit';
 
 import adwaitaNativescriptTestSuite from './index.spec.js';
 import svgPathTestSuite from './svg-path.spec.js';
+import inputMethodTestSuite from './input-method.spec.js';
 import actionsTestSuite from './actions.spec.js';
 import popupMenuTestSuite from './popup-menu.spec.js';
 import popupMenuSheetTestSuite from './popup-menu-sheet.spec.js';
@@ -108,6 +109,7 @@ run({
     buttonSlotTestSuite,
     adwaitaNativescriptTestSuite,
     svgPathTestSuite,
+    inputMethodTestSuite,
     iconThemeTestSuite,
     iconResourcesTestSuite,
     actionsTestSuite,

@@ -95,6 +95,7 @@
 import { GridLayout, ItemSpec, TextField } from '@nativescript/core';
 import { clampEntryMaxLength, clampEntryText, entryTextLength } from '@gjsify/adwaita-core';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { applyInputMethod, INPUT_HINTS_PROPERTY, INPUT_PURPOSE_PROPERTY } from './input-method.js';
 import { readDeclaredValue, withSignals, type GObjectNotify } from './signals.js';
 
 /** Event name emitted when {@link GtkEntry.text} changes. Mirrors GObject `notify::text`. */
@@ -209,6 +210,8 @@ export class GtkEntry extends withSignals(GridLayout, {
             blurb: 'The desired maximum width of the entry, in characters',
             normalize: (value) => normalizeEntryCharCount(readDeclaredValue('max-width-chars', 'int', value) as number),
         },
+        'input-purpose': INPUT_PURPOSE_PROPERTY,
+        'input-hints': INPUT_HINTS_PROPERTY,
         editable: {
             kind: 'boolean',
             default: true,
@@ -268,6 +271,12 @@ export class GtkEntry extends withSignals(GridLayout, {
 
     /** Whether the entry accepts edits (`GtkEditable:editable`). */
     declare editable: boolean;
+
+    /** `Gtk.Entry:input-purpose` — drives the keyboard layout (see `input-method.ts`). */
+    declare inputPurpose: number;
+
+    /** `Gtk.Entry:input-hints` — capitalisation / correction hints (see `input-method.ts`). */
+    declare inputHints: number;
 
     /** GJS's `notify('<prop>')` beside NativeScript's `notify({ eventName })`; see the seam. */
     declare notify: GObjectNotify;
@@ -352,6 +361,11 @@ export class GtkEntry extends withSignals(GridLayout, {
     /** `placeholder-text` reaches the field's hint and nothing else. */
     private _applyPlaceholderText(): void {
         this._field.hint = this.placeholderText;
+    }
+
+    /** `input-purpose` / `input-hints` reach the field's keyboard options and nothing else. */
+    _applyInputMethod(): void {
+        applyInputMethod(this._field, this.inputPurpose, this.inputHints, true);
     }
 
     /** `editable` gates the keyboard only — see the declaration. */

@@ -574,6 +574,12 @@ declare module '@nativescript/core' {
         hint: string;
         /** Mask the input (password fields). */
         secure: boolean;
+        /** Soft-keyboard layout; `undefined` is the platform default. */
+        keyboardType: 'datetime' | 'phone' | 'number' | 'url' | 'email' | 'integer' | undefined;
+        /** Auto-capitalisation; `undefined` is the platform default. */
+        autocapitalizationType: 'none' | 'words' | 'sentences' | 'allcharacters' | undefined;
+        /** Auto-correction; `undefined` is the platform default. */
+        autocorrect: boolean | undefined;
         /** Whether the field accepts edits. */
         editable: boolean;
     }
