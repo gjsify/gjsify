@@ -558,6 +558,11 @@
       "missing": "Run against a fake fetch only, never against a live REST server. JSON only: no retries, no form or multipart bodies, no streaming.",
       "note": "Small JSON-over-HTTP client for REST adapters: base URL, basic/bearer/app-password/header auth, ETag revalidation (304 = unchanged), typed errors extending the pim errors with Retry-After, per-request timeout, Link and offset pagination, per-host concurrency limit."
     },
+    "@gjsify/responsiveness": {
+      "status": "partial",
+      "missing": "Unarmed by design, so the watchdog is only exercised by tests and scenarios. Frame-clock evidence (missed frames, fps) from ADR 0149 § 4 is not read yet; attribution stops at the span, never the function.",
+      "note": "Main-loop stall measurement over @gjsify/utils startLagMonitor: spans, a GJSIFY_STALL_MS watchdog with a structured journal record, counters, and a scenario() harness asserting a median budget and zero stalls."
+    },
     "@gjsify/local-ai-servers": {
       "status": "partial",
       "missing": "Run against mocked server responses only, never against live Ollama, LM Studio or llama-server. Knows only their default loopback ports plus OLLAMA_HOST; no LocalAI, vLLM or Jan defaults.",

@@ -2,6 +2,7 @@ import { run } from '@gjsify/unit';
 import fontMapSuite from './font-map.spec.js';
 import hostOsSuite from './host-os.spec.js';
 import hostProcessSuite from './host-process.spec.js';
+import lagMonitorSuite from './lag-monitor.spec.js';
 import logSuite from './log.spec.js';
 import mainLoopSuite from './main-loop.spec.js';
 import nativeLibrarySuite from './native-library.spec.js';
@@ -15,6 +16,7 @@ run({
     fontMapSuite,
     hostOsSuite,
     hostProcessSuite,
+    lagMonitorSuite,
     logSuite,
     mainLoopSuite,
     nativeLibrarySuite,

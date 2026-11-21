@@ -24,6 +24,13 @@ const start = performance.now();
 console.log(`Elapsed: ${performance.now() - start}ms`);
 ```
 
+## Event loop delay
+
+`monitorEventLoopDelay()` is a real histogram under GJS (nanoseconds, like Node's), built on
+`startLagMonitor` from `@gjsify/utils/main-loop`: a `GLib.PRIORITY_HIGH` timer whose lateness is
+the loop delay. To attribute a stall to a span and assert a budget in a test, see
+`@gjsify/responsiveness`.
+
 ## License
 
 MIT

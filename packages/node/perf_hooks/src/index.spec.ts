@@ -547,6 +547,48 @@ export default async () => {
                 expect(typeof histogram.enable).toBe('function');
             });
 
+            await it('should read an empty histogram like Node does', async () => {
+                const histogram = monitorEventLoopDelay();
+                expect(histogram.count).toBe(0);
+                expect(histogram.max).toBe(0);
+                expect(Number.isNaN(histogram.mean)).toBe(true);
+            });
+
+            await it('should record the loop delay in nanoseconds while enabled', async () => {
+                const histogram = monitorEventLoopDelay({ resolution: 10 });
+                expect(histogram.enable()).toBe(true);
+                expect(histogram.enable()).toBe(false);
+                await new Promise<void>((resolve) => setTimeout(resolve, 150));
+                expect(histogram.disable()).toBe(true);
+                const count = histogram.count;
+                expect(count > 3).toBe(true);
+                expect(histogram.min >= 9e6).toBe(true);
+                expect(histogram.max >= histogram.min).toBe(true);
+                expect(histogram.percentile(50) <= histogram.percentile(100)).toBe(true);
+                await new Promise<void>((resolve) => setTimeout(resolve, 40));
+                expect(histogram.count).toBe(count);
+                histogram.reset();
+                expect(histogram.count).toBe(0);
+            });
+
+            await it('should show a blocked loop as a max far above the resolution', async () => {
+                const histogram = monitorEventLoopDelay({ resolution: 10 });
+                histogram.enable();
+                await new Promise<void>((resolve) => setTimeout(resolve, 30));
+                await new Promise<void>((resolve) =>
+                    setTimeout(() => {
+                        const end = Date.now() + 120;
+                        while (Date.now() < end) {
+                            /* hold the thread */
+                        }
+                        resolve();
+                    }, 0),
+                );
+                await new Promise<void>((resolve) => setTimeout(resolve, 40));
+                histogram.disable();
+                expect(histogram.max > 100e6).toBe(true);
+            });
+
             await it('should have a percentiles property', async () => {
                 const histogram = monitorEventLoopDelay();
                 expect(histogram.percentiles).toBeDefined();
