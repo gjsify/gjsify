@@ -981,3 +981,87 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
             });
     }
 });
+
+// ── a hand-written metainfo (ADR 0151) ──────────────────────────────────────
+//
+// The rendered path is covered above. What is asserted here is the other one: the file the
+// project wrote is the component, byte for byte, in the stage and after the stage crossed
+// `--from-stage`, and a file that is not this package's is refused before anything is staged.
+
+describe('CLI ship E2E: hand-written metainfo', { timeout: 5 * 60 * 1000 }, () => {
+    let tmpDir;
+
+    const handFile = (id, launchable) =>
+        `<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>${id}</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <url type="homepage">https://example.org/ship-demo</url>
+  <developer id="org.example"><name>Example Dev</name></developer>
+  <content_rating type="oars-1.1"/>
+  <name>Ship Demo</name>
+  <name xml:lang="de">Schiffsdemo</name>
+  <summary>Prove that gjsify ship works</summary>
+  <description><p>A hand written component that the packer must stage exactly as the project wrote it.</p><p xml:lang="de">Von Hand geschrieben.</p></description>
+  <launchable type="desktop-id">${launchable}</launchable>
+  <screenshots>
+    <screenshot type="default" environment="gnome:dark"><image>https://example.org/a.png</image></screenshot>
+  </screenshots>
+  <releases><release version="1.2.3" date="2026-01-01"/></releases>
+</component>
+`;
+
+    const project = (name, xml, mutate) => {
+        const dir = scaffold(join(tmpDir, name), (pkg, root) => {
+            pkg.gjsify.ship.metainfo = 'data/hand.metainfo.xml';
+            mutate?.(pkg);
+            writeFileSync(join(root, 'data', 'hand.metainfo.xml'), xml);
+        });
+        return dir;
+    };
+
+    before(() => {
+        tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-ship-hand-'));
+    });
+    after(() => {
+        if (!process.env.GJSIFY_E2E_KEEP_TEMP) rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it('stages the file unchanged, and it crosses --from-stage', () => {
+        const xml = handFile(APP_ID, `${APP_ID}.desktop`);
+        const dir = project('hand', xml);
+        runCliSync(CLI_ENTRY, ['ship', '--skip-build', '--stage'], { cwd: dir });
+        const staged = join(dir, 'ship', 'stage', 'share', 'metainfo', `${APP_ID}.metainfo.xml`);
+        assert.equal(readFileSync(staged, 'utf-8'), xml);
+        // The desktop entry is still rendered.
+        assert.ok(existsSync(join(dir, 'ship', 'stage', 'share', 'applications', `${APP_ID}.desktop`)));
+        if (probe('appstreamcli')) {
+            execFileSync('appstreamcli', ['validate', '--no-net', staged], { stdio: 'pipe' });
+        }
+        const out = join(tmpDir, 'packed');
+        runCliSync(CLI_ENTRY, ['ship', '--from-stage', join(dir, 'ship', 'stage'), '--target', 'deb', '--out', out], {
+            cwd: tmpDir,
+        });
+        assert.ok(existsSync(out));
+    });
+
+    it('refuses an <id> that is not the appId, before staging', () => {
+        const dir = project('wrong-id', handFile('org.example.Other', `${APP_ID}.desktop`));
+        const said = shipExpectingFailure(['ship', '--skip-build', '--stage'], dir);
+        assert.match(said, /org\.example\.Other/);
+        assert.ok(!existsSync(join(dir, 'ship', 'stage')));
+    });
+
+    it('refuses a launchable that is not <appId>.desktop', () => {
+        const dir = project('wrong-launchable', handFile(APP_ID, 'other.desktop'));
+        assert.match(shipExpectingFailure(['ship', '--skip-build', '--stage'], dir), /other\.desktop/);
+    });
+
+    it('refuses ship.metainfo next to ship.releases', () => {
+        const dir = project('conflict', handFile(APP_ID, `${APP_ID}.desktop`), (pkg) => {
+            pkg.gjsify.ship.releases = [{ version: '1.2.3', date: '2026-01-01' }];
+        });
+        assert.match(shipExpectingFailure(['ship', '--skip-build', '--stage'], dir), /both describe the releases/);
+    });
+});

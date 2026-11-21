@@ -408,7 +408,7 @@ export interface AppMetadata {
         localizedUrls?: Record<string, string>;
         caption?: string;
         captionTranslatorHint?: string;
-        environment?: 'plasma' | 'gnome' | 'cli';
+        environment?: ScreenshotEnvironment;
         type?: 'default' | 'source';
     }>;
     /** Light/dark accent colours (hex `#rrggbb`) — emit `<branding>` block. */
@@ -505,7 +505,21 @@ export interface AppMetadata {
  * Everything here has a derived default; a project that already has a
  * `gjsify.flatpak` block usually needs no `gjsify.ship` block at all.
  */
+/**
+ * AppStream's `<screenshot environment>`: a desktop, optionally with the colour scheme the shot
+ * was taken in (`gnome:dark`, `plasma:light`), or `cli`.
+ */
+export type ScreenshotEnvironment = 'cli' | `${'gnome' | 'plasma'}${'' | ':dark' | ':light'}`;
+
 export interface ConfigDataShip extends AppMetadata {
+    /**
+     * Path (relative to the project) to a hand-written AppStream metainfo that `ship` stages
+     * verbatim instead of rendering one from this block (ADR 0151). Its `<id>` and
+     * `<launchable>` must match `appId`; it is not re-translated and must hold its own
+     * `<releases>` (a `releases` here is refused). Default: `gjsify.site.metainfo` when set and
+     * this block has no `releases`, else the rendered component.
+     */
+    metainfo?: string;
     /**
      * Distribution channel (ADR 0113): `flathub | web | microsoft-store | apple-app-store`.
      * Becomes the `__GJSIFY_CHANNEL__` define that `@gjsify/distribution` reads, and gates the

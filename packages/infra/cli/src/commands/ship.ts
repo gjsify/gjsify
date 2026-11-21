@@ -69,6 +69,8 @@ import {
 import { assertNoDroppedFlatpakModules } from '../utils/ship/flatpak-config.js';
 import { buildFlatpakBundle } from '../utils/ship/flatpak.js';
 import { iconSizes, resolveAppIcon } from '../utils/ship/icons.js';
+import { formatFinding, lintMetainfo } from '../utils/metainfo-quality.js';
+import { checkHandMetainfo, resolveHandMetainfo } from '../utils/ship/hand-metainfo.js';
 import { localizeMetadata } from '../utils/ship/localize-metadata.js';
 import {
     assertHostCanFinish,
@@ -522,11 +524,31 @@ async function assemble(args: ShipOptions): Promise<void> {
         configKey: 'gjsify.ship',
         copyrightYear: new Date(mtime * 1000).getUTCFullYear(),
     };
+    // BEFORE staging: a hand file whose `<id>` is not this package's is refused, not shipped.
+    const hand = resolveHandMetainfo({
+        shipMetainfo: ship.metainfo,
+        siteMetainfo: configData.site?.metainfo,
+        configReleases: ship.releases,
+        projectDir,
+    });
+    if (hand !== undefined) {
+        for (const warning of checkHandMetainfo(hand, {
+            appId: settings.appId,
+            kind: settings.kind,
+            version: settings.version,
+        })) {
+            console.warn(`${LOG} ${warning}`);
+        }
+        console.log(`${LOG} AppStream metainfo from ${hand.path} (\`${hand.key}\`), staged as written`);
+        for (const finding of await lintMetainfo(hand.xml)) console.warn(`${LOG} ${formatFinding(finding, false)}`);
+    }
     // Warn rather than fail: an incomplete AppStream component still
     // installs and still runs. It is app STORES that will reject it, and
     // that is a different day's problem than getting the package built.
-    for (const missing of validateAppMetadata(metadataInputs)) {
-        console.warn(`${LOG} ${missing.field} is not set — ${missing.hint}`);
+    if (hand === undefined) {
+        for (const missing of validateAppMetadata(metadataInputs)) {
+            console.warn(`${LOG} ${missing.field} is not set — ${missing.hint}`);
+        }
     }
 
     // Printed, not assumed. The text may come from an ancestor — one `LICENSE`
@@ -545,6 +567,10 @@ async function assemble(args: ShipOptions): Promise<void> {
     // shipped every `.mo` while `Name=` and `<name>` stayed English, so a fully
     // translated app showed an English entry in the app menu and in Software.
     // Both files stay valid either way, which is why nobody reported it.
+    // A hand file carries its own `xml:lang` elements and is staged untouched: the
+    // rendered metainfo below is discarded in its favour, and only the desktop
+    // entry's translation is used.
+    const handMetainfo = hand?.xml;
     const translated = localizeMetadata(
         {
             metainfo: settings.kind === 'app' ? renderMetainfoApp(metadataInputs) : renderMetainfoCli(metadataInputs),
@@ -591,7 +617,7 @@ async function assemble(args: ShipOptions): Promise<void> {
                 renderLauncher(settings, executable.entry, layout, runtime.launcher),
             ]),
         ),
-        metainfo: translated.metainfo,
+        metainfo: handMetainfo ?? translated.metainfo,
         desktopEntry: translated.desktopEntry,
         licenseText: settings.licenseFile === undefined ? undefined : readFileSync(settings.licenseFile, 'utf-8'),
         changelogText: settings.changelogFile === undefined ? undefined : readFileSync(settings.changelogFile, 'utf-8'),
