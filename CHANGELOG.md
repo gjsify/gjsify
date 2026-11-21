@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.64.53](https://github.com/gjsify/gjsify/compare/v0.64.52...v0.64.53) (2026-11-21)
+
+### Features
+
+* **calendar-layout:** add calendar geometry package ([#2709](https://github.com/gjsify/gjsify/issues/2709)) ([15780b4](https://github.com/gjsify/gjsify/commit/15780b404995dc101fd768206c949522862394c5))
+* **native-fs-bridge:** add openSync/readSync/closeSync ([#2715](https://github.com/gjsify/gjsify/issues/2715)) ([fc7e783](https://github.com/gjsify/gjsify/commit/fc7e7834fd0898ccde9bf353fd2bce2effef5385))
+* **speech-recognition:** transcribe finished recordings ([#2722](https://github.com/gjsify/gjsify/issues/2722)) ([7f0198e](https://github.com/gjsify/gjsify/commit/7f0198e4b38591e03f29f1dd4ec564b8127e595d))
+* **vite-plugin-gjsify:** giReal opts into real Gio/GLib ([#2716](https://github.com/gjsify/gjsify/issues/2716)) ([2c6204d](https://github.com/gjsify/gjsify/commit/2c6204d5bb9ab3f561a85ccc48f2f9d6f5e716c9))
+
+### Bug Fixes
+
+* **website:** fit showcases, scope dialog scrim ([#2717](https://github.com/gjsify/gjsify/issues/2717)) ([5dc0661](https://github.com/gjsify/gjsify/commit/5dc0661833f1965443077d1ef308c613b9bd6dae))
+* **website:** mount dialogs in window, collapse ldraw ([#2718](https://github.com/gjsify/gjsify/issues/2718)) ([6b4cf03](https://github.com/gjsify/gjsify/commit/6b4cf03d069a66a4ce4272ce253c876d37fb1ee0)), closes [#2717](https://github.com/gjsify/gjsify/issues/2717)
+
+### Maintenance
+
+* **status:** empty npm bootstrap ledger ([#2720](https://github.com/gjsify/gjsify/issues/2720)) ([4d47782](https://github.com/gjsify/gjsify/commit/4d477829a650bc5bbc11be304461bff0d8bc448d))
+* update native prebuilds [skip ci] ([331f569](https://github.com/gjsify/gjsify/commit/331f569c0f39285f87053bfd61b5a9291aca7a96))
+
 ## [0.64.52](https://github.com/gjsify/gjsify/compare/v0.64.51...v0.64.52) (2026-11-20)
 
 ### Features
