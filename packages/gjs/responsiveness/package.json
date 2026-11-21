@@ -1,0 +1,80 @@
+{
+    "name": "@gjsify/responsiveness",
+    "version": "0.64.53",
+    "description": "Main-loop responsiveness for GJS apps: spans, a stall watchdog (GJSIFY_STALL_MS), structured stall records, counters and a scenario() test harness with a median budget. Opt-in, zero cost unarmed (ADR 0149).",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "type": "module",
+    "sideEffects": false,
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        },
+        "./scenario": {
+            "types": "./lib/types/scenario-test.d.ts",
+            "default": "./lib/esm/scenario-test.js"
+        }
+    },
+    "files": [
+        "lib",
+        "!lib/types/**/*.spec.d.ts"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib tmp tsconfig.tsbuildinfo test.gjs.mjs test.node.mjs",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "gjsify tsc",
+        "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs",
+        "test:node": "node test.node.mjs"
+    },
+    "keywords": [
+        "gjs",
+        "responsiveness",
+        "stall",
+        "watchdog",
+        "performance"
+    ],
+    "dependencies": {
+        "@gjsify/utils": "workspace:^"
+    },
+    "peerDependencies": {
+        "@gjsify/unit": "workspace:^"
+    },
+    "peerDependenciesMeta": {
+        "@gjsify/unit": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@gjsify/unit": "workspace:^",
+        "@gjsify/cli": "workspace:^",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/gjs/responsiveness"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/gjs/responsiveness#readme",
+    "gjsify": {
+        "tier": 3,
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "polyfill",
+            "browser": "none",
+            "nativescript": "none"
+        },
+        "headless": true
+    }
+}
