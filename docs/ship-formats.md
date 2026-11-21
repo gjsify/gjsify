@@ -173,8 +173,9 @@ bundled: the `gnome-core26` platform snap carries `gjs`, GTK 4, libadwaita and t
 `GI_TYPELIB_PATH` adds the platform's `usr/lib/<triplet>/gjs/girepository-1.0`, which the
 extension's launcher leaves out and without which no GJS override of Gio or Gtk loads. Measured
 in CI (`ship-pack-snap`, Ubuntu 26.04): the pack, the strict readback, the install and the
-auto-connection of every plug the extension declares. Not yet measured, and listed as such in the
-ADR: whether `gschemas.compiled` is needed in the payload, arm64, and a real window.
+auto-connection of every plug the extension declares, and a window presented under Xvfb. Not yet
+measured, and listed as such in the ADR: whether `gschemas.compiled` is needed in the payload,
+arm64, and a launch in a real desktop session.
 `tests/e2e/ship-snap` asserts the structure everywhere and the real build only where `snapcraft`
 is installed.
 

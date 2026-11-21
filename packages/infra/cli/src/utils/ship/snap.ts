@@ -7,9 +7,10 @@
 // (`desktop-launch`, the GPU wrapper) is GPL-3 code that changes per base, so porting it
 // would turn gjsify into a downstream of snapcraft's tree. The cost is the one every
 // tool-backed row pays: `snapcraft` must be on PATH, and it is not on the machine this was
-// written on, so what only the tool can answer (does the launcher find `gjs` through
-// `$SNAP/gnome-platform`, which plugs a typical app needs, arm64) is recorded in ADR 0149
-// as NOT yet measured.
+// written on. What only the tool can answer is measured by `ship-pack-snap` in CI and
+// recorded in ADR 0149: the launcher reaches the platform's `gjs` (with
+// `GJS_PRIVATE_TYPELIB_DIR` below), every extension plug auto-connects, and a window opens
+// under Xvfb. arm64 and a real desktop session are not measured.
 //
 // WHAT IS MEASURED, from the published `gnome-core26` revision (2026-11-20): it carries
 // `gjs` 1.88, GTK 4, libadwaita, libsoup 3 and the GObject typelibs a GJS app imports, so

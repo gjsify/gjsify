@@ -87,7 +87,9 @@ inherited by the child, never read. The release-record lookup is not built.
   `usr/lib/gjs/girepository-1.0`. The packer now sets that directory as the app's
   `GI_TYPELIB_PATH` (snap.ts, `GJS_PRIVATE_TYPELIB_DIR`); the CI readback asserts the expanded path.
   With it (run 44892880591) the snap starts `gjs` 1.90.0 (`system.version` 19000) with GTK 4.24.0
-  and GLib 2.90 from the platform, and stops only at "Failed to open display". The launch now runs
-  under Xvfb through the `x11` plug, so the measurement covers a presented window.
+  and GLib 2.90 from the platform, and stops only at "Failed to open display". Under Xvfb through
+  the `x11` plug (run 44898254712, Ubuntu 26.04.1) the window is presented and the app exits 0;
+  the only noise is the runner's missing session bus (`dbus-launch` not found) and DRI3 falling
+  back to software rendering, neither of which a desktop session has.
 - The vocabulary check, the conformance rules (`TARGETS`) and `docs/ship-formats.md` learn the new
   id in the same change.
