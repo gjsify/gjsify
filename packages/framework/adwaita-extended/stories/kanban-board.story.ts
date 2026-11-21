@@ -1,11 +1,11 @@
-import GObject from '@girs/gobject-2.0';
+import GObject from 'gi://GObject?version=2.0';
 import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
 
 import type { BoardColumnData } from '../src/board-column.js';
 import { KanbanBoard } from '../src/kanban-board.js';
 import { onSignal } from '../src/signals.js';
 import type { SizeClass } from '../src/size-class.js';
-import Gtk from '@girs/gtk-4.0';
+import Gtk from 'gi://Gtk?version=4.0';
 
 /** Invented story data: a small garden-club project, nothing real. */
 export function sampleColumns(now: Date = new Date(), emptyDone = false): BoardColumnData[] {

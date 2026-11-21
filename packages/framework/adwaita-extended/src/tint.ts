@@ -1,5 +1,5 @@
-import Gdk from '@girs/gdk-4.0';
-import Gtk from '@girs/gtk-4.0';
+import Gdk from 'gi://Gdk?version=4.0';
+import Gtk from 'gi://Gtk?version=4.0';
 
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 

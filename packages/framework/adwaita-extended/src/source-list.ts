@@ -1,6 +1,6 @@
-import Adw from '@girs/adw-1';
-import GObject from '@girs/gobject-2.0';
-import Gtk from '@girs/gtk-4.0';
+import Adw from 'gi://Adw?version=1';
+import GObject from 'gi://GObject?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
 
 import { emitSignal } from './signals.js';
 import { ColorCheck } from './color-check.js';

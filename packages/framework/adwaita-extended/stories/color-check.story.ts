@@ -1,4 +1,4 @@
-import GObject from '@girs/gobject-2.0';
+import GObject from 'gi://GObject?version=2.0';
 import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
 
 import { ColorCheck } from '../src/color-check.js';

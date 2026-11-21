@@ -1,5 +1,5 @@
-import GObject from '@girs/gobject-2.0';
-import Gtk from '@girs/gtk-4.0';
+import GObject from 'gi://GObject?version=2.0';
+import Gtk from 'gi://Gtk?version=4.0';
 import { ControlType, type StoryArgs, type StoryMeta, type StoryModule, StoryWidget } from '@gjsify/storybook';
 
 import { onSignal } from '../src/signals.js';

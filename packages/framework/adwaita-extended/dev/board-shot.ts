@@ -1,8 +1,8 @@
 // Renders one KanbanBoard in a window of a fixed width, for screenshots (run under headless-run).
 // Build: gjsify build dev/board-shot.ts --app gjs --outfile dist/board-shot.gjs.mjs
-import Adw from '@girs/adw-1';
-import GLib from '@girs/glib-2.0';
-import GObject from '@girs/gobject-2.0';
+import Adw from 'gi://Adw?version=1';
+import GLib from 'gi://GLib?version=2.0';
+import GObject from 'gi://GObject?version=2.0';
 import system from 'system';
 
 import type { BoardCard } from '../src/board-card.js';

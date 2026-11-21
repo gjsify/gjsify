@@ -1,8 +1,8 @@
 // Renders one calendar widget in a window of a fixed width, for screenshots (run under headless-run).
 // Build: gjsify build dev/calendar-shot.ts --app gjs --outfile dist/calendar-shot.gjs.mjs
 // Env: CAL_SHOT_WIDGET=month|time|agenda, CAL_SHOT_WIDTH, CAL_SHOT_HEIGHT.
-import Adw from '@girs/adw-1';
-import GLib from '@girs/glib-2.0';
+import Adw from 'gi://Adw?version=1';
+import GLib from 'gi://GLib?version=2.0';
 import type Gtk from '@girs/gtk-4.0';
 import system from 'system';
 
