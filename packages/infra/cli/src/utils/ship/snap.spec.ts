@@ -78,6 +78,9 @@ export default async () => {
             expect(m.apps['hello-app'].command).toBe('usr/bin/hello-app');
             expect(m.apps['hello-app'].desktop).toBe(`usr/${DESKTOP}`);
             expect(m.apps['hello-app']['common-id']).toBe('org.example.Hello');
+            expect(m.apps['hello-app'].environment).toStrictEqual({
+                GI_TYPELIB_PATH: '$SNAP/gnome-platform/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/gjs/girepository-1.0',
+            });
             expect(m.parts['hello-app']).toStrictEqual({ plugin: 'dump', source: 'payload' });
         });
 

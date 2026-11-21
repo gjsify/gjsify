@@ -169,10 +169,14 @@ tool — `snap/snapcraft.yaml` (base `core26`, strict confinement, `extensions: 
 part over the staged payload) — and the host's `snapcraft pack` writes the container. Nothing is
 bundled: the `gnome-core26` platform snap carries `gjs`, GTK 4, libadwaita and the typelibs, as
 `org.gnome.Platform` does for a Flatpak. Writing the squashfs ourselves is rejected by ADR 0024
-§ A6. `GJSIFY_SNAP_DESTRUCTIVE=1` builds on the host instead of in LXD. Not yet measured, and
-listed as such in the ADR: the plugs a typical app needs, whether `gschemas.compiled` is needed in
-the payload, arm64. `tests/e2e/ship-snap` asserts the structure everywhere and the real build only
-where `snapcraft` is installed.
+§ A6. `GJSIFY_SNAP_DESTRUCTIVE=1` builds on the host instead of in LXD. The app's
+`GI_TYPELIB_PATH` adds the platform's `usr/lib/<triplet>/gjs/girepository-1.0`, which the
+extension's launcher leaves out and without which no GJS override of Gio or Gtk loads. Measured
+in CI (`ship-pack-snap`, Ubuntu 26.04): the pack, the strict readback, the install and the
+auto-connection of every plug the extension declares. Not yet measured, and listed as such in the
+ADR: whether `gschemas.compiled` is needed in the payload, arm64, and a real window.
+`tests/e2e/ship-snap` asserts the structure everywhere and the real build only where `snapcraft`
+is installed.
 
 The store half is `gjsify snap register <name>`, `gjsify snap upload <file.snap> [--release
 <channel>[,<channel>]]` and `gjsify snap status <name>`, thin wrappers over the same `snapcraft`.

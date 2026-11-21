@@ -2971,6 +2971,9 @@ jobs:
           unsquashfs -cat "$snap" meta/snap.yaml | tee snap.yaml
           grep -q '^base: core26$' snap.yaml
           grep -q '^confinement: strict$' snap.yaml
+          # The GjsPrivate dir the gnome extension's launcher leaves out (snap.ts),
+          # with the triplet expanded by snapcraft rather than left as a variable.
+          grep -q 'gnome-platform/usr/lib/x86_64-linux-gnu/gjs/girepository-1.0' snap.yaml
           echo "--- payload of the snap"
           unsquashfs -ll "$snap" | head -60
           echo "snap=$snap" >> "$GITHUB_ENV"

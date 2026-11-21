@@ -6,7 +6,7 @@
 // extension points its `desktop:` key at one. The first line goes out before any
 // display is requested, so a runner without one still shows whether the snap's
 // launcher reached `gjs` and which GTK the platform snap provided.
-import GLib from 'gi://GLib';
+import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
 import system from 'system';
