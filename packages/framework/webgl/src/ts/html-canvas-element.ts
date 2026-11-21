@@ -20,6 +20,22 @@ export function deviceScale(widget: Gtk.Widget): number {
     return widget.get_scale_factor() || 1;
 }
 
+/**
+ * Logical shift that lands a device-space coordinate on a whole device pixel.
+ *
+ * `position` is where an edge sits in the surface in LOGICAL px. A widget's logical
+ * origin is an integer, but its device origin is `origin × scale`, which is fractional at
+ * 125 % and 150 % (a 3 px margin is 4.5 device px at 1.5). GSK draws the GL texture at
+ * that fractional spot with a linear filter, so every texel edge is blended with its
+ * neighbour: a 1-texel checkerboard comes out grey, and pixel art loses its edges.
+ * Shifting the draw by this amount puts the texel grid back on the device grid.
+ */
+export function snapToDevicePixel(position: number, scale: number): number {
+    if (!(scale > 0)) return 0;
+    const device = position * scale;
+    return (Math.round(device) - device) / scale;
+}
+
 export class HTMLCanvasElement extends BaseHTMLCanvasElement {
     _webgl?: OurWebGLRenderingContext;
     _webgl2?: OurWebGL2RenderingContext;
