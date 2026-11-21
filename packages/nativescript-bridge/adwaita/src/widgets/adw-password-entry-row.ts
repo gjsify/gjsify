@@ -135,6 +135,10 @@ export class AdwPasswordEntryRow extends AdwEntryRow {
         this._password.setCapsLockOn(on);
     }
 
+    protected override get _inputOwnsSecure(): boolean {
+        return false;
+    }
+
     protected override get _baseClassName(): string {
         return NS_PASSWORD_ENTRY_ROW_CLASS;
     }

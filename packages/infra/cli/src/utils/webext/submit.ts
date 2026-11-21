@@ -15,6 +15,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
+import { runListingUpload } from './listing-upload.js';
 import {
     asStoreId,
     createStoreBackend,
@@ -50,6 +51,10 @@ export interface SubmitCommandInput {
     readonly listingDir?: string;
     /** AMO only: a source archive for the reviewers, attached when a version is created (`--submit`). */
     readonly sourceZip?: string;
+    /** AMO only: send the listing texts from `listingDir` instead of the zip. */
+    readonly listingOnly?: boolean;
+    /** With `listingOnly`: the version (id or number) that gets the reviewer notes. */
+    readonly notesVersion?: string;
     readonly project: SubmitProject;
     readonly env: EnvLike;
     readonly createBackend?: (store: StoreId, env: EnvLike, options?: StoreBackendOptions) => StoreBackend;
@@ -160,6 +165,36 @@ export async function runSubmit(input: SubmitCommandInput): Promise<number> {
                 throw new Error('gjsify webext submit: --timeout is a number of seconds, 0 or more.');
             }
             timeoutMs = input.timeoutSeconds * 1000;
+        }
+
+        if (input.listingOnly) {
+            if (store !== 'amo') {
+                throw new Error(
+                    'gjsify webext submit: --listing-only applies to AMO only; Chrome and Edge have no listing API.',
+                );
+            }
+            if (input.submit || input.zip !== undefined || input.sourceZip !== undefined) {
+                throw new Error(
+                    'gjsify webext submit: --listing-only sends texts only; drop --submit, --zip and --source.',
+                );
+            }
+            const log = env['GJSIFY_WEBEXT_DEBUG'] ? (msg: string): void => err(msg) : undefined;
+            return await runListingUpload({
+                listingRoot: resolve(project.root, input.listingDir ?? 'dist/listing'),
+                dryRun: input.dryRun,
+                notesVersion: input.notesVersion,
+                backend: () =>
+                    (input.createBackend ?? createStoreBackend)(store, env, {
+                        fetchImpl: input.fetchImpl,
+                        sleep: input.sleep,
+                        now: input.now,
+                        log,
+                    }),
+                out,
+            });
+        }
+        if (input.notesVersion !== undefined) {
+            throw new Error('gjsify webext submit: --notes-version belongs to --listing-only.');
         }
 
         const listingStore = LISTING_STORE[store] as string;

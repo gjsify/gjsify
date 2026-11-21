@@ -82,7 +82,7 @@ function watch(entry: Gtk.Entry): string[] {
 }
 
 export const GtkEntryPropertiesNsTest = async () => {
-    await describe('Gtk.Entry: five declared properties, two declared signals', async () => {
+    await describe('Gtk.Entry: seven declared properties, two declared signals', async () => {
         await it("starts at gtk_entry_init's defaults, having emitted nothing", () => {
             const entry = new Gtk.Entry();
             const seen = watch(entry);
@@ -100,7 +100,7 @@ export const GtkEntryPropertiesNsTest = async () => {
             // string through the XML builder; this reads it off the class.
             expect(emittedSignalsOf(Gtk.Entry).join()).toBe(
                 'map,unmap,changed,activate,notify::text,notify::text-length,notify::max-length,' +
-                    'notify::placeholder-text,notify::width-chars,notify::max-width-chars,notify::editable',
+                    'notify::placeholder-text,notify::width-chars,notify::max-width-chars,notify::input-purpose,notify::input-hints,notify::editable',
             );
         });
 

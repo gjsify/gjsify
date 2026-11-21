@@ -13,6 +13,11 @@
       "status": "full",
       "note": "Headless Adwaita widget behavior (ADR 0004) \u2014 pure TS, NO platform imports, all-runtime `polyfill`, no `/register`; the machine-checked `gjsify.headless: true` contract (ADR 0015). Breakpoint condition grammar/parser/evaluator + transition-only `AdwBreakpoint` state machine; light/dark color-scheme observable + default icon-fg constants; toast queue (`AdwToast` + `AdwToastQueue` with injected `ToastScheduler` timing seam); alert-dialog response model (`AdwAlertResponses` \u2014 registry, appearance/enabled, OK/cancel/neutral ordering, action-sheet threshold, resolve-to-chosen-id); row interaction state machines (`ExpanderState`/`ComboState`/`SpinState`/`ToggleGroupState` with per-instance subscribe seams + interactive-vs-programmatic tagging). Avatar derivation (initials + the g_str_hash colour, verified against real GLib); view-stack, navigation-view, sidebar, entry-row, split-view and split-button state; `glibClamp`. The `./conformance` SUBPATH ships libadwaita-derived vector tables that BOTH renderer suites drive their real widgets with, so a divergence fails a unit test naming the input instead of waiting for a screenshot diff. Re-exported by `@gjsify/adwaita-nativescript` (no consumer break); `adwaita-web` adopts opportunistically."
     },
+    "@gjsify/adwaita-extended": {
+      "status": "partial",
+      "missing": "Verified under a headless GTK session only; no suite has run on macOS or Windows. Story-driven, no unit suite for the widgets themselves.",
+      "note": "GTK4/libadwaita widgets libadwaita does not ship: TaskRow, SwipeRow, DueChip, ColorCheck, SourceBadge, SourceList, FilterChip, KanbanBoard, AdaptivePane, and the calendar views MonthGrid, TimeGrid and AgendaList (geometry from @gjsify/calendar-layout). Each has a story and its own gettext domain; the pure rule helpers are separate subpaths."
+    },
     "@gjsify/adwaita-fonts": {
       "status": "full",
       "note": "Adwaita Sans font files (fontsource-style): `@font-face` CSS + TTFs. Sourced from `refs/adwaita-fonts/`, SIL OFL 1.1."
@@ -547,6 +552,11 @@
       "status": "partial",
       "missing": "The CalDAV driver runs against a fake server only, the EDS driver only as far as 'no session' and result shapes, never against a live Evolution Data Server. Calendars and tasks only: no contacts, no recurrence expansion, no scheduling.",
       "note": "Calendars and tasks behind one CalendarBackend port: CalDAV over @gjsify/dav (every runtime, incl. RFC 6578 delta reads) and Evolution Data Server (GJS, typelibs loaded on first use)."
+    },
+    "@gjsify/http-client": {
+      "status": "partial",
+      "missing": "Run against a fake fetch only, never against a live REST server. JSON only: no retries, no form or multipart bodies, no streaming.",
+      "note": "Small JSON-over-HTTP client for REST adapters: base URL, basic/bearer/app-password/header auth, ETag revalidation (304 = unchanged), typed errors extending the pim errors with Retry-After, per-request timeout, Link and offset pagination, per-host concurrency limit."
     },
     "@gjsify/local-ai-servers": {
       "status": "partial",

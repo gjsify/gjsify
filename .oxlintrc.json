@@ -185,7 +185,13 @@
                 // Scoping the package would retire that signal for an unrelated reason. Half of
                 // what blocked it is now gone — ADR 0063 removed the toolchain requirement — and
                 // the disable stays until the CONVERSION lands; ADR 0062 owns that frontier.
-                "packages/framework/adwaita-app/src/nav-shell.ts"
+                "packages/framework/adwaita-app/src/nav-shell.ts",
+                // `@gjsify/adwaita-extended` is a widget LIBRARY: each class is a widget written
+                // for a host app to place, with no application interface of its own. Its
+                // strings are still translatable: every caption goes through `dgettext` on the
+                // package's own domain and `i18n:extract` reads the .ts files with xgettext.
+                // `dev/` holds the screenshot fixtures.
+                "packages/framework/adwaita-extended/**"
             ],
             "rules": {
                 "gjsify/prefer-blueprint-template": "off",

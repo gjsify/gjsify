@@ -68,6 +68,11 @@ Tokens are therefore **platform-neutral data**, one source per language, with on
 per surface: Adwaita CSS for GTK (layer 1), CSS for `@gjsify/adwaita-web`, and later the
 styling inputs of the NativeScript and React Native widgets.
 
+A language is therefore a **bundle**, not a stylesheet: its token-derived CSS, the icon theme it
+names, and its `decoration-layout` (window controls on the left on macOS). Native, the bundle sets
+the user stylesheet, `gtk-icon-theme-name` and `gtk-decoration-layout`; on the web the same three
+values come from the same data object (ADR 0119 carries the CSS, ADR 0115 the icons).
+
 **One style per language, taken from the original.** A design language ships exactly one
 style: the platform's own, light and dark, coloured by the system accent. No colour
 variants, no "rounded/square" or "compact" tweaks, no alternative accents of our own.

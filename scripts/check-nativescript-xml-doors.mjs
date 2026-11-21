@@ -763,6 +763,7 @@ const ENUM_LISTS = [
     { file: `${NS_WIDGETS_DIR}/list-box-state.ts`, array: 'GTK_SELECTION_MODES', gtype: 'GtkSelectionMode' },
     { file: `${NS_WIDGETS_DIR}/gtk-enums.ts`, array: 'GTK_ORIENTATIONS', gtype: 'GtkOrientation' },
     { file: `${NS_WIDGETS_DIR}/gtk-enums.ts`, array: 'GTK_WRAP_MODES', gtype: 'GtkWrapMode' },
+    { file: `${NS_WIDGETS_DIR}/input-method.ts`, array: 'GTK_INPUT_PURPOSES', gtype: 'GtkInputPurpose' },
     { file: 'packages/web/adwaita-core/src/label.ts', array: 'LABEL_JUSTIFICATIONS', gtype: 'GtkJustification' },
     { file: `${NS_WIDGETS_DIR}/adw-enums.ts`, array: 'ADW_RESPONSE_APPEARANCES', gtype: 'AdwResponseAppearance' },
 ];
