@@ -76,5 +76,20 @@ inherited by the child, never read. The release-record lookup is not built.
   the manifest generator without it, and the CI job that really packs runs on an Ubuntu runner.
 - Open measurements, to be recorded in the packer header when taken: whether `gschemas.compiled` is
   needed in the payload; the strict-confinement plugs a typical gjsify app needs; arm64.
+- **Measured 2026-11-21** (`ship-pack-snap`, run 44885398599, Ubuntu 26.04, snapcraft 9.2.1, fixture
+  `tests/e2e/ship-snap/fixtures/snap-app`): `snapcraft pack --destructive-mode` packs the stage;
+  `meta/snap.yaml` says `base: core26`, `confinement: strict`. `snap install --dangerous` works.
+  Every plug the `gnome` extension declares auto-connects (content `gnome-core26`, `gpu-2604`,
+  the three theme contents, `desktop`, `desktop-legacy`, `opengl`, `wayland`, `x11`); the platform
+  snaps `gnome-core26` and `mesa-2604` arrive with it. The launcher reaches the platform's `gjs`,
+  but the first `gi://Gtk` threw: `GjsPrivate-1.0.typelib` lives in
+  `usr/lib/<triplet>/gjs/girepository-1.0`, and the extension's `desktop-launch` prepends only
+  `usr/lib/gjs/girepository-1.0`. The packer now sets that directory as the app's
+  `GI_TYPELIB_PATH` (snap.ts, `GJS_PRIVATE_TYPELIB_DIR`); the CI readback asserts the expanded path.
+  With it (run 44892880591) the snap starts `gjs` 1.90.0 (`system.version` 19000) with GTK 4.24.0
+  and GLib 2.90 from the platform, and stops only at "Failed to open display". Under Xvfb through
+  the `x11` plug (run 44898254712, Ubuntu 26.04.1) the window is presented and the app exits 0;
+  the only noise is the runner's missing session bus (`dbus-launch` not found) and DRI3 falling
+  back to software rendering, neither of which a desktop session has.
 - The vocabulary check, the conformance rules (`TARGETS`) and `docs/ship-formats.md` learn the new
   id in the same change.

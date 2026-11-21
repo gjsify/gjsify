@@ -20,6 +20,16 @@ nobody exercises is a digest guarding an untested path.
 Do it together with the arch entry below, whose blocker is the same `platforms:` line.
 
 
+### The snap launches under Xvfb in CI, not yet on a real desktop
+
+`ship-pack-snap` (ADR 0149) packs the `snap-app` fixture with the real snapcraft, reads it back
+as `core26` + strict, installs it and launches it under Xvfb, where the window is presented and
+the app exits 0. The launch stays a `continue-on-error` measurement until it has held for a few
+runs. Still open: a launch on a real Ubuntu desktop session with a session bus (before any app
+goes to the `stable` channel), whether a payload with GSettings schemas needs
+`gschemas.compiled`, and arm64 (no runner packs it).
+
+
 ### The AppImage row names four architectures and one of them is exercised
 
 `APPIMAGE_ARCH` (`utils/ship/formats.ts`) maps `x64`, `arm64`, `ia32` and `arm` to `x86_64`,

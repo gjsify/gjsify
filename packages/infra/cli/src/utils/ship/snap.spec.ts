@@ -3,8 +3,8 @@
 // runs, and how the row sits in the table.
 //
 // No snapcraft here — the leg that runs this is the one in CI, where there is none. What only
-// the tool can answer (does the launcher find `gjs` through the platform snap, which plugs an
-// app needs) is recorded in ADR 0149 as not yet measured, not asserted.
+// the tool can answer (the launcher reaching `gjs`, the plugs, a window) is measured by the
+// `ship-pack-snap` CI job and recorded in ADR 0149, not asserted here.
 
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -78,6 +78,9 @@ export default async () => {
             expect(m.apps['hello-app'].command).toBe('usr/bin/hello-app');
             expect(m.apps['hello-app'].desktop).toBe(`usr/${DESKTOP}`);
             expect(m.apps['hello-app']['common-id']).toBe('org.example.Hello');
+            expect(m.apps['hello-app'].environment).toStrictEqual({
+                GI_TYPELIB_PATH: '$SNAP/gnome-platform/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/gjs/girepository-1.0',
+            });
             expect(m.parts['hello-app']).toStrictEqual({ plugin: 'dump', source: 'payload' });
         });
 

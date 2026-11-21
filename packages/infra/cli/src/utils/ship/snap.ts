@@ -7,9 +7,10 @@
 // (`desktop-launch`, the GPU wrapper) is GPL-3 code that changes per base, so porting it
 // would turn gjsify into a downstream of snapcraft's tree. The cost is the one every
 // tool-backed row pays: `snapcraft` must be on PATH, and it is not on the machine this was
-// written on, so what only the tool can answer (does the launcher find `gjs` through
-// `$SNAP/gnome-platform`, which plugs a typical app needs, arm64) is recorded in ADR 0149
-// as NOT yet measured.
+// written on. What only the tool can answer is measured by `ship-pack-snap` in CI and
+// recorded in ADR 0149: the launcher reaches the platform's `gjs` (with
+// `GJS_PRIVATE_TYPELIB_DIR` below), every extension plug auto-connects, and a window opens
+// under Xvfb. arm64 and a real desktop session are not measured.
 //
 // WHAT IS MEASURED, from the published `gnome-core26` revision (2026-11-20): it carries
 // `gjs` 1.88, GTK 4, libadwaita, libsoup 3 and the GObject typelibs a GJS app imports, so
@@ -38,6 +39,16 @@ export const SNAP_BASE = 'core26';
 
 /** Set to `1` to build on the host instead of in LXD (`snapcraft pack --destructive-mode`). */
 export const SNAP_DESTRUCTIVE_ENV = 'GJSIFY_SNAP_DESTRUCTIVE';
+
+/**
+ * Where `gnome-core26` keeps `GjsPrivate-1.0.typelib`, which every GJS override of Gio and Gtk
+ * requires. The extension's `desktop-launch` prepends `usr/lib/gjs/girepository-1.0` but not
+ * this Debian multiarch spelling, and the platform's `gjs` has the path compiled in relative to
+ * `/`, so without it the first `gi://Gtk` throws "Typelib file for namespace 'GjsPrivate' (any
+ * version) not found" — measured in run 44885398599. `desktop-launch` prepends to an existing
+ * value, so setting it on the app survives the command chain. snapcraft expands the triplet.
+ */
+const GJS_PRIVATE_TYPELIB_DIR = '$SNAP/gnome-platform/usr/lib/$CRAFT_ARCH_TRIPLET_BUILD_FOR/gjs/girepository-1.0';
 
 /** Directory inside the work dir that holds the payload `dump` copies. */
 const PAYLOAD_DIR = 'payload';
@@ -112,6 +123,7 @@ export function renderSnapcraftManifest(input: SnapManifestInput): Record<string
         extensions: ['gnome'],
         desktop: `${PREFIX_DIR}/${snapDesktopPath(settings)}`,
         'common-id': settings.appId,
+        environment: { GI_TYPELIB_PATH: GJS_PRIVATE_TYPELIB_DIR },
     };
     const manifest: Record<string, unknown> = {
         name: settings.binaryName,
