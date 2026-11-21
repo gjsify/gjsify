@@ -770,6 +770,13 @@ compiles or reindexes them at install time (`utils/ship/scripts.ts`). An uncompi
 GSettings abort at runtime. Two more — the `.desktop` entry and the AppStream component — are
 freedesktop metadata neither other OS reads at all.
 
+**A hand-written AppStream file** (ADR 0151). `gjsify.ship.metainfo` (fallback `gjsify.site.metainfo`
+while `ship.releases` is empty) makes `ship` stage that file as the component, unchanged and not
+re-translated; the `.desktop` entry is still rendered and translated. `<id>` and
+`<launchable type="desktop-id">` must match `appId` / `<appId>.desktop` or `ship` refuses before staging;
+a `releases` in the config next to an explicit `ship.metainfo` is refused. `tests/e2e/ship` asserts the
+bytes in the stage and after `--from-stage`.
+
 **One of those five is now answered** (#1354 M2a): the schema directory. `utils/ship/schemas.ts`
 runs `glib-compile-schemas --strict` at ASSEMBLY time for every non-Linux layout and adds
 `share/glib-2.0/schemas/gschemas.compiled` to the prefix-relative plan, so it goes through the same
