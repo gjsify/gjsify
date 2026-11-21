@@ -18,8 +18,10 @@ import { describe, expect, it } from '@gjsify/unit';
 import { HTMLCanvasElement } from './html-canvas-element.js';
 
 /** Minimal Gtk.GLArea stand-in — the canvas only ever asks it for these three. */
-function stubGlArea(allocW: number, allocH: number, scale: number): Gtk.GLArea {
+function stubGlArea(allocW: number, allocH: number, scale: number, surfaceScale?: number): Gtk.GLArea {
     return {
+        get_native: () =>
+            surfaceScale === undefined ? null : { get_surface: () => ({ get_scale: () => surfaceScale }) },
         get_allocated_width: () => allocW,
         get_allocated_height: () => allocH,
         get_scale_factor: () => scale,
@@ -105,6 +107,46 @@ export default async () => {
             canvas.height = 42;
             expect(canvas.width).toBe(1080);
             expect(canvas.height).toBe(1965);
+        });
+    });
+
+    // GTK reports the INTEGER `ceil(scale)` from get_scale_factor() and sizes the GL
+    // framebuffer with it, while the surface knows the real fractional scale.
+    await describe('HTMLCanvasElement (GLArea) — fractional scale', async () => {
+        await it('reports the REAL device size at 125 %', async () => {
+            const canvas = new HTMLCanvasElement(stubGlArea(400, 300, 2, 1.25));
+            expect(canvas.scaleFactor).toBe(1.25);
+            expect(canvas.width).toBe(500);
+            expect(canvas.height).toBe(375);
+        });
+
+        await it('reports the REAL device size at 150 %', async () => {
+            const canvas = new HTMLCanvasElement(stubGlArea(400, 300, 2, 1.5));
+            expect(canvas.width).toBe(600);
+            expect(canvas.height).toBe(450);
+        });
+
+        await it('rounds a non-integer device size to whole pixels', async () => {
+            const canvas = new HTMLCanvasElement(stubGlArea(401, 301, 2, 1.25));
+            expect(canvas.width).toBe(501);
+            expect(canvas.height).toBe(376);
+        });
+
+        await it('never exceeds the ceil-sized GTK framebuffer', async () => {
+            const canvas = new HTMLCanvasElement(stubGlArea(333, 777, 2, 1.25));
+            expect(canvas.width).toBeLessThan(333 * 2 + 1);
+            expect(canvas.height).toBeLessThan(777 * 2 + 1);
+        });
+
+        await it('falls back to the integer factor when no surface scale exists', async () => {
+            const canvas = new HTMLCanvasElement(stubGlArea(400, 300, 2));
+            expect(canvas.scaleFactor).toBe(2);
+            expect(canvas.width).toBe(800);
+        });
+
+        await it('integer surface scale is unchanged', async () => {
+            const canvas = new HTMLCanvasElement(stubGlArea(400, 300, 2, 2));
+            expect(canvas.width).toBe(800);
         });
     });
 };

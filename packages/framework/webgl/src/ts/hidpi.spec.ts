@@ -27,7 +27,9 @@ import Gtk from '@girs/gtk-4.0';
 interface FrameWitness {
     allocW: number;
     allocH: number;
+    /** The surface's REAL scale (fractional); `fboScale` is the integer GTK sizes GL with. */
     scale: number;
+    fboScale: number;
     dpr: number;
     canvasW: number;
     canvasH: number;
@@ -114,7 +116,8 @@ export default async () => {
                 witness = {
                     allocW: area.get_allocated_width(),
                     allocH: area.get_allocated_height(),
-                    scale: area.get_scale_factor(),
+                    scale: area.get_native()?.get_surface()?.get_scale() ?? area.get_scale_factor(),
+                    fboScale: area.get_scale_factor(),
                     dpr: (globalThis as unknown as { devicePixelRatio: number }).devicePixelRatio,
                     canvasW: c.width,
                     canvasH: c.height,
@@ -147,23 +150,29 @@ export default async () => {
                     const f = getFrame()!;
                     expect(f.clientW).toBe(f.allocW);
                     expect(f.clientH).toBe(f.allocH);
-                    expect(f.canvasW).toBe(f.clientW * f.dpr);
-                    expect(f.canvasH).toBe(f.clientH * f.dpr);
+                    expect(f.canvasW).toBe(Math.round(f.clientW * f.dpr));
+                    expect(f.canvasH).toBe(Math.round(f.clientH * f.dpr));
                     expect(f.bufferW).toBe(f.canvasW);
                     expect(f.bufferH).toBe(f.canvasH);
                 });
 
-                await it("matches the size GTK's resize signal gave in device pixels", async () => {
+                await it("fits inside the framebuffer GTK's resize signal sized (alloc × ceil(scale))", async () => {
                     const f = getFrame()!;
                     const last = gtkResizes[gtkResizes.length - 1];
                     expect(last).toBeDefined();
-                    expect(last[0]).toBe(f.bufferW);
-                    expect(last[1]).toBe(f.bufferH);
+                    expect(last[0]).toBe(f.allocW * f.fboScale);
+                    expect(last[1]).toBe(f.allocH * f.fboScale);
+                    expect(f.bufferW).toBeLessThan(last[0] + 1);
+                    expect(f.bufferH).toBeLessThan(last[1] + 1);
+                    // The buffer is the REAL device size, never the rounded-up one.
+                    expect(f.bufferW).toBe(Math.round(f.allocW * f.scale));
+                    expect(f.bufferH).toBe(Math.round(f.allocH * f.scale));
                 });
 
-                await it('matches the viewport GTK bound for the render', async () => {
+                await it('starts the frame with a viewport of the drawing buffer', async () => {
                     // A drawing buffer reported at the ALLOCATION would read [0,0,w/s,h/s]
-                    // against GTK's [0,0,w,h] here — the bottom-left 1/s² bug.
+                    // here — the bottom-left 1/s² bug. At a fractional scale GTK binds the
+                    // larger ceil-sized viewport and the bridge narrows it to the buffer.
                     const f = getFrame()!;
                     expect(f.gtkViewport.join(',')).toBe(`0,0,${f.bufferW},${f.bufferH}`);
                 });
@@ -202,8 +211,8 @@ export default async () => {
         await describe('WebGLBridge HiDPI — resize', async () => {
             await it('the drawing buffer followed the new allocation', async () => {
                 expect(resized!.allocW).toBeGreaterThan(first!.allocW);
-                expect(resized!.bufferW).toBe(resized!.allocW * resized!.scale);
-                expect(resized!.bufferH).toBe(resized!.allocH * resized!.scale);
+                expect(resized!.bufferW).toBe(Math.round(resized!.allocW * resized!.scale));
+                expect(resized!.bufferH).toBe(Math.round(resized!.allocH * resized!.scale));
             });
         });
 

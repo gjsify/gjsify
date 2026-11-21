@@ -324,6 +324,19 @@ Reporting the allocation as `canvas.width` — as this bridge did until 2026-08 
 
 `@gjsify/dom-elements`' register seeds `devicePixelRatio: 1` as the widget-less default only.
 
+### Fractional scales (125 %, 150 %)
+
+`get_scale_factor()` is `ceil(scale)`, and GTK sizes the GLArea framebuffer with it, so at 125 % GTK hands GL a 2x buffer while the display shows 1.25x. Showing that buffer scaled down resamples it and blurs 1-device-pixel detail. The bridge instead uses the surface's REAL scale (`Gdk.Surface.get_scale()`, via `deviceScale()`):
+
+- `devicePixelRatio` is 1.25 / 1.5, and `canvas.width` / `drawingBufferWidth` is `round(allocation x scale)`, the real device size.
+- The viewport is narrowed to that region at the start of every frame (GTK binds the larger ceil-sized one). The region is the bottom-left corner of GTK's FBO.
+- `vfunc_snapshot` scales GTK's own texture draw by `ceil/scale` about the bottom-left corner and clips to the widget, so one texel lands on exactly one device pixel. No extra FBO, no copy, no per-frame allocation.
+- A `notify::scale` on the surface re-fires the resize consumers, because a monitor switch can change the fractional scale while `ceil(scale)` and the allocation stay put and GTK emits no `resize`.
+
+Integer scales take the untouched parent path. Measured buffers for a 400x300 widget: 400x300 at 1, 500x375 at 1.25, 600x450 at 1.5, 800x600 at 2. A 1-device-pixel checkerboard screenshot at each scale has no grey pixel and no equal neighbours.
+
+CI cannot run this leg: Xvfb has no fractional scaling, and `GDK_SCALE` is integer-only. Run `test:hidpi` under `scripts/headless-run --scale 1.25` (mutter headless) in the werkstatt workspace to exercise it. The stub spec pins the arithmetic in CI.
+
 Two specs hold it, because each answers a question the other cannot:
 
 - `html-canvas-element.spec.ts` varies the scale factor through a stub, so the arithmetic is pinned at 0, 1, 2 and 3 on any host.

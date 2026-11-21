@@ -7,6 +7,19 @@ import type Gtk from 'gi://Gtk?version=4.0';
 import { WebGLRenderingContext as OurWebGLRenderingContext } from './webgl-rendering-context.js';
 import { WebGL2RenderingContext as OurWebGL2RenderingContext } from './webgl2-rendering-context.js';
 
+/**
+ * The REAL device-pixels-per-logical-pixel of a widget: the surface's fractional scale
+ * (1.25, 1.5) where GTK reports one, else the integer `get_scale_factor()`.
+ *
+ * `get_scale_factor()` is `ceil(scale)` — GTK sizes the GLArea framebuffer with it, so
+ * at 125 % it is 2 while the display shows 1.25. `0` / missing means no surface yet.
+ */
+export function deviceScale(widget: Gtk.Widget): number {
+    const surfaceScale = widget.get_native?.()?.get_surface?.()?.get_scale?.();
+    if (typeof surfaceScale === 'number' && surfaceScale > 0) return surfaceScale;
+    return widget.get_scale_factor() || 1;
+}
+
 export class HTMLCanvasElement extends BaseHTMLCanvasElement {
     _webgl?: OurWebGLRenderingContext;
     _webgl2?: OurWebGL2RenderingContext;
@@ -30,7 +43,7 @@ export class HTMLCanvasElement extends BaseHTMLCanvasElement {
      * consumer multiplying a layout size by `devicePixelRatio` lands on this number.
      */
     override get width(): number {
-        return this.gtkGlArea.get_allocated_width() * this.scaleFactor;
+        return Math.round(this.gtkGlArea.get_allocated_width() * this.scaleFactor);
     }
 
     override set width(_width: number) {
@@ -39,7 +52,7 @@ export class HTMLCanvasElement extends BaseHTMLCanvasElement {
 
     /** DRAWING-BUFFER height, in DEVICE pixels. See `width` for why it is scaled. */
     override get height(): number {
-        return this.gtkGlArea.get_allocated_height() * this.scaleFactor;
+        return Math.round(this.gtkGlArea.get_allocated_height() * this.scaleFactor);
     }
 
     override set height(_height: number) {
@@ -52,8 +65,7 @@ export class HTMLCanvasElement extends BaseHTMLCanvasElement {
      * the canvas.
      */
     get scaleFactor(): number {
-        // `get_scale_factor()` returns 0 for a widget with no surface yet.
-        return this.gtkGlArea.get_scale_factor() || 1;
+        return deviceScale(this.gtkGlArea);
     }
 
     /** CSS layout width — the GTK allocation, in LOGICAL pixels. */
