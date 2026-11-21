@@ -981,6 +981,9 @@ export class TextField extends View {
     hint = '';
     secure = false;
     editable = true;
+    keyboardType: 'datetime' | 'phone' | 'number' | 'url' | 'email' | 'integer' | undefined;
+    autocapitalizationType: 'none' | 'words' | 'sentences' | 'allcharacters' | undefined;
+    autocorrect: boolean | undefined;
 
     get text(): string {
         return this._text;

@@ -67,6 +67,7 @@ import { applyTemplateXalign } from './gtk-label.js';
 import { AdwImageButton } from './adw-image-button.js';
 import { NS_EDIT_ICON_CLASS, NS_ENTRY_ROW_CLASS, applyEntryRowState, applyEntryRowTitles } from './entry-row-view.js';
 import { applyConstructProps, type ConstructProps } from './construct-props.js';
+import { applyInputMethod, INPUT_HINTS_PROPERTY, INPUT_PURPOSE_PROPERTY } from './input-method.js';
 import { readDeclaredValue, withProperties } from './signals.js';
 
 // Re-exported so consumers reach the vector-driven painter's vocabulary from
@@ -147,6 +148,8 @@ export class AdwEntryRow extends withProperties(AdwActionRow, {
             normalize: (value) => clampEntryMaxLength(readDeclaredValue('max-length', 'int', value) as number),
         },
         editable: { kind: 'boolean', default: true, blurb: 'Whether the entry is editable' },
+        'input-purpose': INPUT_PURPOSE_PROPERTY,
+        'input-hints': INPUT_HINTS_PROPERTY,
         'show-apply-button': { kind: 'boolean', default: false, blurb: 'Whether to show the apply button' },
         'activates-default': {
             kind: 'boolean',
@@ -183,6 +186,12 @@ export class AdwEntryRow extends withProperties(AdwActionRow, {
 
     /** Whether the entry accepts edits (`GtkEditable:editable`). */
     declare editable: boolean;
+
+    /** `Gtk.Editable`-delegate `input-purpose` — drives the keyboard layout (see `input-method.ts`). */
+    declare inputPurpose: number;
+
+    /** `input-hints` — capitalisation / correction hints (see `input-method.ts`). */
+    declare inputHints: number;
 
     /** `Adw.EntryRow:show-apply-button` — typing reveals an apply button. */
     declare showApplyButton: boolean;
@@ -316,6 +325,16 @@ export class AdwEntryRow extends withProperties(AdwActionRow, {
         this._update();
 
         applyConstructProps(this, props);
+    }
+
+    /** A password row's `secure` belongs to its peek toggle, so a purpose must not write it. */
+    protected get _inputOwnsSecure(): boolean {
+        return true;
+    }
+
+    /** `input-purpose` / `input-hints` reach the field's keyboard options and nothing else. */
+    _applyInputMethod(): void {
+        applyInputMethod(this._field, this.inputPurpose, this.inputHints, this._inputOwnsSecure);
     }
 
     /** Whether the field currently has focus — `priv->editing`, not a property upstream. */

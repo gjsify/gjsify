@@ -205,8 +205,8 @@ const KNOWN_GAPS = {
         why: 'The chooser is the platform `action()` sheet (adw-combo-row.ts:4-6), which has no search field to enable and no match mode to set. `use-subtitle` puts the selected item into the row\'s subtitle instead of the suffix, and this port renders the value inline in the suffix — "the suffix shows the SELECTED value inline plus a small down-chevron" — so the alternative it switches to does not exist.',
     },
     'adw-entry-row': {
-        gaps: ['enableEmojiCompletion', 'inputHints', 'inputPurpose'],
-        why: 'All three are GTK INPUT-METHOD properties on the inner text widget. A NativeScript `TextField` exposes its keyboard through a different vocabulary (`keyboardType`, `autocorrect`, `secure`), so there is no key to write these onto and mapping them would be inventing a translation table rather than a property. `<adw-entry-row>` declares the same three on the web surface.',
+        gaps: ['enableEmojiCompletion'],
+        why: 'An emoji picker is an input-method feature a NativeScript `TextField` has no switch for (input-method.ts lists EMOJI/NO_EMOJI as held, not applied). `input-purpose` and `input-hints` ARE mapped, onto `keyboardType` / `autocapitalizationType` / `autocorrect` / `secure` by the one shared `input-method.ts`. `<adw-entry-row>` declares all three on the web surface.',
     },
     'adw-expander-row': {
         gaps: ['subtitleLines', 'titleLines'],
@@ -357,8 +357,6 @@ const KNOWN_GAPS = {
             'enableEmojiCompletion',
             'hasFrame',
             'imModule',
-            'inputHints',
-            'inputPurpose',
             'invisibleChar',
             'invisibleCharSet',
             'menuEntryIconPrimaryText',
@@ -380,11 +378,11 @@ const KNOWN_GAPS = {
             'truncateMultiline',
             'visibility',
         ],
-        why: 'The port is "the bare input" (gtk-entry.ts:8-10) — a `TextField` in a `GridLayout` with four properties. Three whole families of `Gtk.Entry` are absent: the two ICON packs (activatable, name, sensitive and two tooltip spellings each), the PROGRESS bar drawn inside the entry, and the INPUT-METHOD group (`im-module`, hints, purpose, emoji, overwrite, the invisible-char pair) that a NativeScript `TextField` spells with `keyboardType`/`secure`/`autocorrect` instead. `visibility` is the sharpest of them: `Gtk.Entry:visibility` is password masking, and the port already answers to `visibility` from NativeScript `View` meaning show-or-hide — the same name for two controls, which is why it is listed rather than mapped. `<gtk-entry>` declares 28 names on the web surface, this one 26; the two the web still lists are `max-length` and `placeholder-text`, which converged here.',
+        why: 'The port is "the bare input" (gtk-entry.ts:8-10) — a `TextField` in a `GridLayout` with four properties. Three whole families of `Gtk.Entry` are absent: the two ICON packs (activatable, name, sensitive and two tooltip spellings each), the PROGRESS bar drawn inside the entry, and the INPUT-METHOD leftovers (`im-module`, emoji, overwrite, the invisible-char pair); `input-purpose` and `input-hints` are mapped onto `keyboardType`/`secure`/`autocorrect` by `input-method.ts`. `visibility` is the sharpest of them: `Gtk.Entry:visibility` is password masking, and the port already answers to `visibility` from NativeScript `View` meaning show-or-hide — the same name for two controls, which is why it is listed rather than mapped. `<gtk-entry>` declares 28 names on the web surface, this one 26; the two the web still lists are `max-length` and `placeholder-text`, which converged here.',
     },
     'gtk-search-entry': {
-        gaps: ['activatesDefault', 'inputHints', 'inputPurpose'],
-        why: "The three are `GtkEntry`'s own and the search field inherits the same ledger as its base (see 'gtk-entry' above): a default widget is a toplevel concept, and the input-method hints are what a NativeScript `TextField` spells with `keyboardType` instead (gtk-search-entry.ts).",
+        gaps: ['activatesDefault'],
+        why: "The three are `GtkEntry`'s own and the search field inherits the same ledger as its base (see 'gtk-entry' above): a default widget is a toplevel concept, and `input-purpose` / `input-hints` are inherited from `GtkEntry` (input-method.ts).",
     },
     'gtk-image': {
         gaps: ['file', 'resource', 'useFallback'],
