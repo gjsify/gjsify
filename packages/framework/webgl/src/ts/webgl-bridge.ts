@@ -6,7 +6,8 @@ import GObject from 'gi://GObject?version=2.0';
 import Gdk from 'gi://Gdk?version=4.0';
 import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
-import { HTMLCanvasElement as OurHTMLCanvasElement } from './html-canvas-element.js';
+import Graphene from 'gi://Graphene?version=1.0';
+import { HTMLCanvasElement as OurHTMLCanvasElement, deviceScale } from './html-canvas-element.js';
 // Value imports: `installGlobals()` puts both constructors on globalThis.
 import { WebGLRenderingContext as OurWebGLRenderingContext } from './webgl-rendering-context.js';
 import { WebGL2RenderingContext as OurWebGL2RenderingContext } from './webgl2-rendering-context.js';
@@ -64,6 +65,8 @@ export const WebGLBridge = GObject.registerClass(
         // `GObject.registerClass` class cannot be named in the emitted declaration
         // (TS4094, exported anonymous class type).
         _rendererInfo: { vendor: string; renderer: string } | null = null;
+        _scaleSurface: Gdk.Surface | null = null;
+        _scaleNotifyId: number | null = null;
 
         constructor(params?: Partial<Gtk.GLArea.ConstructorProps>) {
             super(params);
@@ -128,6 +131,7 @@ export const WebGLBridge = GObject.registerClass(
 
                 // Persistent frame handler, installed once after canvas init.
                 this._renderTag = this.connect('render', (_widget: Gtk.GLArea) => {
+                    this._fitViewportToDeviceSize(gl);
                     const time = (GLib.get_monotonic_time() - this._timeOrigin) / 1000;
                     if (this._frameCallback !== null) {
                         if ((globalThis as { __GJSIFY_DEBUG_RAF?: boolean }).__GJSIFY_DEBUG_RAF === true) {
@@ -170,22 +174,28 @@ export const WebGLBridge = GObject.registerClass(
             // are all fed here. `notifyElementResize()` walks the ancestor chain, because
             // Excalibur 0.32's DisplayMode.FillContainer observes `canvas.parentElement`
             // rather than the canvas and would otherwise never see a GTK allocation change.
-            this.connect('resize', () => {
-                const width = this.get_allocated_width();
-                const height = this.get_allocated_height();
-                if (this._canvas) {
-                    this._canvas.dispatchEvent(new Event('resize'));
-                    notifyElementResize(this._canvas, width, height);
-                }
-                for (const cb of this._resizeCallbacks) {
-                    cb(width, height);
-                }
-                if (this._frameCallback) {
-                    this.requestAnimationFrame(this._frameCallback);
+            this.connect('resize', () => this._notifyResize());
+
+            // A fractional scale change (monitor switch, display setting) leaves the
+            // GLArea framebuffer alone when `ceil(scale)` is unchanged, so no `resize`
+            // signal comes, yet `canvas.width` and `devicePixelRatio` just moved.
+            this.connect('realize', () => {
+                const surface = this.get_native()?.get_surface();
+                if (surface && this._scaleNotifyId === null) {
+                    this._scaleSurface = surface;
+                    this._scaleNotifyId = surface.connect('notify::scale', () => {
+                        this._notifyResize();
+                        this.queue_render();
+                    });
                 }
             });
 
             this.connect('unrealize', () => {
+                if (this._scaleSurface && this._scaleNotifyId !== null) {
+                    this._scaleSurface.disconnect(this._scaleNotifyId);
+                }
+                this._scaleSurface = null;
+                this._scaleNotifyId = null;
                 if (this._renderTag !== null) {
                     this.disconnect(this._renderTag);
                     this._renderTag = null;
@@ -200,6 +210,65 @@ export const WebGLBridge = GObject.registerClass(
                 this._replaying = false;
                 this._canvas = null;
             });
+        }
+
+        /** Fires every resize consumer: DOM event, ResizeObserver, `onResize`, rAF re-arm. */
+        _notifyResize(): void {
+            const width = this.get_allocated_width();
+            const height = this.get_allocated_height();
+            if (this._canvas) {
+                this._canvas.dispatchEvent(new Event('resize'));
+                notifyElementResize(this._canvas, width, height);
+            }
+            for (const cb of this._resizeCallbacks) {
+                cb(width, height);
+            }
+            if (this._frameCallback) {
+                this.requestAnimationFrame(this._frameCallback);
+            }
+        }
+
+        /**
+         * Fractional scale only: GTK binds a viewport of the whole framebuffer
+         * (`alloc × ceil(scale)`), but the drawing buffer is the smaller
+         * `round(alloc × scale)` region in its bottom-left corner. Start each frame with
+         * the viewport a fresh browser canvas has.
+         */
+        _fitViewportToDeviceSize(gl: OurWebGLRenderingContext | null): void {
+            const canvas = this._canvas;
+            if (!gl || !canvas) return;
+            const ceilScale = this.get_scale_factor() || 1;
+            if (deviceScale(this) === ceilScale) return;
+            gl.viewport(0, 0, canvas.width, canvas.height);
+        }
+
+        /**
+         * Presents the real-size region 1:1. GtkGLArea draws its whole framebuffer
+         * (`alloc × ceil(scale)` texels) into the logical allocation, i.e. one texel per
+         * `1/ceil(scale)` logical px; the content sits in the bottom-left of the widget
+         * (GL origin). Scaling the parent draw by `ceil/scale` from the
+         * widget origin makes one texel exactly one device pixel; the clip drops the
+         * unused remainder. Integer scales take the untouched parent path.
+         */
+        vfunc_snapshot(snapshot: Gtk.Snapshot): void {
+            const scale = deviceScale(this);
+            const ceilScale = this.get_scale_factor() || 1;
+            if (scale === ceilScale) {
+                super.vfunc_snapshot(snapshot);
+                return;
+            }
+            const k = ceilScale / scale;
+            snapshot.save();
+            snapshot.push_clip(new Graphene.Rect().init(0, 0, this.get_width(), this.get_height()));
+            // GL row 0 is the BOTTOM of the widget after GTK's flip: scale about the
+            // bottom-left corner.
+            const h = this.get_height();
+            snapshot.translate(new Graphene.Point().init(0, h));
+            snapshot.scale(k, k);
+            snapshot.translate(new Graphene.Point().init(0, -h));
+            super.vfunc_snapshot(snapshot);
+            snapshot.pop();
+            snapshot.restore();
         }
 
         /** The HTMLCanvasElement wrapping this GLArea. Available after the first render. */
@@ -358,7 +427,7 @@ export const WebGLBridge = GObject.registerClass(
             // phone instead of its bottom-left ninth. `defineProperty`, because
             // dom-elements installs a plain value property and a bridge owns the answer.
             Object.defineProperty(globalThis, 'devicePixelRatio', {
-                get: () => this.get_scale_factor() || 1,
+                get: () => deviceScale(this),
                 configurable: true,
             });
             // Always overridden: GJS's own `performance.now()` may sit on a different time
