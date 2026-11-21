@@ -51,6 +51,7 @@ import installProvenanceSuite from './utils/install-provenance.spec.js';
 import shipPlistSuite from './utils/ship/plist.spec.js';
 import shipMsiSuite from './utils/ship/msi.spec.js';
 import shipArchivesSuite from './utils/ship/archives.spec.js';
+import shipHandMetainfoSuite from './utils/ship/hand-metainfo.spec.js';
 import shipPackersSuite from './utils/ship/packers.spec.js';
 import shipTarballSuite from './utils/ship/tarball.spec.js';
 import shipFlatparkSuite from './utils/ship/flatpark.spec.js';
@@ -362,6 +363,7 @@ run(
         shipMsiSuite,
         installProvenanceSuite,
         shipArchivesSuite,
+        shipHandMetainfoSuite,
         shipPackersSuite,
         shipTarballSuite,
         shipFlatparkSuite,

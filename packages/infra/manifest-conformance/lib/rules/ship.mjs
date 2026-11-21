@@ -87,7 +87,7 @@ const TARGETS = new Set([
  * Build it first (`gjsify run build`)". Asking at audit time asks a different
  * question and answers it wrong.
  */
-const PATH_KEYS = ['icon', 'schemas', 'licenseFile'];
+const PATH_KEYS = ['icon', 'schemas', 'licenseFile', 'metainfo'];
 
 /**
  * The OSes `gjsify.ship.sign` may be keyed on.

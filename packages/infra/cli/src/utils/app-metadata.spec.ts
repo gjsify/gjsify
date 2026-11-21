@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { type AppMetadataInputs, renderDesktopEntry } from './app-metadata.js';
+import { type AppMetadataInputs, renderDesktopEntry, renderMetainfoApp } from './app-metadata.js';
 
 function inputs(overrides: Partial<AppMetadataInputs> = {}): AppMetadataInputs {
     return {
@@ -56,6 +56,25 @@ export default async () => {
             expect(() => renderDesktopEntry(inputs({ desktopExecArgs: ['a\nb'] }))).toThrow(
                 'gjsify.ship.desktopExecArgs',
             );
+        });
+    });
+    await describe('renderMetainfoApp screenshot environment', async () => {
+        await it('keeps the :dark / :light variants AppStream defines', async () => {
+            const xml = renderMetainfoApp(
+                inputs({
+                    metadata: {
+                        summary: 'Says hello',
+                        screenshots: [
+                            { url: 'https://example.org/a.png', environment: 'gnome:dark' },
+                            { url: 'https://example.org/b.png', environment: 'plasma:light' },
+                            { url: 'https://example.org/c.png', environment: 'cli' },
+                        ],
+                    },
+                }),
+            );
+            expect(xml).toContain('<screenshot type="default" environment="gnome:dark">');
+            expect(xml).toContain('environment="plasma:light"');
+            expect(xml).toContain('environment="cli"');
         });
     });
 };
