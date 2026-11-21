@@ -50,6 +50,10 @@
             "types": "./lib/types/time-grid-rules.d.ts",
             "default": "./lib/esm/time-grid-rules.js"
         },
+        "./chat-entry-rules": {
+            "types": "./lib/types/chat-entry-rules.d.ts",
+            "default": "./lib/esm/chat-entry-rules.js"
+        },
         "./agenda-rules": {
             "types": "./lib/types/agenda-rules.d.ts",
             "default": "./lib/esm/agenda-rules.js"
@@ -61,11 +65,17 @@
         "!lib/types/**/*.spec.d.ts"
     ],
     "scripts": {
-        "clear": "gjsify clear lib tmp tsconfig.tsbuildinfo",
+        "clear": "gjsify clear lib tmp tsconfig.tsbuildinfo test.gjs.mjs test.node.mjs",
         "check": "gjsify tsc --noEmit",
         "build": "gjsify run build:gjsify && gjsify run build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
         "build:types": "gjsify tsc",
+        "build:test": "gjsify run build:test:gjs && gjsify run build:test:node",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs",
+        "test:node": "node test.node.mjs",
         "storybook": "gjsify storybook",
         "storybook:build": "gjsify storybook --build-only --out dist/storybook.gjs.mjs",
         "i18n:extract": "./dev-i18n.sh"
@@ -92,6 +102,7 @@
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
         "@gjsify/storybook": "workspace:^",
+        "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
     },

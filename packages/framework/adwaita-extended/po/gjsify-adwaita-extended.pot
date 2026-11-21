@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gjsify-adwaita-extended\n"
 "Report-Msgid-Bugs-To: https://github.com/gjsify/gjsify/issues\n"
-"POT-Creation-Date: 2026-11-20 06:48+0100\n"
+"POT-Creation-Date: 2026-11-21 12:42+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -30,32 +30,40 @@ msgstr ""
 msgid "Today"
 msgstr ""
 
-#: src/agenda-list.ts:151 src/time-grid.ts:76
+#: src/agenda-list.ts:153 src/time-grid.ts:87
 msgid "All day"
 msgstr ""
 
-#: src/agenda-list.ts:186
+#: src/agenda-list.ts:189 src/month-grid.ts:297
 msgid "Continues on another day"
 msgstr ""
 
-#: src/board-card.ts:66 src/board-card.ts:134
+#: src/board-card.ts:71 src/board-card.ts:139
 msgid "Read-only"
 msgstr ""
 
-#: src/board-card.ts:133
+#: src/board-card.ts:138
 #, javascript-format
 msgid "Assigned to %s"
 msgstr ""
 
-#: src/board-column.ts:17
+#: src/board-column.ts:22
 #, javascript-format
 msgid "%d card"
 msgid_plural "%d cards"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/board-column.ts:37
+#: src/board-column.ts:54
 msgid "No cards"
+msgstr ""
+
+#: src/chat-entry.ts:85
+msgid "Write a message"
+msgstr ""
+
+#: src/chat-entry.ts:145
+msgid "Message"
 msgstr ""
 
 #: src/due-chip.ts:19
@@ -75,21 +83,21 @@ msgstr ""
 msgid "Remove filter %s"
 msgstr ""
 
-#: src/month-grid.ts:329
+#: src/month-grid.ts:350
 #, javascript-format
 msgid "%d event"
 msgid_plural "%d events"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/month-grid.ts:334
+#: src/month-grid.ts:355
 #, javascript-format
 msgid "+%d more"
 msgid_plural "+%d more"
 msgstr[0] ""
 msgstr[1] ""
 
-#: src/month-grid.ts:339
+#: src/month-grid.ts:360
 #, javascript-format
 msgid "Week %d"
 msgstr ""
@@ -118,24 +126,24 @@ msgstr ""
 msgid "Low priority"
 msgstr ""
 
-#: src/task-row.ts:61 src/task-row.ts:82 src/task-row.ts:150
+#: src/task-row.ts:61 src/task-row.ts:82 src/task-row.ts:155
 msgid "Mark as done"
 msgstr ""
 
-#: src/task-row.ts:82 src/task-row.ts:150
+#: src/task-row.ts:82 src/task-row.ts:155
 msgid "Postpone to tomorrow"
 msgstr ""
 
-#: src/task-row.ts:148
+#: src/task-row.ts:153
 #, javascript-format
 msgid "Mark as not done: %s"
 msgstr ""
 
-#: src/task-row.ts:148
+#: src/task-row.ts:153
 #, javascript-format
 msgid "Mark as done: %s"
 msgstr ""
 
-#: src/task-row.ts:150
+#: src/task-row.ts:155
 msgid "Mark as not done"
 msgstr ""
