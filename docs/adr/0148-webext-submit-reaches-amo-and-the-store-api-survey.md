@@ -95,6 +95,8 @@ colliding language stops the run before any request). Every field is READ back a
 `mismatch` or `unread`. AMO linkifies bare URLs and escapes entities on read, so the comparison strips `<a>` tags and unescapes entities first (never what is sent); exit 0 only when all match, and a field that was not read is never reported
 as written. `--dry-run` prints field, locale and length with no network and no credentials.
 
+A real submission (`--store edge|amo --submit`) also sends the reviewer notes: `<listing-dir>/<store>/<lang>/reviewer-notes.txt` (`en`, else the first language with the file) goes out as Edge's certification `notes` or AMO's `approval_notes`; Edge, which requires them, only warns when the file is missing, and `--dry-run` reports file and length.
+
 Screenshots (`POST …/previews/`, multipart `image`) and categories are DOCUMENTED but not wired.
 A listed version requires license, name, summary and categories to exist already; creating the
 add-on itself stays a dashboard step, as for the other two stores.

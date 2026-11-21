@@ -10,7 +10,14 @@ import { join } from 'node:path';
 
 import { StoreApiError, StoreVersionAlreadyThereError, type StoreBackend } from './stores/index.js';
 import { SUBMIT_EXIT_CODES } from './stores/poll.js';
-import { defaultZipPath, isTagRef, preflightStoreJson, runSubmit, type SubmitProject } from './submit.js';
+import {
+    defaultZipPath,
+    findReviewerNotes,
+    isTagRef,
+    preflightStoreJson,
+    runSubmit,
+    type SubmitProject,
+} from './submit.js';
 
 const CANARY = 'gjsify-submit-canary-5d2e8a41';
 
@@ -354,6 +361,117 @@ export default async () => {
             expect(r.code).toBe(1);
             expect(r.err.includes('--timeout')).toBe(true);
             f.cleanup();
+        });
+    });
+
+    await describe('webext submit: reviewer notes', async () => {
+        const EDGE_ENV = {
+            EDGE_ADDONS_PRODUCT_ID: 'p',
+            EDGE_ADDONS_CLIENT_ID: 'c',
+            EDGE_ADDONS_API_KEY: CANARY,
+            GITHUB_REF: 'refs/tags/v1.2.3',
+        };
+        const AMO_ENV = {
+            AMO_ADDON_ID: 'a',
+            AMO_WEB_EXT_API_KEY: 'user:1:2',
+            AMO_WEB_EXT_API_SECRET: CANARY,
+            GITHUB_REF: 'refs/tags/v1.2.3',
+        };
+        const setup = (store: 'edge' | 'amo', notes: Record<string, string>): Fixture => {
+            const f = fixture({ storeJson: null });
+            const dir = join(f.root, 'dist/listing', store);
+            mkdirSync(dir, { recursive: true });
+            writeFileSync(join(dir, 'store.json'), goodStoreJson(store));
+            for (const [lang, text] of Object.entries(notes)) {
+                mkdirSync(join(dir, lang), { recursive: true });
+                writeFileSync(join(dir, lang, 'reviewer-notes.txt'), text);
+            }
+            const zip = join(f.root, '.output', `demo-1.2.3-${store === 'edge' ? 'edge' : 'firefox'}-mv3.zip`);
+            writeFileSync(zip, 'zip');
+            f.project = {
+                ...f.project,
+                targets: [
+                    {
+                        id: `${store === 'edge' ? 'edge' : 'firefox'}-mv3`,
+                        browser: store === 'edge' ? 'edge' : 'firefox',
+                        manifestVersion: 3,
+                    },
+                ],
+            };
+            return f;
+        };
+        const publishSpy = (seen: unknown[]): StoreBackend =>
+            backendWith({
+                publish: async (input) => {
+                    seen.push(input);
+                    return { state: 'in-review', detail: 'PENDING_REVIEW' };
+                },
+            });
+
+        await it('edge: the notes file reaches the publish input, en preferred', async () => {
+            const f = setup('edge', { de: ' de notes ', en: ' en notes\n' });
+            const seen: unknown[] = [];
+            const r = await run(f, {
+                store: 'edge',
+                submit: true,
+                env: EDGE_ENV,
+                createBackend: () => publishSpy(seen),
+            });
+            expect(r.code).toBe(SUBMIT_EXIT_CODES.submitted);
+            expect((seen[0] as { notes?: string }).notes).toBe('en notes');
+            expect(r.err.includes('warning')).toBe(false);
+            f.cleanup();
+        });
+
+        await it('amo: falls back to the first language with the file', async () => {
+            const f = setup('amo', { de: 'de notes', fr: 'fr notes' });
+            const seen: unknown[] = [];
+            const r = await run(f, { store: 'amo', submit: true, env: AMO_ENV, createBackend: () => publishSpy(seen) });
+            expect(r.code).toBe(SUBMIT_EXIT_CODES.submitted);
+            expect((seen[0] as { notes?: string }).notes).toBe('de notes');
+            f.cleanup();
+        });
+
+        await it('edge without a notes file: no notes and a warning', async () => {
+            const f = setup('edge', {});
+            const seen: unknown[] = [];
+            const r = await run(f, {
+                store: 'edge',
+                submit: true,
+                env: EDGE_ENV,
+                createBackend: () => publishSpy(seen),
+            });
+            expect(r.code).toBe(SUBMIT_EXIT_CODES.submitted);
+            expect((seen[0] as { notes?: string }).notes).toBe(undefined);
+            expect(r.err.includes('Edge reviewers expect')).toBe(true);
+            f.cleanup();
+        });
+
+        await it('amo without a notes file: no notes, no warning', async () => {
+            const f = setup('amo', {});
+            const seen: unknown[] = [];
+            const r = await run(f, { store: 'amo', submit: true, env: AMO_ENV, createBackend: () => publishSpy(seen) });
+            expect((seen[0] as { notes?: string }).notes).toBe(undefined);
+            expect(r.err).toBe('');
+            f.cleanup();
+        });
+
+        await it('dry run names the notes file and its length', async () => {
+            const f = setup('edge', { en: 'twelve chars' });
+            const r = await run(f, {
+                store: 'edge',
+                submit: true,
+                dryRun: true,
+                env: EDGE_ENV,
+                createBackend: () => backendWith({ verifyCredentials: async () => undefined }),
+            });
+            expect(r.code).toBe(0);
+            expect(r.out.includes('reviewer-notes.txt: 12 chars')).toBe(true);
+            f.cleanup();
+        });
+
+        await it('findReviewerNotes is undefined for a missing dir', async () => {
+            expect(findReviewerNotes('/nonexistent-gjsify', 'edge')).toBe(undefined);
         });
     });
 };

@@ -12,7 +12,7 @@
 // listing text through its API, so nothing from it is sent. It only stops a
 // release whose listing the dashboard would refuse a day later.
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { runListingUpload } from './listing-upload.js';
@@ -28,6 +28,7 @@ import {
     type StoreBackendOptions,
     type StoreId,
 } from './stores/index.js';
+import { readText } from './stores/amo-listing.js';
 import { driveSubmission, SUBMIT_EXIT_CODES, type SubmitResult } from './stores/poll.js';
 import type { WebextTarget } from './targets.js';
 
@@ -120,6 +121,29 @@ export function preflightStoreJson(text: string, listingStore: string, path: str
         }
     }
     return { problems, manual };
+}
+
+export interface ReviewerNotes {
+    readonly text: string;
+    readonly path: string;
+}
+
+/**
+ * The reviewer notes `webext listing` wrote for this store: `en` if it has the file, else the first
+ * language directory (sorted) that does. Undefined when there is none or it is empty.
+ */
+export function findReviewerNotes(listingRoot: string, listingStore: string): ReviewerNotes | undefined {
+    const storeDir = join(listingRoot, listingStore);
+    if (!existsSync(storeDir)) return undefined;
+    const languages = readdirSync(storeDir)
+        .filter((entry) => statSync(join(storeDir, entry)).isDirectory())
+        .sort();
+    for (const language of ['en', ...languages.filter((l) => l !== 'en')]) {
+        if (!languages.includes(language)) continue;
+        const text = readText(join(storeDir, language), 'reviewer-notes.txt');
+        if (text !== undefined && text !== '') return { text, path: join(storeDir, language, 'reviewer-notes.txt') };
+    }
+    return undefined;
 }
 
 function secretsOf(store: StoreId, env: EnvLike): string[] {
@@ -234,6 +258,17 @@ export async function runSubmit(input: SubmitCommandInput): Promise<number> {
             );
         }
 
+        const notes =
+            store === 'edge' || store === 'amo'
+                ? findReviewerNotes(resolve(project.root, input.listingDir ?? 'dist/listing'), listingStore)
+                : undefined;
+        if (notes === undefined && store === 'edge' && input.submit) {
+            err(
+                'warning: no reviewer-notes.txt under the listing dir; Edge reviewers expect certification notes. ' +
+                    'Run `gjsify webext listing --store edge` first. Continuing without notes.',
+            );
+        }
+
         const log = env['GJSIFY_WEBEXT_DEBUG'] ? (msg: string): void => err(msg) : undefined;
         const options: StoreBackendOptions = { fetchImpl: input.fetchImpl, sleep: input.sleep, now: input.now, log };
         const backend = (input.createBackend ?? createStoreBackend)(store, env, options);
@@ -243,12 +278,18 @@ export async function runSubmit(input: SubmitCommandInput): Promise<number> {
                 out(
                     `${descriptor.label}: dry run — credentials are set; this backend has no read-only check, so they are unverified. Nothing was uploaded.`,
                 );
+                if (input.submit && notes !== undefined) {
+                    out(`  would send reviewer notes from ${notes.path}: ${notes.text.length} chars`);
+                }
                 return 0;
             }
             await backend.verifyCredentials();
             out(
                 `${descriptor.label}: dry run — credentials accepted (one read). ${existsSync(zipPath) ? 'The zip exists' : `No zip at ${zipPath} yet`}. Nothing was uploaded.`,
             );
+            if (input.submit && notes !== undefined) {
+                out(`  would send reviewer notes from ${notes.path}: ${notes.text.length} chars`);
+            }
             return 0;
         }
 
@@ -256,7 +297,7 @@ export async function runSubmit(input: SubmitCommandInput): Promise<number> {
             {
                 backend,
                 upload: { zipPath, version: project.version },
-                publish: input.submit ? { version: project.version, sourceZip } : undefined,
+                publish: input.submit ? { version: project.version, sourceZip, notes: notes?.text } : undefined,
             },
             { timeoutMs, sleep: input.sleep, now: input.now, log, secrets },
         );

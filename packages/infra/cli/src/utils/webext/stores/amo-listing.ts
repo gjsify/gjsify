@@ -79,7 +79,7 @@ export interface AmoListingFiles {
     readonly locales: Readonly<Record<string, string>>;
 }
 
-const readText = (dir: string, name: string): string | undefined => {
+export const readText = (dir: string, name: string): string | undefined => {
     const path = join(dir, name);
     return existsSync(path) ? readFileSync(path, 'utf8').trim() : undefined;
 };
