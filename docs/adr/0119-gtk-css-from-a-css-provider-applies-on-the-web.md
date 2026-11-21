@@ -312,3 +312,36 @@ Not in this PR. Tracked in `status/open-todos/adwaita-core.md`. One PR per step:
 
 First consumer: Learn6502's preferences dialog, whose `styles.ts` then switches to
 `Gtk.CssProvider` in its own repository once a release carries steps 1–4.
+
+## Amendment (2026-11-21) — translator mechanics from a comparison with chameo
+
+A read-only comparison with [chameo/gtk-js](https://github.com/chameo-js/chameo) (MIT), a browser-only
+React look-alike whose pipeline compiles real GTK theme CSS to web CSS, confirmed the design above
+and exposed four mechanics this ADR left open or unstated. The goal behind them: a macOS or Windows
+design language (ADR 0090) is ONE gtk.css that runs natively as a user stylesheet and on the web
+through this translator. Nothing here changes a decision above; (a) to (c) tighten § 3, § 5 and § 6.
+
+- **(a) § 5, a theme that redefines a named colour overrides the token too.** `@name` reading
+  `var(--window-bg-color)` covers a theme that USES the libadwaita colours. A theme that REDEFINES
+  one (`@define-color window_bg_color …`) must also set the matching libadwaita custom property
+  (`--window-bg-color`) in its layer. Otherwise every skin rule that reads the token keeps the base
+  value and only rules that read `--gtk-color-*` change. The translator derives the pairs from the
+  one name table the alias already uses.
+- **(b) § 3, node-name selectors keep type-selector specificity when they become classes.** A node
+  that maps to a class, not to a custom element, would gain class weight and lose cascade ties GTK
+  resolves in its favour. Emit it as `:where(.x):not(_)`: `:where()` carries no weight and `:not(_)`
+  (`_` is a type selector no element has, so it is always true) adds exactly one type selector's
+  weight. Ties then resolve as in GTK. The vectors (§ 9) pin it.
+- **(c) § 6, content-box against the skin's border-box is a vector decision.** ADR 0010 pins
+  `border-box` on the skin's descendants, GTK's `min-width` and `min-height` mean content-box. A
+  global switch breaks the skin. The cheaper candidate is emitting `box-sizing: content-box` only on
+  nodes a provider rule matches. This stays decided by `GTK_CSS_VECTORS` against GTK, as § 6 says.
+- **(d) Deferred until foreign GTK CSS must run on the web.** Themes written for libadwaita use
+  constructs no consumer in the inventory uses: `background-image: image(c)` hover layers, which
+  need gradient layering over registered custom properties (`@property`); mirroring the widget's
+  `color` into a custom property so transitions of state-dependent colours do not flash; icon
+  palette classes (`warning`, `error`) as `var(--warning-color)` in inline SVG; and
+  `-gtk-scaled(url())` assets. Each needs its own refusal row until then (§ 7). When one is built,
+  chameo's `transform.test.ts` is the starting corpus of GTK-to-web cases, MIT licensed, attribution
+  kept. No code is copied from it. ADR 0090's rule against taking values from third-party GTK themes
+  stands: such a theme is a test input for the translator, never a shipped style.

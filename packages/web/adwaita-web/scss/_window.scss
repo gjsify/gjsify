@@ -22,7 +22,7 @@ adw-application-window {
     0 0 14px 5px rgb(0 0 0 / 15%),
     0 0 5px 2px rgb(0 0 0 / 10%),
     0 0 0 1px rgb(0 0 0 / 5%);
-  overflow: hidden;
+  overflow: clip;
   // The window is the containing block of its own modal surfaces: a dialog scrim is
   // `position: fixed`, and without this it dims the whole viewport instead of the window
   // it belongs to (an in-page window is not the screen). `paint` also clips it to the
@@ -113,7 +113,7 @@ gtk-application-window {
     0 0 14px 5px rgb(0 0 0 / 15%),
     0 0 5px 2px rgb(0 0 0 / 10%),
     0 0 0 1px rgb(0 0 0 / 5%);
-  overflow: hidden;
+  overflow: clip;
 
   // `_window.scss:66-72` — a maximized or fullscreen window fills the screen, so it has no
   // corners to round and no frame to cast a shadow from.
