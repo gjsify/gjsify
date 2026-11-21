@@ -2902,7 +2902,10 @@ jobs:
     needs: [setup, ship-stage]
     if: ${{ !cancelled() && needs.ship-stage.result == 'success' }}
     name: Ship pack .snap (ubuntu-26.04, real snapcraft)
-    runs-on: ubuntu-26.04
+    # `ubuntu-latest` because the pinned actionlint does not know the
+    # `ubuntu-26.04` label yet; the first step refuses any other release, since
+    # destructive mode needs the host to BE the base (core26 = 26.04).
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     timeout-minutes: 40
@@ -2915,8 +2918,12 @@ jobs:
           set -euo pipefail
           . /etc/os-release
           echo "os: ${PRETTY_NAME:-unknown}"
+          if [ "${VERSION_ID:-}" != "26.04" ]; then
+            echo "::error title=Ship snap::destructive mode packs core26 only on Ubuntu 26.04, this runner is ${VERSION_ID:-unknown}."
+            exit 1
+          fi
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends gjs squashfs-tools
+          sudo apt-get install -y --no-install-recommends gjs squashfs-tools xvfb xauth
           # The Snap Store is a network dependency of a gating job: retry it
           # rather than red every PR on one slow download.
           for attempt in 1 2 3; do
@@ -3004,10 +3011,11 @@ jobs:
           run "snap install --dangerous" sudo snap install --dangerous "$snap"
           run "snap list" snap list
           run "snap connections" snap connections "$name"
-          # No display on a runner: the fixture prints its interpreter and GTK
-          # before it asks for one, so the first line answers whether the
-          # launcher reached `gjs` even though the window cannot open.
-          run "first launch (30 s, no display)" bash -c "timeout 30 /snap/bin/$name 2>&1 | tee launch.log | head -40; exit \${PIPESTATUS[0]}"
+          # Under Xvfb through the auto-connected `x11` plug: the fixture opens
+          # its window and quits after 500 ms, so exit 0 means a window was
+          # presented. Its first line (interpreter, GTK) goes out before the
+          # display is asked for, so a failure still says how far it got.
+          run "first launch (Xvfb, 30 s)" bash -c "xvfb-run -a timeout 30 /snap/bin/$name 2>&1 | tee launch.log | head -40; exit \${PIPESTATUS[0]}"
           {
             echo "### ADR 0149 measurement: \`$name\` on $(. /etc/os-release; echo "$PRETTY_NAME")"
             echo

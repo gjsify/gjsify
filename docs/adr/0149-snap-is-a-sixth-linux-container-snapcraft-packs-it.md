@@ -86,6 +86,8 @@ inherited by the child, never read. The release-record lookup is not built.
   `usr/lib/<triplet>/gjs/girepository-1.0`, and the extension's `desktop-launch` prepends only
   `usr/lib/gjs/girepository-1.0`. The packer now sets that directory as the app's
   `GI_TYPELIB_PATH` (snap.ts, `GJS_PRIVATE_TYPELIB_DIR`); the CI readback asserts the expanded path.
-  A display-less runner cannot show the window; the fixture prints its interpreter and GTK first.
+  With it (run 44892880591) the snap starts `gjs` 1.90.0 (`system.version` 19000) with GTK 4.24.0
+  and GLib 2.90 from the platform, and stops only at "Failed to open display". The launch now runs
+  under Xvfb through the `x11` plug, so the measurement covers a presented window.
 - The vocabulary check, the conformance rules (`TARGETS`) and `docs/ship-formats.md` learn the new
   id in the same change.
