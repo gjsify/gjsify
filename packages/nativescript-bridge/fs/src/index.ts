@@ -517,10 +517,10 @@ export function exists(path: string): Promise<boolean> {
 // `openSync` + `readSync` (at a position, into a Buffer) + `closeSync` is what a header probe
 // needs. The table is created on first use so importing this module off NativeScript stays inert.
 
-import { createFdTable, type ReadSyncOptions } from './fd-table.js';
+import { createFdTable, type FdStats, type ReadSyncOptions } from './fd-table.js';
 import { platformFdBackend } from './fd-backend.js';
 
-export type { FdBackend, FdHandle, ReadSyncOptions } from './fd-table.js';
+export type { FdBackend, FdHandle, FdStats, ReadSyncOptions } from './fd-table.js';
 
 let fdTable: ReturnType<typeof createFdTable> | undefined;
 const fds = () => (fdTable ??= createFdTable(platformFdBackend()));
@@ -539,6 +539,11 @@ export function readSync(
     position?: number | bigint | null,
 ): number {
     return fds().readSync(fd, buffer, offsetOrOptions, length, position);
+}
+
+/** Size and mtime of the file behind a descriptor from {@link openSync}; `EBADF` once closed. */
+export function fstatSync(fd: number): FdStats {
+    return fds().fstatSync(fd);
 }
 
 /** Close a descriptor from {@link openSync}. */

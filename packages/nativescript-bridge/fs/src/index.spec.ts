@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 
-import { readFile, writeFile, readdir, stat, mkdir, unlink, exists, openSync, readSync, closeSync } from './index.js';
+import { readFile, writeFile, readdir, stat, mkdir, unlink, exists, openSync, readSync, fstatSync, closeSync } from './index.js';
 
 export default async () => {
     await describe('@gjsify/native-fs-bridge outside NativeScript', async () => {
@@ -36,9 +36,10 @@ export default async () => {
             expect(() => openSync('/tmp/test.txt')).toThrow('Platform not supported');
         });
 
-        await it('readSync and closeSync throw Platform not supported', async () => {
+        await it('readSync, fstatSync and closeSync throw Platform not supported', async () => {
             expect(() => readSync(3, new Uint8Array(1))).toThrow('Platform not supported');
             expect(() => closeSync(3)).toThrow('Platform not supported');
+            expect(() => fstatSync(3)).toThrow('Platform not supported');
         });
 
         await it('exists throws Platform not supported', async () => {

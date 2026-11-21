@@ -15,6 +15,7 @@ function fake(): { backend: FdBackend; closed: () => number } {
                 path === '/data'
                     ? {
                           readAt: (position, length) => DATA.slice(position, position + length),
+                          stat: () => ({ size: DATA.length, mtimeMs: 1700000000000 }),
                           close: () => void closed++,
                       }
                     : null,
@@ -86,6 +87,23 @@ export default async () => {
             expect(f.closed()).toBe(1);
             expect(codeOf(() => t.readSync(fd, new Uint8Array(1)))).toBe('EBADF');
             expect(codeOf(() => t.closeSync(fd))).toBe('EBADF');
+        });
+
+        await it('fstatSync answers size, mtime and a regular file', () => {
+            const t = createFdTable(fake().backend);
+            const st = t.fstatSync(t.openSync('/data'));
+            expect(st.size).toBe(100);
+            expect(st.mtime.getTime()).toBe(1700000000000);
+            expect(st.isFile()).toBe(true);
+            expect(st.isDirectory()).toBe(false);
+        });
+
+        await it('fstatSync throws EBADF for an unknown or closed descriptor', () => {
+            const t = createFdTable(fake().backend);
+            expect(codeOf(() => t.fstatSync(99))).toBe('EBADF');
+            const fd = t.openSync('/data');
+            t.closeSync(fd);
+            expect(codeOf(() => t.fstatSync(fd))).toBe('EBADF');
         });
 
         await it('rejects a range outside the buffer', () => {

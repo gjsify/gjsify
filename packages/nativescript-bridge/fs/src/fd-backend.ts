@@ -8,13 +8,14 @@ import type { FdBackend, FdHandle } from './fd-table.js';
 
 interface JavaRandomAccessFile {
     seek(position: number): void;
+    length(): number;
     read(buffer: unknown, offset: number, length: number): number;
     close(): void;
 }
 
 interface JavaGlobal {
     io: {
-        File: { new (path: string): { exists(): boolean; isFile(): boolean } };
+        File: { new (path: string): { exists(): boolean; isFile(): boolean; lastModified(): number } };
         RandomAccessFile: { new (path: string, mode: string): JavaRandomAccessFile };
     };
     lang: {
@@ -30,7 +31,14 @@ interface NSFileHandleInstance {
 }
 
 declare const java: JavaGlobal | undefined;
-declare const NSFileManager: { defaultManager: { fileExistsAtPath_(path: string): boolean } } | undefined;
+declare const NSFileManager:
+    | {
+          defaultManager: {
+              fileExistsAtPath_(path: string): boolean;
+              attributesOfItemAtPathError_(path: string, error: unknown): Record<string, unknown> | null;
+          };
+      }
+    | undefined;
 declare const NSFileHandle: { fileHandleForReadingAtPath(path: string): NSFileHandleInstance | null } | undefined;
 
 const androidBackend: FdBackend = {
@@ -50,6 +58,7 @@ const androidBackend: FdBackend = {
                 for (let i = 0; i < n; i++) out[i] = native[i] & 0xff;
                 return out;
             },
+            stat: () => ({ size: raf.length(), mtimeMs: file.lastModified() }),
             close: () => raf.close(),
         };
         return handle;
@@ -67,6 +76,13 @@ const iosBackend: FdBackend = {
                 fh.seekToFileOffset(position);
                 const data = fh.readDataOfLength(length);
                 return new Uint8Array(data.bytes, 0, data.length).slice();
+            },
+            stat() {
+                const attrs = fm.attributesOfItemAtPathError_(path, null);
+                return {
+                    size: (attrs?.['NSFileSize'] as number | undefined) ?? 0,
+                    mtimeMs: (attrs?.['NSFileModificationDate'] as number | undefined) ?? 0,
+                };
             },
             close: () => fh.closeFile(),
         };
