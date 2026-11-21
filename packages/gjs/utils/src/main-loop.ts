@@ -377,3 +377,108 @@ export function quitMainLoop(): void {
         _owed = false;
     }
 }
+
+/** Monotonic clock in milliseconds: `GLib.get_monotonic_time()` under GJS (~0.1 µs), `performance.now()` elsewhere. */
+export function monotonicMs(): number {
+    const GLibModule = glib();
+    return GLibModule ? GLibModule.get_monotonic_time() / 1000 : (globalThis as unknown as { performance: { now(): number } }).performance.now();
+}
+
+export interface LagMonitorOptions {
+    /** Tick interval. Default 10 ms: fine enough to time a 16 ms frame budget, 100 wakeups/s while armed. */
+    intervalMs?: number;
+    /** A tick later than this is a stall, reported to `onStall`. Default 50 ms. */
+    thresholdMs?: number;
+    /** Called for every tick with its lateness in ms. */
+    onSample?: (latenessMs: number) => void;
+    /** Called for a tick whose lateness exceeds `thresholdMs`. */
+    onStall?: (latenessMs: number) => void;
+    /** Samples kept for {@link LagMonitor.samples}; the oldest are overwritten. Default 100 000. */
+    maxSamples?: number;
+}
+
+export interface LagMonitor {
+    /** Lateness of every kept tick in ms, oldest first. */
+    samples(): number[];
+    /** Ticks seen since start, including ones no longer kept. */
+    readonly ticks: number;
+    /** Ticks later than `thresholdMs`. */
+    readonly stalls: number;
+    /** Largest lateness seen, ms. */
+    readonly maxMs: number;
+    /** Remove the timer. Idempotent. */
+    stop(): void;
+}
+
+/**
+ * Measure how late the main loop runs a short timer: `lateness = elapsed − interval`.
+ *
+ * A source that fires again only after the code that blocked it has returned,
+ * so this reports THAT the loop stopped and for how long — never which
+ * function. Attribute with spans, or the profiler (`gjs --profile`).
+ *
+ * Under GJS the source is `GLib.PRIORITY_HIGH`, above GTK's own frame work, so
+ * a busy redraw does not starve it, and it does not keep the process alive.
+ * Elsewhere an unref'd `setInterval` stands in, so the same code and test run
+ * on Node. Armed it wakes the process `1000 / intervalMs` times a second:
+ * a debugging and test mode, not a production default.
+ */
+export function startLagMonitor(options: LagMonitorOptions = {}): LagMonitor {
+    const intervalMs = options.intervalMs ?? 10;
+    const thresholdMs = options.thresholdMs ?? 50;
+    const cap = options.maxSamples ?? 100_000;
+    const ring: number[] = [];
+    let ticks = 0;
+    let stalls = 0;
+    let maxMs = 0;
+    let last = monotonicMs();
+
+    const tick = (): void => {
+        const now = monotonicMs();
+        const lateness = Math.max(0, now - last - intervalMs);
+        last = now;
+        ring[ticks % cap] = lateness;
+        ticks += 1;
+        if (lateness > maxMs) maxMs = lateness;
+        options.onSample?.(lateness);
+        if (lateness > thresholdMs) {
+            stalls += 1;
+            options.onStall?.(lateness);
+        }
+    };
+
+    let stop: () => void;
+    const GLibModule = glib();
+    if (GLibModule) {
+        const id = GLibModule.timeout_add(GLibModule.PRIORITY_HIGH, intervalMs, () => {
+            tick();
+            return GLibModule.SOURCE_CONTINUE;
+        });
+        stop = () => {
+            if (id !== 0 && GLibModule.MainContext.default().find_source_by_id(id)) GLibModule.source_remove(id);
+        };
+    } else {
+        const timer = setInterval(tick, intervalMs);
+        (timer as { unref?: () => void }).unref?.();
+        stop = () => clearInterval(timer);
+    }
+
+    let stopped = false;
+    return {
+        samples: () => (ticks <= cap ? ring.slice() : [...ring.slice(ticks % cap), ...ring.slice(0, ticks % cap)]),
+        get ticks() {
+            return ticks;
+        },
+        get stalls() {
+            return stalls;
+        },
+        get maxMs() {
+            return maxMs;
+        },
+        stop: () => {
+            if (stopped) return;
+            stopped = true;
+            stop();
+        },
+    };
+}

@@ -19,7 +19,7 @@ from decides which one you get. Pick the narrowest one that covers your imports.
 |---|---|---|
 | `@gjsify/utils/core` | GJS · Node · browser · NativeScript | everything that is well-defined without GLib/Gio |
 | `@gjsify/utils` | **GJS only** | `…/core` plus the six modules that call into GLib/Gio |
-| `@gjsify/utils/main-loop` | GJS · Node · browser · NativeScript | just `ensureMainLoop` / `holdMainLoop` / `quitMainLoop` / `acquireMainLoop` / `releaseMainLoop` |
+| `@gjsify/utils/main-loop` | GJS · Node · browser · NativeScript | `startLagMonitor` / `monotonicMs` (ADR 0149), plus `ensureMainLoop` / `holdMainLoop` / `quitMainLoop` / `acquireMainLoop` / `releaseMainLoop` |
 
 ```typescript
 // Cross-runtime — safe from a package whose browser / nativescript slot is
