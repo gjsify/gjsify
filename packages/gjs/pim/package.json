@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/pim",
-    "version": "0.64.52",
+    "version": "0.64.53",
     "description": "Calendars and tasks behind one port: the CalendarBackend interface moves iCalendar text, drivers move it to CalDAV (plain fetch, every runtime) or Evolution Data Server (typelibs loaded on first use).",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
