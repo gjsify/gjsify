@@ -228,6 +228,9 @@ export function toPackSettings(settings: ShipSettings): PackSettings {
             ? {}
             : { nodeModulesDirs: settings.nodeModulesDirs }),
         flatpak: settings.flatpak,
+        ...(settings.snapPlugs === undefined || settings.snapPlugs.length === 0
+            ? {}
+            : { snapPlugs: settings.snapPlugs }),
         executables: settings.executables.map(({ name, gui }) => ({ name, gui })),
         nestedBundles: settings.nestedBundles.map(({ name, entitlements }) => ({ name, entitlements })),
         helperExecutables: settings.helperExecutables.map(({ name, entitlements }) => ({ name, entitlements })),
@@ -643,6 +646,14 @@ function readPackSettings(data: Record<string, unknown>, at: string): PackSettin
         minGjsVersion: expectString(data.minGjsVersion, field('minGjsVersion')),
         minNodeVersion: expectString(data.minNodeVersion, field('minNodeVersion')),
         flatpak: readFlatpakSettings(record(data.flatpak, field('flatpak')), field('flatpak')),
+        // OPTIONAL on read: a stage written before `gjsify.ship.snap.plugs` declares none.
+        ...(data.snapPlugs === undefined
+            ? {}
+            : {
+                  snapPlugs: expectArray(data.snapPlugs, field('snapPlugs')).map((entry, index) =>
+                      expectString(entry, field(`snapPlugs[${index}]`)),
+                  ),
+              }),
         // OPTIONAL on read: a stage written before the tarball learned the declared closure has none.
         ...(data.nodeModulesDirs === undefined
             ? {}

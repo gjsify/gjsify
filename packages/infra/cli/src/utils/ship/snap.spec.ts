@@ -125,6 +125,27 @@ export default async () => {
             );
         });
 
+        await it('names only the declared plugs on the app and leaves the rest to the extension', async () => {
+            const bare = renderSnapcraftManifest({ settings: packSettings() }) as Record<string, any>;
+            expect('plugs' in bare.apps['hello-app']).toBe(false);
+            const served = renderSnapcraftManifest({
+                settings: packSettings({ snapPlugs: ['network', 'network-bind'] }),
+            }) as Record<string, any>;
+            expect(served.apps['hello-app'].plugs).toStrictEqual(['network', 'network-bind']);
+            expect(served.apps['hello-app'].extensions).toStrictEqual(['gnome']);
+        });
+
+        await it('refuses a plug that is not an interface name', async () => {
+            expect(() =>
+                assertSnapIsPackable(payload(), packSettings({ snapPlugs: ['network-bind', 'removable-media'] })),
+            ).not.toThrow();
+            for (const bad of ['Network', 'network_bind', '--home', 'home:rw', '']) {
+                expect(() => assertSnapIsPackable(payload(), packSettings({ snapPlugs: [bad] }))).toThrow(
+                    'gjsify.ship.snap.plugs',
+                );
+            }
+        });
+
         await it('refuses a payload whose desktop entry is missing', async () => {
             expect(() => assertSnapIsPackable([payload()[0] as { path: string }], packSettings())).toThrow(DESKTOP);
         });

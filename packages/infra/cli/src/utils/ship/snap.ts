@@ -70,6 +70,8 @@ export function isSnapName(name: string): boolean {
     return name.length <= SNAP_NAME_MAX && SNAP_NAME.test(name);
 }
 const SNAP_SUMMARY_MAX = 78;
+/** An interface name as snapd spells one (`network-bind`, `removable-media`). */
+const SNAP_INTERFACE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 
 export interface SnapManifestInput {
     settings: PackSettings;
@@ -94,6 +96,13 @@ export function assertSnapIsPackable(payload: readonly { path: string }[], setti
     }
     if (settings.summary.length > SNAP_SUMMARY_MAX) {
         problems.push(`the summary is ${settings.summary.length} characters, the store takes ${SNAP_SUMMARY_MAX}`);
+    }
+    for (const plug of settings.snapPlugs ?? []) {
+        if (!SNAP_INTERFACE.test(plug)) {
+            problems.push(
+                `gjsify.ship.snap.plugs: "${plug}" is not an interface name (lowercase letters, digits, hyphens)`,
+            );
+        }
     }
     const desktop = snapDesktopPath(settings);
     if (!payload.some((entry) => entry.path === desktop)) {
@@ -125,6 +134,8 @@ export function renderSnapcraftManifest(input: SnapManifestInput): Record<string
         'common-id': settings.appId,
         environment: { GI_TYPELIB_PATH: GJS_PRIVATE_TYPELIB_DIR },
     };
+    // snapcraft merges the extension's plugs into this list, so it names only the additions.
+    if (settings.snapPlugs !== undefined && settings.snapPlugs.length > 0) app.plugs = [...settings.snapPlugs];
     const manifest: Record<string, unknown> = {
         name: settings.binaryName,
         title: settings.name,

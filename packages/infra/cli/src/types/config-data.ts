@@ -772,6 +772,8 @@ export interface ConfigDataShip extends AppMetadata {
      * NOT move, is `utils/ship/flatpak-config.ts`.
      */
     flatpak?: ShipFlatpakOptions;
+    /** How `--target snap` confines the app (ADR 0149). */
+    snap?: ShipSnapOptions;
     /**
      * The signing identity this project uses by default, per OS.
      *
@@ -989,6 +991,19 @@ export interface ShipSignOptions {
  * those keys are read by `flatpak init` only, and dropping them at exit 0 hid an
  * `extra-data` module until the app ran without its downloaded binary.
  */
+/**
+ * `gjsify.ship.snap` — only what differs per app (ADR 0149). Strict confinement plus the
+ * plugs of the `gnome` extension is the default; a capability beyond that is named here,
+ * the way `finishArgs` names it for a Flatpak.
+ */
+export interface ShipSnapOptions {
+    /**
+     * Interfaces the app plugs IN ADDITION to the extension's, e.g. `['network',
+     * 'network-bind']` for an app that serves on loopback. Interface names only.
+     */
+    plugs?: string[];
+}
+
 export interface ShipFlatpakOptions {
     /**
      * Runtime family. Default `'gnome'` — a GJS bundle needs GLib/GObject/GIO at

@@ -399,6 +399,7 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
         minGjsVersion: ship.minGjsVersion ?? DEFAULT_GJS_FLOOR,
         minNodeVersion: ship.minNodeVersion ?? DEFAULT_NODE_FLOOR,
         flatpak: flatpakSettings.settings,
+        ...(ship.snap?.plugs === undefined || ship.snap.plugs.length === 0 ? {} : { snapPlugs: ship.snap.plugs }),
     };
 
     return { settings, metadata, warnings };
