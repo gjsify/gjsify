@@ -100,7 +100,6 @@ async function captureWarnings(body: () => Promise<void>): Promise<string[]> {
     return lines;
 }
 
-
 /**
  * The showcase face under another family name, so a family can be absent BEFORE it is registered
  * again: `add_font_file` has no inverse and the real name is on the map by the time the arms above

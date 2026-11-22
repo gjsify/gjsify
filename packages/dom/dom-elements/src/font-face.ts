@@ -178,7 +178,12 @@ function requestedFamilies(font: string): string[] {
     const list = size ? size[1] : font;
     return list
         .split(',')
-        .map((name) => name.trim().replace(/^["']|["']$/g, '').toLowerCase())
+        .map((name) =>
+            name
+                .trim()
+                .replace(/^["']|["']$/g, '')
+                .toLowerCase(),
+        )
         .filter((name) => name.length > 0);
 }
 
