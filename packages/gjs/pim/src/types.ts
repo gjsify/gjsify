@@ -15,6 +15,11 @@ export interface CalendarInfo {
     backend: string;
     /** Display name of the collection/account it belongs to, when the backend knows one. */
     account: string | null;
+    /**
+     * The system online account (GNOME Online Accounts) the calendar comes from, so an app can
+     * scope to one account. Absent when the backend has no such link.
+     */
+    accountId?: string;
     /** The collection refuses writes (a subscribed or shared-read-only list). Absent: unknown, assume writable. */
     readOnly?: boolean;
 }

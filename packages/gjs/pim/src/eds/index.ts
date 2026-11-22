@@ -7,3 +7,4 @@
 
 export { createEdsBackend } from './driver.gjs.js';
 export { edsError, unwrapList, unwrapResult } from './errors.js';
+export { goaAccountId, type GoaSourceLike } from './goa.js';

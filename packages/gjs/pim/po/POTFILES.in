@@ -5,6 +5,7 @@ src/caldav/errors.ts
 src/caldav/index.ts
 src/eds/driver.gjs.ts
 src/eds/errors.ts
+src/eds/goa.ts
 src/eds/index.ts
 src/eds/libs.gjs.ts
 src/errors.ts
