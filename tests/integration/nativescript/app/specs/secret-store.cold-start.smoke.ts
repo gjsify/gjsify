@@ -2,10 +2,12 @@
 // Cold-start half of the @gjsify/secret-store device proof (ADR 0152 §5 step 2). Needs a process
 // death between the write and the read, which one run cannot provide — so scripts/run-on-device.mjs
 // launches the app three times with `am start --es gjsify.phase <A|B|C>`, force-stopping it in
-// between. Without the extra (the normal run) this spec does nothing.
+// between (and, for phase R, `adb uninstall` + install). Without the extra (the normal run) this spec does nothing.
 //   A: write a fixed, non-secret marker.
 //   B: after force-stop: the marker is still there; clear() (key dropped, the default); empty.
 //   C: after another force-stop: the namespace still reads empty.
+//   R: after A, then a real uninstall + reinstall (ADR 0152 §5 step 4): the store opens, get()
+//      returns null, keys() is empty, and the store is usable again.
 import { openSecretStore } from '@gjsify/secret-store';
 import { Application } from '@nativescript/core';
 import { describe, it, expect } from '../reporter.js';
@@ -52,9 +54,17 @@ export default async function secretStoreColdStartSmoke(): Promise<void> {
                 expect(await store.get('after-clear')).toBe('x');
                 await store.clear();
             });
+        } else if (phase === 'R') {
+            await it('phase R opens empty after uninstall and reinstall', async () => {
+                expect(await store.get('marker')).toBe(null);
+                expect((await store.keys()).length).toBe(0);
+                await store.set('after-reinstall', 'x');
+                expect(await store.get('after-reinstall')).toBe('x');
+                await store.clear();
+            });
         } else {
             await it(`unknown phase ${phase}`, () => {
-                throw new Error('gjsify.phase must be A, B or C');
+                throw new Error('gjsify.phase must be A, B, C or R');
             });
         }
     });

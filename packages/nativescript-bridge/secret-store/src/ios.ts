@@ -13,6 +13,7 @@ export function createIosBackend(): RawBackend {
         encrypt: refuse,
         decrypt: refuse,
         deleteKey: refuse,
+        hasKey: refuse,
         readFile: refuse,
         writeFileAtomic: refuse,
         deleteFile: refuse,

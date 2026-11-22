@@ -27,6 +27,7 @@ function createFake() {
             log.push(`deleteKey ${keyName}`);
             keyIds.delete(keyName);
         },
+        hasKey: (keyName) => keyIds.has(keyName),
         readFile: (name) => files.get(name) ?? null,
         writeFileAtomic(name, data) {
             files.set(name, data);
@@ -113,11 +114,24 @@ export default async () => {
             expect(await a.get('k')).toBe('3');
         });
 
-        await it('never puts the secret or the key name into an error', async () => {
+        await it('treats a file whose key is gone as empty and drops it', async () => {
             const fake = createFake();
             const store = await createKeystoreFileDriver(fake.backend).open('a');
             await store.set('account-key', 'hunter2');
             fake.backend.deleteKey(fileNameFor('a'));
+            expect(await store.get('account-key')).toBe(null);
+            expect((await store.keys()).length).toBe(0);
+            expect(fake.files.has(fileNameFor('a'))).toBe(false);
+            await store.set('account-key', 'again');
+            expect(await store.get('account-key')).toBe('again');
+        });
+
+        await it('never puts the secret or the key name into an error', async () => {
+            const fake = createFake();
+            const store = await createKeystoreFileDriver(fake.backend).open('a');
+            await store.set('account-key', 'hunter2');
+            const stored = fake.files.get(fileNameFor('a'))!;
+            fake.files.set(fileNameFor('a'), stored.slice().fill(0, 0, 1)); // key still alive, blob corrupt
             let message = '';
             try {
                 await store.get('account-key');
