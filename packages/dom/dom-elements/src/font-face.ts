@@ -14,12 +14,37 @@
 //
 // Reference: https://developer.mozilla.org/en-US/docs/Web/API/FontFace
 
+import GLib from 'gi://GLib?version=2.0';
+
 import { fontMapHasFamily, registerFontFaces, type FontFaceRegistration } from '@gjsify/utils/font-map';
+
+type FontFaceStatus = 'unloaded' | 'loading' | 'loaded' | 'error';
+
+/**
+ * Put font bytes where Pango can read them. `add_font_file` takes a PATH and keeps it for the life of
+ * the process (fontconfig opens the file lazily), so the bytes cannot live in a temp file that is
+ * removed at exit of `load()`. The name is the content hash, so the same bytes registered twice —
+ * every start of the same app — reuse one file instead of growing the cache.
+ */
+function stageFontBytes(bytes: Uint8Array): string {
+    const dir = GLib.build_filenamev([GLib.get_user_cache_dir(), 'gjsify', 'fonts']);
+    GLib.mkdir_with_parents(dir, 0o755);
+    const otf = bytes.length > 4 && String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]) === 'OTTO';
+    const name = `${GLib.compute_checksum_for_bytes(GLib.ChecksumType.SHA256, new GLib.Bytes(bytes))}${otf ? '.otf' : '.ttf'}`;
+    const path = GLib.build_filenamev([dir, name]);
+    if (!GLib.file_test(path, GLib.FileTest.EXISTS)) {
+        // Written beside, then renamed, so a second process never reads a half-written face.
+        const partial = `${path}.${GLib.get_monotonic_time()}.part`;
+        GLib.file_set_contents(partial, bytes);
+        GLib.rename(partial, path);
+    }
+    return path;
+}
 
 export class FontFace {
     readonly family: string;
     readonly source: string;
-    status: 'unloaded' | 'loading' | 'loaded' | 'error' = 'unloaded';
+    status: FontFaceStatus = 'unloaded';
     loaded: Promise<FontFace>;
     display = 'auto';
     style = 'normal';
@@ -29,31 +54,63 @@ export class FontFace {
     variant = 'normal';
     featureSettings = 'normal';
 
+    private readonly _bytes: Uint8Array | null;
+    private _started: Promise<FontFace> | null = null;
+    private _settle!: { resolve: (face: FontFace) => void; reject: (error: unknown) => void };
+
     constructor(family: string, source: string | ArrayBuffer | ArrayBufferView, _descriptors?: Record<string, string>) {
         this.family = family;
         this.source = typeof source === 'string' ? source : '[binary]';
-        this.loaded = Promise.resolve(this);
+        this.loaded = new Promise<FontFace>((resolve, reject) => {
+            this._settle = { resolve, reject };
+        });
+        // `loaded` of a face nobody awaits must not surface as an unhandled rejection.
+        this.loaded.catch(() => {});
+        if (typeof source === 'string') {
+            this._bytes = null;
+        } else {
+            this._bytes = ArrayBuffer.isView(source)
+                ? new Uint8Array(source.buffer, source.byteOffset, source.byteLength)
+                : new Uint8Array(source);
+            // The Web contract: a face built from bytes starts loading at once, no load() needed.
+            void this.load();
+        }
     }
 
     // Parses: url(file:///path), url("file:///path"), url('file:///path')
     private _extractFilePath(): string | null {
         const m = this.source.match(/url\s*\(\s*["']?(file:\/\/\/[^"')]+)["']?\s*\)/i);
         if (!m) return null;
-        return m[1].replace(/^file:\/\//, '');
+        return decodeURIComponent(m[1].replace(/^file:\/\//, ''));
     }
 
-    async load(): Promise<FontFace> {
+    load(): Promise<FontFace> {
+        this._started ??= this._load();
+        return this._started;
+    }
+
+    private async _load(): Promise<FontFace> {
         this.status = 'loading';
-        const filePath = this._extractFilePath();
-        if (filePath) {
-            const registration = registerFontFaces([filePath]);
-            // Loud ONLY where a font map exists to have accepted it. A browser bundle has no Pango at
-            // all and answers `FontFace` with its own machinery, so reporting there would print a font
-            // warning per face in every web app; `available` is what separates the two, and it exists
-            // for exactly this decision.
-            if (registration.available) reportRegistration(this.family, registration);
+        // Registration is synchronous, but the Web contract is that a face is `loading` until a task
+        // later, so `document.fonts.ready` has something to wait for.
+        await Promise.resolve();
+        try {
+            const filePath = this._bytes ? stageFontBytes(this._bytes) : this._extractFilePath();
+            if (filePath) {
+                const registration = registerFontFaces([filePath]);
+                // Loud ONLY where a font map exists to have accepted it. A browser bundle has no Pango at
+                // all and answers `FontFace` with its own machinery, so reporting there would print a font
+                // warning per face in every web app; `available` is what separates the two, and it exists
+                // for exactly this decision.
+                if (registration.available) reportRegistration(this.family, registration);
+            }
+        } catch (error) {
+            this.status = 'error';
+            this._settle.reject(error);
+            throw error;
         }
         this.status = 'loaded';
+        this._settle.resolve(this);
         return this;
     }
 }
@@ -115,17 +172,44 @@ function reportRegistration(family: string, registration: FontFaceRegistration):
     );
 }
 
+/** The family names a CSS `font` shorthand (`12px "A B", sans-serif`) asks for, lower-cased. */
+function requestedFamilies(font: string): string[] {
+    const size = font.match(/\d(?:\.\d+)?(?:px|pt|em|rem|%)(?:\/\S+)?\s+(.+)$/i);
+    const list = size ? size[1] : font;
+    return list
+        .split(',')
+        .map((name) =>
+            name
+                .trim()
+                .replace(/^["']|["']$/g, '')
+                .toLowerCase(),
+        )
+        .filter((name) => name.length > 0);
+}
+
 /**
- * Tracks loaded FontFace objects and exposes them to consumers.
+ * The faces a page registered, and what `ctx.font` can therefore draw. `add()` does not load a face
+ * built from a URL (the Web contract: `load()` or the first use does); a face built from bytes is
+ * already loading, and `ready` waits for it.
  *
  * Does not extend EventTarget: the event methods are no-ops, so a consumer listening for
  * 'loadingdone' silently receives nothing.
  */
 export class FontFaceSet {
-    status: 'loading' | 'loaded' = 'loaded';
-    ready: Promise<FontFaceSet> = Promise.resolve(this);
-
     private _faces = new Set<FontFace>();
+
+    get status(): 'loading' | 'loaded' {
+        for (const face of this._faces) if (face.status === 'loading') return 'loading';
+        return 'loaded';
+    }
+
+    /** Resolves once every face that is loading NOW has settled; a failed face does not reject it. */
+    get ready(): Promise<FontFaceSet> {
+        const pending = Array.from(this._faces)
+            .filter((face) => face.status === 'loading')
+            .map((face) => face.loaded.catch(() => face));
+        return Promise.all(pending).then(() => this);
+    }
 
     addEventListener(_type: string, _listener: unknown): void {}
     removeEventListener(_type: string, _listener: unknown): void {}
@@ -146,11 +230,20 @@ export class FontFaceSet {
     has(face: FontFace): boolean {
         return this._faces.has(face);
     }
-    check(_font: string, _text?: string): boolean {
-        return false;
+
+    private _matching(font: string): FontFace[] {
+        const wanted = requestedFamilies(font);
+        return Array.from(this._faces).filter((face) => wanted.includes(face.family.toLowerCase()));
     }
-    load(_font: string, _text?: string): Promise<FontFace[]> {
-        return Promise.resolve([]);
+
+    /** True when every face of this set that `font` names is loaded (a name not in the set is a system font). */
+    check(font: string, _text?: string): boolean {
+        return this._matching(font).every((face) => face.status === 'loaded');
+    }
+    /** Loads the faces of this set that `font` names and resolves with them. */
+    load(font: string, _text?: string): Promise<FontFace[]> {
+        const faces = this._matching(font);
+        return Promise.all(faces.map((face) => face.load())).then(() => faces);
     }
     forEach(callback: (value: FontFace, key: FontFace, parent: FontFaceSet) => void): void {
         this._faces.forEach((f) => callback(f, f, this));
