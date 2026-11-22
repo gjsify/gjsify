@@ -6,5 +6,6 @@ import dbusGioSuite from './dbus-gio.gjs.spec.js';
 import goaSuite from './goa.gjs.spec.js';
 import mappingSuite from './mapping.spec.js';
 import noAccountStoreSuite from './no-account-store.spec.js';
+import mobileSuite from './system-accounts.mobile.spec.js';
 
-run({ mappingSuite, noAccountStoreSuite, dbusSuite, dbusGioSuite, goaSuite });
+run({ mappingSuite, noAccountStoreSuite, mobileSuite, dbusSuite, dbusGioSuite, goaSuite });

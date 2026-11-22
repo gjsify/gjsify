@@ -48,7 +48,8 @@ for (const account of await accounts.listAccounts('mail')) {
 |---|---|
 | Linux, GNOME | **driver**: GNOME Online Accounts through `libgoa` (`gi://Goa?version=1.0&optional`) when the typelib is present, otherwise straight over D-Bus (`org.gnome.OnlineAccounts`, Gio only). Flatpak runtimes ship no libgoa (org.gnome.Platform 51: none), so a sandboxed app with `--talk-name=org.gnome.OnlineAccounts` takes the D-Bus path. With no daemon reachable both answer empty capabilities-style: no accounts, `no-account-store`, retried on the next call |
 | Linux without GOA, macOS, Windows | no driver; empty capabilities. Whether a platform offers a usable account store to third-party apps is **unexplored**, not ruled out |
-| Android, iOS, browser | not served (`gjsify.runtimes`: only `gjs` is `native`) |
+| Android, iOS (NativeScript) | no driver, **by decision** (ADR 0152): no system account store is exposed to apps, so `createSystemAccounts()` answers empty capabilities (`system-accounts.android.ts` / `.ios.ts`, no `gi://` in the bundle). App-owned secrets go to `@gjsify/secret-store` (Android driver `@gjsify/native-secret-store-bridge`; the iOS Keychain driver is not written yet) |
+| browser | not served |
 
 IMAP and SMTP passwords are looked up under the ids GOA keeps them under (`imap-password`, `smtp-password`); SMTP falls back to the stored IMAP password, because one login often serves both.
 

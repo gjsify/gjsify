@@ -242,8 +242,11 @@ device, because that is where the two decisions above are actually load-bearing:
 
 ## Implementation
 
-1. Amend `packages/gjs/system-accounts/package.json`: `gjsify.osNotes` gains `android` and `ios`
+1. **Done.** Amend `packages/gjs/system-accounts/package.json`: `gjsify.osNotes` gains `android` and `ios`
    entries recording the decided empty answer and the reason. Its README gains the same paragraph.
+   Platform files `system-accounts.android.ts` / `.ios.ts` route `createSystemAccounts()` to the empty
+   answer, so the `gi://Goa` import of the Linux file never reaches a mobile bundle; a NativeScript smoke
+   spec covers the empty answer (proof item 5, first half: still to run on a device).
 2. Create `packages/gjs/secret-store` with the interface above, the `memory` driver and its tests;
    tier 3; `runtimes` `gjs: native`, `nativescript: native`, `node`/`browser` `none` for now.
 3. Add the `libsecret` driver and run the desktop proof; then the `portal-secret` driver under a

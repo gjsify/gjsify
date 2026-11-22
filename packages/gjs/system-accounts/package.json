@@ -67,7 +67,7 @@
             "gjs": "native",
             "node": "none",
             "browser": "none",
-            "nativescript": "none"
+            "nativescript": "partial"
         },
         "headless": [
             "Gdk",
@@ -83,7 +83,9 @@
         },
         "osNotes": {
             "darwin": "No driver: the package answers with empty capabilities (ADR 0095). macOS has no system-account API for third-party apps that was found; this is not proven either way.",
-            "win32": "No driver: the package answers with empty capabilities (ADR 0095). No system-account API for third-party apps was found; this is not proven either way."
+            "win32": "No driver: the package answers with empty capabilities (ADR 0095). No system-account API for third-party apps was found; this is not proven either way.",
+            "android": "No system account store is exposed to apps: the package answers with empty capabilities (ADR 0152). App-owned secrets go to @gjsify/secret-store (Android driver: @gjsify/native-secret-store-bridge).",
+            "ios": "No system account store is exposed to apps: the package answers with empty capabilities (ADR 0152). App-owned secrets go to @gjsify/secret-store (the iOS Keychain driver is not written yet)."
         }
     }
 }
