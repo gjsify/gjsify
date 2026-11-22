@@ -42,7 +42,7 @@ import PangoCairo from 'gi://PangoCairo?version=1.0';
 
 import { fontMapHasFamily } from '@gjsify/utils/font-map';
 
-import { FontFace } from './font-face.js';
+import { FontFace, FontFaceSet } from './font-face.js';
 
 /**
  * A real face whose family is on no host, borrowed from the showcase exactly as `gtk-host`'s
@@ -98,6 +98,28 @@ async function captureWarnings(body: () => Promise<void>): Promise<string[]> {
         console.warn = original;
     }
     return lines;
+}
+
+
+/**
+ * The showcase face under another family name, so a family can be absent BEFORE it is registered
+ * again: `add_font_file` has no inverse and the real name is on the map by the time the arms above
+ * have run. The name is rewritten in place, same length, in both encodings a `name` table holds
+ * (UTF-16BE and Mac Roman); FreeType does not check table checksums, so the file stays a font.
+ */
+function renamedFace(path: string, from: string, to: string): Uint8Array {
+    const [, contents] = GLib.file_get_contents(path);
+    const bytes = new Uint8Array(contents);
+    const wide = (name: string) => Array.from(name, (ch) => [0, ch.charCodeAt(0)]).flat();
+    for (const [needle, repl] of [
+        [wide(from), wide(to)],
+        [Array.from(from, (ch) => ch.charCodeAt(0)), Array.from(to, (ch) => ch.charCodeAt(0))],
+    ]) {
+        for (let at = 0; at + needle.length <= bytes.length; at++) {
+            if (needle.every((byte, i) => bytes[at + i] === byte)) bytes.set(repl, at);
+        }
+    }
+    return bytes;
 }
 
 export default async () => {
@@ -203,5 +225,72 @@ export default async () => {
             // And no diagnostic either: there is no face, so there is nothing that failed.
             expect(lines).toStrictEqual([]);
         });
+    });
+
+    // ── BYTES AND THE SET ────────────────────────────────────────────────────
+    // What a game does with `FontFace` + `document.fonts` (the Web path, identical in a browser): hand
+    // the set a face built from bytes, wait for `ready`, and draw with the family. Each arm uses a
+    // family that is absent from the map until THAT arm registers it.
+    await describe('a face built from an ArrayBuffer', async () => {
+        const family = 'Bound9x13';
+        const bytes = renamedFace(source, FACE_FAMILY, family);
+        const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+
+        await it('starts absent and measures like an invented family', async () => {
+            expect(fontMapHasFamily(PangoCairo.FontMap.get_default(), family)).toBe(false);
+            expect(layoutSize(family)).toBe(layoutSize(INVENTED_FAMILY));
+        });
+
+        await it('is loading at once and registers through document.fonts.ready', async () => {
+            const set = new FontFaceSet();
+            const face = new FontFace(family, buffer);
+            set.add(face);
+            expect(face.status).toBe('loading');
+            expect(set.status).toBe('loading');
+            const lines = await captureWarnings(async () => {
+                expect(await set.ready).toBe(set);
+            });
+            expect(face.status).toBe('loaded');
+            expect(set.status).toBe('loaded');
+            expect(lines).toStrictEqual([]);
+            expect(fontMapHasFamily(PangoCairo.FontMap.get_default(), family)).toBe(true);
+            expect(layoutSize(family)).not.toBe(layoutSize(INVENTED_FAMILY));
+        });
+
+        await it('accepts a typed-array view that does not start at byte 0', async () => {
+            const other = 'Cound9x13';
+            const padded = new Uint8Array(bytes.length + 7);
+            padded.set(renamedFace(source, FACE_FAMILY, other), 7);
+            const face = new FontFace(other, padded.subarray(7));
+            await face.loaded;
+            expect(layoutSize(other)).not.toBe(layoutSize(INVENTED_FAMILY));
+        });
+    });
+
+    await describe('document.fonts with a face built from a file URL', async () => {
+        const family = 'Dound9x13';
+        const file = GLib.build_filenamev([GLib.get_tmp_dir(), `gjsify-font-face-${GLib.get_monotonic_time()}.ttf`]);
+        GLib.file_set_contents(file, renamedFace(source, FACE_FAMILY, family));
+
+        await it('does not load on add(), reports check() false, and load(font) registers it', async () => {
+            const set = new FontFaceSet();
+            const face = new FontFace(family, `url(file://${file})`);
+            set.add(face);
+            expect(face.status).toBe('unloaded');
+            expect(set.check(`12px "${family}"`)).toBe(false);
+            expect(layoutSize(family)).toBe(layoutSize(INVENTED_FAMILY));
+            const loaded = await set.load(`12px "${family}", sans-serif`);
+            expect(loaded.length).toBe(1);
+            expect(loaded[0]).toBe(face);
+            expect(await face.loaded).toBe(face);
+            expect(set.check(`12px "${family}"`)).toBe(true);
+            expect(layoutSize(family)).not.toBe(layoutSize(INVENTED_FAMILY));
+        });
+
+        await it('check() is true for a family the set does not hold (a system font)', async () => {
+            expect(new FontFaceSet().check('12px sans-serif')).toBe(true);
+        });
+
+        GLib.unlink(file);
     });
 };
