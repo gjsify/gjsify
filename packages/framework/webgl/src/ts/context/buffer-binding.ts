@@ -139,7 +139,8 @@ const bufferBindingMethods: ThisType<WebGLContextBase> & Record<string, Function
 
     bufferSubData(
         this: WebGLContextBase,
-        target: GLenum = 0, offset: GLintptr = 0,
+        target: GLenum = 0,
+        offset: GLintptr = 0,
         data: BufferSource,
         srcOffset = 0,
         length = 0,

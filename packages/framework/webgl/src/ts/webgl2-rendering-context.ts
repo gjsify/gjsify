@@ -339,13 +339,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
     }
 
     /** WebGL2 adds UNIFORM_BUFFER, TRANSFORM_FEEDBACK_BUFFER, COPY_READ/WRITE targets. */
-    override bufferSubData(
-        target: GLenum,
-        offset: GLintptr,
-        data: BufferSource,
-        srcOffset = 0,
-        length = 0,
-    ): void {
+    override bufferSubData(target: GLenum, offset: GLintptr, data: BufferSource, srcOffset = 0, length = 0): void {
         const isWebGL2Target =
             target === 0x8a11 /* UNIFORM_BUFFER */ ||
             target === 0x8c8e /* TRANSFORM_FEEDBACK_BUFFER */ ||
