@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.64.57](https://github.com/gjsify/gjsify/compare/v0.64.56...v0.64.57) (2026-11-22)
+
+### Features
+
+* **pim:** ship the message catalogue ([#2737](https://github.com/gjsify/gjsify/issues/2737)) ([b43f202](https://github.com/gjsify/gjsify/commit/b43f20244b059abd8f670a2e9eea5d64a5a0d8ac))
+* **secret-store:** add interface and memory driver ([#2738](https://github.com/gjsify/gjsify/issues/2738)) ([75905af](https://github.com/gjsify/gjsify/commit/75905af1599250ab9a443fe4b079c4cd7fbc0bad))
+
+### Bug Fixes
+
+* **webgl:** run fragment mediump at highp precision ([#2740](https://github.com/gjsify/gjsify/issues/2740)) ([40e18c3](https://github.com/gjsify/gjsify/commit/40e18c3894647cdfc0de14107bfc00541cc876d5))
+
+### Documentation
+
+* **adr:** app-owned secrets get their own seam ([#2736](https://github.com/gjsify/gjsify/issues/2736)) ([0999fed](https://github.com/gjsify/gjsify/commit/0999fedc6459408f86f3ba86556bfea4c6d230f4))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([bb279ed](https://github.com/gjsify/gjsify/commit/bb279ed870415552faa46ee9a01ae07f9d0d8eb3))
+
 ## [0.64.56](https://github.com/gjsify/gjsify/compare/v0.64.55...v0.64.56) (2026-11-21)
 
 ### Bug Fixes

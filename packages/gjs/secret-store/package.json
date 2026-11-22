@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/secret-store",
-    "version": "0.64.56",
+    "version": "0.64.57",
     "description": "Secrets an app owns (a typed password, its own refresh token), kept per namespace by a platform driver. No driver means it throws, naming the platform: never a silent plaintext fallback (ADR 0152).",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
