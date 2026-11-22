@@ -248,6 +248,12 @@ device, because that is where the two decisions above are actually load-bearing:
    tier 3; `runtimes` `gjs: native`, `nativescript: native`, `node`/`browser` `none` for now.
 3. Add the `libsecret` driver and run the desktop proof; then the `portal-secret` driver under a
    Flatpak build of an existing app.
+   *Desktop proof, `libsecret` half (2026-11-22):* the driver ships as the subpath
+   `@gjsify/secret-store/libsecret` (explicit install, no side effect of the main entry). Against a
+   real gnome-keyring on a throwaway session bus and a temporary `XDG_DATA_HOME`, the GJS suite
+   passed 18/18 (6 of them real-service); without a Secret Service the real-service suite skips with
+   its reason and the error test passes (13/13, 1 skipped). Inside a Flatpak the driver throws
+   naming `portal-secret`. The `portal-secret` half is still open.
 4. Add `packages/nativescript-bridge/secret-store` with `native.android.ts` / `native.ios.ts`, per
    ADR 0147's routing and whitelist discipline; the Android half first, because curlew needs it.
    Android half built 2026-11-22 (`@gjsify/native-secret-store-bridge`; iOS is a throwing stub).

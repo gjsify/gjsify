@@ -85,6 +85,7 @@
     "@girs/ecal-2.0@5.4.0",
     "@girs/edataserver-1.2@5.4.0",
     "@girs/icalglib-3.0@5.4.0",
+    "@girs/secret-1@5.4.0",
     "@girs/goa-1.0@5.4.0",
     "@girs/xdp-1.0@5.4.0",
     "@girs/xdpgtk4-1.0@5.4.0",
@@ -2819,6 +2820,18 @@
         "@girs/gobject-2.0": "^5.4.0",
         "@girs/harfbuzz-0.0": "^5.4.0",
         "@girs/freetype2-2.0": "^5.4.0"
+      }
+    },
+    "node_modules/@girs/secret-1": {
+      "version": "5.4.0",
+      "resolved": "https://registry.npmjs.org/@girs/secret-1/-/secret-1-5.4.0.tgz",
+      "integrity": "sha512-yZ87OpdZefcKKltRe1uuWPk2pyoi/yBlgtJjp5dfCf6JoLRUYuxoM0XoUijfnIG/I+O4TkbNm3/XlKq/bIgk5w==",
+      "dependencies": {
+        "@girs/gjs": "^5.4.0",
+        "@girs/gio-2.0": "^5.4.0",
+        "@girs/glib-2.0": "^5.4.0",
+        "@girs/gmodule-2.0": "^5.4.0",
+        "@girs/gobject-2.0": "^5.4.0"
       }
     },
     "node_modules/@girs/shumate-1.0": {
