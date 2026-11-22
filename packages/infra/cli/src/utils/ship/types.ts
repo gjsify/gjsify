@@ -467,6 +467,11 @@ export interface PackSettings {
     /** The Flatpak manifest's non-payload half, fully defaulted at stage time. */
     flatpak: ShipFlatpakSettings;
     /**
+     * `gjsify.ship.snap.plugs`: interfaces the snap plugs beyond the `gnome` extension's.
+     * Absent when none are declared, so a stage without them stays byte-identical.
+     */
+    snapPlugs?: string[];
+    /**
      * The package's FURTHER executables (`gjsify.ship.executables`); `[]` for a single-executable
      * package. Name and subsystem only: the entry each one runs is already inside its staged
      * launcher, and the packing host needs the names for the Windows arch exemption.

@@ -27,6 +27,7 @@ import {
 } from './settings.js';
 import type { ConfigDataShip, ShipAppOptions } from '../../types/config-data.js';
 import { normaliseVersion } from './version.js';
+import { toPackSettings } from './stage-manifest.js';
 import { renderMetainfoApp, validateAppMetadata } from '../app-metadata.js';
 
 function input(overrides: Partial<SettingsInput> = {}): SettingsInput {
@@ -71,6 +72,16 @@ export default async () => {
             );
             expect(settings.desktopExecArgs).toStrictEqual(['window']);
             expect(settings.execArgs).toStrictEqual([]);
+        });
+
+        await it('carries gjsify.ship.snap.plugs into the stage, and nothing when none are declared', async () => {
+            const bare = resolveShipSettings(input()).settings;
+            expect('snapPlugs' in bare).toBe(false);
+            expect('snapPlugs' in toPackSettings(bare)).toBe(false);
+            const served = resolveShipSettings(
+                input({ ship: { appId: 'org.example.Hello', snap: { plugs: ['network-bind'] } } }),
+            ).settings;
+            expect(toPackSettings(served).snapPlugs).toStrictEqual(['network-bind']);
         });
 
         await it('reads metadata from gjsify.flatpak when gjsify.ship omits it', async () => {

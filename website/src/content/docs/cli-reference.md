@@ -1663,6 +1663,7 @@ Packing the same build twice gives byte-identical files. [How It Works](/gjsify/
 | `execArgs` | `[]` | Arguments the launcher appends before the user's own. |
 | `desktopExecArgs` | `[]` | Arguments for the desktop entry's `Exec=` line only, after the command and before the `%u`/`%f` field code. Unlike `execArgs` they are not baked into the launcher, so a binary that is both CLI and GUI (`curlew window`) keeps a working CLI. Quoted per the Desktop Entry spec; a newline is refused. |
 | `flatpak` | derived | The Flatpak half: `runtime` (`gnome`/`freedesktop`), `runtimeVersion`, `branch` (`stable`), `sdkExtensions`, `appendPath`, `finishArgs`, `cleanup`. |
+| `snap` | none | The Snap half (ADR 0149): `plugs`, the interfaces the app plugs beyond the `gnome` extension's, e.g. `["network", "network-bind"]` for an app that serves on loopback. Interface names only; anything else is refused before snapcraft runs. |
 | `sign` | none | Default signing identity per OS: `{ "darwin": { "identity": "…" }, "win32": { "identity": "…" } }`. An IDENTITY only. `linux` is not a valid key and is refused, because a `.deb` or `.rpm` is signed by the repository that serves it. |
 
 Metadata keys (`name`, `summary`, `description`, `developer`, `license`, `categories`, `keywords`, `homepageUrl`, `screenshots`, and the rest) are shared with `gjsify.flatpak` and listed under [`flatpak init`](#gjsify-flatpak-init).

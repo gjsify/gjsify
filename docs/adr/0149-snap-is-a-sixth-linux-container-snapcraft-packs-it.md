@@ -91,5 +91,9 @@ inherited by the child, never read. The release-record lookup is not built.
   the `x11` plug (run 44898254712, Ubuntu 26.04.1) the window is presented and the app exits 0;
   the only noise is the runner's missing session bus (`dbus-launch` not found) and DRI3 falling
   back to software rendering, neither of which a desktop session has.
+- **Implemented 2026-11-22:** extra `plugs` (`gjsify.ship.snap.plugs`) land on the app, where
+  snapcraft merges them with the extension's; the stage manifest carries them as `snapPlugs`, only
+  when declared. The other per-app keys (`base`, `grade`, `confinement`, `name`) wait for an app
+  that needs them. First consumer: Beifahrer, whose bridge listens on loopback (`network-bind`).
 - The vocabulary check, the conformance rules (`TARGETS`) and `docs/ship-formats.md` learn the new
   id in the same change.

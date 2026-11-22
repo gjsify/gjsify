@@ -171,7 +171,9 @@ bundled: the `gnome-core26` platform snap carries `gjs`, GTK 4, libadwaita and t
 `org.gnome.Platform` does for a Flatpak. Writing the squashfs ourselves is rejected by ADR 0024
 § A6. `GJSIFY_SNAP_DESTRUCTIVE=1` builds on the host instead of in LXD. The app's
 `GI_TYPELIB_PATH` adds the platform's `usr/lib/<triplet>/gjs/girepository-1.0`, which the
-extension's launcher leaves out and without which no GJS override of Gio or Gtk loads. Measured
+extension's launcher leaves out and without which no GJS override of Gio or Gtk loads. A capability
+beyond the extension's plugs is named in `gjsify.ship.snap.plugs` (`network-bind` for a loopback
+server), the way `finishArgs` names it for a Flatpak. Measured
 in CI (`ship-pack-snap`, Ubuntu 26.04): the pack, the strict readback, the install and the
 auto-connection of every plug the extension declares, and a window presented under Xvfb. Not yet
 measured, and listed as such in the ADR: whether `gschemas.compiled` is needed in the payload,
