@@ -475,6 +475,11 @@
       "status": "full",
       "note": "Distribution-channel contract (ADR 0113, 0139): `channel` (build-time `__GJSIFY_CHANNEL__` define, `unknown` when unset), `supportPath()` / `supportPathFor()`, `pricing()` (build-time `__GJSIFY_PRICING__` define, `free` when unset or unknown), the `CHANNEL_CAPABILITIES` table and parser. Pure TS, all-`polyfill` on every runtime."
     },
+    "@gjsify/secret-store": {
+      "status": "partial",
+      "missing": "Interface and `memory` driver only, so nothing persists yet: libsecret, portal-secret, Android Keystore and Keychain drivers are ADR 0152 steps 3-4, and until then `openSecretStore` throws on every platform unless a test installs the memory driver.",
+      "note": "Secrets an app owns, per namespace: get, set, delete, keys, clear, plus secretStoreInfo() diagnostics. No driver means a throw naming the platform, never a plaintext fallback (ADR 0152)."
+    },
     "@gjsify/semver": {
       "status": "full",
       "note": "Pure-JS subset of node-semver: SemVer, Range, satisfies, maxSatisfying, minSatisfying, validRange; caret/tilde/hyphen/x/star ranges, OR sets, prerelease comparison, npm prerelease-range gating."
