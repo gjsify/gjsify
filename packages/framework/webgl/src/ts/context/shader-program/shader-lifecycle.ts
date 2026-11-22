@@ -20,6 +20,7 @@ export interface ShaderLifecycleMethods {
     deleteShader(shader: WebGLShader | null): void;
     compileShader(shader: WebGLShader): void;
     shaderSource(shader: WebGLShader, source: string): void;
+    _fragmentHighpSupported(): boolean;
     getShaderInfoLog(shader: WebGLShader): string | null;
     getShaderParameter(shader: WebGLShader, pname?: GLenum): unknown;
     getShaderPrecisionFormat(shaderType?: GLenum, precisionType?: GLenum): WebGLShaderPrecisionFormat | null;
@@ -214,7 +215,13 @@ const shaderLifecycleMethods: ShaderLifecycleMethods & ThisType<WebGLContextBase
             return null;
         }
 
-        const format = this._gl.getShaderPrecisionFormat(shaderType, precisionType);
+        // `mediump` fragment floats are promoted to `highp` in `_wrapShader`, so
+        // what runs — and what a browser on desktop GL reports — is the high format.
+        const promoted =
+            shaderType === this.FRAGMENT_SHADER &&
+            precisionType === this.MEDIUM_FLOAT &&
+            this._fragmentHighpSupported();
+        const format = this._gl.getShaderPrecisionFormat(shaderType, promoted ? this.HIGH_FLOAT : precisionType);
         if (!format) {
             return null;
         }
@@ -339,10 +346,28 @@ const shaderLifecycleMethods: ShaderLifecycleMethods & ThisType<WebGLContextBase
         }
     },
 
+    /** Does the context run fragment `highp float` with real precision? (probed once) */
+    _fragmentHighpSupported(this: WebGLContextBase): boolean {
+        if (this._fragHighp === undefined) {
+            const f = this._gl.getShaderPrecisionFormat(this.FRAGMENT_SHADER, this.HIGH_FLOAT);
+            this._fragHighp = !!f && f.precision > 0;
+        }
+        return this._fragHighp;
+    },
+
     _wrapShader(this: WebGLContextBase, _type: GLenum, source: string, desktopSpelling = false): string {
         // the gl implementation seems to define `GL_OES_standard_derivatives` even when the extension is disabled
         // this behaviour causes one conformance test ('GL_OES_standard_derivatives defined in shaders when extension is disabled') to fail
         // by `undef`ing `GL_OES_standard_derivatives`, this appears to solve the issue
+
+        // Browser parity: ANGLE on desktop GL runs fragment `mediump` at fp32.
+        // Mesa may lower it to fp16, which moves a texture coordinate by up to
+        // half a texel at 1024 px (measured: texel edges one device pixel off at
+        // an integer zoom). So `mediump` becomes `highp` wherever the context has
+        // fragment highp; `lowp` stays as written.
+        if (_type === this.FRAGMENT_SHADER && this._fragmentHighpSupported()) {
+            source = source.replace(/\bmediump\b/g, 'highp');
+        }
 
         // Determine if the source already has a #version directive
         const hasVersion = source.startsWith('#version') || source.includes('\n#version');
