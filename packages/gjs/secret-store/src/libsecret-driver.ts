@@ -1,4 +1,11 @@
-// The `libsecret` driver: the Secret Service on an unsandboxed Linux desktop (ADR 0152).
+// The `libsecret` and `portal-secret` drivers (ADR 0152). One implementation, two names.
+//
+// Unsandboxed, libsecret talks to the Secret Service (`libsecret`). Inside a Flatpak
+// (`/.flatpak-info`) libsecret >= 0.20 switches by itself to its file backend, which gets its
+// master secret from `org.freedesktop.portal.Secret` and encrypts `$XDG_DATA_HOME/keyrings/
+// default.keyring` (inside the sandbox: ~/.var/app/<id>/data) with it. That is exactly the
+// `portal-secret` design of ADR 0152, with no cryptography of ours and no `--talk-name` hole,
+// so the sandboxed driver is this one reporting its own name. Only the reachability check differs.
 //
 // One `Secret.Schema` for the whole package; the namespace and the key are its two attributes, so
 // "which items belong to this namespace" is a search on `namespace` and nothing else. The calls
@@ -19,7 +26,7 @@ type SecretNamespace = typeof Secret;
 export interface LibsecretOptions {
     /** `gi://Secret`, or `undefined` when the typelib is not installed on this host. */
     secret: SecretNamespace | undefined;
-    /** Running inside a sandbox (`/.flatpak-info`): libsecret is not chosen silently there. */
+    /** Running inside a sandbox (`/.flatpak-info`): libsecret then uses the secret portal, and this is the `portal-secret` driver. */
     sandboxed: boolean;
 }
 
@@ -27,14 +34,9 @@ export interface LibsecretOptions {
 export const SCHEMA_NAME = 'org.gjsify.SecretStore';
 
 const PREFIX = '@gjsify/secret-store (libsecret)';
-
-/** Inside a Flatpak the Secret Service is not the way in; the portal is (not built yet). */
-export function sandboxedError(): Error {
-    return new Error(
-        `${PREFIX}: this app runs inside a Flatpak sandbox, where the libsecret driver is not used. ` +
-            `The sandboxed driver is 'portal-secret' (org.freedesktop.portal.Secret); it is not implemented yet (ADR 0152, step 3).`,
-    );
-}
+const PREFIX_PORTAL = '@gjsify/secret-store (portal-secret)';
+/** Matches no stored item an app would write; the lookup only starts the backend. */
+const PROBE_NAMESPACE = '@gjsify/secret-store/portal-probe';
 
 function noTypelibError(): Error {
     return new Error(
@@ -71,18 +73,11 @@ function asyncCall<T>(
 export function createLibsecretDriver(options: LibsecretOptions): SecretStoreDriver {
     const { secret, sandboxed } = options;
 
-    if (sandboxed) {
-        return {
-            get info(): never {
-                throw sandboxedError();
-            },
-            async open(): Promise<SecretStore> {
-                throw sandboxedError();
-            },
-        };
-    }
-
-    const info = { driver: 'libsecret', persistent: true, encryptedAtRest: true } as const;
+    const info = {
+        driver: sandboxed ? 'portal-secret' : 'libsecret',
+        persistent: true,
+        encryptedAtRest: true,
+    } as const;
 
     if (!secret) {
         return {
@@ -99,9 +94,10 @@ export function createLibsecretDriver(options: LibsecretOptions): SecretStoreDri
         key: api.SchemaAttributeType.STRING,
     });
 
-    // `Service.get` talks to the bus, so this is where a missing Secret Service is found: at
-    // `open`, with its cause named, not at the first `set` of a login form.
+    // Where a missing Secret Service (or secret portal) is found: at `open`, with its cause named,
+    // not at the first `set` of a login form.
     async function requireService(): Promise<void> {
+        if (sandboxed) return requirePortal();
         try {
             await asyncCall(
                 (callback) => api.Service.get(api.ServiceFlags.OPEN_SESSION, null, callback),
@@ -111,6 +107,24 @@ export function createLibsecretDriver(options: LibsecretOptions): SecretStoreDri
             throw new Error(
                 `${PREFIX}: no Secret Service is reachable on the session bus ` +
                     `(is gnome-keyring, KeePassXC or another provider running?): ${error instanceof Error ? error.message : 'unknown error'}`,
+            );
+        }
+    }
+
+    // Inside a sandbox `Service.get` would look for org.freedesktop.secrets, which the sandbox must
+    // not be given. A lookup that cannot match anything starts libsecret's file backend, and with
+    // it the portal call that fetches the app's master secret; if that fails the error says so.
+    async function requirePortal(): Promise<void> {
+        try {
+            await asyncCall(
+                (callback) =>
+                    api.password_lookup(schema, { namespace: PROBE_NAMESPACE, key: PROBE_NAMESPACE }, null, callback),
+                (result) => api.password_lookup_finish(result),
+            );
+        } catch (error) {
+            throw new Error(
+                `${PREFIX_PORTAL}: the secret portal (org.freedesktop.portal.Secret) is not reachable, or the app's keyring file could not be opened ` +
+                    `(is an xdg-desktop-portal with a Secret backend running, and is the app's data directory writable?): ${error instanceof Error ? error.message : 'unknown error'}`,
             );
         }
     }

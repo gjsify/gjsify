@@ -253,7 +253,16 @@ device, because that is where the two decisions above are actually load-bearing:
    real gnome-keyring on a throwaway session bus and a temporary `XDG_DATA_HOME`, the GJS suite
    passed 18/18 (6 of them real-service); without a Secret Service the real-service suite skips with
    its reason and the error test passes (13/13, 1 skipped). Inside a Flatpak the driver throws
-   naming `portal-secret`. The `portal-secret` half is still open.
+   naming `portal-secret`. The `portal-secret` half is below.
+    *Flatpak proof, `portal-secret` half (2026-11-22):* no own crypto. libsecret ≥ 0.20 switches to
+    its file backend inside a Flatpak; that backend takes its master secret from
+    `org.freedesktop.portal.Secret` and encrypts `$XDG_DATA_HOME/keyrings/default.keyring`. So
+    `portal-secret` is the `libsecret` driver reporting `driver: 'portal-secret'` when
+    `/.flatpak-info` exists; `open()` probes the portal and throws, naming it, if it is missing.
+    Probe app `org.gjsify.SecretStoreProbe` (`--user`, `finish-args: []`, GNOME 49 runtime, libsecret
+    0.21.8, xdg-desktop-portal 1.22.1 with the oo7 portal backend): phase A (set/get/keys/delete/clear
+    over two namespaces) 11/11, phase B (a new process re-reads after the restart) 5/5, so 16/16. No
+    `--talk-name`; no prompt was observed.
 4. Add `packages/nativescript-bridge/secret-store` with `native.android.ts` / `native.ios.ts`, per
    ADR 0147's routing and whitelist discipline; the Android half first, because curlew needs it.
    Android half built 2026-11-22 (`@gjsify/native-secret-store-bridge`; iOS is a throwing stub).
@@ -276,7 +285,9 @@ device, because that is where the two decisions above are actually load-bearing:
 ## Open
 
 - Does a GJS app inside a Flatpak reach `org.freedesktop.portal.Secret` through the portal
-  interfaces the apps already hold? Untested; step 3 answers it.
+  interfaces the apps already hold? **Answered (2026-11-22): yes.** With empty `finish-args`, via
+  libsecret 0.21.8's file backend and xdg-desktop-portal 1.22.1 (oo7 backend); 16/16 in step 3.
+  The `--talk-name` fallback above is not needed.
 - Binary secrets. The API is `string` because every caller today stores a password or a token. A
   `Uint8Array` variant is added when a caller needs one, not before.
 - **Decided (2026-11-22): `clear()` drops the namespace's Keystore key as well.** Measured on the
