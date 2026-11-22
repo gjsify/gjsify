@@ -18,6 +18,7 @@ export * from './byte-array.js';
 export * from './cli.js';
 export * from './file.js';
 export * from './fs.js';
+// `existsFD` lives at `@gjsify/utils/fd`: its typelib has no NativeScript renderer.
 export * from './gio.js';
 export * from './path.js';
 export * from './socket-service.js';
