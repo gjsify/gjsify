@@ -14,13 +14,13 @@ let total = 0;
 function check(name: string, ok: boolean): void {
     total++;
     if (ok) passed++;
-    print(`${ok ? 'ok  ' : 'FAIL'} ${name}`);
+    console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`);
 }
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 async function main(): Promise<void> {
     const info = secretStoreInfo();
-    print(`data dir: ${GLib.get_user_data_dir()}`);
+    console.log(`data dir: ${GLib.get_user_data_dir()}`);
     check(
         `info is portal-secret / persistent / encrypted (${info.driver})`,
         info.driver === 'portal-secret' && info.persistent && info.encryptedAtRest,
@@ -60,14 +60,14 @@ async function main(): Promise<void> {
         await one.clear();
         check('clear empties the namespace', same(await one.keys(), []));
     }
-    print(`RESULT phase ${phase}: ${passed}/${total}`);
+    console.log(`RESULT phase ${phase}: ${passed}/${total}`);
 }
 
 let code = 0;
 try {
     await main();
 } catch (error) {
-    print(`FAIL main threw: ${(error as Error).message}`);
+    console.log(`FAIL main threw: ${(error as Error).message}`);
     code = 1;
 }
 if (passed !== total) code = 1;
