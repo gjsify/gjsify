@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/adwaita-extended",
-    "version": "0.64.57",
+    "version": "0.64.58",
     "description": "Reusable GTK4/libadwaita widgets that libadwaita itself does not ship (task rows, swipe rows, kanban board, month grid, time grid, agenda list, source lists), each with a story and its own gettext domain",
     "type": "module",
     "module": "lib/esm/index.js",

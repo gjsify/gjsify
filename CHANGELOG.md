@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.64.58](https://github.com/gjsify/gjsify/compare/v0.64.57...v0.64.58) (2026-11-22)
+
+### Features
+
+* **cli:** declare extra snap plugs per app ([#2742](https://github.com/gjsify/gjsify/issues/2742)) ([164a18f](https://github.com/gjsify/gjsify/commit/164a18fda75895417c97f48457f879df0527adcf))
+* **dom-elements:** load FontFace from bytes and document.fonts ([#2745](https://github.com/gjsify/gjsify/issues/2745)) ([ffead9a](https://github.com/gjsify/gjsify/commit/ffead9a3eb76c11df8b61fd9fa0586bdf9c09120))
+* **pim:** report the GOA account of a calendar ([#2741](https://github.com/gjsify/gjsify/issues/2741)) ([3d660fa](https://github.com/gjsify/gjsify/commit/3d660fae66c2a094ea63b45a21085525adf903fb))
+* **secret-store:** `NativeScript` Android keystore-file driver ([#2739](https://github.com/gjsify/gjsify/issues/2739)) ([7f6c37d](https://github.com/gjsify/gjsify/commit/7f6c37d34b379ef31f607eb027dbf59ef7f2a407))
+* **secret-store:** libsecret driver for GJS ([#2744](https://github.com/gjsify/gjsify/issues/2744)) ([9f790d1](https://github.com/gjsify/gjsify/commit/9f790d17f1d6ee336b208afbe58f014d7e068e0b))
+* **secret-store:** portal-secret driver for Flatpak ([#2746](https://github.com/gjsify/gjsify/issues/2746)) ([0a03caa](https://github.com/gjsify/gjsify/commit/0a03caa4558af7a5a232a0c8034542b58cd9561c))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([3a9203c](https://github.com/gjsify/gjsify/commit/3a9203c636236d82e4eadd160bd690c1630b0e5c))
+
+### Tests
+
+* **secret-store:** add cold-start check on Android ([#2743](https://github.com/gjsify/gjsify/issues/2743)) ([470c98e](https://github.com/gjsify/gjsify/commit/470c98e8e97e3434a71a7422f7e2bde21f7edcad))
+
 ## [0.64.57](https://github.com/gjsify/gjsify/compare/v0.64.56...v0.64.57) (2026-11-22)
 
 ### Features

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/http-client",
-    "version": "0.64.57",
+    "version": "0.64.58",
     "description": "A small JSON-over-HTTP client for REST adapters: base URL, basic/bearer/app-password auth, ETag revalidation (304 = unchanged), typed errors with Retry-After, per-request timeout, Link and offset pagination, per-host concurrency limit. Plain fetch.",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
