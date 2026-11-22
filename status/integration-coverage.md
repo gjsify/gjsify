@@ -248,6 +248,8 @@ On-device polyfill smoke suite — runs gjsify `nativescript:'polyfill'` package
 
 **2026-11-19: 39/39** (emulator API 36, x86_64) after `@gjsify/stream` 5/5, `@gjsify/native-platform` 8/8 and `@gjsify/sqlite` 12/12 joined: the sqlite cases run `DatabaseSync` over `@gjsify/native-sqlite-bridge` and `androidx.sqlite` 2.7.1 (BigInt past 2^53, BLOBs, FTS5, WAL, extended constraint codes, `isTransaction`; ADR 0147).
 
+**2026-11-22: 44/44** (emulator API 36, x86_64) after `@gjsify/secret-store` 5/5 joined: `openSecretStore` over `@gjsify/native-secret-store-bridge` and an AES-256-GCM `AndroidKeyStore` key (two namespaces, a re-built driver reading an earlier value, ciphertext-only file in `noBackupFilesDir`, `clear()` key-cost measurement; ADR 0152).
+
 **HELD OUT of CI** (measured per-suite in `ghcr.io/gjsify/ci-fedora`): not selectable at all: the root manifest excludes `tests/integration/nativescript` from `workspaces`, so no `@gjsify/integration-nativescript` workspace exists (`gjsify workspace …` answers `no workspace named …`). It also drives a real device over `adb`.
 
 ## nativescript-gi

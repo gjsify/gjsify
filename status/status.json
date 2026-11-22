@@ -351,6 +351,11 @@
       "status": "full",
       "note": "`isAndroid`/`isIOS`/`isNativeScript`, `assertNativeScript()`, `platformInfo()` (OS version, SDK level, device model, manufacturer) via `android.os.Build` + `UIDevice`. Keyed on runtime globals only \u2014 no `@nativescript/core` value import."
     },
+    "@gjsify/native-secret-store-bridge": {
+      "status": "partial",
+      "note": "`@gjsify/secret-store` driver for NativeScript (ADR 0152): Android keeps one AES-256-GCM key per namespace in the `AndroidKeyStore` and seals a file per namespace under `getNoBackupFilesDir()` (atomic write, fresh IV per write); `clear()` also drops the namespace key. iOS is a stub that throws. The byte layout and serialisation are specced off-device against a fake backend; the Keystore, the Java conversions and the file on disk are measured on an Android emulator by `tests/integration/nativescript` (5 cases, 2026-11-22).",
+      "missing": "iOS Keychain driver; the force-stop/cold-start and uninstall/reinstall proofs and the S9 run (ADR 0152 section 5); the device suite is local-only, not in CI."
+    },
     "@gjsify/native-sqlite-bridge": {
       "status": "partial",
       "note": "`node:sqlite` driver for NativeScript (ADR 0147): Android over `androidx.sqlite` `BundledSQLiteDriver` (SQLite from the AAR), iOS a stub that throws. Needs `androidx.sqlite` >= 2.6.2 (extended result codes, `inTransaction()`). Parameter names, multi-statement `exec`, `changes`/`last_insert_rowid` and error parsing are TypeScript adapters specced off-device against a fake driver; the Java conversions (64-bit integers, `byte[]`), FTS5, WAL and the constraint codes are measured on an Android emulator by `tests/integration/nativescript` (12 cases, 2026-11-19).",
@@ -477,7 +482,7 @@
     },
     "@gjsify/secret-store": {
       "status": "partial",
-      "missing": "Interface and `memory` driver only, so nothing persists yet: libsecret, portal-secret, Android Keystore and Keychain drivers are ADR 0152 steps 3-4, and until then `openSecretStore` throws on every platform unless a test installs the memory driver.",
+      "missing": "Only the Android Keystore driver persists (`@gjsify/native-secret-store-bridge`, NativeScript); libsecret, portal-secret and Keychain drivers are ADR 0152 steps 3-4, and until then `openSecretStore` throws on GJS and iOS unless a test installs the memory driver.",
       "note": "Secrets an app owns, per namespace: get, set, delete, keys, clear, plus secretStoreInfo() diagnostics. No driver means a throw naming the platform, never a plaintext fallback (ADR 0152)."
     },
     "@gjsify/semver": {

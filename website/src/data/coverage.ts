@@ -86,9 +86,9 @@ export const pillarCoverage: readonly PillarCoverage[] = [
     },
     {
         category: 'NativeScript bridges',
-        total: 8,
+        total: 9,
         full: 5,
-        partial: 3,
+        partial: 4,
         stub: 0,
     },
     {
