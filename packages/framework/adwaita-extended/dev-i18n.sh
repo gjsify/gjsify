@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Refresh po/gjsify-adwaita-extended.pot from src and merge it into every po/*.po.
-# `.blp` files (Blueprint, strings as _("…")) are extracted too; `app/dev/check-i18n.mjs` checks this domain.
+# `.blp` files (Blueprint, strings as _("…")) are extracted too; apps compile `po/<lang>.po` into `gjsify-adwaita-extended.mo` (the package exports `./po/*`).
 set -euo pipefail
 cd "$(dirname "$0")"
 DOMAIN='gjsify-adwaita-extended'

@@ -57,7 +57,8 @@
         "./agenda-rules": {
             "types": "./lib/types/agenda-rules.d.ts",
             "default": "./lib/esm/agenda-rules.js"
-        }
+        },
+        "./po/*": "./po/*"
     },
     "files": [
         "lib",

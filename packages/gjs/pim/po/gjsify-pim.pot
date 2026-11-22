@@ -1,0 +1,82 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the gjsify-pim package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: gjsify-pim\n"
+"Report-Msgid-Bugs-To: https://github.com/gjsify/gjsify/issues\n"
+"POT-Creation-Date: 2026-11-21 07:20+0100\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: src/caldav/backend.ts:91 src/caldav/delta.ts:133
+msgid "no calendar \"{uid}\""
+msgstr ""
+
+#: src/caldav/backend.ts:91
+msgid "no task list \"{uid}\""
+msgstr ""
+
+#: src/caldav/backend.ts:175
+msgid "createItem: the component has no UID"
+msgstr ""
+
+#: src/caldav/backend.ts:181
+msgid "createItem: \"{uid}\" already exists in \"{calendar}\""
+msgstr ""
+
+#: src/caldav/backend.ts:190
+msgid "createItem: \"{calendar}\" refused the write (read-only?)"
+msgstr ""
+
+#: src/caldav/backend.ts:209
+msgid "updateItem: no \"{uid}\" in \"{calendar}\""
+msgstr ""
+
+#: src/caldav/backend.ts:216
+msgid "updateItem: \"{uid}\" changed on the server since it was read"
+msgstr ""
+
+#: src/caldav/backend.ts:222
+msgid "updateItem: \"{calendar}\" refused the write (read-only?)"
+msgstr ""
+
+#: src/caldav/errors.ts:14
+msgid "{label}: the server rejected the credentials (401)"
+msgstr ""
+
+#: src/caldav/errors.ts:19
+msgid "{label}: {method} failed with {status}"
+msgstr ""
+
+#: src/caldav/errors.ts:24
+msgid "{label}: {message}"
+msgstr ""
+
+#: src/eds/driver.gjs.ts:71
+msgid "no enabled calendar \"{uid}\""
+msgstr ""
+
+#: src/eds/driver.gjs.ts:71
+msgid "no enabled task list \"{uid}\""
+msgstr ""
+
+#: src/eds/driver.gjs.ts:185 src/eds/driver.gjs.ts:196
+msgid "\"{calendar}\" is read-only"
+msgstr ""
+
+#: src/eds/errors.ts:13
+msgid "{message}: {cause}"
+msgstr ""
+
+#: src/optional.ts:24
+msgid "{label} typelib not available: {message}"
+msgstr ""
