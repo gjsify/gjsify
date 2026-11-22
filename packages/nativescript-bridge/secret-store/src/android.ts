@@ -109,6 +109,9 @@ export function createAndroidBackend(): RawBackend {
             const ks = keyStore();
             if (ks.containsAlias(KEY_ALIAS_PREFIX + keyId)) ks.deleteEntry(KEY_ALIAS_PREFIX + keyId);
         },
+        hasKey(keyId) {
+            return keys.has(keyId) || keyStore().containsAlias(KEY_ALIAS_PREFIX + keyId);
+        },
         readFile(name) {
             const file = new java.io.File(directory(), name);
             if (!file.isFile()) return null;

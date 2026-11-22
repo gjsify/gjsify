@@ -283,8 +283,18 @@ device, because that is where the two decisions above are actually load-bearing:
    - Samsung S9, Android 15 (API 35), arm64-v8a, de-Googled (/e/OS launcher): 44/44 and 45/45 in
      A, B, C. The debug APK is multi-ABI and carries `lib/arm64-v8a`. Median write after `clear()` on
      the S9: 10 ms keeping the key, 19 ms generating a new one.
-   Done: (1) and (2) on both Android targets. Still open: the IMAP login (3), uninstall/reinstall (4),
-   `system-accounts` (5), the iOS and libsecret drivers; so this ADR stays Proposed.
+   **Reinstall (4), emulator only (2026-11-22).** The runner writes the marker (phase A), runs
+   `adb uninstall` and a fresh `adb install` (not `install -r`, which keeps the data), then launches
+   phase R: `openSecretStore` opens, `get()` returns `null`, `keys()` is empty, and a new `set`/`get`
+   works. Emulator, API 36, x86_64: 46/46 in the normal run, 47/47 in each of A, B, C, and 47/47 in
+   reinstall A and R. The S9 is still open. The files did not survive (`noBackupFilesDir` is wiped
+   with the app), so the stale-file path was not reached on-device. It is covered off-device: a
+   file whose key is gone used to throw on `get()` (the Keystore minted a fresh key and the tag check
+   failed); the driver now asks `RawBackend.hasKey()` first, treats the namespace as empty and drops
+   the file. A file whose key exists but fails to decrypt (tampered, corrupt) still throws, and no
+   error names a key or a value.
+   Done: (1) and (2) on both Android targets, (4) on the emulator. Still open: the IMAP login (3),
+   (4) on the S9, `system-accounts` (5), the iOS and libsecret drivers; so this ADR stays Proposed.
 6. Move curlew to the package, delete `SecretStore`/`SecretFiles`, then build the Android account form.
 
 ## Open

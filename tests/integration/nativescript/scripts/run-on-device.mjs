@@ -159,5 +159,33 @@ for (const phase of ['A', 'B', 'C']) {
         process.exit(1);
     }
 }
-console.log(`[ns-smoke] ✔ all ${main.parsed.total} cases passed on ${platform} V8, cold-start phases A/B/C included.`);
+// 6. Reinstall (ADR 0152 §5 step 4): A writes the marker, then a REAL uninstall (not `install -r`:
+// that keeps the data) and a fresh install; R finds the store empty, get() null, no throw.
+{
+    const a = launchAndCollect('A');
+    const fileA = join(root, `logcat.${platform}.reinstall-A.log`);
+    writeFileSync(fileA, a.text);
+    assertRun('reinstall phase A', a.parsed, fileA);
+    adb(['shell', 'am', 'force-stop', APP_ID], { stdio: 'ignore' });
+    const gone = adb(['uninstall', APP_ID], { stdio: 'inherit' });
+    if (gone.status !== 0 || (adb(['shell', 'pm', 'path', APP_ID]).stdout ?? '').includes('package:')) {
+        console.error('[ns-smoke] adb uninstall did not remove the app.');
+        process.exit(1);
+    }
+    if (adb(['install', apk], { stdio: 'inherit' }).status !== 0) {
+        console.error('[ns-smoke] adb install after uninstall failed.');
+        process.exit(1);
+    }
+    const fileR = join(root, `logcat.${platform}.reinstall-R.log`);
+    const r = launchAndCollect('R');
+    writeFileSync(fileR, r.text);
+    assertRun('reinstall phase R', r.parsed, fileR);
+    if (!r.parsed.cases.some((c) => c.status === 'PASS' && c.name.startsWith('phase R '))) {
+        console.error('[ns-smoke] phase R did not report its case — the gjsify.phase extra did not reach the app.');
+        process.exit(1);
+    }
+}
+console.log(
+    `[ns-smoke] ✔ all ${main.parsed.total} cases passed on ${platform} V8, cold-start phases A/B/C and reinstall A/R included.`,
+);
 process.exit(0);

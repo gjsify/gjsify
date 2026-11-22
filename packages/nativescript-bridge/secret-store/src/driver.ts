@@ -18,6 +18,8 @@ export interface RawBackend {
     decrypt(keyId: string, blob: Uint8Array): Uint8Array;
     /** Drop the sealing key. The next `encrypt` creates a new one. */
     deleteKey(keyId: string): void;
+    /** Whether the sealing key exists. Must not create it: `decrypt` of a stale file may not mint a key. */
+    hasKey(keyId: string): boolean;
     /** `null` when the file does not exist. */
     readFile(name: string): Uint8Array | null;
     /** Atomic: a reader sees the old file or the new one, never half of one. */
@@ -62,6 +64,23 @@ export function createKeystoreFileDriver(backend: RawBackend, options: KeystoreF
                     throw failure('reading the secret file', error);
                 }
                 if (blob === null) return Object.create(null);
+                // A file whose key is gone (uninstall + restore, key wiped) can never be read
+                // again: it is empty, not an error. Drop it so the next `set` starts clean.
+                // A file whose key exists but fails to decrypt is tampered or corrupt: that throws.
+                let keyAlive: boolean;
+                try {
+                    keyAlive = backend.hasKey(file);
+                } catch (error) {
+                    throw failure('looking up the sealing key', error);
+                }
+                if (!keyAlive) {
+                    try {
+                        backend.deleteFile(file);
+                    } catch (error) {
+                        throw failure('dropping the stale secret file', error);
+                    }
+                    return Object.create(null);
+                }
                 try {
                     return Object.assign(Object.create(null), JSON.parse(decoder.decode(backend.decrypt(file, blob))));
                 } catch (error) {
