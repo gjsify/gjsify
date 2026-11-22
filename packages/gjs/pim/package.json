@@ -18,16 +18,21 @@
         "./eds": {
             "types": "./lib/types/eds/index.d.ts",
             "default": "./lib/esm/eds/index.js"
-        }
+        },
+        "./po/*": "./po/*"
     },
     "files": [
         "lib",
+        "po",
+        "!po/POTFILES.in",
         "!lib/types/**/*.spec.d.ts",
         "!lib/types/fake-dav-server.d.ts"
     ],
     "scripts": {
         "clear": "gjsify clear lib tmp tsconfig.tsbuildinfo test.gjs.mjs test.node.mjs",
         "check": "gjsify tsc --noEmit",
+        "i18n:extract": "./dev-i18n.sh",
+        "i18n:check": "./dev-i18n.sh --check",
         "build": "gjsify run build:gjsify && gjsify run build:types",
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}' 'src/test.gjs.mts' 'src/fake-dav-server.ts'",
         "build:types": "gjsify tsc",

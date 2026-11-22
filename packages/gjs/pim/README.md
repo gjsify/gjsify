@@ -19,6 +19,20 @@ gjsify install @gjsify/pim
 
 The root export carries the port, the types (`CalendarInfo`, `RawItem`, `CollectionDelta`, ...), the error classes (`BackendUnavailableError`, `BackendAuthError`, `ConflictError`, ...) and `setPimTranslator` for localized error messages.
 
+## Translations
+
+The package binds no gettext domain, because it runs on Node as well. Its messages go through the translator the app registers with `setPimTranslator`, so they must be in the app's own catalogue. The package ships them for that in `po/`:
+
+- `po/gjsify-pim.pot`: the template, to merge into the app's template.
+- `po/<lang>.po`: the translations (German so far), to merge into the app's catalogue before compiling it.
+
+```sh
+pim="$(dirname "$(dirname "$(node -p "require.resolve('@gjsify/pim/po/de.po')")")")"
+msgcat --use-first po/de.po "$pim/po/de.po" | msgfmt --check -o locale/de/LC_MESSAGES/my-app.mo -
+```
+
+`./dev-i18n.sh` refreshes the template and the catalogues after a message changes; `./dev-i18n.sh --check` fails when either is stale or a catalogue is incomplete.
+
 ## Usage
 
 ```typescript
