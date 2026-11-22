@@ -254,11 +254,17 @@ device, because that is where the two decisions above are actually load-bearing:
    Deviation: the file lives in `getNoBackupFilesDir()`, not `getFilesDir()` — that directory is
    excluded from Auto Backup by definition, which is what section 3 requires.
 5. Run the device proof above on both phones; record the result in this ADR and flip it to Accepted.
-   **Emulator result (API 36, x86_64, 2026-11-22): 5/5 cases of `secret-store.smoke.ts` green (44/44 in the app)** —
-   driver info (1), set/get/keys/delete/clear across two namespaces, a freshly built driver reading
-   an earlier value, the file on disk holding no plaintext in the no-backup directory, and the `clear()` cost measurement. Still open:
-   force-stop and cold start (2), the IMAP login (3), uninstall/reinstall (4), `system-accounts` (5),
-   and the S9 run; so this ADR stays Proposed.
+   **Android results (2026-11-22).** The integration app (`tests/integration/nativescript`) now also
+   runs the cold-start check (2): `scripts/run-on-device.mjs` launches the app with
+   `am start --es gjsify.phase <A|B|C>` and force-stops it in between. A writes a fixed non-secret
+   marker, B reads it back after the force-stop and calls `clear()` (key dropped, the default), C
+   finds the namespace empty after a second force-stop.
+   - Emulator, API 36, x86_64: 44/44 cases in the normal run, 45/45 in each of phases A, B, C.
+   - Samsung S9, Android 15 (API 35), arm64-v8a, de-Googled (/e/OS launcher): 44/44 and 45/45 in
+     A, B, C. The debug APK is multi-ABI and carries `lib/arm64-v8a`. Median write after `clear()` on
+     the S9: 10 ms keeping the key, 19 ms generating a new one.
+   Done: (1) and (2) on both Android targets. Still open: the IMAP login (3), uninstall/reinstall (4),
+   `system-accounts` (5), the iOS and libsecret drivers; so this ADR stays Proposed.
 6. Move curlew to the package, delete `SecretStore`/`SecretFiles`, then build the Android account form.
 
 ## Open
