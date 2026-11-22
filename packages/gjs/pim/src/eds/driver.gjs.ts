@@ -17,6 +17,7 @@ import { BackendError } from '../errors.js';
 import { _, fmt } from '../i18n.js';
 import type { CalendarInfo, ItemKind, RawItem } from '../types.js';
 
+import { goaAccountId } from './goa.js';
 import { edsError, isBackendFailure, unwrapList, unwrapResult } from './errors.js';
 import { cal, eds } from './libs.gjs.js';
 
@@ -112,6 +113,7 @@ export function createEdsBackend(): CalendarBackend {
 
         listCalendars: (kind) =>
             boundary('listCalendars', async () => {
+                const lib = await eds.get();
                 const reg = await getRegistry();
                 const kinds: ItemKind[] = kind ? [kind] : ['event', 'reminder'];
                 const out: CalendarInfo[] = [];
@@ -119,12 +121,14 @@ export function createEdsBackend(): CalendarBackend {
                     for (const s of await sources(k)) {
                         const parentUid = s.get_parent();
                         const parent = parentUid ? reg.ref_source(parentUid) : null;
+                        const accountId = goaAccountId(s, (uid) => reg.ref_source(uid), lib.SOURCE_EXTENSION_GOA);
                         out.push({
                             uid: s.get_uid(),
                             name: s.get_display_name(),
                             kind: k,
                             backend: 'eds',
                             account: parent?.get_display_name() ?? null,
+                            ...(accountId ? { accountId } : {}),
                         });
                     }
                 }
