@@ -492,6 +492,9 @@ export abstract class WebGLContextBase {
         if (texture) texture._swizzled = swizzle !== null;
     }
 
+    /** Cached probe of fragment `highp float`; `undefined` = not probed yet. */
+    _fragHighp: boolean | undefined;
+
     /** Cached answer of {@link _desktopGlslForEsDerivatives}; `undefined` = not probed yet. */
     private _esDerivativesDesktopGlsl: string | null | undefined;
 
