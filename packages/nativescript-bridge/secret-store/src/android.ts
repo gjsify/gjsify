@@ -97,7 +97,11 @@ export function createAndroidBackend(): RawBackend {
             const iv = blob.subarray(1, 1 + ivLength);
             const sealed = blob.subarray(1 + ivLength);
             const cipher = javax.crypto.Cipher.getInstance('AES/GCM/NoPadding');
-            cipher.init(DECRYPT_MODE, secretKey(keyId), new javax.crypto.spec.GCMParameterSpec(TAG_BITS, toJavaBytes(iv)));
+            cipher.init(
+                DECRYPT_MODE,
+                secretKey(keyId),
+                new javax.crypto.spec.GCMParameterSpec(TAG_BITS, toJavaBytes(iv)),
+            );
             return fromSignedBytes(cipher.doFinal(toJavaBytes(sealed)));
         },
         deleteKey(keyId) {

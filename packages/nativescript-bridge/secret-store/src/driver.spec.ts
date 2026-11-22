@@ -92,7 +92,7 @@ export default async () => {
             expect(fileNameFor('a/../b')).toBe('secrets-612f2e2e2f62.bin');
         });
 
-        await it('clear() drops that namespace\'s key unless told not to', async () => {
+        await it("clear() drops that namespace's key unless told not to", async () => {
             const drop = createFake();
             await (await createKeystoreFileDriver(drop.backend).open('a')).clear();
             expect(drop.log).toStrictEqual([`deleteKey ${fileNameFor('a')}`]);

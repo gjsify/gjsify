@@ -46,10 +46,7 @@ function failure(what: string, cause: unknown): Error {
     return new Error(`@gjsify/native-secret-store-bridge: ${what} failed (${reason})`);
 }
 
-export function createKeystoreFileDriver(
-    backend: RawBackend,
-    options: KeystoreFileOptions = {},
-): SecretStoreDriver {
+export function createKeystoreFileDriver(backend: RawBackend, options: KeystoreFileOptions = {}): SecretStoreDriver {
     const opened = new Map<string, Promise<unknown>>();
 
     return {
@@ -66,10 +63,7 @@ export function createKeystoreFileDriver(
                 }
                 if (blob === null) return Object.create(null);
                 try {
-                    return Object.assign(
-                        Object.create(null),
-                        JSON.parse(decoder.decode(backend.decrypt(file, blob))),
-                    );
+                    return Object.assign(Object.create(null), JSON.parse(decoder.decode(backend.decrypt(file, blob))));
                 } catch (error) {
                     throw failure('decrypting the secret file', error);
                 }
@@ -88,7 +82,10 @@ export function createKeystoreFileDriver(
             const serial = <T>(work: () => T): Promise<T> => {
                 const previous = opened.get(file) ?? Promise.resolve();
                 const next = previous.then(work, work);
-                opened.set(file, next.catch(() => undefined));
+                opened.set(
+                    file,
+                    next.catch(() => undefined),
+                );
                 return next;
             };
 

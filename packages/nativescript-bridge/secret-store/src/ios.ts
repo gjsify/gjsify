@@ -5,7 +5,9 @@ import type { RawBackend } from './driver.js';
 
 export function createIosBackend(): RawBackend {
     const refuse = (): never => {
-        throw new Error('@gjsify/secret-store has no driver for NativeScript iOS yet (ADR 0152: Keychain driver pending)');
+        throw new Error(
+            '@gjsify/secret-store has no driver for NativeScript iOS yet (ADR 0152: Keychain driver pending)',
+        );
     };
     return {
         encrypt: refuse,
