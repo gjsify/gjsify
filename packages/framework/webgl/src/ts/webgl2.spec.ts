@@ -1913,6 +1913,100 @@ export default async () => {
             });
         });
 
+        // ── srcOffset / length on buffer uploads ─────────────────────────────
+
+        await describe('WebGL2 buffer upload srcOffset/length', async () => {
+            beforeEach(async () => {
+                glArea.make_current();
+            });
+
+            const readBack = (target: number, count: number) => {
+                const out = new Float32Array(count);
+                gl2.getBufferSubData(target, 0, out);
+                return Array.from(out).join(',');
+            };
+
+            await it('bufferSubData uploads exactly [srcOffset, srcOffset+length) in elements', async () => {
+                const buf = gl2.createBuffer()!;
+                gl2.bindBuffer(gl2.ARRAY_BUFFER, buf);
+                gl2.bufferData(gl2.ARRAY_BUFFER, new Float32Array([0, 0, 0, 0]), gl2.STATIC_READ);
+                gl2.bufferSubData(gl2.ARRAY_BUFFER, 4, new Float32Array([9, 1, 2, 9, 9]), 1, 2);
+                expect(gl2.getError()).toBe(gl2.NO_ERROR);
+                expect(readBack(gl2.ARRAY_BUFFER, 4)).toBe('0,1,2,0');
+                gl2.deleteBuffer(buf);
+            });
+
+            await it('bufferSubData with length omitted uploads to the end', async () => {
+                const buf = gl2.createBuffer()!;
+                gl2.bindBuffer(gl2.ARRAY_BUFFER, buf);
+                gl2.bufferData(gl2.ARRAY_BUFFER, new Float32Array([0, 0, 0, 0]), gl2.STATIC_READ);
+                gl2.bufferSubData(gl2.ARRAY_BUFFER, 0, new Float32Array([5, 6, 7, 8]), 2);
+                expect(gl2.getError()).toBe(gl2.NO_ERROR);
+                expect(readBack(gl2.ARRAY_BUFFER, 4)).toBe('7,8,0,0');
+                gl2.deleteBuffer(buf);
+            });
+
+            await it('bufferSubData larger source than buffer works when length limits it', async () => {
+                const buf = gl2.createBuffer()!;
+                gl2.bindBuffer(gl2.ARRAY_BUFFER, buf);
+                gl2.bufferData(gl2.ARRAY_BUFFER, new Float32Array(2), gl2.STATIC_READ);
+                gl2.bufferSubData(gl2.ARRAY_BUFFER, 0, new Float32Array([3, 4, 5, 6, 7, 8]), 0, 2);
+                expect(gl2.getError()).toBe(gl2.NO_ERROR);
+                expect(readBack(gl2.ARRAY_BUFFER, 2)).toBe('3,4');
+                gl2.deleteBuffer(buf);
+            });
+
+            await it('bufferSubData out-of-range srcOffset/length is INVALID_VALUE', async () => {
+                const buf = gl2.createBuffer()!;
+                gl2.bindBuffer(gl2.ARRAY_BUFFER, buf);
+                gl2.bufferData(gl2.ARRAY_BUFFER, new Float32Array(4), gl2.STATIC_READ);
+                gl2.bufferSubData(gl2.ARRAY_BUFFER, 0, new Float32Array(2), 3);
+                expect(gl2.getError()).toBe(gl2.INVALID_VALUE);
+                gl2.bufferSubData(gl2.ARRAY_BUFFER, 0, new Float32Array(2), 1, 2);
+                expect(gl2.getError()).toBe(gl2.INVALID_VALUE);
+                gl2.deleteBuffer(buf);
+            });
+
+            await it('bufferData honours srcOffset/length and sets the buffer size', async () => {
+                const buf = gl2.createBuffer()!;
+                gl2.bindBuffer(gl2.ARRAY_BUFFER, buf);
+                gl2.bufferData(gl2.ARRAY_BUFFER, new Float32Array([1, 2, 3, 4, 5]), gl2.STATIC_READ, 1, 3);
+                expect(gl2.getError()).toBe(gl2.NO_ERROR);
+                expect(gl2.getBufferParameter(gl2.ARRAY_BUFFER, gl2.BUFFER_SIZE)).toBe(12);
+                expect(readBack(gl2.ARRAY_BUFFER, 3)).toBe('2,3,4');
+                gl2.bufferData(gl2.ARRAY_BUFFER, new Float32Array(2), gl2.STATIC_READ, 3);
+                expect(gl2.getError()).toBe(gl2.INVALID_VALUE);
+                gl2.deleteBuffer(buf);
+            });
+
+            await it('UNIFORM_BUFFER bufferSubData honours srcOffset/length', async () => {
+                const UNIFORM_BUFFER = 0x8a11;
+                const buf = gl2.createBuffer()!;
+                gl2.bindBuffer(UNIFORM_BUFFER, buf);
+                gl2.bufferData(UNIFORM_BUFFER, new Float32Array([0, 0, 0, 0]), gl2.STATIC_READ);
+                gl2.bufferSubData(UNIFORM_BUFFER, 0, new Float32Array([7, 8, 9]), 1, 2);
+                expect(gl2.getError()).toBe(gl2.NO_ERROR);
+                expect(readBack(UNIFORM_BUFFER, 4)).toBe('8,9,0,0');
+                gl2.bufferSubData(UNIFORM_BUFFER, 0, new Float32Array(2), 5);
+                expect(gl2.getError()).toBe(gl2.INVALID_VALUE);
+                gl2.bindBuffer(UNIFORM_BUFFER, null);
+                gl2.deleteBuffer(buf);
+            });
+
+            await it('ELEMENT_ARRAY_BUFFER shadow copy gets the sliced range', async () => {
+                const buf = gl2.createBuffer()!;
+                gl2.bindBuffer(gl2.ELEMENT_ARRAY_BUFFER, buf);
+                gl2.bufferData(gl2.ELEMENT_ARRAY_BUFFER, new Uint16Array([1, 2, 3, 4]), gl2.STATIC_READ, 1, 2);
+                expect(gl2.getError()).toBe(gl2.NO_ERROR);
+                expect((buf as unknown as { _size: number })._size).toBe(4);
+                gl2.bufferSubData(gl2.ELEMENT_ARRAY_BUFFER, 2, new Uint16Array([9, 8, 7]), 1, 1);
+                const shadow = new Uint16Array((buf as unknown as { _elements: Uint8Array })._elements.slice().buffer);
+                expect(Array.from(shadow).join(',')).toBe('2,8');
+                gl2.bindBuffer(gl2.ELEMENT_ARRAY_BUFFER, null);
+                gl2.deleteBuffer(buf);
+            });
+        });
+
         // All WebGL2 tests complete.
         win.destroy();
     }); // on('Gl')

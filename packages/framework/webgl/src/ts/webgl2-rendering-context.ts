@@ -20,7 +20,7 @@ import { WebGLFramebuffer } from './webgl-framebuffer.js';
 import { isLegacyFormat } from './context/texture-management/legacy-formats.js';
 import {
     Uint8ArrayToVariant,
-    arrayToUint8Array,
+    bufferSourceRange,
     vertexCount,
     convertPixels,
     extractImageData,
@@ -294,7 +294,13 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
     }
 
     /** WebGL2 adds READ/COPY buffer usages and additional buffer targets. */
-    override bufferData(target: GLenum, dataOrSize: GLsizeiptr | BufferSource | null, usage: GLenum): void {
+    override bufferData(
+        target: GLenum,
+        dataOrSize: GLsizeiptr | BufferSource | null,
+        usage: GLenum,
+        srcOffset = 0,
+        length = 0,
+    ): void {
         const isWebGL2Target =
             target === 0x8a11 /* UNIFORM_BUFFER */ ||
             target === 0x8c8e /* TRANSFORM_FEEDBACK_BUFFER */ ||
@@ -316,7 +322,11 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
             if (typeof dataOrSize === 'number') {
                 if (dataOrSize >= 0) this._gl.bufferDataSizeOnly(target, dataOrSize, remappedUsage);
             } else if (dataOrSize !== null && typeof dataOrSize === 'object') {
-                const u8Data = arrayToUint8Array(dataOrSize as Uint8Array | DataView | ArrayBuffer);
+                const u8Data = bufferSourceRange(dataOrSize as Uint8Array | DataView | ArrayBuffer, srcOffset, length);
+                if (!u8Data) {
+                    this.setError(this.INVALID_VALUE);
+                    return;
+                }
                 this._gl.bufferData(target, Uint8ArrayToVariant(u8Data), remappedUsage);
             }
             return;
@@ -325,11 +335,17 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         // Both overloads of `super.bufferData` exist on the prototype; we know
         // either branch (size:number / data:BufferSource) is valid, so dispatch through
         // the size overload — TS demands one signature.
-        super.bufferData(target, dataOrSize as BufferSource, remappedUsage);
+        super.bufferData(target, dataOrSize as BufferSource, remappedUsage, srcOffset, length);
     }
 
     /** WebGL2 adds UNIFORM_BUFFER, TRANSFORM_FEEDBACK_BUFFER, COPY_READ/WRITE targets. */
-    override bufferSubData(target: GLenum, offset: GLintptr, data: BufferSource): void {
+    override bufferSubData(
+        target: GLenum,
+        offset: GLintptr,
+        data: BufferSource,
+        srcOffset = 0,
+        length = 0,
+    ): void {
         const isWebGL2Target =
             target === 0x8a11 /* UNIFORM_BUFFER */ ||
             target === 0x8c8e /* TRANSFORM_FEEDBACK_BUFFER */ ||
@@ -344,11 +360,15 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
                 this.setError(this.INVALID_VALUE);
                 return;
             }
-            const u8Data = arrayToUint8Array(data as Uint8Array | DataView | ArrayBuffer);
+            const u8Data = bufferSourceRange(data as Uint8Array | DataView | ArrayBuffer, srcOffset, length);
+            if (!u8Data) {
+                this.setError(this.INVALID_VALUE);
+                return;
+            }
             this._gl.bufferSubData(target, offset, Uint8ArrayToVariant(u8Data));
             return;
         }
-        super.bufferSubData(target, offset, data);
+        super.bufferSubData(target, offset, data, srcOffset, length);
     }
 
     /** WebGL2 adds TEXTURE_3D and TEXTURE_2D_ARRAY target support. */

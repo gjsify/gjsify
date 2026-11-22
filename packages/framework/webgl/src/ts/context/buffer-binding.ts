@@ -4,14 +4,14 @@
 
 import type { WebGLContextBase } from '../webgl-context-base.js';
 import { WebGLBuffer } from '../webgl-buffer.js';
-import { Uint8ArrayToVariant, arrayToUint8Array, checkObject, isTypedArray } from '../utils.js';
+import { Uint8ArrayToVariant, bufferSourceRange, checkObject, isTypedArray } from '../utils.js';
 import type { TypedArray } from '../types/index.js';
 
 export interface BufferBindingMethods {
     bindBuffer(target: GLenum | undefined, buffer: WebGLBuffer | null): void;
     bufferData(target: GLenum, size: GLsizeiptr, usage: GLenum): void;
-    bufferData(target: GLenum, data: BufferSource | null, usage: GLenum): void;
-    bufferSubData(target?: GLenum, offset?: GLintptr, data?: BufferSource): void;
+    bufferData(target: GLenum, data: BufferSource | null, usage: GLenum, srcOffset?: number, length?: number): void;
+    bufferSubData(target?: GLenum, offset?: GLintptr, data?: BufferSource, srcOffset?: number, length?: number): void;
     createBuffer(): WebGLBuffer | null;
     deleteBuffer(buffer: WebGLBuffer | null): void;
     getBufferParameter(target?: GLenum, pname?: GLenum): unknown;
@@ -63,6 +63,8 @@ const bufferBindingMethods: ThisType<WebGLContextBase> & Record<string, Function
         target: GLenum = 0,
         dataOrSize: GLsizeiptr | BufferSource | null,
         usage: GLenum = 0,
+        srcOffset = 0,
+        length = 0,
     ): void {
         let size = 0;
         let data: BufferSource | null = null;
@@ -92,8 +94,9 @@ const bufferBindingMethods: ThisType<WebGLContextBase> & Record<string, Function
         if (data) {
             let u8Data: Uint8Array | null = null;
             if (isTypedArray(data as TypedArray) || data instanceof DataView || data instanceof ArrayBuffer) {
-                u8Data = arrayToUint8Array(data as TypedArray | DataView | ArrayBuffer);
-            } else {
+                u8Data = bufferSourceRange(data as TypedArray | DataView | ArrayBuffer, srcOffset, length);
+            }
+            if (!u8Data) {
                 this.setError(this.INVALID_VALUE);
                 return;
             }
@@ -134,7 +137,13 @@ const bufferBindingMethods: ThisType<WebGLContextBase> & Record<string, Function
         }
     },
 
-    bufferSubData(this: WebGLContextBase, target: GLenum = 0, offset: GLintptr = 0, data: BufferSource): void {
+    bufferSubData(
+        this: WebGLContextBase,
+        target: GLenum = 0, offset: GLintptr = 0,
+        data: BufferSource,
+        srcOffset = 0,
+        length = 0,
+    ): void {
         if (target !== this.ARRAY_BUFFER && target !== this.ELEMENT_ARRAY_BUFFER) {
             this.setError(this.INVALID_ENUM);
             return;
@@ -157,8 +166,9 @@ const bufferBindingMethods: ThisType<WebGLContextBase> & Record<string, Function
 
         let u8Data: Uint8Array | null = null;
         if (isTypedArray(data as TypedArray) || data instanceof DataView || data instanceof ArrayBuffer) {
-            u8Data = arrayToUint8Array(data as TypedArray | DataView | ArrayBuffer);
-        } else {
+            u8Data = bufferSourceRange(data as TypedArray | DataView | ArrayBuffer, srcOffset, length);
+        }
+        if (!u8Data) {
             this.setError(this.INVALID_VALUE);
             return;
         }
