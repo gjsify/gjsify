@@ -67,7 +67,7 @@
             "gjs": "native",
             "node": "none",
             "browser": "none",
-            "nativescript": "none"
+            "nativescript": "partial"
         },
         "headless": [
             "Gdk",
@@ -84,6 +84,10 @@
         "osNotes": {
             "darwin": "No driver: the package answers with empty capabilities (ADR 0095). macOS has no system-account API for third-party apps that was found; this is not proven either way.",
             "win32": "No driver: the package answers with empty capabilities (ADR 0095). No system-account API for third-party apps was found; this is not proven either way."
-        }
+        },
+        "nativescriptPlatforms": [
+            "android",
+            "ios"
+        ]
     }
 }
