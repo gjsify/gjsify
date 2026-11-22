@@ -240,6 +240,9 @@ const TYPELIB_PACKAGES: Record<string, Record<DistroFormatId, string>> = {
     'Notify-0.7': { deb: 'gir1.2-notify-0.7', rpm: 'libnotify' },
     'Vte-3.91': { deb: 'gir1.2-vte-3.91', rpm: 'vte291-gtk4' },
     'Manette-0.2': { deb: 'gir1.2-manette-0.2', rpm: 'libmanette' },
+    // libportal: the base typelib and the GTK4 one ship as separate packages.
+    'Xdp-1.0': { deb: 'gir1.2-xdp-1.0', rpm: 'libportal' },
+    'XdpGtk4-1.0': { deb: 'gir1.2-xdpgtk4-1.0', rpm: 'libportal-gtk4' },
 };
 
 export interface DependsInputs {

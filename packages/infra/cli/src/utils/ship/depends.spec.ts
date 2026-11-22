@@ -225,7 +225,7 @@ export default async () => {
         });
 
         await it("knows every namespace this repo's own showcases import", async () => {
-            for (const namespace of ['Gtk-4.0', 'Adw-1', 'GLib-2.0', 'Gio-2.0', 'GObject-2.0', 'GtkSource-5']) {
+            for (const namespace of ['Gtk-4.0', 'Adw-1', 'GLib-2.0', 'Gio-2.0', 'GObject-2.0', 'GtkSource-5', 'Xdp-1.0', 'XdpGtk4-1.0']) {
                 expect(knownNamespaces()).toContain(namespace);
             }
         });
