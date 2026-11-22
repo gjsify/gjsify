@@ -97,34 +97,67 @@ if (install.status !== 0) {
     console.error('[ns-smoke] adb install failed (out of /data storage on the emulator?).');
     process.exit(1);
 }
-adb(['shell', 'am', 'force-stop', APP_ID], { stdio: 'ignore' });
-adb(['shell', 'monkey', '-p', APP_ID, '-c', 'android.intent.category.LAUNCHER', '1'], { stdio: 'ignore' });
 
-// 5. Poll logcat for a complete marker run (or a hard crash), then assert.
-const started = Date.now();
-let dump = '';
-let res = parseLogcat('');
-while (Date.now() - started < 60_000) {
-    dump = adb(['logcat', '-d', '-v', 'brief'], { maxBuffer: 64 * 1024 * 1024 }).stdout ?? '';
-    res = parseLogcat(dump);
-    if (res.complete || /Module evaluation promise rejected|Cannot instantiate module/.test(dump)) break;
-    spawnSync('sleep', ['2']);
+// Launch (optionally with the cold-start phase extra) and poll logcat for a complete marker run
+// (or a hard crash).
+function launchAndCollect(phase) {
+    adb(['shell', 'am', 'force-stop', APP_ID], { stdio: 'ignore' });
+    adb(['logcat', '-c'], { stdio: 'ignore' });
+    if (phase) {
+        adb(['shell', 'am', 'start', '-n', `${APP_ID}/com.tns.NativeScriptActivity`, '--es', 'gjsify.phase', phase], {
+            stdio: 'ignore',
+        });
+    } else {
+        adb(['shell', 'monkey', '-p', APP_ID, '-c', 'android.intent.category.LAUNCHER', '1'], { stdio: 'ignore' });
+    }
+    const started = Date.now();
+    let text = '';
+    let parsed = parseLogcat('');
+    while (Date.now() - started < 60_000) {
+        text = adb(['logcat', '-d', '-v', 'brief'], { maxBuffer: 64 * 1024 * 1024 }).stdout ?? '';
+        parsed = parseLogcat(text);
+        if (parsed.complete || /Module evaluation promise rejected|Cannot instantiate module/.test(text)) break;
+        spawnSync('sleep', ['2']);
+    }
+    return { text, parsed };
 }
-writeFileSync(logFile, dump);
 
-console.log(`[ns-smoke] parsed: passed=${res.passed} failed=${res.failed} total=${res.total} complete=${res.complete}`);
-for (const c of res.cases.filter((c) => c.status === 'FAIL')) {
-    console.error(`  FAIL ${c.suite} :: ${c.name} -- ${c.message}`);
-}
-if (!res.begun || !res.complete) {
-    console.error(
-        `[ns-smoke] no complete __GJSIFY_NS__ run found in logcat — the app crashed at startup (module eval?). See ${logFile}`,
+function assertRun(label, parsed, file) {
+    console.log(
+        `[ns-smoke] ${label}: passed=${parsed.passed} failed=${parsed.failed} total=${parsed.total} complete=${parsed.complete}`,
     );
-    process.exit(1);
+    for (const c of parsed.cases.filter((c) => c.status === 'FAIL')) {
+        console.error(`  FAIL ${c.suite} :: ${c.name} -- ${c.message}`);
+    }
+    if (!parsed.begun || !parsed.complete) {
+        console.error(
+            `[ns-smoke] no complete __GJSIFY_NS__ run found in logcat — the app crashed at startup (module eval?). See ${file}`,
+        );
+        process.exit(1);
+    }
+    if (parsed.failed > 0 || parsed.total === 0) {
+        console.error(`[ns-smoke] ${parsed.failed}/${parsed.total} on-device cases FAILED.`);
+        process.exit(1);
+    }
 }
-if (res.failed > 0 || res.total === 0) {
-    console.error(`[ns-smoke] ${res.failed}/${res.total} on-device cases FAILED.`);
-    process.exit(1);
+
+const main = launchAndCollect(null);
+writeFileSync(logFile, main.text);
+assertRun('run', main.parsed, logFile);
+
+// 5. Cold start (ADR 0152 §5 step 2): A writes a marker, B reads it after a force-stop and clears,
+// C finds the namespace empty after another force-stop. launchAndCollect force-stops before each.
+for (const phase of ['A', 'B', 'C']) {
+    const file = join(root, `logcat.${platform}.cold-${phase}.log`);
+    const r = launchAndCollect(phase);
+    writeFileSync(file, r.text);
+    assertRun(`cold start phase ${phase}`, r.parsed, file);
+    if (!r.parsed.cases.some((c) => c.status === 'PASS' && c.name.startsWith(`phase ${phase} `))) {
+        console.error(
+            `[ns-smoke] phase ${phase} did not report its case — the gjsify.phase extra did not reach the app.`,
+        );
+        process.exit(1);
+    }
 }
-console.log(`[ns-smoke] ✔ all ${res.total} cases passed on ${platform} V8.`);
+console.log(`[ns-smoke] ✔ all ${main.parsed.total} cases passed on ${platform} V8, cold-start phases A/B/C included.`);
 process.exit(0);
