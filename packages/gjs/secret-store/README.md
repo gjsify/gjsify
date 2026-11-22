@@ -2,7 +2,7 @@
 
 Secrets an app owns: a password the user typed, a refresh token from the app's own OAuth flow. One store per namespace, one driver per platform ([ADR 0152](../../../docs/adr/0152-app-owned-secrets-get-their-own-seam.md)).
 
-Part of the [gjsify](https://github.com/gjsify/gjsify) project. **Tier 3 (experimental, ADR 0003)**: the interface and the `memory` driver only; the platform drivers (libsecret, portal secret, Android Keystore, Keychain) follow.
+Part of the [gjsify](https://github.com/gjsify/gjsify) project. **Tier 3 (experimental, ADR 0003)**: the interface and the `memory` driver only; the Android Keystore driver ships as [`@gjsify/native-secret-store-bridge`](../../nativescript-bridge/secret-store) (NativeScript, Android only); libsecret, portal secret and Keychain follow.
 
 ## Installation
 
@@ -34,7 +34,7 @@ const again = await store.get('acc1:imap'); // string | null
 
 ## Drivers
 
-`createMemoryDriver()` keeps secrets for the life of the process (`persistent: false`). It is for tests and is never selected automatically: install it with `useSecretStoreDriver(createMemoryDriver())`. Platform drivers install themselves per ADR 0152 steps 3–4; until they land, every platform throws.
+`createMemoryDriver()` keeps secrets for the life of the process (`persistent: false`). It is for tests and is never selected automatically: install it with `useSecretStoreDriver(createMemoryDriver())`. On NativeScript Android, importing `@gjsify/native-secret-store-bridge` installs the `keystore-file` driver. The other platform drivers install themselves per ADR 0152 step 3; until they land, those platforms throw.
 
 ## License
 

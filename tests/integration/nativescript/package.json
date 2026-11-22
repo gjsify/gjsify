@@ -22,9 +22,11 @@
         "@gjsify/empty": "^0.64.57",
         "@gjsify/module": "^0.64.57",
         "@gjsify/native-platform": "^0.64.57",
+        "@gjsify/native-secret-store-bridge": "^0.64.57",
         "@gjsify/native-sqlite-bridge": "^0.64.57",
         "@gjsify/nativescript-vite": "^0.64.57",
         "@gjsify/path": "^0.64.57",
+        "@gjsify/secret-store": "^0.64.57",
         "@gjsify/sqlite": "^0.64.57",
         "@gjsify/stream": "^0.64.57",
         "@nativescript/core": "~9.0.0"

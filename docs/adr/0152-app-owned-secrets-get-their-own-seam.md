@@ -250,7 +250,15 @@ device, because that is where the two decisions above are actually load-bearing:
    Flatpak build of an existing app.
 4. Add `packages/nativescript-bridge/secret-store` with `native.android.ts` / `native.ios.ts`, per
    ADR 0147's routing and whitelist discipline; the Android half first, because curlew needs it.
+   Android half built 2026-11-22 (`@gjsify/native-secret-store-bridge`; iOS is a throwing stub).
+   Deviation: the file lives in `getNoBackupFilesDir()`, not `getFilesDir()` — that directory is
+   excluded from Auto Backup by definition, which is what section 3 requires.
 5. Run the device proof above on both phones; record the result in this ADR and flip it to Accepted.
+   **Emulator result (API 36, x86_64, 2026-11-22): 5/5 cases of `secret-store.smoke.ts` green (44/44 in the app)** —
+   driver info (1), set/get/keys/delete/clear across two namespaces, a freshly built driver reading
+   an earlier value, the file on disk holding no plaintext in the no-backup directory, and the `clear()` cost measurement. Still open:
+   force-stop and cold start (2), the IMAP login (3), uninstall/reinstall (4), `system-accounts` (5),
+   and the S9 run; so this ADR stays Proposed.
 6. Move curlew to the package, delete `SecretStore`/`SecretFiles`, then build the Android account form.
 
 ## Open
@@ -259,6 +267,8 @@ device, because that is where the two decisions above are actually load-bearing:
   interfaces the apps already hold? Untested; step 3 answers it.
 - Binary secrets. The API is `string` because every caller today stores a password or a token. A
   `Uint8Array` variant is added when a caller needs one, not before.
-- Whether `clear()` should also drop the Keystore key (cheap, total) or only the file (keeps the key
-  warm for the next account). Decided at implementation with a measurement, not here.
+- **Decided (2026-11-22): `clear()` drops the namespace's Keystore key as well.** Measured on the
+  API 36 x86_64 emulator, median of 15 writes right after a `clear()`: 2 ms keeping the key, 4 ms
+  generating a new one. The saving is not worth a key outliving its account. The key is per
+  namespace, so clearing one cannot strand another; `dropKeyOnClear: false` keeps it.
 - macOS and Windows drivers: same shape, separate ADRs, no date.

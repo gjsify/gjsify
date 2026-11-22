@@ -60,7 +60,7 @@
             "gjs": "native",
             "node": "none",
             "browser": "none",
-            "nativescript": "none"
+            "nativescript": "partial"
         },
         "headless": true
     }
