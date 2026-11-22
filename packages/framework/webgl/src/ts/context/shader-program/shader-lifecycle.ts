@@ -218,7 +218,9 @@ const shaderLifecycleMethods: ShaderLifecycleMethods & ThisType<WebGLContextBase
         // `mediump` fragment floats are promoted to `highp` in `_wrapShader`, so
         // what runs — and what a browser on desktop GL reports — is the high format.
         const promoted =
-            shaderType === this.FRAGMENT_SHADER && precisionType === this.MEDIUM_FLOAT && this._fragmentHighpSupported();
+            shaderType === this.FRAGMENT_SHADER &&
+            precisionType === this.MEDIUM_FLOAT &&
+            this._fragmentHighpSupported();
         const format = this._gl.getShaderPrecisionFormat(shaderType, promoted ? this.HIGH_FLOAT : precisionType);
         if (!format) {
             return null;
