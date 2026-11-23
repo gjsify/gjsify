@@ -23,6 +23,7 @@ import { Tint } from './tint.js';
 
 /** Width of the ISO week column, px — wide enough for "52" and the padding around it. */
 const WEEK_COLUMN_WIDTH = 28;
+const EDGE_INSET = 6;
 
 /**
  * A month as a grid of days, with the items that happen on them.
@@ -77,6 +78,9 @@ export class MonthGrid extends Gtk.Box {
     constructor() {
         super({ orientation: Gtk.Orientation.VERTICAL, spacing: 0, hexpand: true, vexpand: true });
         ensureStyles();
+        // The bars and day pills keep clear of the window and sidebar edges; the week rules do not.
+        this.headerGrid.set_margin_start(EDGE_INSET);
+        this.headerGrid.set_margin_end(EDGE_INSET);
         this.headerRow.append(this.headerSpacer);
         this.headerRow.append(this.headerGrid);
         this.append(this.headerRow);
@@ -212,6 +216,8 @@ export class MonthGrid extends Gtk.Box {
 
         const cells = new Gtk.Grid({ columnHomogeneous: true, hexpand: true, rowSpacing: 2, columnSpacing: 2 });
         cells.set_margin_bottom(2);
+        cells.set_margin_start(EDGE_INSET);
+        cells.set_margin_end(EDGE_INSET);
         week.days.forEach((day, column) => {
             const key = dayNumber(day.date);
             const button = new Gtk.Button({
