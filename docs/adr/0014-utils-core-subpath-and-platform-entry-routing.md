@@ -27,7 +27,7 @@ different picture — the pure surface is **four times** what the audit assumed:
 |---|---|---|
 | **PURE** — no platform dependency at all | `callable`, `defer`, `error`, `gio-errors`, `globals`, `message`, `microtask`, `structured-clone` | `makeCallable`, `deferEmit`, `initErrorV8Methods`, `GIO_ERROR_TO_NODE`, `GLIB_FILE_ERROR_TO_NODE`, `createNodeError`, `createGLibFileError`, `isNotFoundError`, `ErrnoException`†, `NodeErrorDetails`†, `registerGlobal`, `notImplemented`, `warnNotImplemented`, `queueMicrotask`, `structuredClone` |
 | **GJS-GUARDED** — probes `globalThis.imports?.gi`, portable fallback | `main-loop`, `next-tick` | `ensureMainLoop`, `quitMainLoop`, `nextTick`, `__resetBurstStateForTests` |
-| **GJS-HARD** — top-level `@girs/*` value import or bare `imports.*` | `byte-array`, `cli`, `file`, `fs`, `gio`, `path` | `gbytesToUint8Array`, `cli`, `readJSON`, `existsFD`, `existsSync`, `gioAsync`, `readBytesAsync`, `inputStreamAsyncIterator`, `resolve`, `getProgramExe`, `getProgramDir`, `getPathSeparator`, `getNodeModulesPath` |
+| **GJS-HARD** — top-level `@girs/*` value import or bare `imports.*` | `byte-array`, `cli`, `file`, `fs`, `gio`, `path` | `gbytesToUint8Array`, `cli`, `readJSON`, `existsFD`, `existsSync`, `gioAsync`, `readBytesAsync`, `inputStreamAsyncIterator`, `resolve`, `getPathSeparator` (+ `getProgramExe`, `getProgramDir`, `getNodeModulesPath` at `@gjsify/utils/program`) |
 
 † type-only.
 

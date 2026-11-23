@@ -909,8 +909,9 @@ async function runProbes(rows) {
 //   4. `curated-alias-routing` — a curated alias in `ALIASES_NODE_FOR_BROWSER` may not
 //      resolve to the ROOT of a package shipping a `./browser` entry. FATAL; rationale at
 //      `auditCuratedAliasRouting`.
-//   6. `ns-unrenderable-gi` — a package the NativeScript alias table routes to may not reach
-//      `gi://GioUnix` through its root import graph (the giRenderer cannot answer it). FATAL.
+//   6. `ns-unrenderable-import` — a module the NativeScript alias table routes to may not reach
+//      a GJS-only built-in (`system`, `gettext`, …) or a `gi://` typelib the giRenderer has
+//      no namespace for, through its import graph (roots and subpaths). FATAL.
 //   5. `globals-entry-parity` — the `native` mirror of check 3: a `native` slot routes the
 //      package ROOT to `@gjsify/<X>/globals`, so `globals.mjs` must carry every VALUE
 //      export of the root. REPORTED, not fatal — see `nativeGlobalsGap` for why, and for
@@ -1040,75 +1041,152 @@ function slotOfSpecifier(spec, target, meta) {
     return { slot: rec.runtimes?.[target], via: pkgName, hardGjs: rec.hardGjs };
 }
 
-// Check 6 — `ns-unrenderable-gi`. The NativeScript `giRenderer` answers a fixed set of
-// `gi://` namespaces and FAILS the build on any other ("gi://GioUnix has no widget
-// renderer"). That fails at RESOLUTION, before tree-shaking, so a package that merely
-// IMPORTS a GioUnix-bound module breaks the build even when nothing calls it. This
-// bit `@gjsify/os` / `@gjsify/fs` (slot `none`, yet aliased on NativeScript), which import
-// the `@gjsify/utils` root barrel and so reached `fs.ts`'s GioUnix import. Check 1 cannot see
-// it: it only judges `polyfill`/`partial` slots. Here, every package the NativeScript
-// alias table routes to, and the `@gjsify/*` ROOT barrels it imports, must stay clear of
-// GioUnix. Subpath imports are skipped on purpose: a subpath is an explicit opt-in.
-const NS_UNRENDERABLE_GI_RE = /@girs\/giounix|gi:\/\/GioUnix/;
+// Check 6 — `ns-unrenderable-import`. A NativeScript build resolves EVERY import statement
+// of every module it bundles, before tree-shaking, so a package that merely IMPORTS
+// something NativeScript cannot supply breaks the build even when nothing calls it. Two
+// families, both fatal at resolution:
+//   - a GJS-only BUILT-IN module (`system`, `gettext`, `cairo`, `byteArray`, `lang`,
+//     `mainloop`, `format`, `signals`, bare `console`, `resource:///…`): no resolver answers it
+//     off GJS ("Rolldown failed to resolve import \"system\"");
+//   - a `gi://` typelib (or its `@girs/*` value import) outside the namespaces the
+//     NativeScript `giRenderer` answers (`GI_RENDERERS.nativescript.namespaces`):
+//     "gi://GioUnix has no widget renderer".
+// This bit `@gjsify/os` / `@gjsify/fs` (slot `none`, yet aliased on NativeScript), which import
+// the `@gjsify/utils` root barrel and so reached `fs.ts`'s GioUnix import (#2750) and then
+// `path.ts`'s `system` import. Check 1 cannot see it: it only judges `polyfill`/`partial`
+// slots. Here, every module the NativeScript alias table routes to is walked through its
+// relative imports AND the `@gjsify/*` packages (root or subpath, resolved through the
+// `exports` map) it imports. A subpath is walked too: a consumer that opts into a
+// GJS-only subpath (`@gjsify/utils/fd`) is exactly the edge that must not exist.
+const GJS_ONLY_BUILTINS = new Set([
+    'system',
+    'gettext',
+    'cairo',
+    'console',
+    'byteArray',
+    'lang',
+    'mainloop',
+    'format',
+    'signals',
+    'tweener',
+]);
 
-async function auditNativescriptUnrenderableGi(meta) {
+/**
+ * Value (non-type) import specifiers of a source text, comments stripped.
+ * @param {string} text
+ * @returns {string[]}
+ */
+function valueImportSpecifiers(text) {
+    const code = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const specs = [];
+    const re =
+        /(?:^|[;\s}])(?:import|export)\s+(type\s+)?(?:[\w*${}\s,]*?\s+from\s*)?['"]([^'"]+)['"]|(?:\bimport|\brequire)\s*\(\s*['"]([^'"]+)['"]\s*\)/gm;
+    for (const m of code.matchAll(re)) {
+        if (m[1]) continue;
+        specs.push(m[2] ?? m[3]);
+    }
+    return specs;
+}
+
+async function auditNativescriptUnrenderableImports(meta) {
     let table;
+    let renderer;
     try {
         ({ ALIASES_NODE_FOR_NATIVESCRIPT: table } = await import('../packages/infra/resolve-npm/lib/index.mjs'));
+        ({ GI_RENDERERS: renderer } = await import('../packages/infra/resolve-npm/lib/gi-renderers.mjs'));
     } catch (err) {
         return [
-            `ns-unrenderable-gi: could not load @gjsify/resolve-npm's NativeScript alias table (${err?.message ?? err}).`,
+            `ns-unrenderable-import: could not load @gjsify/resolve-npm's NativeScript alias table (${err?.message ?? err}).`,
         ];
     }
-    const failures = [];
-    /** @type {Map<string,string[]|null>} root package → offending files (null: not a workspace package) */
-    const cache = new Map();
-    const importRe = /(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g;
+    const renderable = new Set(Object.keys(renderer.nativescript.namespaces).map((n) => n.toLowerCase()));
 
-    async function rootReach(name) {
-        if (cache.has(name)) return cache.get(name);
-        cache.set(name, []);
-        const rec = meta.get(name);
-        const entry = rec && join(rec.pkgDir, 'src', 'index.ts');
-        if (!entry || !existsSync(entry)) {
-            cache.set(name, null);
-            return null;
+    /** The reason a specifier cannot be answered on NativeScript, or null. */
+    function unrenderable(spec) {
+        if (GJS_ONLY_BUILTINS.has(spec)) return table[spec] ? null : `GJS-only built-in "${spec}"`;
+        if (spec.startsWith('resource://')) return `GJS-only "${spec}"`;
+        const gi = /^gi:\/\/([A-Za-z0-9_]+)/.exec(spec);
+        if (gi && !renderable.has(gi[1].toLowerCase())) return `gi://${gi[1]} (no NativeScript renderer)`;
+        const girs = /^@girs\/([a-z0-9]+)(?:-[0-9.]+)?$/.exec(spec);
+        if (girs && girs[1] !== 'gjs' && !renderable.has(girs[1])) return `${spec} (no NativeScript renderer)`;
+        return null;
+    }
+
+    /**
+     * NativeScript resolves `<file>.android.ts` / `.ios.ts` in preference to `<file>.ts`
+     * (platform suffix), so the shared file is not what a build reads when a variant exists.
+     * @returns {string[]} the files a NativeScript build may read for `file`
+     */
+    function nsVariants(file) {
+        const variants = ['android', 'ios']
+            .map((p) => file.replace(/\.(m?ts|m?js)$/, `.${p}.$1`))
+            .filter((f) => f !== file && existsSync(f));
+        return variants.length > 0 ? variants : [file];
+    }
+
+    /** `@gjsify/x[/sub]` → source file of that entry, or null (not a workspace package). */
+    function sourceOf(spec) {
+        const m = /^(@gjsify\/[^/]+)(\/.+)?$/.exec(spec);
+        const rec = m && meta.get(m[1]);
+        if (!rec) return null;
+        const key = m[2] ? `.${m[2]}` : '.';
+        const entry = rec.exports?.[key];
+        let target = typeof entry === 'string' ? entry : (entry?.default ?? entry?.import);
+        if (typeof target !== 'string') target = m[2] ? null : './lib/esm/index.js';
+        if (!target) return null;
+        const base = target.replace(/^\.\/lib\/(?:esm\/)?/, '').replace(/\.(?:m?js|d\.ts)$/, '');
+        for (const ext of ['.ts', '.mts', '.js', '.mjs']) {
+            const file = join(rec.pkgDir, 'src', base + ext);
+            if (existsSync(file)) return file;
         }
-        const hits = [];
+        return null;
+    }
+
+    const failures = [];
+    // Roots: everything the alias table routes to, plus every package or declared subpath that
+    // CLAIMS a NativeScript slot (`polyfill`/`partial`) — those are what an app imports directly.
+    const roots = new Set(Object.values(table).filter((v) => typeof v === 'string' && v.startsWith('@gjsify/')));
+    for (const rec of meta.values()) {
+        if (['polyfill', 'partial'].includes(rec.runtimes?.nativescript)) roots.add(rec.name);
+        for (const [sub, slots] of Object.entries(rec.subpaths ?? {})) {
+            if (['polyfill', 'partial'].includes(slots?.nativescript)) roots.add(`${rec.name}${sub.slice(1)}`);
+        }
+    }
+    for (const value of [...roots].sort()) {
+        const start = sourceOf(value);
+        if (!start) continue;
+        /** @type {Map<string,string>} offending import → first chain that reaches it */
+        const hits = new Map();
         const seen = new Set();
-        const queue = [entry];
-        const deps = new Set();
+        const queue = [[start, value]];
         while (queue.length > 0) {
-            const file = queue.pop();
-            if (seen.has(file) || !existsSync(file)) continue;
-            seen.add(file);
-            const text = await readFile(file, 'utf8');
-            if (NS_UNRENDERABLE_GI_RE.test(text)) hits.push(`${name}:${relative(rec.pkgDir, file)}`);
-            for (const m of text.matchAll(importRe)) {
-                const spec = m[1];
-                if (spec.startsWith('.')) {
-                    queue.push(join(file, '..', spec.replace(/\.js$/, '.ts')));
-                } else if (/^@gjsify\/[^/]+$/.test(spec)) {
-                    deps.add(spec);
+            const [entry, chain] = queue.pop();
+            for (const file of nsVariants(entry)) {
+                if (seen.has(file) || !existsSync(file)) continue;
+                seen.add(file);
+                const text = await readFile(file, 'utf8');
+                for (const spec of valueImportSpecifiers(text)) {
+                    const bad = unrenderable(spec);
+                    if (bad) {
+                        if (!hits.has(bad)) hits.set(bad, `${chain} › ${relative(PACKAGES_DIR, file)}`);
+                    } else if (spec.startsWith('.')) {
+                        queue.push([join(file, '..', spec.replace(/\.m?js$/, '.ts')), chain]);
+                    } else {
+                        // A bare/`node:` Node builtin is itself routed through the alias table.
+                        const routed = spec.startsWith('@gjsify/') ? spec : table[spec.replace(/^node:/, '')];
+                        const next =
+                            typeof routed === 'string' && routed.startsWith('@gjsify/') ? sourceOf(routed) : null;
+                        if (next) queue.push([next, `${chain} › ${routed}`]);
+                    }
                 }
             }
         }
-        for (const dep of deps) {
-            const sub = await rootReach(dep);
-            if (sub) hits.push(...sub.map((h) => `${h} (via ${name})`));
-        }
-        cache.set(name, hits);
-        return hits;
-    }
-
-    for (const value of new Set(Object.values(table))) {
-        if (typeof value !== 'string' || !/^@gjsify\/[^/]+$/.test(value)) continue;
-        const hits = await rootReach(value);
-        if (hits && hits.length > 0) {
+        if (hits.size > 0) {
             failures.push(
-                `${value}: the NativeScript alias table routes to it, but its root import graph reaches GioUnix (${hits.join(', ')}) — ` +
-                    'the NativeScript giRenderer has no GioUnix, so every NativeScript build that imports it fails (ns-unrenderable-gi). ' +
-                    'Move the GioUnix-bound module behind its own subpath.',
+                `${value}: it is a NativeScript entry (alias table or nativescript slot), but its import graph reaches ` +
+                    [...hits].map(([what, via]) => `${what} (${via})`).join('; ') +
+                    ' — NativeScript cannot resolve or render it, so every NativeScript build that imports it fails (ns-unrenderable-import). ' +
+                    'Move the GJS-only module behind its own subpath and import the narrower one.',
             );
         }
     }
@@ -1127,7 +1205,7 @@ async function auditNativescriptUnrenderableGi(meta) {
  */
 async function auditReachability(meta) {
     const aliasFailures = await auditCuratedAliasRouting(meta);
-    const nsGiFailures = await auditNativescriptUnrenderableGi(meta);
+    const nsGiFailures = await auditNativescriptUnrenderableImports(meta);
     const failures = [...nsGiFailures];
     const warnings = [];
     const unrouted = [];

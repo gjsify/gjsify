@@ -22,6 +22,10 @@
             "types": "./lib/types/fd.d.ts",
             "default": "./lib/esm/fd.js"
         },
+        "./program": {
+            "types": "./lib/types/program.d.ts",
+            "default": "./lib/esm/program.js"
+        },
         "./font-map": {
             "types": "./lib/types/font-map.d.ts",
             "default": "./lib/esm/font-map.js"
@@ -95,11 +99,17 @@
                 "browser": "none",
                 "nativescript": "none"
             },
+            "./program": {
+                "gjs": "polyfill",
+                "node": "none",
+                "browser": "none",
+                "nativescript": "none"
+            },
             "./font-map": {
                 "gjs": "polyfill",
                 "node": "polyfill",
                 "browser": "polyfill",
-                "nativescript": "polyfill"
+                "nativescript": "none"
             },
             "./main-loop": {
                 "gjs": "polyfill",
