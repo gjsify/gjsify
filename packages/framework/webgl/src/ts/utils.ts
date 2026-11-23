@@ -162,6 +162,30 @@ export function arrayToUint8Array(array: TypedArray | Float32List | Array<number
     throw new Error("Can't unpack typed array!");
 }
 
+/**
+ * Byte view of `data[srcOffset, srcOffset + length)` per the WebGL2 buffer
+ * upload overloads: both counts are in elements of a typed array (bytes for
+ * DataView/ArrayBuffer), `length` 0 means "to the end". Zero-copy.
+ * Returns null when the range lies outside `data` (INVALID_VALUE).
+ */
+export function bufferSourceRange(
+    data: TypedArray | ArrayBuffer | DataView,
+    srcOffset = 0,
+    length = 0,
+): Uint8Array | null {
+    const bytes = arrayToUint8Array(data);
+    const elementSize =
+        ArrayBuffer.isView(data) && !(data instanceof DataView)
+            ? (data as unknown as { BYTES_PER_ELEMENT: number }).BYTES_PER_ELEMENT
+            : 1;
+    const elementCount = bytes.length / elementSize;
+    if (srcOffset < 0 || length < 0 || srcOffset > elementCount) return null;
+    const count = length === 0 ? elementCount - srcOffset : length;
+    if (srcOffset + count > elementCount) return null;
+    if (srcOffset === 0 && count === elementCount) return bytes;
+    return bytes.subarray(srcOffset * elementSize, (srcOffset + count) * elementSize);
+}
+
 export function Uint8ArrayToVariant(array: Uint8Array | null) {
     const variant = new GLib.Variant('ay', array);
     return variant;
