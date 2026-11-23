@@ -4,7 +4,9 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 
-import {
+import fsPromisesDefault from './promises.js';
+import fsDefault, {
+    promises,
     readFile,
     writeFile,
     readdir,
@@ -52,6 +54,20 @@ export default async () => {
             expect(() => readSync(3, new Uint8Array(1))).toThrow('Platform not supported');
             expect(() => closeSync(3)).toThrow('Platform not supported');
             expect(() => fstatSync(3)).toThrow('Platform not supported');
+        });
+
+        await it('default export carries the fs and fs/promises surface', async () => {
+            expect(typeof fsDefault.readFile).toBe('function');
+            expect(typeof fsDefault.writeFile).toBe('function');
+            expect(typeof fsDefault.readdir).toBe('function');
+            expect(typeof fsDefault.stat).toBe('function');
+            expect(typeof fsDefault.mkdir).toBe('function');
+            expect(typeof fsDefault.unlink).toBe('function');
+            expect(typeof fsDefault.openSync).toBe('function');
+            expect(fsDefault.readFile).toBe(readFile);
+            expect(fsDefault.promises).toBe(promises);
+            expect(promises.readFile).toBe(readFile);
+            expect(fsPromisesDefault).toBe(promises);
         });
 
         await it('exists throws Platform not supported', async () => {

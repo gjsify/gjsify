@@ -473,7 +473,7 @@ export const ALIASES_NODE_FOR_NATIVESCRIPT = {
     events: '@gjsify/events',
     // @gjsify/fs uses gi://Gio (GJS-only). On NS, route to the native bridge.
     fs: '@gjsify/native-fs-bridge',
-    'fs/promises': '@gjsify/native-fs-bridge',
+    'fs/promises': '@gjsify/native-fs-bridge/promises',
     os: '@gjsify/os',
     path: '@gjsify/path',
     'path/posix': '@gjsify/path/posix',

@@ -550,3 +550,28 @@ export function fstatSync(fd: number): FdStats {
 export function closeSync(fd: number): void {
     fds().closeSync(fd);
 }
+
+// ===== Default export =====
+// `fs` and `fs/promises` both alias to this module (ALIASES_NODE_FOR_NATIVESCRIPT), and Node's
+// both have a default export that real packages import (`import fs from 'node:fs'`). Without
+// one the bundler fails with MISSING_EXPORT "default". One object serves both: the promise
+// functions are the `fs/promises` surface, `promises` makes it the `fs` default too.
+
+const promises = { readFile, writeFile, readdir, stat, mkdir, unlink, exists };
+
+export { promises };
+
+export default {
+    readFile,
+    writeFile,
+    readdir,
+    stat,
+    mkdir,
+    unlink,
+    exists,
+    openSync,
+    readSync,
+    fstatSync,
+    closeSync,
+    promises,
+};
