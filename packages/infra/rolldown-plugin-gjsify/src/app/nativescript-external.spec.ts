@@ -15,7 +15,13 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import { GI_REAL_PLUGIN } from '../plugins/gi-real.js';
-import { NATIVESCRIPT_CORE_EXTERNAL_PLUGIN, setupForNativescript } from './nativescript.js';
+import { existsSync, readFileSync } from 'node:fs';
+
+import {
+    NATIVESCRIPT_CORE_EXTERNAL_PLUGIN,
+    resolveNativescriptGlobalsShim,
+    setupForNativescript,
+} from './nativescript.js';
 
 type ResolveIdHandler = (id: string) => { id: string; external: boolean } | null;
 
@@ -52,6 +58,16 @@ export default async () => {
             const external = (options.external ?? []) as unknown[];
             expect(Array.isArray(external)).toBe(true);
             for (const entry of external) expect(typeof entry).toBe('string');
+        });
+
+        await it('installs the missing Node globals before any module (setImmediate)', async () => {
+            // No free-identifier scan: a dependency in node_modules may be the only caller.
+            const shim = resolveNativescriptGlobalsShim();
+            expect(existsSync(shim)).toBe(true);
+            expect(readFileSync(shim, 'utf8').includes('@gjsify/timers/register')).toBe(true);
+            // The entry reaches the engine as a virtual wrapper that imports the shim first.
+            const { options } = await setupForNativescript({ ...factoryInput, input: 'src/index.ts' });
+            expect(JSON.stringify(options.input).includes('gjsify-entry:')).toBe(true);
         });
 
         await it('keeps the caller’s --external names', async () => {
