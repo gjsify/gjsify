@@ -18,6 +18,10 @@
             "types": "./lib/types/core.d.ts",
             "default": "./lib/esm/core.js"
         },
+        "./fd": {
+            "types": "./lib/types/fd.d.ts",
+            "default": "./lib/esm/fd.js"
+        },
         "./font-map": {
             "types": "./lib/types/font-map.d.ts",
             "default": "./lib/esm/font-map.js"
@@ -84,6 +88,12 @@
                 "node": "polyfill",
                 "browser": "polyfill",
                 "nativescript": "polyfill"
+            },
+            "./fd": {
+                "gjs": "polyfill",
+                "node": "none",
+                "browser": "none",
+                "nativescript": "none"
             },
             "./font-map": {
                 "gjs": "polyfill",

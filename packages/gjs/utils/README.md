@@ -56,11 +56,13 @@ the contract #2339 asked for). The primitives above have no release at all, only
 never what someone else armed. The io packages that arm via `ensureMainLoop()` today keep
 their park-forever behavior until their close paths migrate to the pair.
 
-The root barrel adds `gbytesToUint8Array`, `cli`, `readJSON`, `existsFD`, `existsSync`,
+The root barrel adds `gbytesToUint8Array`, `cli`, `readJSON`, `existsSync`,
 `gioAsync`, `readBytesAsync`, `inputStreamAsyncIterator`, `resolve`, `getProgramExe`,
 `getProgramDir`, `getPathSeparator` and `getNodeModulesPath` — all of which take a
 top-level `@girs/*` value import or a bare `imports.*` read and therefore only work
-under GJS.
+under GJS. `existsFD` (needs `gi://GioUnix`) is the one GJS-only helper kept OFF the barrel, at
+`@gjsify/utils/fd`: the NativeScript `giRenderer` has no GioUnix, and `@gjsify/os` / `@gjsify/fs`
+import the barrel.
 
 Off GJS the bundler substitutes an empty module for `@girs/*`, so a GJS-only helper
 reached from a browser bundle does **not** fail at build or load time — it throws a
