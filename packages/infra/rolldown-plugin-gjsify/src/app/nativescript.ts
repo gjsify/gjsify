@@ -45,13 +45,9 @@ import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
 import { ALIASES_NODE_FOR_NATIVESCRIPT, GI_RENDERERS, getDerivedAliasesSync } from '@gjsify/resolve-npm';
 
-import { dirname, resolve } from 'node:path';
-import { existsSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
-
 import type { PluginOptions } from '../types/plugin-options.js';
 import { wrapInputWithSideEffects } from '../utils/entry-wrapper.js';
+import { resolveShim } from '../utils/resolve-shim.js';
 import { globToEntryPoints } from '../utils/entry-points.js';
 import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
 import { giRendererPlugin } from '../plugins/gi-renderer.js';
@@ -111,10 +107,7 @@ const nativescriptCoreExternalPlugin = (): RolldownPluginOption => ({
  * `node_modules` uses, and there is no runtime to fall back on once it is missing.
  */
 export function resolveNativescriptGlobalsShim(): string {
-    const relative = resolve(dirname(fileURLToPath(import.meta.url)), '../shims/nativescript-globals.js');
-    if (existsSync(relative)) return relative;
-    // Bundled-orchestrator case (GJS-CLI self-host): the relative lookup misses.
-    return createRequire(import.meta.url).resolve('@gjsify/rolldown-plugin-gjsify/shims/nativescript-globals');
+    return resolveShim('nativescript-globals');
 }
 
 export const setupForNativescript = async (input: NativescriptFactoryInput): Promise<NativescriptBuildConfig> => {
