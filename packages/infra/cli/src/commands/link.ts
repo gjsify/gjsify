@@ -28,12 +28,14 @@ import {
     planDevLinks,
     prepareDevLinks,
     readDevLinkOverride,
+    removeDevLinkClosure,
     removeDevLinkOverride,
     removeDevLinks,
     removeLocalIgnore,
     resolveCheckoutWorkspaces,
     retireDevLinks,
     scanDevLinks,
+    syncDevLinkClosure,
     unbuiltDevLinks,
     writeDevLinkOverride,
 } from '../utils/dev-link.js';
@@ -144,7 +146,14 @@ export const linkCommand: LeafCommand<unknown, LinkOptions> = {
         const retired = retireDevLinks(consumerRoot, sweep, keep);
 
         const written = applyDevLinks(links);
-        writeDevLinkOverride(consumerRoot, { version: 1, checkout, packages: patterns });
+        let previousClosure: string[] = [];
+        try {
+            previousClosure = readDevLinkOverride(consumerRoot)?.closure ?? [];
+        } catch {
+            // Unreadable old override: nothing recorded to retire.
+        }
+        const closure = syncDevLinkClosure(links, checkout, previousClosure);
+        writeDevLinkOverride(consumerRoot, { version: 1, checkout, packages: patterns, closure });
         const ignored = ensureLocallyIgnored(consumerRoot);
         console.log(`\n  ${written.length} link(s) written, ${links.length - written.length} already current.`);
         // Counted against what was PLANNED, not just reported: `removeDevLinks`
@@ -206,9 +215,11 @@ export const unlinkCommand: LeafCommand<unknown, UnlinkOptions> = {
         // part that can fail (a checkout that has since been deleted, an unbuilt
         // one) and the checkout path is what the tree sweep below needs.
         const checkouts: string[] = [];
+        let closure: string[] = [];
         try {
-            const checkout = readDevLinkOverride(consumerRoot)?.checkout;
-            if (checkout) checkouts.push(checkout);
+            const override = readDevLinkOverride(consumerRoot);
+            if (override?.checkout) checkouts.push(override.checkout);
+            closure = override?.closure ?? [];
         } catch {
             // Unparseable override: the sweep finds nothing, the plan below says
             // why, and the override is still removed.
@@ -229,6 +240,7 @@ export const unlinkCommand: LeafCommand<unknown, UnlinkOptions> = {
             const names = new Set(links.map((l) => l.name));
             for (const link of scanDevLinks(consumerRoot, checkouts)) names.add(link.name);
             for (const name of [...names].sort()) console.log(`  would remove link  ${name}`);
+            for (const path of closure) console.log(`  would remove link  ${path}`);
             console.log(`  would remove       ${overridePath}`);
             console.log(`  would remove       ${DEV_LINK_FILE} entry from .git/info/exclude (if this module wrote it)`);
             console.log(`\n${label}: nothing changed. Drop --dry-run to apply.`);
@@ -251,6 +263,7 @@ export const unlinkCommand: LeafCommand<unknown, UnlinkOptions> = {
             removed.push(link);
         }
         for (const link of removed) console.log(`  unlinked  ${link.name}`);
+        for (const path of removeDevLinkClosure(closure)) console.log(`  unlinked  ${path}`);
 
         // Nothing may point out of `node_modules` any more, or the reinstall below
         // dies on it. If something does, the override STAYS: it is what a later
