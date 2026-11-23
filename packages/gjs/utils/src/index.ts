@@ -20,5 +20,7 @@ export * from './file.js';
 export * from './fs.js';
 // `existsFD` lives at `@gjsify/utils/fd`: its typelib has no NativeScript renderer.
 export * from './gio.js';
+// `getProgramExe` / `getProgramDir` / `getNodeModulesPath` live at `@gjsify/utils/program`: they
+// import the GJS-only `system` built-in, which NativeScript cannot resolve.
 export * from './path.js';
 export * from './socket-service.js';

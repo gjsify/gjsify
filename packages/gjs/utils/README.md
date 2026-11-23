@@ -57,12 +57,21 @@ never what someone else armed. The io packages that arm via `ensureMainLoop()` t
 their park-forever behavior until their close paths migrate to the pair.
 
 The root barrel adds `gbytesToUint8Array`, `cli`, `readJSON`, `existsSync`,
-`gioAsync`, `readBytesAsync`, `inputStreamAsyncIterator`, `resolve`, `getProgramExe`,
-`getProgramDir`, `getPathSeparator` and `getNodeModulesPath` — all of which take a
-top-level `@girs/*` value import or a bare `imports.*` read and therefore only work
-under GJS. `existsFD` (needs `gi://GioUnix`) is the one GJS-only helper kept OFF the barrel, at
-`@gjsify/utils/fd`: the NativeScript `giRenderer` has no GioUnix, and `@gjsify/os` / `@gjsify/fs`
-import the barrel.
+`gioAsync`, `readBytesAsync`, `inputStreamAsyncIterator`, `resolve` and
+`getPathSeparator` — all of which take a top-level `@girs/*` value import and
+therefore only work under GJS.
+
+**Root-barrel rule.** `@gjsify/os` / `@gjsify/module` / `@gjsify/fs` import the root barrel, and
+NativeScript resolves every import before tree-shaking. So the root may only re-export modules
+whose imports NativeScript can answer: no GJS-only built-in (`system`, `gettext`, `cairo`,
+`byteArray`, …) and no typelib outside the `giRenderer`'s namespaces. A module that needs one is
+moved to its own subpath (GJS-only slot) — `scripts/audit-runtimes.mjs`'s
+`ns-unrenderable-import` check fails otherwise.
+
+| Moved off the root barrel | Now importable from | Needs |
+|---|---|---|
+| `existsFD` | `@gjsify/utils/fd` | `gi://GioUnix` |
+| `getProgramExe`, `getProgramDir`, `getNodeModulesPath` | `@gjsify/utils/program` | built-in `system` |
 
 Off GJS the bundler substitutes an empty module for `@girs/*`, so a GJS-only helper
 reached from a browser bundle does **not** fail at build or load time — it throws a
