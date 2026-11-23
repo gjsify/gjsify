@@ -80,6 +80,12 @@ export interface DevLinkOverride {
      * `@gjsify/*`, the same dialect `gjsify foreach --include` takes.
      */
     packages: string[];
+    /**
+     * Symlinks `gjsify link` created INSIDE the checkout so a linked package resolves its own
+     * dependencies from the checkout under `--preserve-symlinks` (see {@link syncDevLinkClosure}).
+     * Absolute paths; `unlink` removes exactly these and nothing else.
+     */
+    closure?: string[];
 }
 
 /** One `node_modules/<name>` → checkout package directory link. */
@@ -147,12 +153,16 @@ export function readDevLinkOverride(root: string): DevLinkOverride | null {
         packages: Array.isArray(record.packages)
             ? record.packages.filter((p): p is string => typeof p === 'string')
             : [],
+        ...(Array.isArray(record.closure)
+            ? { closure: record.closure.filter((p): p is string => typeof p === 'string') }
+            : {}),
     };
 }
 
 export function writeDevLinkOverride(root: string, override: DevLinkOverride): string {
     const path = devLinkPath(root);
-    writeFileSync(path, JSON.stringify(override, null, 2) + '\n');
+    const { closure, ...rest } = override;
+    writeFileSync(path, JSON.stringify(closure && closure.length > 0 ? { ...rest, closure } : rest, null, 2) + '\n');
     return path;
 }
 
@@ -188,6 +198,11 @@ export function devLinkRoot(startDir: string): string {
  * (`McpServer` is not assignable to `McpServer`). `--preserveSymlinks` keeps
  * resolution in the consumer tree, which is what an unlinked install does.
  * An explicit `--preserveSymlinks` in either spelling wins.
+ *
+ * Node has the same switch, and the NativeScript CLI turns it ON: `bundler-compiler-service.js`
+ * (`shouldUsePreserveSymlinksOption`) starts Vite with `node --preserve-symlinks` unless the
+ * package manager is pnpm. Under it a linked package's own dependencies are looked up from the
+ * CONSUMER's tree, not the checkout's; {@link syncDevLinkClosure} compensates for that.
  */
 export function tscArgsUnderLink(args: readonly string[], linked: boolean): string[] {
     if (!linked) return [...args];
@@ -441,6 +456,87 @@ export function removeDevLinks(links: readonly DevLink[]): DevLink[] {
         if (!linkAlreadyPointsAt(link.linkPath, link.target)) continue;
         rmSync(link.linkPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
         removed.push(link);
+    }
+    return removed;
+}
+
+function missing(path: string): boolean {
+    try {
+        lstatSync(path);
+        return false;
+    } catch {
+        return true;
+    }
+}
+
+/**
+ * Make a linked package resolve its dependencies from the CHECKOUT under
+ * `node --preserve-symlinks`.
+ *
+ * Without the switch Node follows `<consumer>/node_modules/@gjsify/X` to its real path and finds
+ * X's dependencies in the checkout. With it (the NativeScript CLI sets it, see
+ * {@link tscArgsUnderLink}) the lookup walks UP FROM THE LINK: `.../@gjsify/X/node_modules`, then
+ * the consumer's own tree — so X gets the consumer's execa 5 instead of the checkout's execa 9,
+ * and execa's own dependencies are searched from `.../X/node_modules/execa/..` the same way.
+ *
+ * The first directory searched is `<checkout>/<X>/node_modules`, and everything below it is
+ * looked up from there, so filling that ONE directory covers the whole transitive closure:
+ *  - absent → it becomes a symlink to the checkout's root `node_modules` (cheapest: one link per
+ *    package, whatever the dependency count);
+ *  - present (nested deps) → only the MISSING top-level entries are added as symlinks to the
+ *    root copy, scope directories included. A real file or directory is never touched.
+ *
+ * Idempotent: the previous call's links (`previous`) are removed first and the result is the full
+ * list now owned, which `gjsify link` records so `unlink` removes exactly those.
+ */
+export function syncDevLinkClosure(links: readonly DevLink[], checkout: string, previous: readonly string[]): string[] {
+    removeDevLinkClosure(previous);
+    const root = join(checkout, 'node_modules');
+    if (!existsSync(root)) return [];
+    const created: string[] = [];
+    const add = (path: string, target: string) => {
+        linkDirSync(path, target);
+        created.push(path);
+    };
+    for (const link of links) {
+        const nm = join(link.target, 'node_modules');
+        if (nm === root) continue;
+        if (missing(nm)) {
+            add(nm, root);
+            continue;
+        }
+        if (!lstatSync(nm).isDirectory()) continue;
+        for (const entry of readdirSync(root)) {
+            if (entry.startsWith('.')) continue;
+            if (!entry.startsWith('@')) {
+                if (missing(join(nm, entry))) add(join(nm, entry), join(root, entry));
+                continue;
+            }
+            const scopeDir = join(nm, entry);
+            if (missing(scopeDir)) {
+                add(scopeDir, join(root, entry));
+                continue;
+            }
+            if (!lstatSync(scopeDir).isDirectory()) continue;
+            for (const name of readdirSync(join(root, entry))) {
+                if (missing(join(scopeDir, name))) add(join(scopeDir, name), join(root, entry, name));
+            }
+        }
+    }
+    return created;
+}
+
+/** Remove the symlinks {@link syncDevLinkClosure} recorded. Only symlinks, nothing else. */
+export function removeDevLinkClosure(paths: readonly string[]): string[] {
+    const removed: string[] = [];
+    for (const path of paths) {
+        try {
+            if (!lstatSync(path).isSymbolicLink()) continue;
+        } catch {
+            continue;
+        }
+        rmSync(path, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+        removed.push(path);
     }
     return removed;
 }

@@ -50,6 +50,7 @@ import {
     writeDevLinkOverride,
 } from './dev-link.js';
 import { linkCommand, unlinkCommand } from '../commands/link.js';
+import { nodeBinary } from './run-node.js';
 
 /** `realpathSync` because macOS `tmpdir()` is `/var/…` → `/private/var/…`. */
 function scratch(): string {
@@ -700,6 +701,88 @@ export default async () => {
                 'false',
             ]);
             expect(tscArgsUnderLink(['--preservesymlinks=false'], true)).toStrictEqual(['--preservesymlinks=false']);
+        });
+    });
+
+    // REGRESSION: the NativeScript CLI starts Vite with `node --preserve-symlinks`, under which a
+    // linked package's dependencies are looked up from the CONSUMER's tree — a@1 here — and a's
+    // own dependency b from `.../a/..`, not from the checkout.
+    await describe('closure under --preserve-symlinks', async () => {
+        const w = (path: string, text: string): void => {
+            mkdirSync(join(path, '..'), { recursive: true });
+            writeFileSync(path, text);
+        };
+        const resolveUnderPreserve = (consumer: string): unknown => {
+            const entry = join(consumer, 'node_modules', '@gjsify', 'utils');
+            const out = execFileSync(
+                nodeBinary(),
+                [
+                    '--preserve-symlinks',
+                    '-e',
+                    `process.stdout.write(JSON.stringify(require(${JSON.stringify(entry)})))`,
+                ],
+                { encoding: 'utf8' },
+            );
+            return JSON.parse(out);
+        };
+        const unlinkIn = async (consumer: string): Promise<void> => {
+            const saved = { log: console.log, warn: console.warn, error: console.error };
+            const previousCwd = process.cwd();
+            try {
+                process.chdir(consumer);
+                console.log = console.warn = console.error = (): void => {};
+                await unlinkCommand.handler({ install: false, 'dry-run': false } as never);
+            } finally {
+                Object.assign(console, saved);
+                process.chdir(previousCwd);
+            }
+        };
+        const fixture = (nested: boolean) => {
+            const root = scratch();
+            const checkout = makeCheckout(join(root, 'checkout'));
+            const pkg = join(checkout, 'packages', 'utils');
+            w(join(pkg, 'index.js'), "module.exports = require('a');\n");
+            writeJson(join(checkout, 'node_modules', 'a', 'package.json'), { name: 'a', version: '2.0.0' });
+            w(join(checkout, 'node_modules', 'a', 'index.js'), "exports.v = 2; exports.b = require('b').name;\n");
+            writeJson(join(checkout, 'node_modules', 'b', 'package.json'), { name: 'b', version: '1.0.0' });
+            w(join(checkout, 'node_modules', 'b', 'index.js'), "exports.name = 'b2';\n");
+            if (nested) w(join(pkg, 'node_modules', 'own', 'index.js'), 'module.exports = 1;\n');
+            const consumer = makeConsumer(join(root, 'consumer'), ['@gjsify/utils']);
+            writeJson(join(consumer, 'node_modules', 'a', 'package.json'), { name: 'a', version: '1.0.0' });
+            w(join(consumer, 'node_modules', 'a', 'index.js'), 'exports.v = 1;\n');
+            writeJson(join(consumer, 'node_modules', '@gjsify', 'utils', 'package.json'), {
+                name: '@gjsify/utils',
+                version: '0.0.1',
+            });
+            return { root, checkout, pkg, consumer };
+        };
+
+        await it('resolves A@2 and its dependency B from the checkout (no node_modules in the package)', async () => {
+            const { root, checkout, pkg, consumer } = fixture(false);
+            runLink(consumer, { checkout, packages: ['@gjsify/utils'] });
+            expect(resolveUnderPreserve(consumer)).toStrictEqual({ v: 2, b: 'b2' });
+            expect(lstatSync(join(pkg, 'node_modules')).isSymbolicLink()).toBe(true);
+            expect(readDevLinkOverride(consumer)?.closure).toStrictEqual([join(pkg, 'node_modules')]);
+            await unlinkIn(consumer);
+            expect(existsSync(join(pkg, 'node_modules'))).toBe(false);
+            expect(existsSync(join(checkout, 'node_modules', 'a'))).toBe(true);
+            rmSync(root, { recursive: true, force: true });
+        });
+
+        await it('adds only the missing entries next to a real node_modules, and unlink removes exactly those', async () => {
+            const { root, checkout, pkg, consumer } = fixture(true);
+            runLink(consumer, { checkout, packages: ['@gjsify/utils'] });
+            expect(resolveUnderPreserve(consumer)).toStrictEqual({ v: 2, b: 'b2' });
+            expect(lstatSync(join(pkg, 'node_modules')).isSymbolicLink()).toBe(false);
+            expect(lstatSync(join(pkg, 'node_modules', 'a')).isSymbolicLink()).toBe(true);
+            // Idempotent.
+            runLink(consumer, { checkout, packages: ['@gjsify/utils'] });
+            expect(resolveUnderPreserve(consumer)).toStrictEqual({ v: 2, b: 'b2' });
+            await unlinkIn(consumer);
+            expect(existsSync(join(pkg, 'node_modules', 'a'))).toBe(false);
+            expect(existsSync(join(pkg, 'node_modules', 'b'))).toBe(false);
+            expect(lstatSync(join(pkg, 'node_modules', 'own')).isDirectory()).toBe(true);
+            rmSync(root, { recursive: true, force: true });
         });
     });
 };
