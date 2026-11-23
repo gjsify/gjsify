@@ -11,6 +11,7 @@ import sqliteSmoke from './specs/sqlite.smoke.js';
 import secretStoreSmoke from './specs/secret-store.smoke.js';
 import secretStoreColdStartSmoke from './specs/secret-store.cold-start.smoke.js';
 import systemAccountsSmoke from './specs/system-accounts.smoke.js';
+import fsDefaultSmoke from './specs/fs-default.smoke.js';
 
 // Module-level result the page binds to (set when the async run lands).
 export const result: { summary: Summary | null; runId: string } = {
@@ -29,6 +30,7 @@ async function runSmoke(): Promise<void> {
         await secretStoreSmoke();
         await secretStoreColdStartSmoke();
         await systemAccountsSmoke();
+        await fsDefaultSmoke();
     } catch (err) {
         // A throw OUTSIDE an it() (e.g. an import-time crash on a missing
         // polyfill) is the worst case — surface it explicitly so the parser

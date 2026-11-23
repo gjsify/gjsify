@@ -21,6 +21,7 @@
         "@gjsify/buffer": "^0.64.59",
         "@gjsify/empty": "^0.64.59",
         "@gjsify/module": "^0.64.59",
+        "@gjsify/native-fs-bridge": "^0.64.59",
         "@gjsify/native-platform": "^0.64.59",
         "@gjsify/native-secret-store-bridge": "^0.64.59",
         "@gjsify/native-sqlite-bridge": "^0.64.59",
