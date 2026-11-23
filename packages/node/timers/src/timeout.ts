@@ -171,19 +171,26 @@ export class Immediate {
     readonly _callback: TimerCallback;
     readonly _args: unknown[];
 
-    constructor(callback: TimerCallback, args: unknown[]) {
+    /**
+     * @param defer How the dispatch is scheduled. Defaults to a microtask so
+     *   setImmediate fires before setTimeout(0); `./register` passes a
+     *   `setTimeout(0)` deferral on hosts without a native `setImmediate`, so
+     *   pending microtasks drain first, as in Node.
+     */
+    constructor(callback: TimerCallback, args: unknown[], defer?: (run: () => void) => void) {
         this._callback = callback;
         this._args = args;
-        // Use a microtask so setImmediate fires before setTimeout(0). The
-        // dispatch goes through `_onImmediate` so there is ONE path to the
+        // The dispatch goes through `_onImmediate` so there is ONE path to the
         // callback — the same one a library invoking it directly takes — and it
         // carries `_args`, because that is the only record of them: an Immediate
         // has no host handle to hand the arguments to.
-        Promise.resolve().then(() => {
+        const run = (): void => {
             if (!this._cancelled) {
                 this._onImmediate(...this._args);
             }
-        });
+        };
+        if (defer) defer(run);
+        else Promise.resolve().then(run);
     }
 
     /**
