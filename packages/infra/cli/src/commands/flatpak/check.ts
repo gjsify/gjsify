@@ -8,8 +8,9 @@
 //     correctness check (and optionally `repo` for built artefacts)
 //
 // Both ship inside the `org.flatpak.Builder` flatpak. We exec them from
-// the host PATH; if missing, print an install hint pointing at
-// `flatpak install -y flathub org.flatpak.Builder`.
+// the host PATH; a missing `flatpak-builder-lint` runs through
+// `flatpak run --command=… org.flatpak.Builder` when that app is installed,
+// else the check prints the install hint.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
@@ -43,6 +44,18 @@ interface FlatpakCheckOptions {
 /** argv for `appstreamcli`; offline unless the caller opts in to URL reachability checks. */
 export function appstreamValidateArgs(metainfoAbs: string, network = false): string[] {
     return ['validate', '--strict', ...(network ? [] : ['--no-net']), metainfoAbs];
+}
+
+/** Flathub ships the linter inside this app; installing it is the documented way to get it. */
+export const BUILDER_APP_ID = 'org.flatpak.Builder';
+
+/**
+ * How to run `flatpak-builder-lint` when it is not on PATH: through the `org.flatpak.Builder`
+ * app, which is how Flathub's own docs install it. Without this fallback every host that followed
+ * those docs reported the linter as missing and the whole check as failed.
+ */
+export function builderLintViaFlatpak(args: string[]): { bin: string; args: string[] } {
+    return { bin: 'flatpak', args: ['run', '--command=flatpak-builder-lint', BUILDER_APP_ID, ...args] };
 }
 
 export const flatpakCheckCommand: Command<unknown, FlatpakCheckOptions> = {
@@ -146,12 +159,12 @@ export const flatpakCheckCommand: Command<unknown, FlatpakCheckOptions> = {
                 console.error(`[gjsify flatpak check] manifest not found: ${manifestPath}`);
                 return process.exit(1);
             }
-            const ok = await runLinter('flatpak-builder-lint', ['manifest', manifestPath], args.verbose ?? false);
+            const ok = await runBuilderLint(['manifest', manifestPath], args.verbose ?? false);
             if (!ok) failures++;
 
             if (args.repo) {
                 const repoPath = resolve(cwd, args.repo as string);
-                const okRepo = await runLinter('flatpak-builder-lint', ['repo', repoPath], args.verbose ?? false);
+                const okRepo = await runBuilderLint(['repo', repoPath], args.verbose ?? false);
                 if (!okRepo) failures++;
             }
         }
@@ -243,7 +256,35 @@ function resolveManifestPath(explicit: string | undefined, appId: string | undef
     );
 }
 
-async function runLinter(bin: string, args: string[], verbose: boolean): Promise<boolean> {
+async function runBuilderLint(args: string[], verbose: boolean): Promise<boolean> {
+    const direct = await runLinter('flatpak-builder-lint', args, verbose);
+    if (direct !== 'missing') return direct === 'ok';
+    if (await builderAppInstalled()) {
+        const via = builderLintViaFlatpak(args);
+        return (await runLinter(via.bin, via.args, verbose)) === 'ok';
+    }
+    console.error(
+        `[gjsify flatpak check] flatpak-builder-lint not found in PATH, and ${BUILDER_APP_ID} is not installed.\n` +
+            `Install via:\n` +
+            `  flatpak install -y flathub ${BUILDER_APP_ID}`,
+    );
+    return false;
+}
+
+async function builderAppInstalled(): Promise<boolean> {
+    try {
+        const probe = await spawnToCompletion('flatpak', ['info', BUILDER_APP_ID], {
+            completion: 'return',
+            stdio: 'capture',
+        });
+        return probe.code === 0;
+    } catch {
+        // No `flatpak` binary at all: the app cannot be there either.
+        return false;
+    }
+}
+
+async function runLinter(bin: string, args: string[], verbose: boolean): Promise<'ok' | 'fail' | 'missing'> {
     // `completion: 'return'` — the handler's SUCCESS path ends with a `console.log`
     // and returns, so under GJS an async spawn leaves `ensureMainLoop`'s loop armed
     // and the command parks at 0 % CPU after every check has passed. The failure
@@ -256,17 +297,9 @@ async function runLinter(bin: string, args: string[], verbose: boolean): Promise
         });
     } catch (err) {
         const e = err as NodeJS.ErrnoException;
-        if (e.code === 'ENOENT') {
-            console.error(
-                `[gjsify flatpak check] ${bin} not found in PATH.\n` +
-                    `Install via:\n` +
-                    `  flatpak install -y flathub org.flatpak.Builder\n` +
-                    `  alias ${bin}="flatpak run --command=${bin} org.flatpak.Builder"`,
-            );
-        } else {
-            console.error(`[gjsify flatpak check] ${bin} failed to spawn: ${e.message}`);
-        }
-        return false;
+        if (e.code === 'ENOENT') return 'missing';
+        console.error(`[gjsify flatpak check] ${bin} failed to spawn: ${e.message}`);
+        return 'fail';
     }
 
     const ok = result.code === 0;
@@ -275,7 +308,7 @@ async function runLinter(bin: string, args: string[], verbose: boolean): Promise
         if (result.stdout?.trim()) console.log(result.stdout.trimEnd());
         if (result.stderr?.trim()) console.error(result.stderr.trimEnd());
     }
-    return ok;
+    return ok ? 'ok' : 'fail';
 }
 
 void join;
