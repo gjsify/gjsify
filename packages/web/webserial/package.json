@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/webserial",
-    "version": "0.64.58",
+    "version": "0.64.59",
     "description": "Web Serial API for GJS. The Linux backend opens a classic Bluetooth serial port (RFCOMM, SPP) through BlueZ, with no rfcomm binary and no /dev/rfcomm*",
     "type": "module",
     "module": "lib/esm/index.js",

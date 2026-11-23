@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.64.59](https://github.com/gjsify/gjsify/compare/v0.64.58...v0.64.59) (2026-11-23)
+
+### Features
+
+* **system-accounts:** declare the mobile empty answer ([#2747](https://github.com/gjsify/gjsify/issues/2747)) ([6f19af3](https://github.com/gjsify/gjsify/commit/6f19af3a7da624985adb961bc60b581c194127f7))
+
+### Bug Fixes
+
+* **secret-store:** treat a keyless file as empty ([#2748](https://github.com/gjsify/gjsify/issues/2748)) ([42c185a](https://github.com/gjsify/gjsify/commit/42c185afcbc0f60e976265e550bfe605dcca1189))
+* **webgl:** honour srcOffset and length in buffer uploads ([#2749](https://github.com/gjsify/gjsify/issues/2749)) ([efd0841](https://github.com/gjsify/gjsify/commit/efd0841c93d8c6684ed95103aa15123872da8ab3))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([5f3bb81](https://github.com/gjsify/gjsify/commit/5f3bb81848c959ce64dbce31806ae56a8eade5db))
+
 ## [0.64.58](https://github.com/gjsify/gjsify/compare/v0.64.57...v0.64.58) (2026-11-22)
 
 ### Features
