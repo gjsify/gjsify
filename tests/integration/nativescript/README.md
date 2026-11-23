@@ -20,6 +20,7 @@ Currently covered (extend by adding `app/specs/<pkg>.smoke.ts` + an import in
 
 - **`@gjsify/path`** — posix `join`/`resolve`/`normalize`, `basename`/`extname`/`parse`, `sep`/`delimiter`
 - **`@gjsify/buffer`** — `from`/`toString` (utf8/base64/hex), `byteLength`, `concat`, `alloc`, `writeUInt8`/`readUInt8`
+- **`setImmediate`/`clearImmediate` globals** — installed by the build before any module runs; ordering after microtasks, args, cancel
 - **`@gjsify/stream`** (`nativescript:'polyfill'`) — `Readable.from`, `PassThrough` round-trip, `Transform` map, `pipeline`, async-iteration
 - **`@gjsify/secret-store`** (Android) — `openSecretStore` over `@gjsify/native-secret-store-bridge` and an AES-256-GCM `AndroidKeyStore` key: driver info, set/get/keys/delete/clear across two namespaces, a second driver reading the first one's value, ciphertext-only file in `noBackupFilesDir`, plus the `clear()` key-cost measurement (ADR 0152); `secret-store.cold-start.smoke.ts` adds the cold-start phases A/B/C (the runner relaunches the app with `--es gjsify.phase` after `am force-stop`; without the extra it does nothing) and the reinstall phase R (A, then `adb uninstall` + `adb install`: the store opens empty)
 - **`@gjsify/system-accounts`** (Android) — `createSystemAccounts()` loads with no `gi://` import and answers empty `services`/`credentials`, `listAccounts()` `[]` and `no-account-store` for credentials (ADR 0152, proof item 5; the curlew account-form half of that item is still a device proof)

@@ -2,10 +2,6 @@
 // `RolldownOptions` template plus the plugin array the caller composes with
 // their user options. Library mode is `setupLib`.
 
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
-import { existsSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 import { aliasPlugin } from '../plugins/alias.js';
 import { externalsPlugin } from '../plugins/externals.js';
@@ -38,36 +34,7 @@ import { implicitGlobalAssignPlugin } from '../plugins/implicit-global-assign.js
 import { workerUrlPlugin } from '../plugins/worker-url.js';
 import { shebangPlugin, resolveShebangLine, inputShebangStripPlugin } from '../plugins/shebang.js';
 import { wrapInputWithSideEffects } from '../utils/entry-wrapper.js';
-
-const _shimDir = dirname(fileURLToPath(import.meta.url));
-
-/**
- * Resolve one of this package's bundled shims to an absolute path.
- *
- * `createRequire` is used only for its `exports`-map-aware RESOLVER; nothing is
- * loaded through it (this source is ESM — see AGENTS.md "no bare `require`").
- */
-function resolveShim(shimName: string): string {
-    // Normal Node consumption: `_shimDir` = `<pkg>/lib/app/`.
-    const relative = resolve(_shimDir, `../shims/${shimName}.js`);
-    if (existsSync(relative)) return relative;
-    // Fallback for the bundled-orchestrator case (GJS-CLI self-host loop):
-    // `_shimDir` collapses to the bundle's own directory and the relative lookup
-    // misses. Every shim MUST therefore be a `./shims/<name>` subpath export in
-    // package.json.
-    try {
-        return createRequire(import.meta.url).resolve(`@gjsify/rolldown-plugin-gjsify/shims/${shimName}`);
-    } catch (cause) {
-        // Throw rather than return the unverified `relative`: a non-existent
-        // path in the alias map resurfaces much later as an unrelated "could not
-        // resolve" naming a path nobody wrote.
-        throw new Error(
-            `@gjsify/rolldown-plugin-gjsify: cannot locate the "${shimName}" shim. ` +
-                `Tried ${relative} and the "./shims/${shimName}" subpath export.`,
-            { cause },
-        );
-    }
-}
+import { resolveShim } from '../utils/resolve-shim.js';
 
 /** Resolved Rolldown configuration template + plugins for `--app gjs`. */
 export interface GjsBuildConfig {

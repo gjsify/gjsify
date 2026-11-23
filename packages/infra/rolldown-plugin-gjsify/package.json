@@ -33,6 +33,9 @@
         },
         "./shims/unicorn-magic": {
             "default": "./lib/shims/unicorn-magic.js"
+        },
+        "./shims/nativescript-globals": {
+            "default": "./lib/shims/nativescript-globals.js"
         }
     },
     "files": [
@@ -71,6 +74,7 @@
         "@gjsify/resolve-npm": "workspace:^",
         "@gjsify/rolldown-plugin-deepkit": "workspace:^",
         "@gjsify/rolldown-plugin-pnp": "workspace:^",
+        "@gjsify/timers": "workspace:^",
         "@gjsify/utils": "workspace:^",
         "@gjsify/vite-plugin-blueprint": "workspace:^",
         "@gjsify/vite-plugin-gettext": "workspace:^",

@@ -46,6 +46,8 @@ import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
 import { ALIASES_NODE_FOR_NATIVESCRIPT, GI_RENDERERS, getDerivedAliasesSync } from '@gjsify/resolve-npm';
 
 import type { PluginOptions } from '../types/plugin-options.js';
+import { wrapInputWithSideEffects } from '../utils/entry-wrapper.js';
+import { resolveShim } from '../utils/resolve-shim.js';
 import { globToEntryPoints } from '../utils/entry-points.js';
 import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
 import { giRendererPlugin } from '../plugins/gi-renderer.js';
@@ -97,6 +99,16 @@ const nativescriptCoreExternalPlugin = (): RolldownPluginOption => ({
     name: NATIVESCRIPT_CORE_EXTERNAL_PLUGIN,
     resolveId: (id: string) => (NATIVESCRIPT_CORE.test(id) ? { id, external: true } : null),
 });
+
+/**
+ * The module that installs the Node globals NativeScript's runtime lacks
+ * (`setImmediate` / `clearImmediate`). Both `--app nativescript` paths evaluate it first:
+ * a free-identifier scan of the app would miss a global only a dependency in
+ * `node_modules` uses, and there is no runtime to fall back on once it is missing.
+ */
+export function resolveNativescriptGlobalsShim(): string {
+    return resolveShim('nativescript-globals');
+}
 
 export const setupForNativescript = async (input: NativescriptFactoryInput): Promise<NativescriptBuildConfig> => {
     const userExternal = input.userExternal ?? [];
@@ -164,8 +176,12 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
         ...input.userAliases,
     };
 
+    const virtualEntries = wrapInputWithSideEffects(entryPoints, [resolveNativescriptGlobalsShim()], {
+        preserveDefaultExport: input.pluginOptions.preserveDefaultExport === true,
+    });
+
     const options: RolldownOptions = {
-        input: entryPoints,
+        input: virtualEntries.input,
         // NS's V8 is a "browser-shaped" runtime from Rolldown's perspective:
         // no Node-builtin auto-externals, no globalThis-shaped node-only
         // semantics. `browser` platform is the closest match — the actual
@@ -219,6 +235,7 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
         // claim it — `aliasPlugin` and the platform-suffix chain both match on specifier
         // shape and would otherwise pull a second core instance into the bundle.
         nativescriptCoreExternalPlugin(),
+        ...(virtualEntries.plugin ? [virtualEntries.plugin] : []),
         // ADR 0034 stage 9 — the `gi://` arm, ahead of the empty redirect so it
         // claims the specifier first, exactly as `gjsGiNodePlugin` does on the node
         // target. `emptyGirs` follows it: with the arm on, `@girs/<ns>-<ver>` must

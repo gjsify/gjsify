@@ -60,6 +60,7 @@ import {
     GSCHEMA_REGISTER,
     nativescriptLocalePlugin,
     nativescriptGiSelectionPlugin,
+    resolveNativescriptGlobalsShim,
     type NativescriptLocaleOptions,
     type NativescriptPlatform,
 } from '@gjsify/rolldown-plugin-gjsify';
@@ -554,6 +555,27 @@ function nativescriptEngineFirstPlugin(platform: NativescriptPlatform | undefine
 }
 
 /**
+ * Install the Node globals NativeScript's runtime lacks (`setImmediate` / `clearImmediate`)
+ * before ANY module evaluates, the dependencies in `node_modules` included.
+ *
+ * The same ordering reason as {@link nativescriptEngineFirstPlugin}: the generated entry
+ * imports `virtual:ns-bundler-context` first, so a prepend there precedes everything. It is
+ * unconditional on purpose: a free-identifier scan would have to read every dependency, and a
+ * miss is a `ReferenceError` on the device with no stack (nodemailer's `setImmediate`).
+ * Registered after the engine plugin, so this import ends up first.
+ */
+function nativescriptGlobalsFirstPlugin(): Plugin {
+    const BUNDLER_CONTEXT_ID = '\0virtual:ns-bundler-context';
+    return {
+        name: 'gjsify-nativescript-globals-first',
+        transform(code, id) {
+            if (id !== BUNDLER_CONTEXT_ID) return null;
+            return { code: `import ${JSON.stringify(resolveNativescriptGlobalsShim())};\n${code}`, map: null };
+        },
+    };
+}
+
+/**
  * Returns the Vite plugin array that brings `gjsify build --app nativescript`'s
  * NS-target transforms to a Vite project (dev + build). Spread it into a
  * Vite config's `plugins`:
@@ -647,6 +669,7 @@ export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plu
         // The app's GObject-engine opt-in (ADR 0110) ahead of everything the bundler
         // context imports. AFTER the xmlns plugin, so its prepend lands on top.
         nativescriptEngineFirstPlugin(platform),
+        nativescriptGlobalsFirstPlugin(),
         // NO blueprintPlugin — Blueprint is GTK-specific
         // NO cssAsStringPlugin — NS handles CSS via @nativescript/core
         // `import bytes from './x.gresource.xml'` (ADR 0116 §§ 1, 7), as `--app nativescript`;
