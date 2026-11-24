@@ -40,6 +40,7 @@ export type IconName =
     | 'help'
     | 'mail'
     | 'people'
+    | 'sparkles'
     | 'translate'
     | 'blog'
     | 'cv'
@@ -92,6 +93,7 @@ const PATHS: Record<IconName, string> = {
     help: `<g ${STROKE}><circle cx="8" cy="8" r="6.3"/><path d="M6.2 6.2a1.8 1.8 0 1 1 2.7 1.7c-.6.3-.9.8-.9 1.4v.3"/></g><circle cx="8" cy="12" r=".9"/>`,
     mail: `<g ${STROKE}><rect x="1.8" y="3.4" width="12.4" height="9.2" rx="1.6"/><path d="m2.4 4.6 5.6 4.2 5.6-4.2"/></g>`,
     people: `<g ${STROKE}><circle cx="6.2" cy="5.2" r="2.6"/><path d="M1.6 13.8c0-2.5 2.1-4.2 4.6-4.2s4.6 1.7 4.6 4.2"/><path d="M10.6 3.1a2.6 2.6 0 0 1 0 5.1M12.1 9.9c1.4.5 2.3 1.7 2.3 3.3"/></g>`,
+    sparkles: `<g ${STROKE}><path d="m6.6 2.4 1.2 3.6 3.6 1.2-3.6 1.2-1.2 3.6-1.2-3.6-3.6-1.2L5.4 6l1.2-3.6Z"/><path d="M12.4 10v3.6M10.6 11.8h3.6"/></g>`,
     translate: `<g ${STROKE}><path d="M2 4.4c0-.9.7-1.6 1.6-1.6h5.1c.9 0 1.6.7 1.6 1.6v2.3c0 .9-.7 1.6-1.6 1.6H6L3.6 10.4V8.3h-.1c-.8 0-1.5-.7-1.5-1.6V4.4Z"/><path d="M12.3 6h.1c.9 0 1.6.7 1.6 1.6v2.3c0 .9-.7 1.6-1.6 1.6h-.1v2.1L9.9 11.5H8"/></g>`,
     blog: `<g ${STROKE}><path d="M10.6 2.4a1.5 1.5 0 0 1 2.1 2.1L6 11.2l-2.8.7.7-2.8 6.7-6.7Z"/><path d="M2.2 14.2h11.6"/></g>`,
     cv: `<g ${STROKE}><rect x="2.6" y="1.8" width="10.8" height="12.4" rx="1.6"/><circle cx="8" cy="6" r="1.8"/><path d="M5.2 10.6c.4-1.2 1.5-1.9 2.8-1.9s2.4.7 2.8 1.9"/></g>`,

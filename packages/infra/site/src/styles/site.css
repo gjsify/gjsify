@@ -479,6 +479,16 @@ h1 {
   font-size: 0.78rem;
 }
 
+/* The disclosure under the facts: plain text, so a touch screen reads what a hover title would hide. */
+.badges-note {
+  width: min(100% - 2rem, var(--max));
+  margin: 0 auto;
+  padding-block: 0.25rem 0.5rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
 /* Screenshot band — the bottom of the masthead, whose colour it already sits on. */
 
 .band {

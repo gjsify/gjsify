@@ -128,12 +128,14 @@ export function buildListingModel({ metainfo, config, catalogs, stores = STORES 
             ? Object.fromEntries(Object.entries(config.captions).map(([file, msgid]) => [file, configText(msgid)]))
             : undefined;
         const intro = configText(config.intro);
+        // The metainfo's AI disclosure closes the description, so the store tells what the page tells.
+        const disclosure = metainfo.aiInvolvement?.disclosure ? app(metainfo.aiInvolvement.disclosure) : '';
         const reviewerNotes = configText(config.reviewerNotes);
         const privacySummary = configText(config.privacySummary);
         const base = {
             name: app(metainfo.name),
             summary: app(metainfo.summary),
-            description: [intro, descriptionText(description, app)].filter(Boolean).join('\n\n'),
+            description: [intro, descriptionText(description, app), disclosure].filter(Boolean).join('\n\n'),
             singlePurpose: configText(config.singlePurpose),
             permissions: Object.entries(config.permissions).map(([permission, msgid]) => ({
                 permission,
@@ -153,7 +155,11 @@ export function buildListingModel({ metainfo, config, catalogs, stores = STORES 
                 ...base,
                 ...(spec.descriptionHtml
                     ? {
-                          descriptionHtml: [intro && `<p>${esc(intro)}</p>`, descriptionHtml(description, app)]
+                          descriptionHtml: [
+                              intro && `<p>${esc(intro)}</p>`,
+                              descriptionHtml(description, app),
+                              disclosure && `<p>${esc(disclosure)}</p>`,
+                          ]
                               .filter(Boolean)
                               .join('\n'),
                       }

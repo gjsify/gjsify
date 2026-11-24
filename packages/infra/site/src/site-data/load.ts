@@ -70,6 +70,7 @@ function warnMissingTranslations(
         metainfo.name,
         metainfo.summary,
         ...metainfo.description.flatMap((block) => (block.type === 'paragraph' ? [block.text] : block.items)),
+        ...(metainfo.aiInvolvement?.disclosure ? [metainfo.aiInvolvement.disclosure] : []),
     ];
     for (const language of config.languages) {
         if (language === config.sourceLanguage) continue;
@@ -268,6 +269,10 @@ export async function loadSiteData(options: LoadOptions): Promise<SiteData> {
             urls: metainfo.urls,
             branding: metainfo.branding,
             ageRating: age === undefined ? undefined : { minAge: age },
+            aiInvolvement: metainfo.aiInvolvement && {
+                level: metainfo.aiInvolvement.level,
+                disclosure: metainfo.aiInvolvement.disclosure && complete(metainfo.aiInvolvement.disclosure),
+            },
             icon,
         },
         screenshots,

@@ -233,7 +233,7 @@ Lives in the root `package.json`, next to `ship` and `flatpak`.
 
 | Key | Meaning |
 | --- | --- |
-| `metainfo` | AppStream file, relative to the repo root. Source of name, summary, description, releases, URLs, branding, keywords, age rating. |
+| `metainfo` | AppStream file, relative to the repo root. Source of name, summary, description, releases, URLs, branding, keywords, age rating, and the AI-involvement disclosure (`<custom>` keys `gjsify::ai-involvement` = `none`\|`assisted`\|`agent-built` and `gjsify::ai-disclosure`, translated through `translations`; ADR 0153). |
 | `base` / `url` | URL path the site is served under, and its absolute origin + path (canonical, `hreflang`, `og:image`). |
 | `languages` / `defaultLanguage` / `sourceLanguage` | Languages to render (`/en/`, `/de/`). `defaultLanguage` is where `/` lands when the visitor's languages match none (default: the first). `sourceLanguage` is the language of the metainfo's untranslated text (default `en`); the others are looked up in `translations`. |
 | `repository` | `owner/name`; release assets and counts come from its latest GitHub release. |

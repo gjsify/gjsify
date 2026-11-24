@@ -36,6 +36,19 @@ export interface Localized {
     byLanguage: Record<string, string>;
 }
 
+/**
+ * How much AI took part in building the app, as the metainfo declares it in
+ * `gjsify::ai-involvement` (ADR 0153). A closed set: an unknown value is dropped, never guessed.
+ */
+export const AI_INVOLVEMENT_LEVELS = ['none', 'assisted', 'agent-built'] as const;
+export type AiInvolvementLevel = (typeof AI_INVOLVEMENT_LEVELS)[number];
+
+export interface AiInvolvement {
+    level: AiInvolvementLevel;
+    /** Which parts AI produced and how the author checks them; a msgid of the app's catalogues. */
+    disclosure?: Localized;
+}
+
 export type DescriptionBlock = { type: 'paragraph'; text: Localized } | { type: 'list'; items: Localized[] };
 
 /** A plain link to a place that takes donations or sponsorship; `kind` is a msgid of the website catalogue. */
@@ -462,6 +475,7 @@ export interface Metainfo {
     /** Licence of the metainfo text itself, which is what the page reproduces. */
     metadataLicense?: string;
     contentRating?: { type: string; attributes: Record<string, string> };
+    aiInvolvement?: AiInvolvement;
 }
 
 export interface Stats {
@@ -489,6 +503,7 @@ export interface SiteData {
         urls: AppUrls;
         branding: Branding;
         ageRating?: AgeRating;
+        aiInvolvement?: AiInvolvement;
         /** Repo-relative path to the app icon. */
         icon?: string;
     };

@@ -99,6 +99,16 @@ const context = (overrides: Partial<ExtensionData> = {}, privacy = true): Render
 
 export default async () => {
     await describe('extension page', async () => {
+        await it('shows the AI involvement among the details, and omits it when undeclared', async () => {
+            const ctx = context();
+            expect(renderExtensionPage(ctx)).not.toContain('Built with AI agents');
+            ctx.data.app.aiInvolvement = { level: 'agent-built', disclosure: text('Agents write, I review.') };
+            const html = renderExtensionPage(ctx);
+            expect(html).toContain('<dt>Development</dt>');
+            expect(html).toContain('Built with AI agents');
+            expect(html).toContain('Agents write, I review.');
+        });
+
         await it('renders header, facts, the needs-app card, permissions, data and browsers', async () => {
             const html = renderExtensionPage(context());
             expect(html).toContain('<h1>Ext Name</h1>');

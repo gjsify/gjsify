@@ -175,6 +175,38 @@ export default async () => {
             expect(html).not.toMatch(/<span class="badge-value"[^>]*>\s*<\/span>/);
         });
 
+        await it('shows an AI badge per level, with the disclosure as visible text', async () => {
+            const withAi = (aiInvolvement?: { level: string; disclosure?: string }) =>
+                ({
+                    config: { components: [] },
+                    downloads: { targets: [] },
+                    app: {
+                        aiInvolvement: aiInvolvement && {
+                            level: aiInvolvement.level,
+                            disclosure: aiInvolvement.disclosure && {
+                                source: aiInvolvement.disclosure,
+                                byLanguage: {},
+                            },
+                        },
+                    },
+                    stats: {},
+                }) as unknown as SiteData;
+            const values = { none: 'Without AI', assisted: 'AI-assisted', 'agent-built': 'Built with AI agents' };
+            for (const [level, value] of Object.entries(values)) {
+                const html = badges({
+                    data: withAi({ level, disclosure: 'Agents write it & I test.' }),
+                    t,
+                    lang: 'en',
+                });
+                expect(html).toContain(`>${value}</span>`);
+                expect(html).toContain('<span class="badge-label">Development</span>');
+                expect(html).toContain('title="Agents write it &amp; I test."');
+                expect(html).toContain('<p class="badges-note">Agents write it &amp; I test.</p>');
+            }
+            expect(badges({ data: withAi({ level: 'assisted' }), t, lang: 'en' })).not.toContain('badges-note');
+            expect(badges({ data: withAi(), t, lang: 'en' })).toBe('');
+        });
+
         await it('gives every part of the product its own numbered heading and tab strip', async () => {
             const data = downloadData(
                 [
