@@ -28,6 +28,7 @@ import {
     readFileSync,
     realpathSync,
     rmSync,
+    symlinkSync,
     writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -44,6 +45,7 @@ import {
     readDevLinkOverride,
     removeDevLinks,
     removeLocalIgnore,
+    retireDevLinks,
     resolveCheckoutWorkspaces,
     scanDevLinks,
     tscArgsUnderLink,
@@ -420,6 +422,59 @@ export default async () => {
                     .map((l) => l.name)
                     .join(','),
             ).toBe('@gjsify/gtk-host');
+            rmSync(root, { recursive: true, force: true });
+        });
+    });
+
+    await describe('retireDevLinks with a deleted checkout', async () => {
+        await it('removes live and dangling links (foreign-arch packages) and leaves unrelated symlinks', async () => {
+            // REGRESSION: `unlink` after the checkout was deleted left dangling
+            // `@gjsify/*-native-<other-platform>` links the reinstall never puts back.
+            const root = scratch();
+            const checkout = join(root, 'checkout');
+            const live = join(checkout, 'packages', 'live');
+            mkdirSync(live, { recursive: true });
+            const outside = join(root, 'outside');
+            mkdirSync(outside);
+            const nm = join(root, 'consumer', 'node_modules', '@gjsify');
+            mkdirSync(nm, { recursive: true });
+            symlinkSync(live, join(nm, 'live'), 'dir');
+            symlinkSync(
+                join(checkout, 'packages', 'rolldown-native-darwin-arm64'),
+                join(nm, 'rolldown-native-darwin-arm64'),
+                'dir',
+            );
+            symlinkSync(outside, join(nm, 'unrelated'), 'dir');
+            symlinkSync(join(root, 'elsewhere-gone'), join(nm, 'unrelated-dangling'), 'dir');
+
+            // Live target and one dangling-into-a-live-checkout.
+            let removed = retireDevLinks(join(root, 'consumer'), [checkout], new Set());
+            expect(
+                removed
+                    .map((l) => l.name)
+                    .sort()
+                    .join(','),
+            ).toBe('@gjsify/live,@gjsify/rolldown-native-darwin-arm64');
+
+            // Now the whole checkout is gone.
+            symlinkSync(live, join(nm, 'live'), 'dir');
+            symlinkSync(
+                join(checkout, 'packages', 'tls-native-linux-ppc64'),
+                join(nm, 'tls-native-linux-ppc64'),
+                'dir',
+            );
+            rmSync(checkout, { recursive: true, force: true });
+            removed = retireDevLinks(join(root, 'consumer'), [checkout], new Set());
+            expect(
+                removed
+                    .map((l) => l.name)
+                    .sort()
+                    .join(','),
+            ).toBe('@gjsify/live,@gjsify/tls-native-linux-ppc64');
+            expect(existsSync(join(nm, 'live'))).toBe(false);
+            expect(() => lstatSync(join(nm, 'tls-native-linux-ppc64'))).toThrow();
+            expect(lstatSync(join(nm, 'unrelated')).isSymbolicLink()).toBe(true);
+            expect(lstatSync(join(nm, 'unrelated-dangling')).isSymbolicLink()).toBe(true);
             rmSync(root, { recursive: true, force: true });
         });
     });
