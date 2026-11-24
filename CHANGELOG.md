@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.64.60](https://github.com/gjsify/gjsify/compare/v0.64.59...v0.64.60) (2026-11-24)
+
+### Bug Fixes
+
+* **adwaita-extended:** inset month bars from edges ([#2754](https://github.com/gjsify/gjsify/issues/2754)) ([1111c27](https://github.com/gjsify/gjsify/commit/1111c274481636a6908539600267ea4e2afca6d8))
+* **cli:** resolve linked deps under --preserve-symlinks ([#2756](https://github.com/gjsify/gjsify/issues/2756)) ([c78f6fd](https://github.com/gjsify/gjsify/commit/c78f6fd42ea5e165522b114126304cb0e4b45b56))
+* **cli:** run builder-lint via org.flatpak.Builder ([#2755](https://github.com/gjsify/gjsify/issues/2755)) ([3d13c50](https://github.com/gjsify/gjsify/commit/3d13c50c1fda495608eae58fc015222d060688c2))
+* **native-fs-bridge:** add default export ([#2751](https://github.com/gjsify/gjsify/issues/2751)) ([bc52169](https://github.com/gjsify/gjsify/commit/bc5216978780476bb76edc9c1a920f5d837590a0))
+* **nativescript:** install setImmediate before any module ([#2753](https://github.com/gjsify/gjsify/issues/2753)) ([520ba1b](https://github.com/gjsify/gjsify/commit/520ba1b3c79f762bdc4c25e2162a7cfecae51d14))
+* **utils:** keep GJS-only builtins off root barrel ([#2752](https://github.com/gjsify/gjsify/issues/2752)) ([60154a4](https://github.com/gjsify/gjsify/commit/60154a4ef95dffc4d8c341a57e056ddd65d3c11c)), closes [#2750](https://github.com/gjsify/gjsify/issues/2750)
+* **utils:** move existsFD off the root barrel ([#2750](https://github.com/gjsify/gjsify/issues/2750)) ([447f751](https://github.com/gjsify/gjsify/commit/447f75172c06636313695b73017ec622d0a4770e)), closes [#2747](https://github.com/gjsify/gjsify/issues/2747)
+
+### Maintenance
+
+* **status:** empty npm bootstrap ledger ([#2757](https://github.com/gjsify/gjsify/issues/2757)) ([1691929](https://github.com/gjsify/gjsify/commit/1691929b55c6b7d318ec154ae7c371ec6d908b95))
+* update native prebuilds [skip ci] ([c90bc20](https://github.com/gjsify/gjsify/commit/c90bc20e1901e95419b9cf892b4ade8004d7c366))
+
 ## [0.64.59](https://github.com/gjsify/gjsify/compare/v0.64.58...v0.64.59) (2026-11-23)
 
 ### Features

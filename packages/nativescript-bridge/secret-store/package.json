@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/native-secret-store-bridge",
-    "version": "0.64.59",
+    "version": "0.64.60",
     "description": "NativeScript driver for @gjsify/secret-store — Android: AES-256-GCM key in the AndroidKeyStore, ciphertext in an app-private file; iOS stub",
     "type": "module",
     "module": "lib/esm/index.js",

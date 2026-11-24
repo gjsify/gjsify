@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/cluster",
-    "version": "0.64.59",
+    "version": "0.64.60",
     "description": "Node.js cluster module for Gjs",
     "type": "module",
     "module": "lib/esm/index.js",

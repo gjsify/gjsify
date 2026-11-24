@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/webstorage",
-    "version": "0.64.59",
+    "version": "0.64.60",
     "description": "W3C Web Storage API (localStorage, sessionStorage) for GJS",
     "type": "module",
     "module": "lib/esm/index.js",
