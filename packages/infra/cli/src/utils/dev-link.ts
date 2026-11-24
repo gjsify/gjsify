@@ -42,6 +42,7 @@ import {
     mkdirSync,
     readdirSync,
     readFileSync,
+    readlinkSync,
     realpathSync,
     rmSync,
     statSync,
@@ -577,12 +578,15 @@ function linkAlreadyPointsAt(linkPath: string, target: string): boolean {
 export function scanDevLinks(consumerRoot: string, checkouts: readonly string[]): DevLink[] {
     const roots: string[] = [];
     for (const checkout of checkouts) {
+        // A checkout that has since been DELETED still names the links the install
+        // left behind, so its spelled path counts as a root too — dangling links
+        // into it must be found and removed, not skipped (they include optional
+        // native packages of other platforms the host never installs).
+        roots.push(resolve(checkout));
         try {
             roots.push(realpathSync(checkout));
         } catch {
-            // Gone or unreadable: nothing can resolve into it, so it contributes
-            // no links. A DANGLING link is not this function's business either —
-            // the installer extracts straight over one.
+            // Gone or unreadable: the spelled path above is all there is.
         }
     }
     if (roots.length === 0) return [];
@@ -595,7 +599,12 @@ export function scanDevLinks(consumerRoot: string, checkouts: readonly string[])
         try {
             target = realpathSync(pkg.dir);
         } catch {
-            continue;
+            // Dangling: judge it by where the link text points.
+            try {
+                target = resolve(dirname(pkg.dir), readlinkSync(pkg.dir));
+            } catch {
+                continue;
+            }
         }
         if (!roots.some((root) => target === root || target.startsWith(root + sep))) continue;
         found.push({ name: packageNameAt(consumerRoot, pkg.dir), target, linkPath: pkg.dir });
@@ -623,7 +632,15 @@ export function retireDevLinks(
     keep: ReadonlySet<string>,
 ): DevLink[] {
     const stale = scanDevLinks(consumerRoot, checkouts).filter((link) => !keep.has(link.name));
-    return removeDevLinks(stale);
+    // `scanDevLinks` already established "symlink into the checkout", dangling or
+    // not, so remove directly: `removeDevLinks` re-checks through `realpath` and
+    // would skip exactly the links whose target is gone.
+    const removed: DevLink[] = [];
+    for (const link of stale) {
+        rmSync(link.linkPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+        removed.push(link);
+    }
+    return removed;
 }
 
 /** A linked package that cannot be imported, and why not. */
