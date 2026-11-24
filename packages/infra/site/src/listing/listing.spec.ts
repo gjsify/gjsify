@@ -289,6 +289,23 @@ export default async () => {
             expect(missing.warnings.some((w) => w.includes('"de"') && w.includes('Do it'))).toBe(true);
         });
 
+        await it('closes the store description with the AI disclosure, translated', async () => {
+            const withAi = parseMetainfo(
+                METAINFO.replace(
+                    '</component>',
+                    '<custom><value key="gjsify::ai-involvement">agent-built</value><value key="gjsify::ai-disclosure">Agents wrote it.</value></custom></component>',
+                ),
+            );
+            const catalogs = { de: parseCatalog('msgid "Agents wrote it."\nmsgstr "Agenten schrieben es."\n') };
+            const model = buildListingModel({ metainfo: withAi, config: config(), catalogs });
+            expect(model.stores.cws?.en?.description.endsWith('\n\nAgents wrote it.')).toBe(true);
+            expect(model.stores.cws?.de?.description.endsWith('\n\nAgenten schrieben es.')).toBe(true);
+            expect(model.stores.amo?.en?.descriptionHtml?.endsWith('<p>Agents wrote it.</p>')).toBe(true);
+            expect(model.stores.cws?.en?.description.includes('Agents')).toBe(true);
+            const plain = buildListingModel({ metainfo, config: config(), catalogs: {} });
+            expect(plain.stores.cws?.en?.description.includes('Agents')).toBe(false);
+        });
+
         await it('only emits HTML for AMO', async () => {
             const model = buildListingModel({ metainfo, config: config(), catalogs: {} });
             expect(model.stores.amo?.en?.descriptionHtml?.includes('<li>Two &amp; three</li>')).toBe(true);

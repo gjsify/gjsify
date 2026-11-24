@@ -586,6 +586,21 @@ function badge(spec: BadgeSpec): string {
 </li>`;
 }
 
+/** What the page says about AI's part in the app; the badge and the extension's details share it. */
+export function aiInvolvementFacts(
+    ctx: Pick<RenderContext, 'data' | 't' | 'lang'>,
+): { value: string; disclosure?: string } | undefined {
+    const involvement = ctx.data.app.aiInvolvement;
+    if (!involvement) return undefined;
+    const { t, lang } = ctx;
+    const value = {
+        none: t('Without AI'),
+        assisted: t('AI-assisted'),
+        'agent-built': t('Built with AI agents'),
+    }[involvement.level];
+    return { value, disclosure: involvement.disclosure && localized(involvement.disclosure, lang) };
+}
+
 /** `GPL-3.0-or-later` is too long for a badge; the full id stays in the title. */
 function shortLicense(id: string): string {
     return id.replace(/-or-later$/, '+').replace(/-only$/, '');
@@ -634,13 +649,17 @@ export function badges(ctx: Pick<RenderContext, 'data' | 't' | 'lang'>): string 
             label: t('Age rating'),
         });
     }
+    const ai = aiInvolvementFacts(ctx);
+    if (ai) specs.push({ glyph: 'sparkles', value: ai.value, label: t('Development'), title: ai.disclosure });
     if (data.stats.flathubInstalls !== undefined)
         specs.push({ glyph: 'package', value: number.format(data.stats.flathubInstalls), label: t('Installs') });
 
     if (specs.length === 0) return '';
     const visible = specs.filter((spec) => !spec.hidden).length;
     const odd = visible % 2 === 1 ? ' data-odd="true"' : '';
-    return `<ul class="badges" style="--badge-count:${visible}"${odd}>\n${specs.map(badge).join('\n')}\n</ul>`;
+    // The title is for a pointer; the sentence below is what a touch screen reads.
+    const note = ai?.disclosure ? `\n<p class="badges-note">${esc(ai.disclosure)}</p>` : '';
+    return `<ul class="badges" style="--badge-count:${visible}"${odd}>\n${specs.map(badge).join('\n')}\n</ul>${note}`;
 }
 
 export function releaseDate(date: string, lang: string): string {

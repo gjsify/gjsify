@@ -633,6 +633,31 @@ export default async () => {
             expect(metainfo.branding).toStrictEqual({ dark: '#1e1e1e' });
         });
 
+        await it('reads the AI involvement from <custom>, and shows nothing it cannot trust', async () => {
+            const custom = (body: string, warnings: string[] = []) =>
+                parseMetainfo(`<component><id>a.b.C</id><name>C</name><custom>${body}</custom></component>`, (m) =>
+                    warnings.push(m),
+                );
+            const warnings: string[] = [];
+            const ok = custom(
+                '<value key="gjsify::ai-involvement">agent-built</value><value key="gjsify::ai-disclosure">Agents wrote it.</value>',
+                warnings,
+            );
+            expect(ok.aiInvolvement?.level).toBe('agent-built');
+            expect(ok.aiInvolvement?.disclosure?.source).toBe('Agents wrote it.');
+            expect(custom('<value key="gjsify::ai-involvement">none</value>').aiInvolvement?.disclosure).toBe(
+                undefined,
+            );
+            expect(warnings.length).toBe(0);
+
+            expect(custom('<value key="gjsify::ai-involvement">fully-ai</value>', warnings).aiInvolvement).toBe(
+                undefined,
+            );
+            expect(warnings.some((w) => w.includes('fully-ai'))).toBe(true);
+            expect(custom('<value key="gjsify::ai-disclosure">Orphan.</value>').aiInvolvement).toBe(undefined);
+            expect(parseMetainfo('<component><id>a.b.C</id><name>C</name></component>').aiInvolvement).toBe(undefined);
+        });
+
         await it('yields no age for an unknown content-rating kind', async () => {
             expect(minimumAge('oars-2.0', {})).toBeUndefined();
             expect(minimumAge('oars-1.1', {})).toBe(0);

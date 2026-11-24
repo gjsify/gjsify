@@ -282,6 +282,9 @@ msgstr "Benötigt"
 msgid "License"
 msgstr "Lizenz"
 
+msgid "Development"
+msgstr "Entwicklung"
+
 msgid "Links"
 msgstr "Links"
 
@@ -431,6 +434,15 @@ msgstr "Alle Download-Optionen"
 
 msgid "All releases on GitHub"
 msgstr "Alle Versionen auf GitHub"
+
+msgid "Without AI"
+msgstr "Ohne KI"
+
+msgid "AI-assisted"
+msgstr "KI-unterstützt"
+
+msgid "Built with AI agents"
+msgstr "Mit KI-Agenten gebaut"
 
 msgid "Download size"
 msgstr "Downloadgröße"

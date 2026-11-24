@@ -14,6 +14,7 @@ import { esc, fmt, plain } from './html.js';
 import { icon, type IconName } from './icons.js';
 import { documentPage, type Translate } from './layout.js';
 import {
+    aiInvolvementFacts,
     appPageMeta,
     appShell,
     blocks,
@@ -312,6 +313,7 @@ function facts(ctx: RenderContext): string {
         data.config.privacy ? link(privacyUrl(data, lang), t('Privacy')) : '',
         data.app.urls.vcsBrowser ? link(data.app.urls.vcsBrowser, t('Source code')) : '',
     ].filter(Boolean);
+    const ai = aiInvolvementFacts(ctx);
     return `<aside class="ext-facts" aria-label="${esc(t('Details'))}">
 <h2>${esc(t('Details'))}</h2>
 <dl>
@@ -328,6 +330,7 @@ ${fact(
 )}
 ${fact(t('Requires'), minimums)}
 ${data.app.license ? fact(t('License'), [data.app.license]) : ''}
+${ai ? fact(t('Development'), [ai.value, ...(ai.disclosure ? [ai.disclosure] : [])]) : ''}
 ${fact(t('Links'), urls, true)}
 </dl>
 </aside>`;

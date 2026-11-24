@@ -1,12 +1,15 @@
-import type {
-    AppUrls,
-    Branding,
-    DescriptionBlock,
-    ImageUrls,
-    Localized,
-    Metainfo,
-    MetainfoScreenshot,
-    Release,
+import {
+    AI_INVOLVEMENT_LEVELS,
+    type AiInvolvement,
+    type AiInvolvementLevel,
+    type AppUrls,
+    type Branding,
+    type DescriptionBlock,
+    type ImageUrls,
+    type Localized,
+    type Metainfo,
+    type MetainfoScreenshot,
+    type Release,
 } from './types.js';
 import { child, childrenNamed, parseXml, type XmlElement } from './xml.js';
 
@@ -182,6 +185,37 @@ function parseScreenshots(screenshots: XmlElement[], warn: (message: string) => 
     return result;
 }
 
+/**
+ * The `gjsify::ai-*` values of `<custom>` (ADR 0153). AppStream refuses a repeated key, so the
+ * disclosure is one untranslated sentence; the site translates it through the app's catalogues.
+ * Without a valid level nothing is shown: no fact is guessed.
+ */
+function parseAiInvolvement(component: XmlElement, warn: (message: string) => void): AiInvolvement | undefined {
+    const values: Record<string, string> = {};
+    for (const value of childrenNamed(child(component, 'custom') ?? component, 'value')) {
+        const key = value.attrs.key;
+        if (key?.startsWith('gjsify::ai-') && value.attrs[XML_LANG] === undefined && values[key] === undefined)
+            values[key] = value.text;
+    }
+    const level = values['gjsify::ai-involvement'];
+    const disclosure = values['gjsify::ai-disclosure'];
+    if (level === undefined) {
+        if (disclosure !== undefined)
+            warn('The metainfo has gjsify::ai-disclosure without gjsify::ai-involvement; showing nothing');
+        return undefined;
+    }
+    if (!(AI_INVOLVEMENT_LEVELS as readonly string[]).includes(level)) {
+        warn(
+            `Unknown gjsify::ai-involvement "${level}" (expected ${AI_INVOLVEMENT_LEVELS.join(', ')}); showing nothing`,
+        );
+        return undefined;
+    }
+    return {
+        level: level as AiInvolvementLevel,
+        disclosure: disclosure ? { source: disclosure, byLanguage: {} } : undefined,
+    };
+}
+
 /** Reads the parts of an AppStream `<component>` the landing page needs. */
 export function parseMetainfo(xml: string, warn: (message: string) => void = () => {}): Metainfo {
     const component = parseXml(xml);
@@ -224,5 +258,6 @@ export function parseMetainfo(xml: string, warn: (message: string) => void = () 
         projectLicense: child(component, 'project_license')?.text,
         metadataLicense: child(component, 'metadata_license')?.text,
         contentRating: contentRating ? { type: contentRating.attrs.type ?? '', attributes } : undefined,
+        aiInvolvement: parseAiInvolvement(component, warn),
     };
 }
