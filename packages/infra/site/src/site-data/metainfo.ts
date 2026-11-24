@@ -192,7 +192,8 @@ function parseScreenshots(screenshots: XmlElement[], warn: (message: string) => 
  */
 function parseAiInvolvement(component: XmlElement, warn: (message: string) => void): AiInvolvement | undefined {
     const values: Record<string, string> = {};
-    for (const value of childrenNamed(child(component, 'custom') ?? component, 'value')) {
+    const custom = child(component, 'custom');
+    for (const value of custom ? childrenNamed(custom, 'value') : []) {
         const key = value.attrs.key;
         if (key?.startsWith('gjsify::ai-') && value.attrs[XML_LANG] === undefined && values[key] === undefined)
             values[key] = value.text;

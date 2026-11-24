@@ -70,6 +70,7 @@ function warnMissingTranslations(
         metainfo.name,
         metainfo.summary,
         ...metainfo.description.flatMap((block) => (block.type === 'paragraph' ? [block.text] : block.items)),
+        ...(metainfo.aiInvolvement?.disclosure ? [metainfo.aiInvolvement.disclosure] : []),
     ];
     for (const language of config.languages) {
         if (language === config.sourceLanguage) continue;
