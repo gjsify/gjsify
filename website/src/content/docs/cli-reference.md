@@ -1807,6 +1807,7 @@ Each output is checked for existence on its own, so a hand-tuned `.desktop` does
 | `releases` | metainfo | `[{ version, date, description? }]`. Flathub needs at least one. |
 | `screenshots` | optional (app) | `[{ url, caption?, captionTranslatorHint?, environment?, type? }]`. |
 | `branding` | optional (app) | `{ accentLight, accentDark }` hex colours. |
+| `aiInvolvement` | optional | `{ level, disclosure? }` (ADR 0153): `level` is `none`, `assisted` or `agent-built`, rendered as `<custom><value key="gjsify::ai-involvement">`. `disclosure` is one English sentence (the gettext msgid, translated by readers, never by `ship`) and becomes `gjsify::ai-disclosure`. |
 | `icon` | optional (app) | Path to a scalable SVG. You get a warning if it is missing. |
 | `contentRating` | optional | An OARS keyword string (default `oars-1.1`), or `{ type?, attributes? }` with OARS keys mapped to `none`, `mild`, `moderate` or `intense`. |
 | `kudos` | optional | Flathub quality markers such as `ModernToolkit`, `HiDpiIcon`, `TouchscreenSupport`, `UserDocs`. |

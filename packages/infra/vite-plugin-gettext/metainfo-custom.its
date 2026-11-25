@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+<!--
+  GNU gettext's stock metainfo.its (Copyright (C) 2015-2024 Matthias Klumpp, (C) 2019 Takao Fujiwara,
+  SPDX-License-Identifier: FSFAP) plus one rule for ADR 0153.
+
+  The stock file marks no <custom><value> translatable, so the AI disclosure sentence never reaches
+  the POT. A second its file is NOT additive: xgettext lets the LAST file decide every node, so a
+  file holding only the new rule makes everything translatable and one that sets the root to
+  translate="no" silences name and summary. This file therefore repeats the stock rules in full and
+  is passed LAST. Re-sync it when gettext's metainfo.its changes.
+-->
+<its:rules xmlns:its="http://www.w3.org/2005/11/its"
+           version="2.0">
+
+  <its:translateRule selector="/component" translate="no"/>
+  <its:translateRule selector="/component/name |
+                               /component/summary |
+                               /component/description |
+                               /component/developer_name |
+                               /component/developer/name |
+                               /component/name_variant_suffix |
+                               /component/keywords/keyword |
+                               /component/screenshots/screenshot/caption |
+                               /component/releases/release/description |
+                               /component/agreement/agreement_section/name |
+                               /component/agreement/agreement_section/description"
+                     translate="yes"/>
+
+  <its:withinTextRule withinText="yes" selector="/component//description//em   |
+                                                 /component//description//code"/>
+
+  <its:translateRule selector="/component/name[@translate = 'no']"
+                     translate="no"/>
+  <its:translateRule selector="/component/developer_name[@translate = 'no']"
+                     translate="no"/>
+  <its:translateRule selector="/component/developer/name[@translate = 'no']"
+                     translate="no"/>
+  <its:translateRule selector="/component/name_variant_suffix[@translate = 'no']"
+                     translate="no"/>
+  <its:translateRule selector="/component/keywords/keyword[@translate = 'no']"
+                     translate="no"/>
+  <its:translateRule selector="/component/releases/release/description[@translate = 'no']"
+                     translate="no"/>
+  <its:translateRule selector="/component/agreement/agreement_section/name[@translate = 'no'] |
+                               /component/agreement/agreement_section/description[@translate = 'no']"
+                     translate="no"/>
+
+  <!-- Release metadata -->
+  <its:translateRule selector="/releases" translate="no"/>
+  <its:translateRule selector="/releases/release/description"
+                     translate="yes"/>
+  <its:translateRule selector="/releases/release/description[@translate = 'no']"
+                     translate="no"/>
+
+
+  <!-- ADR 0153: the AI disclosure sentence is the msgid; the level next to it is not translatable. -->
+  <its:translateRule selector="/component/custom/value[@key='gjsify::ai-disclosure']" translate="yes"/>
+  <its:translateRule selector="/metainfo:component/metainfo:custom/metainfo:value[@key='gjsify::ai-disclosure']"
+                     translate="yes" xmlns:metainfo="https://specifications.freedesktop.org/metainfo/1.0"/>
+
+</its:rules>

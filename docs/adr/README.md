@@ -171,7 +171,7 @@ the TODO records the *what's left*.
 | [0150](0150-transcribe-decodes-a-finished-recording-on-an-offline-engine.md) | `transcribe()` decodes a finished recording on an offline engine | Proposed |
 | [0151](0151-ship-stages-a-hand-written-metainfo-verbatim.md) | `ship` stages a hand-written metainfo verbatim | Proposed |
 | [0152](0152-app-owned-secrets-get-their-own-seam.md) | App-owned secrets get their own seam, `@gjsify/secret-store`; `system-accounts` stays the user's accounts and answers empty on Android and iOS | Proposed |
-| [0153](0153-an-app-declares-how-much-ai-built-it.md) | An app declares how much AI built it, in its metainfo (`gjsify::ai-involvement`), and the site and store listings show it | Accepted |
+| [0153](0153-an-app-declares-how-much-ai-built-it.md) | An app declares how much AI built it, in its metainfo (`gjsify::ai-involvement`), and the site and store listings show it (amended: `ship` emits it, xgettext extracts it) | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
