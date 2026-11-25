@@ -14,8 +14,11 @@
 // template+placeholder approach to stay legible. The `.desktop` entry stays
 // template-based — it is flat `key=value`.
 
-import type { AppMetadata, DescriptionBlock } from '../types/config-data.js';
+import type { AiInvolvementLevel, AppMetadata, DescriptionBlock } from '../types/config-data.js';
 import { channelAllowsDonations } from './channel.js';
+
+/** The `gjsify::ai-involvement` values ADR 0153 allows. */
+export const AI_INVOLVEMENT_LEVELS: readonly AiInvolvementLevel[] = ['none', 'assisted', 'agent-built'];
 
 /**
  * The `.desktop` skeleton, as source rather than as a file to find at runtime.
@@ -374,6 +377,24 @@ function renderMetainfo(inputs: AppMetadataInputs, kind: 'desktop-application' |
         }
         for (const c of m.recommends.controls ?? []) lines.push(`    <control>${escapeXml(c)}</control>`);
         lines.push('  </recommends>');
+    }
+
+    // <custom> — ADR 0153. ONE value per key, never an `xml:lang` sibling: `appstreamcli validate`
+    // rejects a repeated key (`custom-key-duplicated`). The disclosure is translated by the
+    // READER through the app's catalogues, so `localizeMetadata` must not touch it either.
+    if (m.aiInvolvement !== undefined) {
+        const { level, disclosure } = m.aiInvolvement;
+        if (!(AI_INVOLVEMENT_LEVELS as readonly string[]).includes(level)) {
+            throw new Error(
+                `${inputs.configKey}.aiInvolvement.level is ${JSON.stringify(level)}; expected one of ` +
+                    `${AI_INVOLVEMENT_LEVELS.join(', ')} (ADR 0153). An unknown level is never guessed.`,
+            );
+        }
+        lines.push('  <custom>');
+        lines.push(`    <value key="gjsify::ai-involvement">${escapeXml(level)}</value>`);
+        const sentence = disclosure?.trim().replace(/\s+/g, ' ');
+        if (sentence) lines.push(`    <value key="gjsify::ai-disclosure">${escapeXml(sentence)}</value>`);
+        lines.push('  </custom>');
     }
 
     lines.push('</component>');

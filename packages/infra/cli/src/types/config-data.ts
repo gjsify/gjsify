@@ -308,6 +308,10 @@ export interface ConfigDataTest {
     /** Default runtimes when `--runtime` not specified. Default: `['gjs', 'node']`. */
     runtimes?: Array<'gjs' | 'node'>;
 }
+
+/** The closed set of `gjsify::ai-involvement` values (ADR 0153). */
+export type AiInvolvementLevel = 'none' | 'assisted' | 'agent-built';
+
 /**
  * The app metadata every install format needs — AppStream MetaInfo fields plus
  * what a freedesktop `.desktop` entry is built from. Shared on purpose: a
@@ -413,6 +417,15 @@ export interface AppMetadata {
     }>;
     /** Light/dark accent colours (hex `#rrggbb`) — emit `<branding>` block. */
     branding?: { accentLight: string; accentDark: string };
+    /**
+     * How much AI built the app (ADR 0153). Rendered as
+     * `<custom><value key="gjsify::ai-involvement">` (+ `gjsify::ai-disclosure`), which
+     * `gjsify site` and `gjsify webext listing` read. `disclosure` is ONE English sentence naming
+     * the parts AI produced and how they are reviewed; it is the gettext msgid, so it is
+     * translated through the app's catalogues and `ship` never folds a translated `<value>` into
+     * the metainfo (AppStream rejects a repeated custom key).
+     */
+    aiInvolvement?: { level: AiInvolvementLevel; disclosure?: string };
     /**
      * Path to a scalable SVG icon; Flathub requires SVG
      * (`/app/share/icons/hicolor/scalable/apps/<app-id>.svg`). When set, init

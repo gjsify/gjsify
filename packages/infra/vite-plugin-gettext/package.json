@@ -13,7 +13,8 @@
         }
     },
     "files": [
-        "lib"
+        "lib",
+        "metainfo-custom.its"
     ],
     "scripts": {
         "clear": "gjsify clear lib tsconfig.tsbuildinfo test.node.mjs",

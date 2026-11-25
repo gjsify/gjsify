@@ -57,3 +57,18 @@ details. `gjsify webext listing` appends the translated sentence to the generate
 
 `site-data/metainfo.ts` (`parseAiInvolvement`), `site-data/types.ts` (`AiInvolvement`),
 `render/pages.ts` (`aiInvolvementFacts`, `badges`), `render/extension.ts`, `listing/build.ts`.
+
+## Amendment (2026-11-25) — the core can emit and extract it
+
+Two gaps made the declaration unusable for apps that let gjsify produce their metainfo.
+
+- **`gjsify ship` renders it.** `gjsify.ship.aiInvolvement = { level, disclosure? }` (also read from
+  `gjsify.flatpak`) becomes the `<custom>` block above, last in the component. An unknown `level` is a
+  config error. The gettext fold (`localizeMetadata`, `gjsify gettext --format xml`) adds no translated
+  `<value>` sibling: `msgfmt --xml` translates only what the stock `metainfo.its` marks, which excludes
+  custom values, and a test pins it.
+- **`xgettext` extracts the sentence.** The stock `metainfo.its` does not mark `gjsify::ai-disclosure`
+  translatable. `@gjsify/vite-plugin-gettext` ships `metainfo-custom.its` and passes it, last, as a second
+  `--its=` for every metainfo file, so the sentence lands in the POT as its msgid. The file repeats the
+  stock rules in full, because xgettext lets the last ITS file decide every node: a file with only the
+  new rule would make `<id>` and every other value translatable.

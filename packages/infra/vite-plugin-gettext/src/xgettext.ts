@@ -3,6 +3,7 @@ import { execa } from 'execa';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import glob from 'fast-glob';
 import {
     activeMsgids,
@@ -319,6 +320,13 @@ async function extractStrings(files: string[], options: XGettextPluginOptions, p
                     } else {
                         baseArgs.push(`--its=${metainfoItsPath}`);
                     }
+                    // Always, even when the stock file is missing: the stock rules never mark
+                    // `<custom><value>` translatable (ADR 0153's disclosure sentence).
+                    {
+                        const customItsPath = findCustomItsPath();
+                        if (customItsPath) baseArgs.push(`--its=${customItsPath}`);
+                        else console.warn('Warning: metainfo-custom.its is missing from @gjsify/vite-plugin-gettext');
+                    }
                     break;
                 case 'desktop':
                     baseArgs.push('--language=Desktop');
@@ -583,4 +591,16 @@ async function findMetainfoItsPath(): Promise<string | undefined> {
         console.warn('Error searching for metainfo.its:', error);
         return undefined;
     }
+}
+
+/**
+ * The ITS file shipped next to `lib/` that marks `gjsify::ai-disclosure` translatable.
+ * Looked up beside the module and one level up: `lib/xgettext.js` in the package, but a
+ * bundled test or consumer sits at the package root or elsewhere.
+ */
+function findCustomItsPath(): string | undefined {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    return [path.join(here, 'metainfo-custom.its'), path.join(here, '..', 'metainfo-custom.its')].find((p) =>
+        existsSync(p),
+    );
 }

@@ -16,6 +16,7 @@
 // check. A separate upstream parser is the only one of the three that is
 // actually an independent oracle.
 
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -278,6 +279,55 @@ export default async () => {
                 const merged = await fs.readFile(poFile, 'utf-8');
                 expect(activeEntries(merged)).toBe(3);
                 expect(merged.includes('Hello auf Deutsch')).toBe(true);
+            } finally {
+                await fs.rm(dir, { recursive: true, force: true });
+            }
+        });
+    });
+
+    await describe('xgettextPlugin — metainfo custom values', async () => {
+        const hasXgettext = (() => {
+            try {
+                execFileSync('xgettext', ['--version'], { stdio: 'pipe' });
+                return true;
+            } catch {
+                return false;
+            }
+        })();
+
+        await it('extracts the AI disclosure sentence, and no other custom value', async () => {
+            if (!hasXgettext) return;
+            const dir = await fixture();
+            try {
+                await write(
+                    dir,
+                    'data/org.example.App.metainfo.xml',
+                    [
+                        '<?xml version="1.0" encoding="UTF-8"?>',
+                        '<component type="desktop-application">',
+                        '  <id>org.example.App</id>',
+                        '  <name>Example</name>',
+                        '  <summary>Says hello</summary>',
+                        '  <custom>',
+                        '    <value key="gjsify::ai-involvement">agent-built</value>',
+                        '    <value key="gjsify::ai-disclosure">AI agents wrote most of this app.</value>',
+                        '    <value key="x-other">not translatable</value>',
+                        '  </custom>',
+                        '</component>',
+                        '',
+                    ].join('\n'),
+                );
+                const output = path.join(dir, 'po', 'messages.pot');
+                await runBuildStart({
+                    sources: [path.join(dir, 'data', '*.metainfo.xml')],
+                    output,
+                    keywords: ['_'],
+                });
+                const pot = await fs.readFile(output, 'utf-8');
+                expect(pot.includes('msgid "AI agents wrote most of this app."')).toBe(true);
+                expect(pot.includes('msgid "Says hello"')).toBe(true);
+                expect(pot.includes('agent-built')).toBe(false);
+                expect(pot.includes('not translatable')).toBe(false);
             } finally {
                 await fs.rm(dir, { recursive: true, force: true });
             }
